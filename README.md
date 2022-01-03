@@ -1,4 +1,4 @@
-#yb_stats
+# yb_stats
 
 This is a utility to extract the metrics endpoints of the master and tablet servers in a YugebyteDB cluster. The tool remains the classification of:
 - cluster
@@ -14,7 +14,7 @@ For the 'value type', a classification of counter and gauges has been made (but 
 
 The goal of the tool is to provide a simple way to measure statistics in an ad-hoc way with no dependencies but existence of the tool and access to the metrics endpoint.
 
-#usage
+# usage
 ```
 fritshoogland@MacBook-Pro-van-Frits yb_stats % ./target/debug/yb_stats -h
 yb_stats 0.1.0
@@ -44,7 +44,7 @@ The table name match switch allows you to specify a regex to filter on a table n
 - `-s` statistic name match  
 The statistic name match switch allows you to specify a regex to filter on a statistic name or statistics names.
 
-#output
+# output
 ```
 fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:9000,192.168.66.81:9000,192.168.66.82:9000
 192.168.66.80:9000   server   yb.tabletserver -               -                              cpu_stime                                                                           20           9.281/s
@@ -80,7 +80,7 @@ fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.
 - The eighth column is the difference between the previous and the current fetch divided by the time of the two fetches, to get an idea of rate of the statistic happening, and for gauge types it's the difference (positive or negative) between the previous and current fetch.
 - The ninth column is unique to latency type, and shows the difference between the previous and current fetch divided by the difference of the total_sum statistic. This way the average latency over the period of the snapshot for that event is calculated.
 
-#examples
+# examples
 ## investigate CPU usage
 Are the tablet servers busy?
 ```

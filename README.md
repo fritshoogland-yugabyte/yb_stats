@@ -1,6 +1,7 @@
 # yb_stats
 
-This is a utility to extract the metrics endpoints of the master and tablet servers in a YugebyteDB cluster. The tool remains the classification of:
+This is a utility to extract the metrics endpoints of the master and tablet servers in a YugebyteDB cluster. 
+The tool extracts the statistics groups of:
 - cluster
 - server
 - table
@@ -10,7 +11,7 @@ And understands the two different metrics types:
 - 'value type' (name, value)
 - 'latency type' (name, total_count, min, mean, percentiles, max, total_sum)
 
-For the 'value type', a classification of counter and gauges has been made (but is work in progress).
+The 'value type' contains counter and gauge values. The tool classifies these as such (but is work in progress).
 
 The goal of the tool is to provide a simple way to measure statistics in an ad-hoc way with no dependencies but existence of the tool and access to the metrics endpoint.
 
@@ -92,7 +93,7 @@ fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.
 192.168.66.82:9000   server   yb.tabletserver -               -                              cpu_stime                                                                           14           6.527/s
 192.168.66.82:9000   server   yb.tabletserver -               -                              cpu_utime                                                                           34          15.851/s
 ```
-( this clears the screen, begin-end doesn't do that)
+(this clears the screen, begin-end doesn't do that)  
 In my test cluster, the amount of CPU is cpu_stime (for kernel/system mode CPU) and cpu_utime (for user mode CPU) added together. In this case, it's roughly:
 - 9+16=15
 - 3+20=23
@@ -178,7 +179,7 @@ What happens during a read when blocks need to be read from disk?
 192.168.66.82:9000   table    00000000000440a yugabyte        benchmark_table                rocksdb_read_block_get_micros                                                      139           6.059/s avg:        32 us
 192.168.66.82:9000   table    00000000000440a yugabyte        benchmark_table                rocksdb_sst_read_micros                                                            139           6.059/s avg:        13 us
 ```
-This is a lot of statistics, multiplied by the tablets over the tservers.
+This is a lot of statistics, which is increased by the number tablets demanded by the replication factor and spread over the tablet servers.
 
 What happens when all blocks are satisfied from the cache for a table?
 ```
@@ -198,5 +199,20 @@ fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.
 192.168.66.82:9000   tablet   ec776df2eeb5312 yugabyte        benchmark_table                rocksdb_number_db_next_found                                                      4111        1903.241/s
 192.168.66.82:9000   tablet   ec776df2eeb5312 yugabyte        benchmark_table                rocksdb_number_db_seek                                                            1372         635.185/s
 192.168.66.82:9000   tablet   ec776df2eeb5312 yugabyte        benchmark_table                rocksdb_number_db_seek_found                                                      1372         635.185/s
-
 ```
+
+# How to install
+Currently, this is only available as source code, not as executable.  
+However, it's easy to compile the tool:
+
+1. Get rust: visit `https://www.rust-lang.org/tools/install`.
+2. Clone this repository.
+3. Build the executable:
+```
+cd yb_stats
+cargo build
+```
+The executable should be available in the target/debug directory.
+
+Warning: alpha version, tested and built on OSX 12.1. 
+Testing and feedback welcome!

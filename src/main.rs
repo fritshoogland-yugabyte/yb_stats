@@ -249,25 +249,17 @@ fn main()
     let mut fetch_time = SystemTime::now();
     let mut previous_fetch_time = SystemTime::now();
 
-    //                                 hostname         type             id               value.name : { XValues }
     let mut value_statistics: BTreeMap<String, BTreeMap<String, BTreeMap<String, BTreeMap<String, XValues>>>> = BTreeMap::new();
     let mut latency_statistics: BTreeMap<String, BTreeMap<String, BTreeMap<String, BTreeMap<String, XLatencies>>>> = BTreeMap::new();
 
-    loop
-    {
-        for hostname in &metric_sources_vec
-        {
-            if !scan_port_addr(hostname)
-            {
+    loop {
+        for hostname in &metric_sources_vec {
+            if !scan_port_addr(hostname) {
                 println!("Warning, unresponsive: {}", hostname.to_string());
                 continue;
             };
             fetch_time = SystemTime::now();
-            previous_fetch_time = if first_pass {
-                fetch_time
-            } else {
-                previous_fetch_time
-            };
+            previous_fetch_time = if first_pass { fetch_time } else { previous_fetch_time };
             let metrics_data = reqwest::blocking::get(format!("http://{}/metrics", hostname.to_string()))
                 .unwrap_or_else(|e| {
                     eprintln!("Error reading from URL: {}", e);
@@ -280,22 +272,14 @@ fn main()
                     process::exit(1);
                 });
 
-            for metric in &metrics_parse
-            {
+            for metric in &metrics_parse {
                 let metrics_type = &metric.metrics_type;
                 let metrics_id = &metric.id;
-                let metrics_attribute_namespace_name = match &metric.attributes.namespace_name
-                {
+                let metrics_attribute_namespace_name = match &metric.attributes.namespace_name {
                     Some(namespace_name) => namespace_name.to_string(),
                     None => "-".to_string(),
                 };
-                //let metrics_attribute_table_id = match &metric.attributes.table_id
-                //{
-                //    Some(table_id) => table_id.to_string(),
-                //    None => "-".to_string(),
-                //};
-                let metrics_attribute_table_name = match &metric.attributes.table_name
-                {
+                let metrics_attribute_table_name = match &metric.attributes.table_name {
                     Some(table_name) => table_name.to_string(),
                     None => "-".to_string(),
                 };
@@ -360,48 +344,45 @@ fn main()
                                         };
                                     }
                                 };
-                            } ;
+                            };
                         }
                     };
                 };
             };
         };
 
+        std::process::Command::new("clear").status().unwrap();
         for (hostname_key, hostname_value) in value_statistics.iter() {
             for (type_key, type_value) in hostname_value.iter() {
                 for (id_key,  id_value) in type_value.iter() {
                     for (name_key, name_value) in id_value.iter().filter(|(k,_v)| stat_name_filter.is_match(k)) {
-                       if name_value.current_value - name_value.previous_value != 0
-                          && name_value.current_time.duration_since(name_value.previous_time).unwrap().as_millis() != 0
-                          && table_name_filter.is_match(&name_value.table_name) {
-                           let adaptive_length = if id_key.len() < 15 {
-                                0
-                           }  else {
-                                id_key.len()-15
-                           };
-                           if  non_counter_statistic_names.contains(&&name_key[..]) {
-                                println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:+15}",
-                                         hostname_key,
-                                         type_key,
-                                         id_key.substring(adaptive_length,id_key.len()),
-                                         name_value.namespace,
-                                         name_value.table_name,
-                                         name_key,
-                                         name_value.current_value,
-                                         name_value.current_value-name_value.previous_value
+                        if name_value.current_value - name_value.previous_value != 0
+                           && name_value.current_time.duration_since(name_value.previous_time).unwrap().as_millis() != 0
+                           && table_name_filter.is_match(&name_value.table_name) {
+                            let adaptive_length = if id_key.len() < 15 { 0 }  else { id_key.len()-15 };
+                            if  non_counter_statistic_names.contains(&&name_key[..]) {
+                                 println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:+15}",
+                                          hostname_key,
+                                          type_key,
+                                          id_key.substring(adaptive_length,id_key.len()),
+                                          name_value.namespace,
+                                          name_value.table_name,
+                                          name_key,
+                                          name_value.current_value,
+                                          name_value.current_value-name_value.previous_value
+                                 );
+                            }  else {
+                                 println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:>15.3}/s",
+                                          hostname_key,
+                                          type_key,
+                                          id_key.substring(adaptive_length,id_key.len()),
+                                          name_value.namespace,
+                                          name_value.table_name,
+                                          name_key,
+                                          name_value.current_value - name_value.previous_value,
+                                          ((name_value.current_value - name_value.previous_value) as f64 / (name_value.current_time.duration_since(name_value.previous_time).unwrap().as_millis() as f64) * 1000 as f64),
                                 );
-                           }  else {
-                                println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:>15.3}/s",
-                                         hostname_key,
-                                         type_key,
-                                         id_key.substring(adaptive_length,id_key.len()),
-                                         name_value.namespace,
-                                         name_value.table_name,
-                                         name_key,
-                                         name_value.current_value - name_value.previous_value,
-                                         ((name_value.current_value - name_value.previous_value) as f64 / (name_value.current_time.duration_since(name_value.previous_time).unwrap().as_millis() as f64) * 1000 as f64),
-                                );
-                           };
+                            };
                         };
                     };
                 };
@@ -418,11 +399,7 @@ fn main()
                                  None => { StatisticDetails { unit: String::from('?'), unit_suffix: String::from('?'), divisor: 1, stat_type: String::from('?') }},
                                  Some(x) => { StatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), divisor: x.divisor, stat_type: x.stat_type.to_string() }  }
                             } ;
-                            let adaptive_length = if id_key.len() < 15 {
-                                 0
-                            } else {
-                                id_key.len()-15
-                            };
+                            let adaptive_length = if id_key.len() < 15 { 0 } else { id_key.len()-15 };
                             println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:>15.3}/s avg: {:>9.0} {:10}",
                                       hostname_key,
                                       type_key,
@@ -457,7 +434,6 @@ fn main()
             };
         } else {
             std::thread::sleep(std::time::Duration::from_secs(wait_time));
-            std::process::Command::new("clear").status().unwrap();
         };
    };
 }

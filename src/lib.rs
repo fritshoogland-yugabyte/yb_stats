@@ -72,9 +72,16 @@ pub struct XLatencies {
 }
 
 #[derive(Debug)]
-pub struct StatisticDetails {
+pub struct LatencyStatisticDetails {
     pub unit: String,
     pub unit_suffix: String,
     pub divisor: i64,
+    pub stat_type: String,
+}
+
+#[derive(Debug)]
+pub struct ValueStatisticDetails {
+    pub unit: String,
+    pub unit_suffix: String,
     pub stat_type: String,
 }

@@ -351,7 +351,8 @@ fn main()
             };
         };
 
-        std::process::Command::new("clear").status().unwrap();
+        if ! begin_end_mode { std::process::Command::new("clear").status().unwrap(); };
+
         for (hostname_key, hostname_value) in value_statistics.iter() {
             for (type_key, type_value) in hostname_value.iter() {
                 for (id_key,  id_value) in type_value.iter() {

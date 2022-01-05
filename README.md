@@ -85,121 +85,100 @@ fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.
 ## investigate CPU usage
 Are the tablet servers busy?
 ```
-fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:9000,192.168.66.81:9000,192.168.66.82:9000 -s cpu
-192.168.66.80:9000   server   yb.tabletserver -               -                              cpu_stime                                                                           20           9.320/s
-192.168.66.80:9000   server   yb.tabletserver -               -                              cpu_utime                                                                           34          15.843/s
-192.168.66.81:9000   server   yb.tabletserver -               -                              cpu_stime                                                                            6           2.796/s
-192.168.66.81:9000   server   yb.tabletserver -               -                              cpu_utime                                                                           44          20.503/s
-192.168.66.82:9000   server   yb.tabletserver -               -                              cpu_stime                                                                           14           6.527/s
-192.168.66.82:9000   server   yb.tabletserver -               -                              cpu_utime                                                                           34          15.851/s
+fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:9000,192.168.66.81:9000,192.168.66.82:9000,192.168.66.80:7000,192.168.66.81:7000,192.168.66.82:7000 -s cpu
+192.168.66.80:7000   server   yb.master       -               -                              cpu_stime                                                                            3 ms               0.587/s
+192.168.66.80:7000   server   yb.master       -               -                              cpu_utime                                                                           11 ms               2.152/s
+192.168.66.80:9000   server   yb.tabletserver -               -                              cpu_stime                                                                           34 ms               6.652/s
+192.168.66.80:9000   server   yb.tabletserver -               -                              cpu_utime                                                                           29 ms               5.674/s
+192.168.66.81:7000   server   yb.master       -               -                              cpu_stime                                                                            5 ms               0.978/s
+192.168.66.81:7000   server   yb.master       -               -                              cpu_utime                                                                            8 ms               1.564/s
+192.168.66.81:9000   server   yb.tabletserver -               -                              cpu_stime                                                                           32 ms               6.261/s
+192.168.66.81:9000   server   yb.tabletserver -               -                              cpu_utime                                                                           28 ms               5.478/s
+192.168.66.82:7000   server   yb.master       -               -                              cpu_stime                                                                            9 ms               1.760/s
+192.168.66.82:7000   server   yb.master       -               -                              cpu_utime                                                                           28 ms               5.476/s
+192.168.66.82:9000   server   yb.tabletserver -               -                              cpu_stime                                                                           25 ms               4.891/s
+192.168.66.82:9000   server   yb.tabletserver -               -                              cpu_utime                                                                           35 ms               6.848/s
 ```
 (this clears the screen, begin-end doesn't do that)  
-In my test cluster, the amount of CPU is cpu_stime (for kernel/system mode CPU) and cpu_utime (for user mode CPU) added together. In this case, it's roughly:
-- 9+16=15
-- 3+20=23
-- 7+16=23
-To match the above amount with CPU capacity, it has to be divided by 10 to match procentual to a CPU. This means the above figures mean 1.5% and 2.3% of CPU.
+The column indicating 'ms' shows the absolute difference between the two measurements. The column after that shows the amount divided by the time in seconds, and thus shows the amount per second. Because the amount of CPU as a statistic is in milliseconds, a value of 1000/s means a full CPU (as seen by the operating system) is used.
 
-## investigate read IO
-What happens during a read when blocks need to be read from disk?
+## investigate memory usage
+How is memory used for a tablet server?
 ```
-192.168.66.80:9000   tablet   42d2de5d33edf23 yugabyte        benchmark_table                rocksdb_block_cache_add                                                            116          50.457/s
-192.168.66.80:9000   tablet   42d2de5d33edf23 yugabyte        benchmark_table                rocksdb_block_cache_bytes_read                                                71361220    31040113.093/s
-192.168.66.80:9000   tablet   42d2de5d33edf23 yugabyte        benchmark_table                rocksdb_block_cache_bytes_write                                                3790902     1648935.189/s
-192.168.66.80:9000   tablet   42d2de5d33edf23 yugabyte        benchmark_table                rocksdb_block_cache_data_hit                                                       265         115.268/s
-192.168.66.80:9000   tablet   42d2de5d33edf23 yugabyte        benchmark_table                rocksdb_block_cache_data_miss                                                      116          50.457/s
-192.168.66.80:9000   tablet   42d2de5d33edf23 yugabyte        benchmark_table                rocksdb_block_cache_filter_hit                                                     788         342.758/s
-192.168.66.80:9000   tablet   42d2de5d33edf23 yugabyte        benchmark_table                rocksdb_block_cache_hit                                                           1807         785.994/s
-192.168.66.80:9000   tablet   42d2de5d33edf23 yugabyte        benchmark_table                rocksdb_block_cache_index_hit                                                      754         327.969/s
-192.168.66.80:9000   tablet   42d2de5d33edf23 yugabyte        benchmark_table                rocksdb_block_cache_miss                                                           116          50.457/s
-192.168.66.80:9000   tablet   42d2de5d33edf23 yugabyte        benchmark_table                rocksdb_block_cache_multi_touch_bytes_read                                    59506317    25883565.463/s
-192.168.66.80:9000   tablet   42d2de5d33edf23 yugabyte        benchmark_table                rocksdb_block_cache_multi_touch_hit                                               1406         611.570/s
-192.168.66.80:9000   tablet   42d2de5d33edf23 yugabyte        benchmark_table                rocksdb_block_cache_single_touch_add                                               116          50.457/s
-192.168.66.80:9000   tablet   42d2de5d33edf23 yugabyte        benchmark_table                rocksdb_block_cache_single_touch_bytes_read                                   11854903     5156547.629/s
-192.168.66.80:9000   tablet   42d2de5d33edf23 yugabyte        benchmark_table                rocksdb_block_cache_single_touch_bytes_write                                   3790902     1648935.189/s
-192.168.66.80:9000   tablet   42d2de5d33edf23 yugabyte        benchmark_table                rocksdb_block_cache_single_touch_hit                                               401         174.424/s
-192.168.66.80:9000   tablet   42d2de5d33edf23 yugabyte        benchmark_table                rocksdb_bloom_filter_checked                                                       788         342.758/s
-192.168.66.80:9000   tablet   42d2de5d33edf23 yugabyte        benchmark_table                rocksdb_bloom_filter_useful                                                        411         178.773/s
-192.168.66.80:9000   tablet   42d2de5d33edf23 yugabyte        benchmark_table                rocksdb_db_iter_bytes_read                                                      109105       47457.590/s
-192.168.66.80:9000   tablet   42d2de5d33edf23 yugabyte        benchmark_table                rocksdb_no_table_cache_iterators                                                   377         163.984/s
-192.168.66.80:9000   tablet   42d2de5d33edf23 yugabyte        benchmark_table                rocksdb_number_db_next                                                            1182         514.137/s
-192.168.66.80:9000   tablet   42d2de5d33edf23 yugabyte        benchmark_table                rocksdb_number_db_next_found                                                      1182         514.137/s
-192.168.66.80:9000   tablet   42d2de5d33edf23 yugabyte        benchmark_table                rocksdb_number_db_seek                                                             394         171.379/s
-192.168.66.80:9000   tablet   42d2de5d33edf23 yugabyte        benchmark_table                rocksdb_number_db_seek_found                                                       394         171.379/s
-192.168.66.81:9000   tablet   d915a66f0b9cfae yugabyte        benchmark_table                rocksdb_block_cache_add                                                            131          57.006/s
-192.168.66.81:9000   tablet   d915a66f0b9cfae yugabyte        benchmark_table                rocksdb_block_cache_bytes_read                                                48484156    21098414.273/s
-192.168.66.81:9000   tablet   d915a66f0b9cfae yugabyte        benchmark_table                rocksdb_block_cache_bytes_write                                                4282184     1863439.513/s
-192.168.66.81:9000   tablet   d915a66f0b9cfae yugabyte        benchmark_table                rocksdb_block_cache_data_hit                                                       279         121.410/s
-192.168.66.81:9000   tablet   d915a66f0b9cfae yugabyte        benchmark_table                rocksdb_block_cache_data_miss                                                      131          57.006/s
-192.168.66.81:9000   tablet   d915a66f0b9cfae yugabyte        benchmark_table                rocksdb_block_cache_filter_hit                                                     415         180.592/s
-192.168.66.81:9000   tablet   d915a66f0b9cfae yugabyte        benchmark_table                rocksdb_block_cache_hit                                                           1508         656.223/s
-192.168.66.81:9000   tablet   d915a66f0b9cfae yugabyte        benchmark_table                rocksdb_block_cache_index_hit                                                      814         354.221/s
-192.168.66.81:9000   tablet   d915a66f0b9cfae yugabyte        benchmark_table                rocksdb_block_cache_miss                                                           131          57.006/s
-192.168.66.81:9000   tablet   d915a66f0b9cfae yugabyte        benchmark_table                rocksdb_block_cache_multi_touch_bytes_read                                    35446797    15425063.969/s
-192.168.66.81:9000   tablet   d915a66f0b9cfae yugabyte        benchmark_table                rocksdb_block_cache_multi_touch_hit                                               1074         467.363/s
-192.168.66.81:9000   tablet   d915a66f0b9cfae yugabyte        benchmark_table                rocksdb_block_cache_single_touch_add                                               131          57.006/s
-192.168.66.81:9000   tablet   d915a66f0b9cfae yugabyte        benchmark_table                rocksdb_block_cache_single_touch_bytes_read                                   13037359     5673350.305/s
-192.168.66.81:9000   tablet   d915a66f0b9cfae yugabyte        benchmark_table                rocksdb_block_cache_single_touch_bytes_write                                   4282184     1863439.513/s
-192.168.66.81:9000   tablet   d915a66f0b9cfae yugabyte        benchmark_table                rocksdb_block_cache_single_touch_hit                                               434         188.860/s
-192.168.66.81:9000   tablet   d915a66f0b9cfae yugabyte        benchmark_table                rocksdb_bloom_filter_checked                                                       415         180.592/s
-192.168.66.81:9000   tablet   d915a66f0b9cfae yugabyte        benchmark_table                rocksdb_bloom_filter_useful                                                          8           3.481/s
-192.168.66.81:9000   tablet   d915a66f0b9cfae yugabyte        benchmark_table                rocksdb_db_iter_bytes_read                                                      114920       50008.703/s
-192.168.66.81:9000   tablet   d915a66f0b9cfae yugabyte        benchmark_table                rocksdb_no_table_cache_iterators                                                   407         177.111/s
-192.168.66.81:9000   tablet   d915a66f0b9cfae yugabyte        benchmark_table                rocksdb_number_db_next                                                            1245         541.775/s
-192.168.66.81:9000   tablet   d915a66f0b9cfae yugabyte        benchmark_table                rocksdb_number_db_next_found                                                      1245         541.775/s
-192.168.66.81:9000   tablet   d915a66f0b9cfae yugabyte        benchmark_table                rocksdb_number_db_seek                                                             415         180.592/s
-192.168.66.81:9000   tablet   d915a66f0b9cfae yugabyte        benchmark_table                rocksdb_number_db_seek_found                                                       415         180.592/s
-192.168.66.82:9000   tablet   ebffa6f308ab78b yugabyte        benchmark_table                rocksdb_block_cache_add                                                            139          60.593/s
-192.168.66.82:9000   tablet   ebffa6f308ab78b yugabyte        benchmark_table                rocksdb_block_cache_bytes_read                                                93187129    40622113.775/s
-192.168.66.82:9000   tablet   ebffa6f308ab78b yugabyte        benchmark_table                rocksdb_block_cache_bytes_write                                                4542357     1980103.313/s
-192.168.66.82:9000   tablet   ebffa6f308ab78b yugabyte        benchmark_table                rocksdb_block_cache_data_hit                                                       243         105.929/s
-192.168.66.82:9000   tablet   ebffa6f308ab78b yugabyte        benchmark_table                rocksdb_block_cache_data_miss                                                      139          60.593/s
-192.168.66.82:9000   tablet   ebffa6f308ab78b yugabyte        benchmark_table                rocksdb_block_cache_filter_hit                                                    1140         496.949/s
-192.168.66.82:9000   tablet   ebffa6f308ab78b yugabyte        benchmark_table                rocksdb_block_cache_hit                                                           2115         921.970/s
-192.168.66.82:9000   tablet   ebffa6f308ab78b yugabyte        benchmark_table                rocksdb_block_cache_index_hit                                                      732         319.093/s
-192.168.66.82:9000   tablet   ebffa6f308ab78b yugabyte        benchmark_table                rocksdb_block_cache_miss                                                           139          60.593/s
-192.168.66.82:9000   tablet   ebffa6f308ab78b yugabyte        benchmark_table                rocksdb_block_cache_multi_touch_bytes_read                                    81772361    35646190.497/s
-192.168.66.82:9000   tablet   ebffa6f308ab78b yugabyte        benchmark_table                rocksdb_block_cache_multi_touch_hit                                               1731         754.577/s
-192.168.66.82:9000   tablet   ebffa6f308ab78b yugabyte        benchmark_table                rocksdb_block_cache_single_touch_add                                               139          60.593/s
-192.168.66.82:9000   tablet   ebffa6f308ab78b yugabyte        benchmark_table                rocksdb_block_cache_single_touch_bytes_read                                   11414768     4975923.278/s
-192.168.66.82:9000   tablet   ebffa6f308ab78b yugabyte        benchmark_table                rocksdb_block_cache_single_touch_bytes_write                                   4542357     1980103.313/s
-192.168.66.82:9000   tablet   ebffa6f308ab78b yugabyte        benchmark_table                rocksdb_block_cache_single_touch_hit                                               384         167.393/s
-192.168.66.82:9000   tablet   ebffa6f308ab78b yugabyte        benchmark_table                rocksdb_bloom_filter_checked                                                      1140         496.949/s
-192.168.66.82:9000   tablet   ebffa6f308ab78b yugabyte        benchmark_table                rocksdb_bloom_filter_useful                                                        761         331.735/s
-192.168.66.82:9000   tablet   ebffa6f308ab78b yugabyte        benchmark_table                rocksdb_db_iter_bytes_read                                                      105288       45897.123/s
-192.168.66.82:9000   tablet   ebffa6f308ab78b yugabyte        benchmark_table                rocksdb_no_table_cache_iterators                                                   379         165.214/s
-192.168.66.82:9000   tablet   ebffa6f308ab78b yugabyte        benchmark_table                rocksdb_number_db_next                                                            1140         496.949/s
-192.168.66.82:9000   tablet   ebffa6f308ab78b yugabyte        benchmark_table                rocksdb_number_db_next_found                                                      1140         496.949/s
-192.168.66.82:9000   tablet   ebffa6f308ab78b yugabyte        benchmark_table                rocksdb_number_db_seek                                                             380         165.650/s
-192.168.66.82:9000   tablet   ebffa6f308ab78b yugabyte        benchmark_table                rocksdb_number_db_seek_found                                                       380         165.650/s
-192.168.66.80:9000   table    00000000000440a yugabyte        benchmark_table                rocksdb_read_block_get_micros                                                      116           5.046/s avg:       122 us
-192.168.66.80:9000   table    00000000000440a yugabyte        benchmark_table                rocksdb_sst_read_micros                                                            116           5.046/s avg:       104 us
-192.168.66.81:9000   table    00000000000440a yugabyte        benchmark_table                rocksdb_read_block_get_micros                                                      131           5.701/s avg:        33 us
-192.168.66.81:9000   table    00000000000440a yugabyte        benchmark_table                rocksdb_sst_read_micros                                                            131           5.701/s avg:        14 us
-192.168.66.82:9000   table    00000000000440a yugabyte        benchmark_table                rocksdb_read_block_get_micros                                                      139           6.059/s avg:        32 us
-192.168.66.82:9000   table    00000000000440a yugabyte        benchmark_table                rocksdb_sst_read_micros                                                            139           6.059/s avg:        13 us
-```
-This is a lot of statistics, which is increased by the number tablets demanded by the replication factor and spread over the tablet servers.
+fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:9000 -g -b -s '(mem_tracker|generic_heap)'
+Begin metrics snapshot created, press enter to create end snapshot for difference calculation.
 
-What happens when all blocks are satisfied from the cache for a table?
+192.168.66.80:9000   server   yb.tabletserver -               -                              generic_heap_size                                                             54525952 bytes               +0
+192.168.66.80:9000   server   yb.tabletserver -               -                              mem_tracker                                                                      12288 bytes               +0
+192.168.66.80:9000   server   yb.tabletserver -               -                              mem_tracker_Compressed_Read_Buffer_Receive                                     9067088 bytes               +0
+192.168.66.80:9000   server   yb.tabletserver -               -                              mem_tracker_Read_Buffer_Inbound_RPC_Receive                                    6969968 bytes               +0
+192.168.66.80:9000   server   yb.tabletserver -               -                              mem_tracker_Read_Buffer_Outbound_RPC_Receive                                   2097120 bytes               +0
+192.168.66.80:9000   server   yb.tabletserver -               -                              mem_tracker_Tablets                                                              12288 bytes               +0
+192.168.66.80:9000   tablet   da72a340ef21288 yugabyte        test                           mem_tracker                                                                       4096 bytes               +0
+192.168.66.80:9000   tablet   da72a340ef21288 yugabyte        test                           mem_tracker_IntentsDB                                                             2048 bytes               +0
+192.168.66.80:9000   tablet   da72a340ef21288 yugabyte        test                           mem_tracker_IntentsDB_MemTable                                                    2048 bytes               +0
+192.168.66.80:9000   tablet   da72a340ef21288 yugabyte        test                           mem_tracker_RegularDB                                                             2048 bytes               +0
+192.168.66.80:9000   tablet   da72a340ef21288 yugabyte        test                           mem_tracker_RegularDB_MemTable                                                    2048 bytes               +0
+192.168.66.80:9000   tablet   d6157816e9e2356 yugabyte        test                           mem_tracker                                                                       4096 bytes               +0
+192.168.66.80:9000   tablet   d6157816e9e2356 yugabyte        test                           mem_tracker_IntentsDB                                                             2048 bytes               +0
+192.168.66.80:9000   tablet   d6157816e9e2356 yugabyte        test                           mem_tracker_IntentsDB_MemTable                                                    2048 bytes               +0
+192.168.66.80:9000   tablet   d6157816e9e2356 yugabyte        test                           mem_tracker_RegularDB                                                             2048 bytes               +0
+192.168.66.80:9000   tablet   d6157816e9e2356 yugabyte        test                           mem_tracker_RegularDB_MemTable                                                    2048 bytes               +0
+192.168.66.80:9000   tablet   52cc722bb53ca15 yugabyte        test                           mem_tracker                                                                       4096 bytes               +0
+192.168.66.80:9000   tablet   52cc722bb53ca15 yugabyte        test                           mem_tracker_IntentsDB                                                             2048 bytes               +0
+192.168.66.80:9000   tablet   52cc722bb53ca15 yugabyte        test                           mem_tracker_IntentsDB_MemTable                                                    2048 bytes               +0
+192.168.66.80:9000   tablet   52cc722bb53ca15 yugabyte        test                           mem_tracker_RegularDB                                                             2048 bytes               +0
+192.168.66.80:9000   tablet   52cc722bb53ca15 yugabyte        test                           mem_tracker_RegularDB_MemTable                                                    2048 bytes               +0
 ```
-fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:9000,192.168.66.81:9000,192.168.66.82:9000 -t benchmark_table -s rocksdb
-192.168.66.80:9000   tablet   42364e002f53b82 yugabyte        benchmark_table                rocksdb_db_iter_bytes_read                                                      369898      170932.532/s
-192.168.66.80:9000   tablet   42364e002f53b82 yugabyte        benchmark_table                rocksdb_number_db_next                                                            4007        1851.664/s
-192.168.66.80:9000   tablet   42364e002f53b82 yugabyte        benchmark_table                rocksdb_number_db_next_found                                                      4007        1851.664/s
-192.168.66.80:9000   tablet   42364e002f53b82 yugabyte        benchmark_table                rocksdb_number_db_seek                                                            1337         617.837/s
-192.168.66.80:9000   tablet   42364e002f53b82 yugabyte        benchmark_table                rocksdb_number_db_seek_found                                                      1337         617.837/s
-192.168.66.81:9000   tablet   ea0a6589830d51b yugabyte        benchmark_table                rocksdb_db_iter_bytes_read                                                      413384      191116.043/s
-192.168.66.81:9000   tablet   ea0a6589830d51b yugabyte        benchmark_table                rocksdb_number_db_next                                                            4475        2068.886/s
-192.168.66.81:9000   tablet   ea0a6589830d51b yugabyte        benchmark_table                rocksdb_number_db_next_found                                                      4475        2068.886/s
-192.168.66.81:9000   tablet   ea0a6589830d51b yugabyte        benchmark_table                rocksdb_number_db_seek                                                            1492         689.783/s
-192.168.66.81:9000   tablet   ea0a6589830d51b yugabyte        benchmark_table                rocksdb_number_db_seek_found                                                      1492         689.783/s
-192.168.66.82:9000   tablet   ec776df2eeb5312 yugabyte        benchmark_table                rocksdb_db_iter_bytes_read                                                      379783      175825.463/s
-192.168.66.82:9000   tablet   ec776df2eeb5312 yugabyte        benchmark_table                rocksdb_number_db_next                                                            4111        1903.241/s
-192.168.66.82:9000   tablet   ec776df2eeb5312 yugabyte        benchmark_table                rocksdb_number_db_next_found                                                      4111        1903.241/s
-192.168.66.82:9000   tablet   ec776df2eeb5312 yugabyte        benchmark_table                rocksdb_number_db_seek                                                            1372         635.185/s
-192.168.66.82:9000   tablet   ec776df2eeb5312 yugabyte        benchmark_table                rocksdb_number_db_seek_found                                                      1372         635.185/s
+- generic_heap_size is the size as reported as 'root' in the mem-trackers page.  
+This is generally the RSS size of the heap of the process.
+- the mem_tracker assignments show the division of these.   
+The mem_tracker root (mem_tracker for yb.tabletserver) is low (12288) here, because the read buffers do not account for these (!), and the actual allocations are because of the memtable's of the three tablets (please take some time to see and understand the mem_tracker->IntentDB/RegularDB->MemTable) for this test table. 
+
+## investigate network usage
+How much network traffic is executed by the master and tablet servers?
 ```
+fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:9000,192.168.66.81:9000,192.168.66.82:9000,192.168.66.80:7000,192.168.66.81:7000,192.168.66.82:7000 -b -s tcp
+Begin metrics snapshot created, press enter to create end snapshot for difference calculation.
+
+192.168.66.80:7000   server   yb.master       -               -                              tcp_bytes_received                                                                 636 bytes          562.832/s
+192.168.66.80:7000   server   yb.master       -               -                              tcp_bytes_sent                                                                     255 bytes          225.664/s
+192.168.66.80:9000   server   yb.tabletserver -               -                              tcp_bytes_received                                                                3394 bytes         3006.200/s
+192.168.66.80:9000   server   yb.tabletserver -               -                              tcp_bytes_sent                                                                    3070 bytes         2719.221/s
+192.168.66.81:7000   server   yb.master       -               -                              tcp_bytes_received                                                                 424 bytes          375.554/s
+192.168.66.81:7000   server   yb.master       -               -                              tcp_bytes_sent                                                                     170 bytes          150.576/s
+192.168.66.81:9000   server   yb.tabletserver -               -                              tcp_bytes_received                                                                3976 bytes         3518.584/s
+192.168.66.81:9000   server   yb.tabletserver -               -                              tcp_bytes_sent                                                                    3648 bytes         3228.319/s
+192.168.66.82:7000   server   yb.master       -               -                              tcp_bytes_received                                                                 893 bytes          792.369/s
+192.168.66.82:7000   server   yb.master       -               -                              tcp_bytes_sent                                                                    2512 bytes         2228.926/s
+192.168.66.82:9000   server   yb.tabletserver -               -                              tcp_bytes_received                                                                3766 bytes         3335.695/s
+192.168.66.82:9000   server   yb.tabletserver -               -                              tcp_bytes_sent                                                                    3567 bytes         3159.433/s
+```
+This way you can see the amount of bytes that is sent and received per server on average over the measuring period. Please mind this is bytes, network traffic regularly is expressed in bits. In order to gets bits, multiply the bytes figure by 8.
+
+## investigate (WAL) logging
+What is happening for WAL logging?
+```
+fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:9000,192.168.66.81:9000,192.168.66.82:9000,192.168.66.80:7000,192.168.66.81:7000,192.168.66.82:7000 -b -s log
+Begin metrics snapshot created, press enter to create end snapshot for difference calculation.
+
+192.168.66.80:9000   tablet   52cc722bb53ca15 yugabyte        test                           log_bytes_logged                                                                   180 bytes           66.079/s
+192.168.66.81:9000   tablet   52cc722bb53ca15 yugabyte        test                           log_bytes_logged                                                                   180 bytes           66.176/s
+192.168.66.82:9000   tablet   52cc722bb53ca15 yugabyte        test                           log_bytes_logged                                                                   180 bytes           66.176/s
+192.168.66.80:9000   table    000000000004000 yugabyte        test                           log_append_latency                                                                   2           0.073/s avg:        28 us
+192.168.66.80:9000   table    000000000004000 yugabyte        test                           log_entry_batches_per_group                                                          2           0.073/s avg:         1 req
+192.168.66.80:9000   table    000000000004000 yugabyte        test                           log_group_commit_latency                                                             2           0.073/s avg:      6823 us
+192.168.66.80:9000   table    000000000004000 yugabyte        test                           log_sync_latency                                                                     2           0.073/s avg:      6373 us
+192.168.66.81:9000   table    000000000004000 yugabyte        test                           log_append_latency                                                                   2           0.074/s avg:        29 us
+192.168.66.81:9000   table    000000000004000 yugabyte        test                           log_entry_batches_per_group                                                          2           0.074/s avg:         1 req
+192.168.66.81:9000   table    000000000004000 yugabyte        test                           log_group_commit_latency                                                             2           0.074/s avg:      7925 us
+192.168.66.81:9000   table    000000000004000 yugabyte        test                           log_sync_latency                                                                     2           0.074/s avg:      7852 us
+192.168.66.82:9000   table    000000000004000 yugabyte        test                           log_append_latency                                                                   2           0.074/s avg:        29 us
+192.168.66.82:9000   table    000000000004000 yugabyte        test                           log_entry_batches_per_group                                                          2           0.074/s avg:         1 req
+192.168.66.82:9000   table    000000000004000 yugabyte        test                           log_group_commit_latency                                                             2           0.074/s avg:      8035 us
+192.168.66.82:9000   table    000000000004000 yugabyte        test                           log_sync_latency                                                                     2           0.074/s avg:      7958 us
+```
+This shows the write ahead logging statistics. Please notice most of the statistics are per table, except for the bytes (log_bytes_logged), which are accounted on the server level.
 
 # How to install
 Currently, this is only available as source code, not as executable.  

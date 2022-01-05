@@ -48,28 +48,22 @@ The statistic name match switch allows you to specify a regex to filter on a sta
 # output
 ```
 fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:9000,192.168.66.81:9000,192.168.66.82:9000
-192.168.66.80:9000   server   yb.tabletserver -               -                              cpu_stime                                                                           20           9.281/s
-192.168.66.80:9000   server   yb.tabletserver -               -                              cpu_utime                                                                           34          15.777/s
-192.168.66.80:9000   server   yb.tabletserver -               -                              generic_current_allocated_bytes                                               45490864          -20912
-192.168.66.80:9000   server   yb.tabletserver -               -                              hybrid_clock_hybrid_time                                               6722450989613010944     +8822345728
-192.168.66.80:9000   server   yb.tabletserver -               -                              proxy_request_bytes_yb_consensus_ConsensusService_UpdateConsensus                 9109        4226.914/s
-192.168.66.80:9000   server   yb.tabletserver -               -                              proxy_request_bytes_yb_master_MasterService_TSHeartbeat                            316         146.636/s
-192.168.66.80:9000   server   yb.tabletserver -               -                              proxy_response_bytes_yb_consensus_ConsensusService_UpdateConsensus                3039        1410.209/s
-192.168.66.80:9000   server   yb.tabletserver -               -                              proxy_response_bytes_yb_master_MasterService_TSHeartbeat                           934         433.411/s
-192.168.66.80:9000   server   yb.tabletserver -               -                              rpc_inbound_calls_created                                                           44          20.418/s
-192.168.66.80:9000   server   yb.tabletserver -               -                              rpc_outbound_calls_created                                                          45          20.882/s
-192.168.66.80:9000   server   yb.tabletserver -               -                              server_uptime_ms                                                                  2154         999.536/s
-192.168.66.80:9000   server   yb.tabletserver -               -                              service_request_bytes_yb_consensus_ConsensusService_UpdateConsensus               9086        4216.241/s
-192.168.66.80:9000   server   yb.tabletserver -               -                              service_response_bytes_yb_consensus_ConsensusService_UpdateConsensus              3586        1664.037/s
-192.168.66.80:9000   server   yb.tabletserver -               -                              tcmalloc_current_total_thread_cache_bytes                                     12825016         +100496
-192.168.66.80:9000   server   yb.tabletserver -               -                              tcmalloc_pageheap_free_bytes                                                   5382144         -114688
-192.168.66.80:9000   server   yb.tabletserver -               -                              tcp_bytes_received                                                               13830        6417.633/s
-192.168.66.80:9000   server   yb.tabletserver -               -                              tcp_bytes_sent                                                                   13011        6037.587/s
-192.168.66.80:9000   server   yb.tabletserver -               -                              voluntary_context_switches                                                        1003         465.429/s
-192.168.66.80:9000   tablet   d08be22a4159b2e yugabyte        utl_file_dir_dirname_key       follower_lag_ms                                                                     16            -656
-192.168.66.80:9000   tablet   b149af46c13bb92 system          transactions                   follower_lag_ms                                                                     79            -975
-192.168.66.80:9000   tablet   570786352d51a35 system_postgres sequences_data                 follower_lag_ms                                                                     60             -21
-192.168.66.80:9000   tablet   eb5fd34d6c75136 yugabyte        utl_file_dir                   follower_lag_ms                                                                    123             +41
+192.168.66.80:9000   server   yb.tabletserver -               -                              cpu_stime                                                                            9 ms               4.302/s
+192.168.66.80:9000   server   yb.tabletserver -               -                              cpu_utime                                                                           23 ms              10.994/s
+192.168.66.80:9000   server   yb.tabletserver -               -                              proxy_request_bytes_yb_consensus_ConsensusService_UpdateConsensus                 5040 bytes         2409.178/s
+192.168.66.80:9000   server   yb.tabletserver -               -                              proxy_request_bytes_yb_master_MasterService_TSHeartbeat                            312 bytes          149.140/s
+192.168.66.80:9000   server   yb.tabletserver -               -                              proxy_response_bytes_yb_consensus_ConsensusService_UpdateConsensus                1656 bytes          791.587/s
+192.168.66.80:9000   server   yb.tabletserver -               -                              proxy_response_bytes_yb_master_MasterService_TSHeartbeat                           934 bytes          446.463/s
+192.168.66.80:9000   server   yb.tabletserver -               -                              rpc_inbound_calls_created                                                           23 req             10.994/s
+192.168.66.80:9000   server   yb.tabletserver -               -                              rpc_outbound_calls_created                                                          26 req             12.428/s
+192.168.66.80:9000   server   yb.tabletserver -               -                              server_uptime_ms                                                                  2092 ms            1000.000/s
+192.168.66.80:9000   server   yb.tabletserver -               -                              service_request_bytes_yb_consensus_ConsensusService_UpdateConsensus               4532 bytes         2166.348/s
+192.168.66.80:9000   server   yb.tabletserver -               -                              service_request_bytes_yb_tserver_PgClientService_Heartbeat                          51 bytes           24.379/s
+192.168.66.80:9000   server   yb.tabletserver -               -                              service_response_bytes_yb_consensus_ConsensusService_UpdateConsensus              1782 bytes          851.816/s
+192.168.66.80:9000   server   yb.tabletserver -               -                              service_response_bytes_yb_tserver_PgClientService_Heartbeat                         11 bytes            5.258/s
+192.168.66.80:9000   server   yb.tabletserver -               -                              tcp_bytes_received                                                                7591 bytes         3628.585/s
+192.168.66.80:9000   server   yb.tabletserver -               -                              tcp_bytes_sent                                                                    7145 bytes         3415.392/s
+192.168.66.80:9000   server   yb.tabletserver -               -                              voluntary_context_switches                                                         632 csws           302.103/s
 ```
 - The first column shows the hostname:port number endpoint specification.
 - The second column shows the metric type (cluster, server, table, tablet).
@@ -77,9 +71,9 @@ fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.
 - The fourth column is the namespace. For the server type, this is '-'.
 - The fifth column is the table_name. For the server type, this is '-'.
 - The sixth column is the statistic name.
-- The seventh column is the difference between the previous and the current fetch for counter type statistics, and for gauge types this is the value of the current fetch.
+- The seventh column is the difference between the previous and the current fetch for counter type statistics, and for gauge types this is the value of the current fetch. For non-latency statistics, it includes the type of the statistic, such as 'ms' for milliseconds, bytes, etc.
 - The eighth column is the difference between the previous and the current fetch divided by the time of the two fetches, to get an idea of rate of the statistic happening, and for gauge types it's the difference (positive or negative) between the previous and current fetch.
-- The ninth column is unique to latency type, and shows the difference between the previous and current fetch divided by the difference of the total_sum statistic. This way the average latency over the period of the snapshot for that event is calculated.
+- The ninth column is unique to latency type, and shows the difference between the previous and current fetch divided by the difference of the total_sum statistic. This way the average latency over the period of the snapshot for that event is calculated. It also includes the type of the statistic.
 
 # examples
 ## investigate CPU usage

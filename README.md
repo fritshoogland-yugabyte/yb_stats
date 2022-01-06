@@ -175,6 +175,16 @@ Begin metrics snapshot created, press enter to create end snapshot for differenc
 ```
 This shows the write ahead logging statistics. Please notice most of the statistics are per table, except for the bytes (log_bytes_logged), which are accounted on the server level.
 
+## investigate number of sst files for each tablet
+How many sst files does each tablet have? Please mind a tablet can have zero sst files if all the data is in the memtable only, and not flushed yet.
+```
+fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:7000,192.168.66.80:9000 -b -g -s rocksdb_current_version_num_sst_files
+Begin metrics snapshot created, press enter to create end snapshot for difference calculation.
+
+192.168.66.80:7000   tablet   000000000000000                 sys.catalog                    rocksdb_current_version_num_sst_files                                                2 files               +0
+192.168.66.80:9000   tablet   e77b84366a68636 yugabyte        test                           rocksdb_current_version_num_sst_files                                                1 files               +0
+```
+
 # How to install
 Currently, this is only available as source code, not as executable.  
 However, it's easy to compile the tool:

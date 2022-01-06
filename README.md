@@ -65,6 +65,7 @@ fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.
 192.168.66.80:9000   server   yb.tabletserver -               -                              tcp_bytes_sent                                                                    7145 bytes         3415.392/s
 192.168.66.80:9000   server   yb.tabletserver -               -                              voluntary_context_switches                                                         632 csws           302.103/s
 ```
+(this is a partial output)
 - The first column shows the hostname:port number endpoint specification.
 - The second column shows the metric type (cluster, server, table, tablet).
 - The third column shows the 'id' of the type. This results in different types: for server, this is yb.tabletserver or yb.master. For a table, this is the unique identifier for a table, and for a tablet this is the UUID of the tablet. The last 15 characters are displayed.

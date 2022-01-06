@@ -331,6 +331,7 @@ fn main()
     val_statistic_details.insert( String::from("mem_tracker"), ValueStatisticDetails { unit: String::from("bytes"), unit_suffix: String::from("bytes"), stat_type: String::from("gauge") } );
     val_statistic_details.insert( String::from("mem_tracker_BlockBasedTable"), ValueStatisticDetails { unit: String::from("bytes"), unit_suffix: String::from("bytes"), stat_type: String::from("gauge") } );
     val_statistic_details.insert( String::from("mem_tracker_BlockBasedTable_IntentsDB"), ValueStatisticDetails { unit: String::from("bytes"), unit_suffix: String::from("bytes"), stat_type: String::from("gauge") } );
+    val_statistic_details.insert( String::from("mem_tracker_BlockBasedTable_RegularDB"), ValueStatisticDetails { unit: String::from("bytes"), unit_suffix: String::from("bytes"), stat_type: String::from("gauge") } );
     val_statistic_details.insert( String::from("mem_tracker_Call"), ValueStatisticDetails { unit: String::from("bytes"), unit_suffix: String::from("bytes"), stat_type: String::from("gauge") } );
     val_statistic_details.insert( String::from("mem_tracker_Call_Inbound_RPC"), ValueStatisticDetails { unit: String::from("bytes"), unit_suffix: String::from("bytes"), stat_type: String::from("gauge") } );
     val_statistic_details.insert( String::from("mem_tracker_Call_Outbound_RPC"), ValueStatisticDetails { unit: String::from("bytes"), unit_suffix: String::from("bytes"), stat_type: String::from("gauge") } );
@@ -362,6 +363,7 @@ fn main()
     val_statistic_details.insert( String::from("num_entries_with_type_7_loaded"), ValueStatisticDetails { unit: String::from("entries"), unit_suffix: String::from("entries"), stat_type: String::from("counter") } );
     val_statistic_details.insert( String::from("num_entries_with_type_8_loaded"), ValueStatisticDetails { unit: String::from("entries"), unit_suffix: String::from("entries"), stat_type: String::from("counter") } );
     val_statistic_details.insert( String::from("num_entries_with_type_9_loaded"), ValueStatisticDetails { unit: String::from("entries"), unit_suffix: String::from("entries"), stat_type: String::from("counter") } );
+    val_statistic_details.insert( String::from("num_tablet_servers_live"), ValueStatisticDetails { unit: String::from("entries"), unit_suffix: String::from("entries"), stat_type: String::from("gauge") } );
     val_statistic_details.insert( String::from("operation_memory_pressure_rejections"), ValueStatisticDetails { unit: String::from("rejections"), unit_suffix: String::from("rejects"), stat_type: String::from("counter") } );
     val_statistic_details.insert( String::from("pgsql_consistent_prefix_reads_rows"), ValueStatisticDetails { unit: String::from("rows"), unit_suffix: String::from("rows"), stat_type: String::from("counter") } );
     val_statistic_details.insert( String::from("proxy_request_bytes_yb_consensus_ConsensusService_ChangeConfig"), ValueStatisticDetails { unit: String::from("bytes"), unit_suffix: String::from("bytes"), stat_type: String::from("counter") } );
@@ -667,9 +669,9 @@ fn main()
     val_statistic_details.insert( String::from("rocksdb_compaction_key_drop_new"), ValueStatisticDetails { unit: String::from("keys"), unit_suffix: String::from("keys"), stat_type: String::from("counter") } );
     val_statistic_details.insert( String::from("rocksdb_compaction_key_drop_obsolete"), ValueStatisticDetails { unit: String::from("keys"), unit_suffix: String::from("keys"), stat_type: String::from("counter") } );
     val_statistic_details.insert( String::from("rocksdb_compaction_key_drop_user"), ValueStatisticDetails { unit: String::from("keys"), unit_suffix: String::from("keys"), stat_type: String::from("counter") } );
-    val_statistic_details.insert( String::from("rocksdb_current_version_num_sst_files"), ValueStatisticDetails { unit: String::from("files"), unit_suffix: String::from("files"), stat_type: String::from("counter") } );
-    val_statistic_details.insert( String::from("rocksdb_current_version_sst_files_size"), ValueStatisticDetails { unit: String::from("bytes"), unit_suffix: String::from("bytes"), stat_type: String::from("counter") } );
-    val_statistic_details.insert( String::from("rocksdb_current_version_sst_files_uncompressed_size"), ValueStatisticDetails { unit: String::from("bytes"), unit_suffix: String::from("bytes"), stat_type: String::from("counter") } );
+    val_statistic_details.insert( String::from("rocksdb_current_version_num_sst_files"), ValueStatisticDetails { unit: String::from("files"), unit_suffix: String::from("files"), stat_type: String::from("gauge") } );
+    val_statistic_details.insert( String::from("rocksdb_current_version_sst_files_size"), ValueStatisticDetails { unit: String::from("bytes"), unit_suffix: String::from("bytes"), stat_type: String::from("gauge") } );
+    val_statistic_details.insert( String::from("rocksdb_current_version_sst_files_uncompressed_size"), ValueStatisticDetails { unit: String::from("bytes"), unit_suffix: String::from("bytes"), stat_type: String::from("gauge") } );
     val_statistic_details.insert( String::from("rocksdb_db_iter_bytes_read"), ValueStatisticDetails { unit: String::from("bytes"), unit_suffix: String::from("bytes"), stat_type: String::from("counter") } );
     val_statistic_details.insert( String::from("rocksdb_db_mutex_wait_micros"), ValueStatisticDetails { unit: String::from("microseconds"), unit_suffix: String::from("us"), stat_type: String::from("counter") } );
     val_statistic_details.insert( String::from("rocksdb_filter_operation_time_nanos"), ValueStatisticDetails { unit: String::from("nanoseconds"), unit_suffix: String::from("ns"), stat_type: String::from("counter") } );
@@ -1060,8 +1062,10 @@ fn main()
     val_statistic_details.insert( String::from("threads_running_catalog_manager"), ValueStatisticDetails { unit: String::from("threads"), unit_suffix: String::from("threads"), stat_type: String::from("gauge") } );
     val_statistic_details.insert( String::from("threads_running_iotp_Master"), ValueStatisticDetails { unit: String::from("threads"), unit_suffix: String::from("threads"), stat_type: String::from("gauge") } );
     val_statistic_details.insert( String::from("threads_running_iotp_call_home"), ValueStatisticDetails { unit: String::from("threads"), unit_suffix: String::from("threads"), stat_type: String::from("gauge") } );
+    val_statistic_details.insert( String::from("threads_running_maintenance"), ValueStatisticDetails { unit: String::from("threads"), unit_suffix: String::from("threads"), stat_type: String::from("gauge") } );
     val_statistic_details.insert( String::from("threads_running_remote_bootstrap"), ValueStatisticDetails { unit: String::from("threads"), unit_suffix: String::from("threads"), stat_type: String::from("gauge") } );
     val_statistic_details.insert( String::from("threads_running_remote_maintenance"), ValueStatisticDetails { unit: String::from("threads"), unit_suffix: String::from("threads"), stat_type: String::from("gauge") } );
+    val_statistic_details.insert( String::from("threads_running_rpc_thread_pool"), ValueStatisticDetails { unit: String::from("threads"), unit_suffix: String::from("threads"), stat_type: String::from("gauge") } );
     val_statistic_details.insert( String::from("threads_running_tablet_manager"), ValueStatisticDetails { unit: String::from("threads"), unit_suffix: String::from("threads"), stat_type: String::from("gauge") } );
     val_statistic_details.insert( String::from("threads_running_tablet_split_manager"), ValueStatisticDetails { unit: String::from("threads"), unit_suffix: String::from("threads"), stat_type: String::from("gauge") } );
     val_statistic_details.insert( String::from("threads_running_thread_pool"), ValueStatisticDetails { unit: String::from("threads"), unit_suffix: String::from("threads"), stat_type: String::from("gauge") } );
@@ -1071,13 +1075,16 @@ fn main()
     val_statistic_details.insert( String::from("threads_started_catalog_manager"), ValueStatisticDetails { unit: String::from("threads"), unit_suffix: String::from("threads"), stat_type: String::from("counter") } );
     val_statistic_details.insert( String::from("threads_started_iotp_Master"), ValueStatisticDetails { unit: String::from("threads"), unit_suffix: String::from("threads"), stat_type: String::from("counter") } );
     val_statistic_details.insert( String::from("threads_started_iotp_call_home"), ValueStatisticDetails { unit: String::from("threads"), unit_suffix: String::from("threads"), stat_type: String::from("counter") } );
+    val_statistic_details.insert( String::from("threads_started_maintenance"), ValueStatisticDetails { unit: String::from("threads"), unit_suffix: String::from("threads"), stat_type: String::from("counter") } );
     val_statistic_details.insert( String::from("threads_started_remote_bootstrap"), ValueStatisticDetails { unit: String::from("threads"), unit_suffix: String::from("threads"), stat_type: String::from("counter") } );
     val_statistic_details.insert( String::from("threads_started_remote_maintenance"), ValueStatisticDetails { unit: String::from("threads"), unit_suffix: String::from("threads"), stat_type: String::from("counter") } );
+    val_statistic_details.insert( String::from("threads_started_rpc_thread_pool"), ValueStatisticDetails { unit: String::from("threads"), unit_suffix: String::from("threads"), stat_type: String::from("counter") } );
     val_statistic_details.insert( String::from("threads_started_tablet_manager"), ValueStatisticDetails { unit: String::from("threads"), unit_suffix: String::from("threads"), stat_type: String::from("counter") } );
     val_statistic_details.insert( String::from("threads_started_tablet_split_manager"), ValueStatisticDetails { unit: String::from("threads"), unit_suffix: String::from("threads"), stat_type: String::from("counter") } );
     val_statistic_details.insert( String::from("threads_started_thread_pool"), ValueStatisticDetails { unit: String::from("threads"), unit_suffix: String::from("threads"), stat_type: String::from("counter") } );
     val_statistic_details.insert( String::from("transaction_conflicts"), ValueStatisticDetails { unit: String::from("transactions"), unit_suffix: String::from("txs"), stat_type: String::from("counter") } );
     val_statistic_details.insert( String::from("transaction_not_found"), ValueStatisticDetails { unit: String::from("transactions"), unit_suffix: String::from("txs"), stat_type: String::from("counter") } );
+    val_statistic_details.insert( String::from("transaction_pool_cache_queries"), ValueStatisticDetails { unit: String::from("hits"), unit_suffix: String::from("hits"), stat_type: String::from("counter") } );
     val_statistic_details.insert( String::from("transactions_running"), ValueStatisticDetails { unit: String::from("transactions"), unit_suffix: String::from("txs"), stat_type: String::from("gauge") } );
     val_statistic_details.insert( String::from("truncate_operations_inflight"), ValueStatisticDetails { unit: String::from("operations"), unit_suffix: String::from("ops"), stat_type: String::from("gauge") } );
     val_statistic_details.insert( String::from("update_transaction_operations_inflight"), ValueStatisticDetails { unit: String::from("operations"), unit_suffix: String::from("ops"), stat_type: String::from("gauge") } );

@@ -1,0 +1,5677 @@
+[
+  {
+    "type": "tablet",
+    "id": "22bea334d7524656ab5743e69c7aa10a",
+    "attributes": {
+      "namespace_name": "system",
+      "table_name": "transactions",
+      "table_id": "f2ef7aaf8a4941f4a58a0fc77371cbef"
+    },
+    "metrics": [
+      {
+        "name": "rocksdb_l0_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_l1_hit",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_multi_touch_bytes_write",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compaction_files_filtered",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compaction_files_not_filtered",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_multi_touch_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_current_version_sst_files_size",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_block_not_compressed",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_superversion_cleanups",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_current_version_num_sst_files",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_no_table_cache_iterators",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_merge_operation_time_nanos",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_filter_operation_time_nanos",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_multi_touch_add",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_multi_touch_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_single_touch_bytes_write",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_single_touch_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_single_touch_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_single_touch_add",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_superversion_releases",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compaction_key_drop_obsolete",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_add_failures",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compaction_key_drop_user",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_memtable_compaction_micros",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_l0_num_files_stall_micros",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_multiget_keys_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_multiget_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_bloom_filter_prefix_useful",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_bloom_filter_prefix_checked",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_reseeks_iteration",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cachecompressed_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cachecompressed_add_failures",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cachecompressed_add",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cachecompressed_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_direct_load_table_properties",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_superversion_acquires",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_row_cache_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_row_cache_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_flush_write_bytes",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_total_sst_files_size",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compact_write_bytes",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compact_read_bytes",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_write_wal",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_write_other",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_write_self",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_wal_bytes",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_wal_synced",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_getupdatessince_calls",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_sequence_number",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_merge_failures",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_deletes_filtered",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_num_iterators",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_multiget_get",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_db_mutex_wait_micros",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_rate_limit_delay_millis",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_l0_slowdown_micros",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_stall_micros",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_no_file_opens",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_no_file_errors",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_db_iter_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_no_file_closes",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_db_prev_found",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_db_seek_found",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_db_next_found",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_db_prev",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_db_next",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_db_seek",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_bytes_written",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_keys_updated",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_keys_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_keys_written",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_l2andup_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compaction_key_drop_new",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_memtable_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_memtable_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_bloom_filter_checked",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_bytes_write",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_bloom_filter_useful",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_data_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_filter_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_data_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_index_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_filter_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_index_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_add",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_current_version_sst_files_uncompressed_size",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_log_cache",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_OperationsFromDisk",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_operation_tracker",
+        "value": 0
+      },
+      {
+        "name": "log_reader_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "log_reader_entries_read",
+        "value": 0
+      },
+      {
+        "name": "log_bytes_logged",
+        "value": 58
+      },
+      {
+        "name": "log_wal_size",
+        "value": 0
+      },
+      {
+        "name": "majority_done_ops",
+        "value": 0
+      },
+      {
+        "name": "in_progress_ops",
+        "value": 0
+      },
+      {
+        "name": "log_cache_num_ops",
+        "value": 0
+      },
+      {
+        "name": "log_cache_size",
+        "value": 0
+      },
+      {
+        "name": "log_cache_disk_reads",
+        "value": 0
+      },
+      {
+        "name": "raft_term",
+        "value": 1
+      },
+      {
+        "name": "follower_lag_ms",
+        "value": 0
+      },
+      {
+        "name": "is_raft_leader",
+        "value": 1
+      },
+      {
+        "name": "follower_memory_pressure_rejections",
+        "value": 0
+      },
+      {
+        "name": "running_retryable_requests",
+        "value": 0
+      },
+      {
+        "name": "replicated_retryable_request_ranges",
+        "value": 0
+      },
+      {
+        "name": "rows_inserted",
+        "value": 0
+      },
+      {
+        "name": "not_leader_rejections",
+        "value": 0
+      },
+      {
+        "name": "majority_sst_files_rejections",
+        "value": 0
+      },
+      {
+        "name": "transaction_conflicts",
+        "value": 0
+      },
+      {
+        "name": "expired_transactions",
+        "value": 0
+      },
+      {
+        "name": "restart_read_requests",
+        "value": 0
+      },
+      {
+        "name": "tablet_data_corruptions",
+        "value": 0
+      },
+      {
+        "name": "leader_memory_pressure_rejections",
+        "value": 0
+      },
+      {
+        "name": "consistent_prefix_read_requests",
+        "value": 0
+      },
+      {
+        "name": "pgsql_consistent_prefix_read_rows",
+        "value": 0
+      },
+      {
+        "name": "alter_schema_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "update_transaction_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "history_cutoff_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "operation_memory_pressure_rejections",
+        "value": 0
+      },
+      {
+        "name": "all_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "write_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "snapshot_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "split_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "truncate_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "empty_operations_inflight",
+        "value": 0
+      }
+    ]
+  },
+  {
+    "type": "server",
+    "id": "yb.tabletserver",
+    "attributes": {},
+    "metrics": [
+      {
+        "name": "mem_tracker_Compressed_Read_Buffer",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_Compressed_Read_Buffer_Receive",
+        "value": 699040
+      },
+      {
+        "name": "mem_tracker_Read_Buffer_Redis_Used",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_Read_Buffer_Redis_Mandatory",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_Read_Buffer_Inbound_RPC",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_Read_Buffer_Outbound_RPC",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_BlockBasedTable",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_Read_Buffer",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_Call",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_Call_Inbound_RPC",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_Call_Outbound_RPC",
+        "value": 0
+      },
+      {
+        "name": "rpcs_in_queue_yb_tserver_PgClientService",
+        "value": 0
+      },
+      {
+        "name": "rpcs_in_queue_yb_tserver_RemoteBootstrapService",
+        "value": 0
+      },
+      {
+        "name": "rpcs_in_queue_yb_consensus_ConsensusService",
+        "value": 0
+      },
+      {
+        "name": "rpcs_in_queue_yb_tserver_TabletServerService",
+        "value": 0
+      },
+      {
+        "name": "rpcs_in_queue_yb_tserver_TabletServerBackupService",
+        "value": 0
+      },
+      {
+        "name": "rpcs_in_queue_yb_tserver_TabletServerAdminService",
+        "value": 0
+      },
+      {
+        "name": "rpcs_in_queue_yb_cdc_CDCService",
+        "value": 0
+      },
+      {
+        "name": "rpcs_in_queue_yb_server_GenericService",
+        "value": 0
+      },
+      {
+        "name": "rpcs_in_queue_yb_tserver_TabletServerForwardService",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_Read_Buffer_Outbound_RPC_Queueing",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_Read_Buffer_Redis_Allocated",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_Read_Buffer_Outbound_RPC_Sending",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_Read_Buffer_Outbound_RPC_Reading",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_Read_Buffer_Outbound_RPC_Receive",
+        "value": 699040
+      },
+      {
+        "name": "mem_tracker_Read_Buffer_Redis",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_Call_Redis",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_Read_Buffer_CQL",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_Call_CQL",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_Tablets",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_log_cache",
+        "value": 0
+      },
+      {
+        "name": "block_cache_inserts",
+        "value": 0
+      },
+      {
+        "name": "block_cache_lookups",
+        "value": 0
+      },
+      {
+        "name": "block_cache_evictions",
+        "value": 0
+      },
+      {
+        "name": "block_cache_misses",
+        "value": 0
+      },
+      {
+        "name": "block_cache_misses_caching",
+        "value": 0
+      },
+      {
+        "name": "block_cache_hits",
+        "value": 0
+      },
+      {
+        "name": "block_cache_hits_caching",
+        "value": 0
+      },
+      {
+        "name": "block_cache_usage",
+        "value": 0
+      },
+      {
+        "name": "block_cache_multi_touch_usage",
+        "value": 0
+      },
+      {
+        "name": "block_cache_single_touch_usage",
+        "value": 0
+      },
+      {
+        "name": "spinlock_contention_time",
+        "value": 0
+      },
+      {
+        "name": "threads_started",
+        "value": 47
+      },
+      {
+        "name": "threads_running",
+        "value": 35
+      },
+      {
+        "name": "cpu_utime",
+        "value": 12908
+      },
+      {
+        "name": "cpu_stime",
+        "value": 17903
+      },
+      {
+        "name": "involuntary_context_switches",
+        "value": 264
+      },
+      {
+        "name": "voluntary_context_switches",
+        "value": 965950
+      },
+      {
+        "name": "rpc_connections_accepted",
+        "value": 8
+      },
+      {
+        "name": "handler_latency_outbound_transfer",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "handler_latency_outbound_call_queue_time",
+        "total_count": 10638,
+        "min": 0,
+        "mean": 37.03703703703704,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 2,
+        "percentile_99_9": 2,
+        "percentile_99_99": 2,
+        "max": 1000,
+        "total_sum": 68975
+      },
+      {
+        "name": "handler_latency_outbound_call_send_time",
+        "total_count": 10638,
+        "min": 0,
+        "mean": 37.03703703703704,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 2,
+        "percentile_99_9": 2,
+        "percentile_99_99": 2,
+        "max": 1000,
+        "total_sum": 109960
+      },
+      {
+        "name": "handler_latency_outbound_call_time_to_response",
+        "total_count": 10638,
+        "min": 0,
+        "mean": 296.2962962962963,
+        "percentile_75": 2,
+        "percentile_95": 2,
+        "percentile_99": 2,
+        "percentile_99_9": 2,
+        "percentile_99_99": 2,
+        "max": 1000,
+        "total_sum": 3583094
+      },
+      {
+        "name": "rpc_connections_alive",
+        "value": 8
+      },
+      {
+        "name": "rpc_connections_created",
+        "value": 16
+      },
+      {
+        "name": "rpc_inbound_calls_alive",
+        "value": 0
+      },
+      {
+        "name": "rpc_inbound_calls_created",
+        "value": 8
+      },
+      {
+        "name": "rpc_outbound_calls_alive",
+        "value": 0
+      },
+      {
+        "name": "rpc_outbound_calls_created",
+        "value": 10638
+      },
+      {
+        "name": "rpc_incoming_queue_time",
+        "total_count": 8,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 1084
+      },
+      {
+        "name": "rpcs_timed_out_in_queue",
+        "value": 0
+      },
+      {
+        "name": "rpcs_timed_out_early_in_queue",
+        "value": 0
+      },
+      {
+        "name": "rpcs_queue_overflow",
+        "value": 0
+      },
+      {
+        "name": "tcp_bytes_sent",
+        "value": 2162097
+      },
+      {
+        "name": "tcp_bytes_received",
+        "value": 2414919
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_TSHeartbeat",
+        "value": 2161249
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_TSHeartbeat",
+        "value": 2242866
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_GetTabletLocations",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_GetTabletLocations",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_CreateTable",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_CreateTable",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_IsCreateTableDone",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_IsCreateTableDone",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_TruncateTable",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_TruncateTable",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_IsTruncateTableDone",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_IsTruncateTableDone",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_BackfillIndex",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_BackfillIndex",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_LaunchBackfillIndexForTable",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_LaunchBackfillIndexForTable",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_GetBackfillJobs",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_GetBackfillJobs",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_DeleteTable",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_DeleteTable",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_IsDeleteTableDone",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_IsDeleteTableDone",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_AlterTable",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_AlterTable",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_IsAlterTableDone",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_IsAlterTableDone",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_ListTables",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_ListTables",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_GetTableLocations",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_GetTableLocations",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_GetTableSchema",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_GetTableSchema",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_GetColocatedTabletSchema",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_GetColocatedTabletSchema",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_CreateNamespace",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_CreateNamespace",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_IsCreateNamespaceDone",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_IsCreateNamespaceDone",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_DeleteNamespace",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_DeleteNamespace",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_IsDeleteNamespaceDone",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_IsDeleteNamespaceDone",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_AlterNamespace",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_AlterNamespace",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_ListNamespaces",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_ListNamespaces",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_GetNamespaceInfo",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_GetNamespaceInfo",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_CreateTablegroup",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_CreateTablegroup",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_DeleteTablegroup",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_DeleteTablegroup",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_ListTablegroups",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_ListTablegroups",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_ReservePgsqlOids",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_ReservePgsqlOids",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_GetYsqlCatalogConfig",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_GetYsqlCatalogConfig",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_CreateRole",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_CreateRole",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_AlterRole",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_AlterRole",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_DeleteRole",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_DeleteRole",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_GrantRevokeRole",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_GrantRevokeRole",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_GrantRevokePermission",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_GrantRevokePermission",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_GetPermissions",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_GetPermissions",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_CreateUDType",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_CreateUDType",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_DeleteUDType",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_DeleteUDType",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_ListUDTypes",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_ListUDTypes",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_GetUDTypeInfo",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_GetUDTypeInfo",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_CreateCDCStream",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_CreateCDCStream",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_DeleteCDCStream",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_DeleteCDCStream",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_ListCDCStreams",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_ListCDCStreams",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_GetCDCStream",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_GetCDCStream",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_UpdateCDCStream",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_UpdateCDCStream",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_RedisConfigSet",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_RedisConfigSet",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_RedisConfigGet",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_RedisConfigGet",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_ListTabletServers",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_ListTabletServers",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_ListLiveTabletServers",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_ListLiveTabletServers",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_ListMasters",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_ListMasters",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_ListMasterRaftPeers",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_ListMasterRaftPeers",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_GetMasterRegistration",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_GetMasterRegistration",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_IsMasterLeaderServiceReady",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_IsMasterLeaderServiceReady",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_DumpState",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_DumpState",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_ChangeLoadBalancerState",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_ChangeLoadBalancerState",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_GetLoadBalancerState",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_GetLoadBalancerState",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_RemovedMasterUpdate",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_RemovedMasterUpdate",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_SetPreferredZones",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_SetPreferredZones",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_GetMasterClusterConfig",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_GetMasterClusterConfig",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_ChangeMasterClusterConfig",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_ChangeMasterClusterConfig",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_GetLoadMoveCompletion",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_GetLoadMoveCompletion",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_GetLeaderBlacklistCompletion",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_GetLeaderBlacklistCompletion",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_IsLoadBalanced",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_IsLoadBalanced",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_IsLoadBalancerIdle",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_IsLoadBalancerIdle",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_AreLeadersOnPreferredOnly",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_AreLeadersOnPreferredOnly",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_FlushTables",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_FlushTables",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_IsFlushTablesDone",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_IsFlushTablesDone",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_IsInitDbDone",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_IsInitDbDone",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_ChangeEncryptionInfo",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_ChangeEncryptionInfo",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_IsEncryptionEnabled",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_IsEncryptionEnabled",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_SetupUniverseReplication",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_SetupUniverseReplication",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_DeleteUniverseReplication",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_DeleteUniverseReplication",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_AlterUniverseReplication",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_AlterUniverseReplication",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_SetUniverseReplicationEnabled",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_SetUniverseReplicationEnabled",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_GetUniverseReplication",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_GetUniverseReplication",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_IsSetupUniverseReplicationDone",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_IsSetupUniverseReplicationDone",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_AddUniverseKeys",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_AddUniverseKeys",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_GetUniverseKeyRegistry",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_GetUniverseKeyRegistry",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_HasUniverseKeyInMemory",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_HasUniverseKeyInMemory",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_SplitTablet",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_SplitTablet",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_CreateTransactionStatusTable",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_CreateTransactionStatusTable",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_DeleteNotServingTablet",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_DeleteNotServingTablet",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_master_MasterService_DdlLog",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_master_MasterService_DdlLog",
+        "value": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_PgClientService_Heartbeat",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_PgClientService_Heartbeat",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_PgClientService_Heartbeat",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_PgClientService_AlterDatabase",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_PgClientService_AlterDatabase",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_PgClientService_AlterDatabase",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_PgClientService_AlterTable",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_PgClientService_AlterTable",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_PgClientService_AlterTable",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_PgClientService_BackfillIndex",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_PgClientService_BackfillIndex",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_PgClientService_BackfillIndex",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_PgClientService_CreateDatabase",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_PgClientService_CreateDatabase",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_PgClientService_CreateDatabase",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_PgClientService_CreateSequencesDataTable",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_PgClientService_CreateSequencesDataTable",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_PgClientService_CreateSequencesDataTable",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_PgClientService_CreateTable",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_PgClientService_CreateTable",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_PgClientService_CreateTable",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_PgClientService_CreateTablegroup",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_PgClientService_CreateTablegroup",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_PgClientService_CreateTablegroup",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_PgClientService_DropDatabase",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_PgClientService_DropDatabase",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_PgClientService_DropDatabase",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_PgClientService_DropTable",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_PgClientService_DropTable",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_PgClientService_DropTable",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_PgClientService_DropTablegroup",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_PgClientService_DropTablegroup",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_PgClientService_DropTablegroup",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_PgClientService_GetCatalogMasterVersion",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_PgClientService_GetCatalogMasterVersion",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_PgClientService_GetCatalogMasterVersion",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_PgClientService_GetDatabaseInfo",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_PgClientService_GetDatabaseInfo",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_PgClientService_GetDatabaseInfo",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_PgClientService_IsInitDbDone",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_PgClientService_IsInitDbDone",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_PgClientService_IsInitDbDone",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_PgClientService_ListLiveTabletServers",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_PgClientService_ListLiveTabletServers",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_PgClientService_ListLiveTabletServers",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_PgClientService_OpenTable",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_PgClientService_OpenTable",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_PgClientService_OpenTable",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_PgClientService_ReserveOids",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_PgClientService_ReserveOids",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_PgClientService_ReserveOids",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_PgClientService_TabletServerCount",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_PgClientService_TabletServerCount",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_PgClientService_TabletServerCount",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_PgClientService_TruncateTable",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_PgClientService_TruncateTable",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_PgClientService_TruncateTable",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "hybrid_clock_hybrid_time",
+        "value": 6724598078595563520
+      },
+      {
+        "name": "hybrid_clock_error",
+        "value": 500000
+      },
+      {
+        "name": "hybrid_clock_skew",
+        "value": 0
+      },
+      {
+        "name": "service_request_bytes_yb_server_GenericService_SetFlag",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_server_GenericService_SetFlag",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_server_GenericService_SetFlag",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_server_GenericService_GetFlag",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_server_GenericService_GetFlag",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_server_GenericService_GetFlag",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_server_GenericService_RefreshFlags",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_server_GenericService_RefreshFlags",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_server_GenericService_RefreshFlags",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_server_GenericService_FlushCoverage",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_server_GenericService_FlushCoverage",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_server_GenericService_FlushCoverage",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_server_GenericService_ServerClock",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_server_GenericService_ServerClock",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_server_GenericService_ServerClock",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_server_GenericService_GetStatus",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_server_GenericService_GetStatus",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_server_GenericService_GetStatus",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_server_GenericService_Ping",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_server_GenericService_Ping",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_server_GenericService_Ping",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_server_GenericService_SetFlag",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_server_GenericService_SetFlag",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_server_GenericService_GetFlag",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_server_GenericService_GetFlag",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_server_GenericService_RefreshFlags",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_server_GenericService_RefreshFlags",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_server_GenericService_FlushCoverage",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_server_GenericService_FlushCoverage",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_server_GenericService_ServerClock",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_server_GenericService_ServerClock",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_server_GenericService_GetStatus",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_server_GenericService_GetStatus",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_server_GenericService_Ping",
+        "value": 360
+      },
+      {
+        "name": "proxy_response_bytes_yb_server_GenericService_Ping",
+        "value": 0
+      },
+      {
+        "name": "glog_info_messages",
+        "value": 364
+      },
+      {
+        "name": "glog_warning_messages",
+        "value": 9
+      },
+      {
+        "name": "glog_error_messages",
+        "value": 0
+      },
+      {
+        "name": "server_uptime_ms",
+        "value": 10630909
+      },
+      {
+        "name": "generic_heap_size",
+        "value": 43253760
+      },
+      {
+        "name": "tcmalloc_pageheap_free_bytes",
+        "value": 17186816
+      },
+      {
+        "name": "generic_current_allocated_bytes",
+        "value": 22952616
+      },
+      {
+        "name": "tcmalloc_pageheap_unmapped_bytes",
+        "value": 0
+      },
+      {
+        "name": "tcmalloc_max_total_thread_cache_bytes",
+        "value": 268435456
+      },
+      {
+        "name": "tcmalloc_current_total_thread_cache_bytes",
+        "value": 2055048
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerAdminService_CreateTablet",
+        "value": 1500
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerAdminService_CreateTablet",
+        "value": 40
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerAdminService_CreateTablet",
+        "total_count": 4,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 74734
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerAdminService_DeleteTablet",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerAdminService_DeleteTablet",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerAdminService_DeleteTablet",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerAdminService_AlterSchema",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerAdminService_AlterSchema",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerAdminService_AlterSchema",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerAdminService_GetSafeTime",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerAdminService_GetSafeTime",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerAdminService_GetSafeTime",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerAdminService_BackfillIndex",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerAdminService_BackfillIndex",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerAdminService_BackfillIndex",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerAdminService_BackfillDone",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerAdminService_BackfillDone",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerAdminService_BackfillDone",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerAdminService_CopartitionTable",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerAdminService_CopartitionTable",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerAdminService_CopartitionTable",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerAdminService_FlushTablets",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerAdminService_FlushTablets",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerAdminService_FlushTablets",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerAdminService_CountIntents",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerAdminService_CountIntents",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerAdminService_CountIntents",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerAdminService_AddTableToTablet",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerAdminService_AddTableToTablet",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerAdminService_AddTableToTablet",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerAdminService_RemoveTableFromTablet",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerAdminService_RemoveTableFromTablet",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerAdminService_RemoveTableFromTablet",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerAdminService_SplitTablet",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerAdminService_SplitTablet",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerAdminService_SplitTablet",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerAdminService_UpgradeYsql",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerAdminService_UpgradeYsql",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerAdminService_UpgradeYsql",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerBackupService_TabletSnapshotOp",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerBackupService_TabletSnapshotOp",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerBackupService_TabletSnapshotOp",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_consensus_ConsensusService_UpdateConsensus",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_consensus_ConsensusService_UpdateConsensus",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_consensus_ConsensusService_UpdateConsensus",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_consensus_ConsensusService_RequestConsensusVote",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_consensus_ConsensusService_RequestConsensusVote",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_consensus_ConsensusService_RequestConsensusVote",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_consensus_ConsensusService_ChangeConfig",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_consensus_ConsensusService_ChangeConfig",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_consensus_ConsensusService_ChangeConfig",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_consensus_ConsensusService_GetNodeInstance",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_consensus_ConsensusService_GetNodeInstance",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_consensus_ConsensusService_GetNodeInstance",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_consensus_ConsensusService_RunLeaderElection",
+        "value": 520
+      },
+      {
+        "name": "service_response_bytes_yb_consensus_ConsensusService_RunLeaderElection",
+        "value": 40
+      },
+      {
+        "name": "handler_latency_yb_consensus_ConsensusService_RunLeaderElection",
+        "total_count": 4,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 2038
+      },
+      {
+        "name": "service_request_bytes_yb_consensus_ConsensusService_LeaderElectionLost",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_consensus_ConsensusService_LeaderElectionLost",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_consensus_ConsensusService_LeaderElectionLost",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_consensus_ConsensusService_LeaderStepDown",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_consensus_ConsensusService_LeaderStepDown",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_consensus_ConsensusService_LeaderStepDown",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_consensus_ConsensusService_GetLastOpId",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_consensus_ConsensusService_GetLastOpId",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_consensus_ConsensusService_GetLastOpId",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_consensus_ConsensusService_GetConsensusState",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_consensus_ConsensusService_GetConsensusState",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_consensus_ConsensusService_GetConsensusState",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_consensus_ConsensusService_StartRemoteBootstrap",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_consensus_ConsensusService_StartRemoteBootstrap",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_consensus_ConsensusService_StartRemoteBootstrap",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_RemoteBootstrapService_BeginRemoteBootstrapSession",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_RemoteBootstrapService_BeginRemoteBootstrapSession",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_RemoteBootstrapService_BeginRemoteBootstrapSession",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_RemoteBootstrapService_CheckSessionActive",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_RemoteBootstrapService_CheckSessionActive",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_RemoteBootstrapService_CheckSessionActive",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_RemoteBootstrapService_FetchData",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_RemoteBootstrapService_FetchData",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_RemoteBootstrapService_FetchData",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_RemoteBootstrapService_EndRemoteBootstrapSession",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_RemoteBootstrapService_EndRemoteBootstrapSession",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_RemoteBootstrapService_EndRemoteBootstrapSession",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_RemoteBootstrapService_RemoveSession",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_RemoteBootstrapService_RemoveSession",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_RemoteBootstrapService_RemoveSession",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerForwardService_Write",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerForwardService_Write",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerForwardService_Write",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerForwardService_Read",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerForwardService_Read",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerForwardService_Read",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerService_Write",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerService_Write",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerService_Write",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerService_Read",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerService_Read",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerService_Read",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerService_VerifyTableRowRange",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerService_VerifyTableRowRange",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerService_VerifyTableRowRange",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerService_NoOp",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerService_NoOp",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerService_NoOp",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerService_ListTablets",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerService_ListTablets",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerService_ListTablets",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerService_GetLogLocation",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerService_GetLogLocation",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerService_GetLogLocation",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerService_Checksum",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerService_Checksum",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerService_Checksum",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerService_ListTabletsForTabletServer",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerService_ListTabletsForTabletServer",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerService_ListTabletsForTabletServer",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerService_ImportData",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerService_ImportData",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerService_ImportData",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerService_UpdateTransaction",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerService_UpdateTransaction",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerService_UpdateTransaction",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerService_GetTransactionStatus",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerService_GetTransactionStatus",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerService_GetTransactionStatus",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerService_GetTransactionStatusAtParticipant",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerService_GetTransactionStatusAtParticipant",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerService_GetTransactionStatusAtParticipant",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerService_AbortTransaction",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerService_AbortTransaction",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerService_AbortTransaction",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerService_Truncate",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerService_Truncate",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerService_Truncate",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerService_GetTabletStatus",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerService_GetTabletStatus",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerService_GetTabletStatus",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerService_GetMasterAddresses",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerService_GetMasterAddresses",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerService_GetMasterAddresses",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerService_Publish",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerService_Publish",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerService_Publish",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerService_IsTabletServerReady",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerService_IsTabletServerReady",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerService_IsTabletServerReady",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerService_TakeTransaction",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerService_TakeTransaction",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerService_TakeTransaction",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerService_GetSplitKey",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerService_GetSplitKey",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerService_GetSplitKey",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_tserver_TabletServerService_GetSharedData",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_tserver_TabletServerService_GetSharedData",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_tserver_TabletServerService_GetSharedData",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_tserver_TabletServerService_Write",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_tserver_TabletServerService_Write",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_tserver_TabletServerService_Read",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_tserver_TabletServerService_Read",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_tserver_TabletServerService_VerifyTableRowRange",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_tserver_TabletServerService_VerifyTableRowRange",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_tserver_TabletServerService_NoOp",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_tserver_TabletServerService_NoOp",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_tserver_TabletServerService_ListTablets",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_tserver_TabletServerService_ListTablets",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_tserver_TabletServerService_GetLogLocation",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_tserver_TabletServerService_GetLogLocation",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_tserver_TabletServerService_Checksum",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_tserver_TabletServerService_Checksum",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_tserver_TabletServerService_ListTabletsForTabletServer",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_tserver_TabletServerService_ListTabletsForTabletServer",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_tserver_TabletServerService_ImportData",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_tserver_TabletServerService_ImportData",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_tserver_TabletServerService_UpdateTransaction",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_tserver_TabletServerService_UpdateTransaction",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_tserver_TabletServerService_GetTransactionStatus",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_tserver_TabletServerService_GetTransactionStatus",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_tserver_TabletServerService_GetTransactionStatusAtParticipant",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_tserver_TabletServerService_GetTransactionStatusAtParticipant",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_tserver_TabletServerService_AbortTransaction",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_tserver_TabletServerService_AbortTransaction",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_tserver_TabletServerService_Truncate",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_tserver_TabletServerService_Truncate",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_tserver_TabletServerService_GetTabletStatus",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_tserver_TabletServerService_GetTabletStatus",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_tserver_TabletServerService_GetMasterAddresses",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_tserver_TabletServerService_GetMasterAddresses",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_tserver_TabletServerService_Publish",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_tserver_TabletServerService_Publish",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_tserver_TabletServerService_IsTabletServerReady",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_tserver_TabletServerService_IsTabletServerReady",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_tserver_TabletServerService_TakeTransaction",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_tserver_TabletServerService_TakeTransaction",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_tserver_TabletServerService_GetSplitKey",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_tserver_TabletServerService_GetSplitKey",
+        "value": 0
+      },
+      {
+        "name": "proxy_request_bytes_yb_tserver_TabletServerService_GetSharedData",
+        "value": 0
+      },
+      {
+        "name": "proxy_response_bytes_yb_tserver_TabletServerService_GetSharedData",
+        "value": 0
+      },
+      {
+        "name": "service_request_bytes_yb_cdc_CDCService_CreateCDCStream",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_cdc_CDCService_CreateCDCStream",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_cdc_CDCService_CreateCDCStream",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_cdc_CDCService_DeleteCDCStream",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_cdc_CDCService_DeleteCDCStream",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_cdc_CDCService_DeleteCDCStream",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_cdc_CDCService_ListTablets",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_cdc_CDCService_ListTablets",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_cdc_CDCService_ListTablets",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_cdc_CDCService_GetChanges",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_cdc_CDCService_GetChanges",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_cdc_CDCService_GetChanges",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_cdc_CDCService_GetCheckpoint",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_cdc_CDCService_GetCheckpoint",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_cdc_CDCService_GetCheckpoint",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_cdc_CDCService_UpdateCdcReplicatedIndex",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_cdc_CDCService_UpdateCdcReplicatedIndex",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_cdc_CDCService_UpdateCdcReplicatedIndex",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_cdc_CDCService_BootstrapProducer",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_cdc_CDCService_BootstrapProducer",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_cdc_CDCService_BootstrapProducer",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "service_request_bytes_yb_cdc_CDCService_GetLatestEntryOpId",
+        "value": 0
+      },
+      {
+        "name": "service_response_bytes_yb_cdc_CDCService_GetLatestEntryOpId",
+        "value": 0
+      },
+      {
+        "name": "handler_latency_yb_cdc_CDCService_GetLatestEntryOpId",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "cdc_rpc_proxy_count",
+        "value": 0
+      },
+      {
+        "name": "op_apply_queue_length",
+        "total_count": 12,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 8
+      },
+      {
+        "name": "op_apply_queue_time",
+        "total_count": 12,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 5393
+      },
+      {
+        "name": "op_apply_run_time",
+        "total_count": 12,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 43
+      },
+      {
+        "name": "op_read_queue_length",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "op_read_queue_time",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "op_read_run_time",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "ts_bootstrap_time",
+        "total_count": 4,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 41507
+      },
+      {
+        "name": "post_split_trigger_compaction_pool_queue_time_us",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "post_split_trigger_compaction_pool_run_time_us",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "admin_triggered_compaction_pool_queue_time_us",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "admin_triggered_compaction_pool_run_time_us",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      }
+    ]
+  },
+  {
+    "type": "tablet",
+    "id": "dabffc8e79d047928f5e05ef2d76d810",
+    "attributes": {
+      "namespace_name": "system",
+      "table_name": "transactions",
+      "table_id": "f2ef7aaf8a4941f4a58a0fc77371cbef"
+    },
+    "metrics": [
+      {
+        "name": "rocksdb_l0_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_l1_hit",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_multi_touch_bytes_write",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compaction_files_filtered",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compaction_files_not_filtered",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_multi_touch_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_current_version_sst_files_size",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_block_not_compressed",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_superversion_cleanups",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_current_version_num_sst_files",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_no_table_cache_iterators",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_merge_operation_time_nanos",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_filter_operation_time_nanos",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_multi_touch_add",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_multi_touch_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_single_touch_bytes_write",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_single_touch_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_single_touch_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_single_touch_add",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_superversion_releases",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compaction_key_drop_obsolete",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_add_failures",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compaction_key_drop_user",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_memtable_compaction_micros",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_l0_num_files_stall_micros",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_multiget_keys_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_multiget_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_bloom_filter_prefix_useful",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_bloom_filter_prefix_checked",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_reseeks_iteration",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cachecompressed_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cachecompressed_add_failures",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cachecompressed_add",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cachecompressed_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_direct_load_table_properties",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_superversion_acquires",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_operation_tracker",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_log_cache",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_OperationsFromDisk",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_row_cache_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_row_cache_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_flush_write_bytes",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_total_sst_files_size",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compact_write_bytes",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compact_read_bytes",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_write_wal",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_write_other",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_write_self",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_wal_bytes",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_wal_synced",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_getupdatessince_calls",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_sequence_number",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_merge_failures",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_deletes_filtered",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_num_iterators",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_multiget_get",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_db_mutex_wait_micros",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_rate_limit_delay_millis",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_l0_slowdown_micros",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_stall_micros",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_no_file_opens",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_no_file_errors",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_db_iter_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_no_file_closes",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_db_prev_found",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_db_seek_found",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_db_next_found",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_db_prev",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_db_next",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_db_seek",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_bytes_written",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_keys_updated",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_keys_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_keys_written",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_l2andup_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compaction_key_drop_new",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_memtable_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_memtable_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_bloom_filter_checked",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_bytes_write",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_bloom_filter_useful",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_data_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_filter_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_data_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_index_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_filter_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_index_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_add",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_current_version_sst_files_uncompressed_size",
+        "value": 0
+      },
+      {
+        "name": "log_reader_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "log_reader_entries_read",
+        "value": 0
+      },
+      {
+        "name": "log_bytes_logged",
+        "value": 54
+      },
+      {
+        "name": "log_wal_size",
+        "value": 0
+      },
+      {
+        "name": "majority_done_ops",
+        "value": 0
+      },
+      {
+        "name": "in_progress_ops",
+        "value": 0
+      },
+      {
+        "name": "log_cache_num_ops",
+        "value": 0
+      },
+      {
+        "name": "log_cache_size",
+        "value": 0
+      },
+      {
+        "name": "log_cache_disk_reads",
+        "value": 0
+      },
+      {
+        "name": "raft_term",
+        "value": 1
+      },
+      {
+        "name": "follower_lag_ms",
+        "value": 0
+      },
+      {
+        "name": "is_raft_leader",
+        "value": 1
+      },
+      {
+        "name": "follower_memory_pressure_rejections",
+        "value": 0
+      },
+      {
+        "name": "running_retryable_requests",
+        "value": 0
+      },
+      {
+        "name": "replicated_retryable_request_ranges",
+        "value": 0
+      },
+      {
+        "name": "rows_inserted",
+        "value": 0
+      },
+      {
+        "name": "not_leader_rejections",
+        "value": 0
+      },
+      {
+        "name": "majority_sst_files_rejections",
+        "value": 0
+      },
+      {
+        "name": "transaction_conflicts",
+        "value": 0
+      },
+      {
+        "name": "expired_transactions",
+        "value": 0
+      },
+      {
+        "name": "restart_read_requests",
+        "value": 0
+      },
+      {
+        "name": "tablet_data_corruptions",
+        "value": 0
+      },
+      {
+        "name": "leader_memory_pressure_rejections",
+        "value": 0
+      },
+      {
+        "name": "consistent_prefix_read_requests",
+        "value": 0
+      },
+      {
+        "name": "pgsql_consistent_prefix_read_rows",
+        "value": 0
+      },
+      {
+        "name": "alter_schema_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "update_transaction_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "history_cutoff_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "operation_memory_pressure_rejections",
+        "value": 0
+      },
+      {
+        "name": "all_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "write_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "snapshot_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "split_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "truncate_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "empty_operations_inflight",
+        "value": 0
+      }
+    ]
+  },
+  {
+    "type": "tablet",
+    "id": "ee191742a08d4d2d8c2e222e0f0e7cdc",
+    "attributes": {
+      "namespace_name": "system",
+      "table_name": "transactions",
+      "table_id": "f2ef7aaf8a4941f4a58a0fc77371cbef"
+    },
+    "metrics": [
+      {
+        "name": "rocksdb_l0_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_l1_hit",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_multi_touch_bytes_write",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compaction_files_filtered",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compaction_files_not_filtered",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_multi_touch_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_current_version_sst_files_size",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_block_not_compressed",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_superversion_cleanups",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_current_version_num_sst_files",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_no_table_cache_iterators",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_merge_operation_time_nanos",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_filter_operation_time_nanos",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_multi_touch_add",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_multi_touch_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_single_touch_bytes_write",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_single_touch_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_single_touch_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_single_touch_add",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_superversion_releases",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compaction_key_drop_obsolete",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_add_failures",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compaction_key_drop_user",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_memtable_compaction_micros",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_l0_num_files_stall_micros",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_multiget_keys_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_multiget_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_bloom_filter_prefix_useful",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_bloom_filter_prefix_checked",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_reseeks_iteration",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cachecompressed_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cachecompressed_add_failures",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cachecompressed_add",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cachecompressed_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_direct_load_table_properties",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_superversion_acquires",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_row_cache_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_row_cache_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_flush_write_bytes",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_total_sst_files_size",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compact_write_bytes",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compact_read_bytes",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_write_wal",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_write_other",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_write_self",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_wal_bytes",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_wal_synced",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_getupdatessince_calls",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_sequence_number",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_merge_failures",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_deletes_filtered",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_num_iterators",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_multiget_get",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_db_mutex_wait_micros",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_rate_limit_delay_millis",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_l0_slowdown_micros",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_stall_micros",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_no_file_opens",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_no_file_errors",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_db_iter_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_no_file_closes",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_db_prev_found",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_db_seek_found",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_db_next_found",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_db_prev",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_db_next",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_db_seek",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_bytes_written",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_keys_updated",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_keys_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_keys_written",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_l2andup_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compaction_key_drop_new",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_memtable_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_memtable_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_bloom_filter_checked",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_bytes_write",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_bloom_filter_useful",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_data_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_filter_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_data_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_index_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_filter_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_index_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_add",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_current_version_sst_files_uncompressed_size",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_operation_tracker",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_OperationsFromDisk",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_log_cache",
+        "value": 0
+      },
+      {
+        "name": "log_reader_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "log_reader_entries_read",
+        "value": 0
+      },
+      {
+        "name": "log_bytes_logged",
+        "value": 58
+      },
+      {
+        "name": "log_wal_size",
+        "value": 0
+      },
+      {
+        "name": "majority_done_ops",
+        "value": 0
+      },
+      {
+        "name": "in_progress_ops",
+        "value": 0
+      },
+      {
+        "name": "log_cache_num_ops",
+        "value": 0
+      },
+      {
+        "name": "log_cache_size",
+        "value": 0
+      },
+      {
+        "name": "log_cache_disk_reads",
+        "value": 0
+      },
+      {
+        "name": "raft_term",
+        "value": 1
+      },
+      {
+        "name": "follower_lag_ms",
+        "value": 0
+      },
+      {
+        "name": "is_raft_leader",
+        "value": 1
+      },
+      {
+        "name": "follower_memory_pressure_rejections",
+        "value": 0
+      },
+      {
+        "name": "running_retryable_requests",
+        "value": 0
+      },
+      {
+        "name": "replicated_retryable_request_ranges",
+        "value": 0
+      },
+      {
+        "name": "rows_inserted",
+        "value": 0
+      },
+      {
+        "name": "not_leader_rejections",
+        "value": 0
+      },
+      {
+        "name": "majority_sst_files_rejections",
+        "value": 0
+      },
+      {
+        "name": "transaction_conflicts",
+        "value": 0
+      },
+      {
+        "name": "expired_transactions",
+        "value": 0
+      },
+      {
+        "name": "restart_read_requests",
+        "value": 0
+      },
+      {
+        "name": "tablet_data_corruptions",
+        "value": 0
+      },
+      {
+        "name": "leader_memory_pressure_rejections",
+        "value": 0
+      },
+      {
+        "name": "consistent_prefix_read_requests",
+        "value": 0
+      },
+      {
+        "name": "pgsql_consistent_prefix_read_rows",
+        "value": 0
+      },
+      {
+        "name": "alter_schema_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "update_transaction_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "history_cutoff_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "operation_memory_pressure_rejections",
+        "value": 0
+      },
+      {
+        "name": "all_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "write_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "snapshot_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "split_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "truncate_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "empty_operations_inflight",
+        "value": 0
+      }
+    ]
+  },
+  {
+    "type": "table",
+    "id": "f2ef7aaf8a4941f4a58a0fc77371cbef",
+    "attributes": {
+      "namespace_name": "system",
+      "table_name": "transactions",
+      "table_id": "f2ef7aaf8a4941f4a58a0fc77371cbef"
+    },
+    "metrics": [
+      {
+        "name": "rocksdb_read_block_compaction_micros",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "rocksdb_numfiles_in_singlecompaction",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "rocksdb_bytes_per_multiget",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "rocksdb_bytes_per_read",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "rocksdb_bytes_per_write",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "rocksdb_db_seek_micros",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "rocksdb_sst_read_micros",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "rocksdb_write_raw_block_micros",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "rocksdb_db_multiget_micros",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "rocksdb_wal_file_sync_micros",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "rocksdb_compaction_times_micros",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "rocksdb_read_block_get_micros",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "rocksdb_db_write_micros",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "rocksdb_db_get_micros",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "log_reader_read_batch_latency",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "log_sync_latency",
+        "total_count": 12,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 88
+      },
+      {
+        "name": "log_append_latency",
+        "total_count": 8,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 148
+      },
+      {
+        "name": "log_group_commit_latency",
+        "total_count": 8,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 2885
+      },
+      {
+        "name": "log_roll_latency",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "log_entry_batches_per_group",
+        "total_count": 8,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 8
+      },
+      {
+        "name": "dns_resolve_latency_during_update_raft_config",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "redis_read_latency",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "ql_read_latency",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "write_lock_latency",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "write_op_duration_client_propagated_consistency",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "snapshot_read_inflight_wait_duration",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      },
+      {
+        "name": "log_gc_running",
+        "value": 0
+      },
+      {
+        "name": "log_gc_duration",
+        "total_count": 0,
+        "min": 0,
+        "mean": 0.0,
+        "percentile_75": 0,
+        "percentile_95": 0,
+        "percentile_99": 0,
+        "percentile_99_9": 0,
+        "percentile_99_99": 0,
+        "max": 0,
+        "total_sum": 0
+      }
+    ]
+  },
+  {
+    "type": "tablet",
+    "id": "8c31a9f1387045c5b38972859d4ee0cc",
+    "attributes": {
+      "namespace_name": "system",
+      "table_name": "transactions",
+      "table_id": "f2ef7aaf8a4941f4a58a0fc77371cbef"
+    },
+    "metrics": [
+      {
+        "name": "rocksdb_l0_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_l1_hit",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_multi_touch_bytes_write",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compaction_files_filtered",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compaction_files_not_filtered",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_multi_touch_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_current_version_sst_files_size",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_block_not_compressed",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_superversion_cleanups",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_current_version_num_sst_files",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_no_table_cache_iterators",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_merge_operation_time_nanos",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_filter_operation_time_nanos",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_multi_touch_add",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_multi_touch_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_single_touch_bytes_write",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_single_touch_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_single_touch_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_single_touch_add",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_superversion_releases",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compaction_key_drop_obsolete",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_add_failures",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compaction_key_drop_user",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_memtable_compaction_micros",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_l0_num_files_stall_micros",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_multiget_keys_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_multiget_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_bloom_filter_prefix_useful",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_bloom_filter_prefix_checked",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_reseeks_iteration",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cachecompressed_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cachecompressed_add_failures",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cachecompressed_add",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cachecompressed_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_direct_load_table_properties",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_superversion_acquires",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_row_cache_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_row_cache_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_flush_write_bytes",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_total_sst_files_size",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compact_write_bytes",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compact_read_bytes",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_write_wal",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_write_other",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_write_self",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_wal_bytes",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_wal_synced",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_getupdatessince_calls",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_sequence_number",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_merge_failures",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_deletes_filtered",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_num_iterators",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_multiget_get",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_db_mutex_wait_micros",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_rate_limit_delay_millis",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_l0_slowdown_micros",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_stall_micros",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_no_file_opens",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_no_file_errors",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_db_iter_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_no_file_closes",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_db_prev_found",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_db_seek_found",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_db_next_found",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_db_prev",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_db_next",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_db_seek",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_bytes_written",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_keys_updated",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_keys_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_number_keys_written",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_l2andup_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_compaction_key_drop_new",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_memtable_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_memtable_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_bloom_filter_checked",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_bytes_write",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_bloom_filter_useful",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_data_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_filter_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_data_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_index_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_filter_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_index_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_hit",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_add",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_block_cache_miss",
+        "value": 0
+      },
+      {
+        "name": "rocksdb_current_version_sst_files_uncompressed_size",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_operation_tracker",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_OperationsFromDisk",
+        "value": 0
+      },
+      {
+        "name": "mem_tracker_log_cache",
+        "value": 0
+      },
+      {
+        "name": "log_reader_bytes_read",
+        "value": 0
+      },
+      {
+        "name": "log_reader_entries_read",
+        "value": 0
+      },
+      {
+        "name": "log_bytes_logged",
+        "value": 54
+      },
+      {
+        "name": "log_wal_size",
+        "value": 0
+      },
+      {
+        "name": "majority_done_ops",
+        "value": 0
+      },
+      {
+        "name": "in_progress_ops",
+        "value": 0
+      },
+      {
+        "name": "log_cache_num_ops",
+        "value": 0
+      },
+      {
+        "name": "log_cache_size",
+        "value": 0
+      },
+      {
+        "name": "log_cache_disk_reads",
+        "value": 0
+      },
+      {
+        "name": "raft_term",
+        "value": 1
+      },
+      {
+        "name": "follower_lag_ms",
+        "value": 0
+      },
+      {
+        "name": "is_raft_leader",
+        "value": 1
+      },
+      {
+        "name": "follower_memory_pressure_rejections",
+        "value": 0
+      },
+      {
+        "name": "running_retryable_requests",
+        "value": 0
+      },
+      {
+        "name": "replicated_retryable_request_ranges",
+        "value": 0
+      },
+      {
+        "name": "rows_inserted",
+        "value": 0
+      },
+      {
+        "name": "not_leader_rejections",
+        "value": 0
+      },
+      {
+        "name": "majority_sst_files_rejections",
+        "value": 0
+      },
+      {
+        "name": "transaction_conflicts",
+        "value": 0
+      },
+      {
+        "name": "expired_transactions",
+        "value": 0
+      },
+      {
+        "name": "restart_read_requests",
+        "value": 0
+      },
+      {
+        "name": "tablet_data_corruptions",
+        "value": 0
+      },
+      {
+        "name": "leader_memory_pressure_rejections",
+        "value": 0
+      },
+      {
+        "name": "consistent_prefix_read_requests",
+        "value": 0
+      },
+      {
+        "name": "pgsql_consistent_prefix_read_rows",
+        "value": 0
+      },
+      {
+        "name": "alter_schema_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "update_transaction_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "history_cutoff_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "operation_memory_pressure_rejections",
+        "value": 0
+      },
+      {
+        "name": "all_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "write_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "snapshot_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "split_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "truncate_operations_inflight",
+        "value": 0
+      },
+      {
+        "name": "empty_operations_inflight",
+        "value": 0
+      }
+    ]
+  }
+]

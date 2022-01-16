@@ -136,6 +136,23 @@ fn main()
                                                         }
                                                     }
                                                 }
+                                                if &metrics_type == &"table" || &metrics_type == &"tablet" {
+                                                    vs_type.entry( String::from("total").into()).or_insert(BTreeMap::new());
+                                                    match vs_type.get_mut("total") {
+                                                        None => { panic!("value_statistics 4. id total not found, should have been inserted")}
+                                                        Some (vs_id) => {
+                                                            match vs_id.get_mut(&name.to_string()) {
+                                                                None => {
+                                                                    vs_id.insert(name.to_string(), XValues { table_name: String::from(""), namespace: String::from(""), current_time: fetch_time, previous_time: previous_fetch_time, current_value: *value, previous_value: 0 });
+
+                                                                }
+                                                                Some(vs_name) => {
+                                                                    *vs_name = XValues { table_name: String::from(""), namespace: String::from(""), current_time: fetch_time, previous_time: previous_fetch_time, current_value: vs_name.current_value+*value, previous_value: vs_name.previous_value+vs_name.current_value };
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }

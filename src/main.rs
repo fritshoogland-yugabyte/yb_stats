@@ -144,8 +144,8 @@ fn main()
                             );
                         },
                         NamedMetrics::MetricLatency { name, total_count, min, mean, percentile_75, percentile_95, percentile_99, percentile_99_9, percentile_99_99, max, total_sum } => {
-                            let mut previous_total_count_to_return: i64 = 0;
-                            let mut previous_total_sum_to_return: i64 = 0;
+                            let mut previous_total_count_to_return: u64 = 0;
+                            let mut previous_total_sum_to_return: u64 = 0;
                             build_detail_latency_metric( name,
                                                          total_count,
                                                          min,
@@ -180,6 +180,7 @@ fn main()
                                                           &previous_total_sum_to_return
                             );
                         }
+                        NamedMetrics::RejectedMetricValue {name: _, value: _} => {}
                     };
                 };
             };

@@ -28,18 +28,22 @@ pub enum NamedMetrics {
         name: String,
         value: i64,
     },
+    RejectedMetricValue {
+        name: String,
+        value: u64,
+    },
     MetricLatency {
         name: String,
-        total_count: i64,
-        min: i64,
+        total_count: u64,
+        min: u64,
         mean: f64,
-        percentile_75: i64,
-        percentile_95: i64,
-        percentile_99: i64,
-        percentile_99_9: i64,
-        percentile_99_99: i64,
-        max: i64,
-        total_sum: i64,
+        percentile_75: u64,
+        percentile_95: u64,
+        percentile_99: u64,
+        percentile_99_9: u64,
+        percentile_99_99: u64,
+        max: u64,
+        total_sum: u64,
     }
 }
 
@@ -58,18 +62,18 @@ pub struct Latencies {
     pub namespace: String,
     pub current_time: SystemTime,
     pub previous_time: SystemTime,
-    pub current_total_count: i64,
-    pub current_min: i64,
+    pub current_total_count: u64,
+    pub current_min: u64,
     pub current_mean: f64,
-    pub current_percentile_75: i64,
-    pub current_percentile_95: i64,
-    pub current_percentile_99: i64,
-    pub current_percentile_99_9: i64,
-    pub current_percentile_99_99: i64,
-    pub current_max: i64,
-    pub current_total_sum: i64,
-    pub previous_total_count: i64,
-    pub previous_total_sum: i64,
+    pub current_percentile_75: u64,
+    pub current_percentile_95: u64,
+    pub current_percentile_99: u64,
+    pub current_percentile_99_9: u64,
+    pub current_percentile_99_99: u64,
+    pub current_max: u64,
+    pub current_total_sum: u64,
+    pub previous_total_count: u64,
+    pub previous_total_sum: u64,
 }
 
 #[derive(Debug)]
@@ -173,16 +177,16 @@ pub fn build_summary_value_metric( name: &String,
 }
 
 pub fn build_detail_latency_metric( name: &String,
-                                    total_count: &i64,
-                                    min: &i64,
+                                    total_count: &u64,
+                                    min: &u64,
                                     mean: &f64,
-                                    percentile_75: &i64,
-                                    percentile_95: &i64,
-                                    percentile_99: &i64,
-                                    percentile_99_9: &i64,
-                                    percentile_99_99: &i64,
-                                    max: &i64,
-                                    total_sum: &i64,
+                                    percentile_75: &u64,
+                                    percentile_95: &u64,
+                                    percentile_99: &u64,
+                                    percentile_99_9: &u64,
+                                    percentile_99_99: &u64,
+                                    max: &u64,
+                                    total_sum: &u64,
                                     hostname: &&str,
                                     metrics_type: &String,
                                     metrics_id: &String,
@@ -191,8 +195,8 @@ pub fn build_detail_latency_metric( name: &String,
                                     fetch_time: &SystemTime,
                                     previous_fetch_time: &SystemTime,
                                     latency_statistics: &mut BTreeMap<String, BTreeMap<String, BTreeMap<String, BTreeMap<String, Latencies>>>>,
-                                    previous_total_count_to_return: &mut i64,
-                                    previous_total_sum_to_return: &mut i64
+                                    previous_total_count_to_return: &mut u64,
+                                    previous_total_sum_to_return: &mut u64
                                   ) {
     if *total_count > 0 {
         latency_statistics.entry(hostname.to_string().into()).or_insert(BTreeMap::new());
@@ -229,15 +233,15 @@ pub fn build_detail_latency_metric( name: &String,
 }
 
 pub fn build_summary_latency_metric( name: &String,
-                                     total_count: &i64,
-                                     total_sum: &i64,
+                                     total_count: &u64,
+                                     total_sum: &u64,
                                      hostname: &&str,
                                      metrics_type: &String,
                                      fetch_time: &SystemTime,
                                      previous_fetch_time: &SystemTime,
                                      summary_latency_statistics: &mut BTreeMap<String, BTreeMap<String, BTreeMap<String, BTreeMap<String, Latencies>>>>,
-                                     previous_total_count_to_return: &i64,
-                                     previous_total_sum_to_return: &i64
+                                     previous_total_count_to_return: &u64,
+                                     previous_total_sum_to_return: &u64
                                    ) {
     if metrics_type == "table" || metrics_type == "tablet" {
         if *total_count > 0 {

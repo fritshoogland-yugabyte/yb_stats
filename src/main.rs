@@ -295,7 +295,7 @@ fn main()
                                  Some(x) => { LatencyStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), divisor: x.divisor, stat_type: x.stat_type.to_string() }  }
                             } ;
                             let adaptive_length = if id_key.len() < 15 { 0 } else { id_key.len()-15 };
-                            println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:>15.3}/s avg: {:>9.0} {:10}",
+                            println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:>15.3}/s avg: {:>9.0} {:10} tot: {:>15.3}",
                                       hostname_key,
                                       type_key,
                                       id_key.substring(adaptive_length,id_key.len()),
@@ -305,7 +305,8 @@ fn main()
                                       name_value.current_total_count-name_value.previous_total_count,
                                       ((name_value.current_total_count-name_value.previous_total_count) as f64 / (name_value.current_time.duration_since(name_value.previous_time).unwrap().as_millis() as f64) *100 as f64),
                                       ((name_value.current_total_sum-name_value.previous_total_sum) / (name_value.current_total_count-name_value.previous_total_count)) as f64,
-                                      details.unit_suffix
+                                      details.unit_suffix,
+                                      name_value.current_total_sum-name_value.previous_total_sum
                             );
                         };
                     };
@@ -324,17 +325,19 @@ fn main()
                                     Some(x) => { LatencyStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), divisor: x.divisor, stat_type: x.stat_type.to_string() } }
                                 };
                                 let adaptive_length = if id_key.len() < 15 { 0 } else { id_key.len() - 15 };
-                                println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:>15.3}/s avg: {:>9.0} {:10}",
+                                //println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:>15.3}/s avg: {:>9.0} {:10} {:>15.3}",
+                                println!("{:20} {:8} {:15} {:70} {:15} {:>15.3}/s avg: {:>9.0} {:10} tot: {:>15.3}",
                                          hostname_key,
                                          type_key,
                                          id_key.substring(adaptive_length, id_key.len()),
-                                         name_value.namespace,
-                                         name_value.table_name,
+                                         //name_value.namespace,
+                                         //name_value.table_name,
                                          name_key,
                                          name_value.current_total_count - name_value.previous_total_count,
                                          ((name_value.current_total_count - name_value.previous_total_count) as f64 / (name_value.current_time.duration_since(name_value.previous_time).unwrap().as_millis() as f64) * 100 as f64),
                                          ((name_value.current_total_sum - name_value.previous_total_sum) / (name_value.current_total_count - name_value.previous_total_count)) as f64,
-                                         details.unit_suffix
+                                         details.unit_suffix,
+                                         name_value.current_total_sum-name_value.previous_total_sum
                                 );
                             };
                         };

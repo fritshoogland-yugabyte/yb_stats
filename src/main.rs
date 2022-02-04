@@ -201,52 +201,7 @@ fn main()
                                 Some(x) => { ValueStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), stat_type: x.stat_type.to_string() }  }
                             } ;
                             let adaptive_length = if id_key.len() < 15 { 0 }  else { id_key.len()-15 };
-                            if details.stat_type == "counter" {
-                                if name_value.current_value - name_value.previous_value != 0 {
-                                    println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:6} {:>15.3}/s",
-                                             hostname_key,
-                                             type_key,
-                                             id_key.substring(adaptive_length, id_key.len()),
-                                             name_value.namespace,
-                                             name_value.table_name,
-                                             name_key,
-                                             name_value.current_value - name_value.previous_value,
-                                             details.unit_suffix,
-                                             ((name_value.current_value - name_value.previous_value) as f64 / (name_value.current_time.duration_since(name_value.previous_time).unwrap().as_millis() as f64) * 1000 as f64),
-                                    );
-                                };
-                            } else {
-                                if gauges_enable {
-                                    println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:6} {:+15}",
-                                             hostname_key,
-                                             type_key,
-                                             id_key.substring(adaptive_length, id_key.len()),
-                                             name_value.namespace,
-                                             name_value.table_name,
-                                             name_key,
-                                             name_value.current_value,
-                                             details.unit_suffix,
-                                             name_value.current_value - name_value.previous_value
-                                    );
-                                };
-                            };
-                        };
-                    };
-                };
-            };
-        };
-        if ! details_enable {
-            for (hostname_key, hostname_value) in summary_value_statistics.iter() {
-                for (type_key, type_value) in hostname_value.iter() {
-                    for (id_key, id_value) in type_value.iter() {
-                        for (name_key, name_value) in id_value.iter().filter(|(k, _v)| stat_name_filter.is_match(k)) {
-                            //if name_value.current_value - name_value.previous_value != 0
-                            if name_value.current_time.duration_since(name_value.previous_time).unwrap().as_millis() != 0 {
-                                let details = match value_statistic_details_lookup.get(&name_key.to_string()) {
-                                    None => { ValueStatisticDetails { unit: String::from('?'), unit_suffix: String::from('?'), stat_type: String::from('?') } },
-                                    Some(x) => { ValueStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), stat_type: x.stat_type.to_string() } }
-                                };
-                                let adaptive_length = if id_key.len() < 15 { 0 } else { id_key.len() - 15 };
+                            if details_enable {
                                 if details.stat_type == "counter" {
                                     if name_value.current_value - name_value.previous_value != 0 {
                                         println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:6} {:>15.3}/s",
@@ -276,6 +231,75 @@ fn main()
                                         );
                                     };
                                 };
+                            } else {
+                                if details.stat_type == "counter" {
+                                    if name_value.current_value - name_value.previous_value != 0 {
+                                        println!("{:20} {:8} {:15} {:70} {:15} {:6} {:>15.3}/s",
+                                                 hostname_key,
+                                                 type_key,
+                                                 id_key.substring(adaptive_length, id_key.len()),
+                                                 name_key,
+                                                 name_value.current_value - name_value.previous_value,
+                                                 details.unit_suffix,
+                                                 ((name_value.current_value - name_value.previous_value) as f64 / (name_value.current_time.duration_since(name_value.previous_time).unwrap().as_millis() as f64) * 1000 as f64),
+                                        );
+                                    };
+                                } else {
+                                    if gauges_enable {
+                                        println!("{:20} {:8} {:15} {:70} {:15} {:6} {:+15}",
+                                                 hostname_key,
+                                                 type_key,
+                                                 id_key.substring(adaptive_length, id_key.len()),
+                                                 name_key,
+                                                 name_value.current_value,
+                                                 details.unit_suffix,
+                                                 name_value.current_value - name_value.previous_value
+                                        );
+                                    };
+                                };
+                            }
+                        };
+                    };
+                };
+            };
+        };
+        if ! details_enable {
+            for (hostname_key, hostname_value) in summary_value_statistics.iter() {
+                for (type_key, type_value) in hostname_value.iter() {
+                    for (id_key, id_value) in type_value.iter() {
+                        for (name_key, name_value) in id_value.iter().filter(|(k, _v)| stat_name_filter.is_match(k)) {
+                            //if name_value.current_value - name_value.previous_value != 0
+                            if name_value.current_time.duration_since(name_value.previous_time).unwrap().as_millis() != 0 {
+                                let details = match value_statistic_details_lookup.get(&name_key.to_string()) {
+                                    None => { ValueStatisticDetails { unit: String::from('?'), unit_suffix: String::from('?'), stat_type: String::from('?') } },
+                                    Some(x) => { ValueStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), stat_type: x.stat_type.to_string() } }
+                                };
+                                let adaptive_length = if id_key.len() < 15 { 0 } else { id_key.len() - 15 };
+                                if details.stat_type == "counter" {
+                                    if name_value.current_value - name_value.previous_value != 0 {
+                                        println!("{:20} {:8} {:15} {:70} {:15} {:6} {:>15.3}/s",
+                                                 hostname_key,
+                                                 type_key,
+                                                 id_key.substring(adaptive_length, id_key.len()),
+                                                 name_key,
+                                                 name_value.current_value - name_value.previous_value,
+                                                 details.unit_suffix,
+                                                 ((name_value.current_value - name_value.previous_value) as f64 / (name_value.current_time.duration_since(name_value.previous_time).unwrap().as_millis() as f64) * 1000 as f64),
+                                        );
+                                    };
+                                } else {
+                                    if gauges_enable {
+                                        println!("{:20} {:8} {:15} {:70} {:15} {:6} {:+15}",
+                                                 hostname_key,
+                                                 type_key,
+                                                 id_key.substring(adaptive_length, id_key.len()),
+                                                 name_key,
+                                                 name_value.current_value,
+                                                 details.unit_suffix,
+                                                 name_value.current_value - name_value.previous_value
+                                        );
+                                    };
+                                };
                             };
                         };
                     };
@@ -295,19 +319,33 @@ fn main()
                                  Some(x) => { LatencyStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), divisor: x.divisor, stat_type: x.stat_type.to_string() }  }
                             } ;
                             let adaptive_length = if id_key.len() < 15 { 0 } else { id_key.len()-15 };
-                            println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:>15.3}/s avg: {:>9.0} {:10} tot: {:>15.3}",
-                                      hostname_key,
-                                      type_key,
-                                      id_key.substring(adaptive_length,id_key.len()),
-                                      name_value.namespace,
-                                      name_value.table_name,
-                                      name_key,
-                                      name_value.current_total_count-name_value.previous_total_count,
-                                      ((name_value.current_total_count-name_value.previous_total_count) as f64 / (name_value.current_time.duration_since(name_value.previous_time).unwrap().as_millis() as f64) *100 as f64),
-                                      ((name_value.current_total_sum-name_value.previous_total_sum) / (name_value.current_total_count-name_value.previous_total_count)) as f64,
-                                      details.unit_suffix,
-                                      name_value.current_total_sum-name_value.previous_total_sum
-                            );
+                            if details_enable {
+                                println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:>15.3}/s avg: {:>9.0} {:10} tot: {:>15.3}",
+                                         hostname_key,
+                                         type_key,
+                                         id_key.substring(adaptive_length, id_key.len()),
+                                         name_value.namespace,
+                                         name_value.table_name,
+                                         name_key,
+                                         name_value.current_total_count - name_value.previous_total_count,
+                                         ((name_value.current_total_count - name_value.previous_total_count) as f64 / (name_value.current_time.duration_since(name_value.previous_time).unwrap().as_millis() as f64) * 100 as f64),
+                                         ((name_value.current_total_sum - name_value.previous_total_sum) / (name_value.current_total_count - name_value.previous_total_count)) as f64,
+                                         details.unit_suffix,
+                                         name_value.current_total_sum - name_value.previous_total_sum
+                                );
+                            } else {
+                                println!("{:20} {:8} {:15} {:70} {:15} {:>15.3}/s avg: {:>9.0} {:10} tot: {:>15.3}",
+                                         hostname_key,
+                                         type_key,
+                                         id_key.substring(adaptive_length, id_key.len()),
+                                         name_key,
+                                         name_value.current_total_count - name_value.previous_total_count,
+                                         ((name_value.current_total_count - name_value.previous_total_count) as f64 / (name_value.current_time.duration_since(name_value.previous_time).unwrap().as_millis() as f64) * 100 as f64),
+                                         ((name_value.current_total_sum - name_value.previous_total_sum) / (name_value.current_total_count - name_value.previous_total_count)) as f64,
+                                         details.unit_suffix,
+                                         name_value.current_total_sum - name_value.previous_total_sum
+                                );
+                            }
                         };
                     };
                 };
@@ -325,13 +363,10 @@ fn main()
                                     Some(x) => { LatencyStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), divisor: x.divisor, stat_type: x.stat_type.to_string() } }
                                 };
                                 let adaptive_length = if id_key.len() < 15 { 0 } else { id_key.len() - 15 };
-                                //println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:>15.3}/s avg: {:>9.0} {:10} {:>15.3}",
                                 println!("{:20} {:8} {:15} {:70} {:15} {:>15.3}/s avg: {:>9.0} {:10} tot: {:>15.3}",
                                          hostname_key,
                                          type_key,
                                          id_key.substring(adaptive_length, id_key.len()),
-                                         //name_value.namespace,
-                                         //name_value.table_name,
                                          name_key,
                                          name_value.current_total_count - name_value.previous_total_count,
                                          ((name_value.current_total_count - name_value.previous_total_count) as f64 / (name_value.current_time.duration_since(name_value.previous_time).unwrap().as_millis() as f64) * 100 as f64),

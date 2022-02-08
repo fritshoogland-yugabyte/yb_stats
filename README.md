@@ -25,6 +25,8 @@ USAGE:
 
 FLAGS:
     -b, --begin-end-mode
+    -d, --details-enable
+    -g, --gauges-enable
     -h, --help              Prints help information
     -V, --version           Prints version information
 
@@ -38,12 +40,16 @@ The most important switch is `-m`, which allows you to specify a comma-separated
 
 The second consideration is to use the tool in the default mode, which is showing the difference of non-gauge statistics each `-w` interval, or use begin-end mode by specifying `-b`.
 
-The number of statistics is overwhelming. For that reason, two switches can be used to filter the output:
+By default, the tool summarizes the table and tablet statistics per hostname:port. If you want the statistics to be separated per table and tablet, use the `-d` switch.  
 
+Lots of the statistics are counters, which are the statistics that are shown. If you want to include the gauge statistics, use the `-g` switch.  
+
+The number of statistics is overwhelming. For that reason, two switches can be used to filter the output:
 - `-t` table name match  
-The table name match switch allows you to specify a regex to filter on a table name or table names.
+The table name match switch allows you to specify a regex to filter on a table name or table names. You cannot match table names only in `-d`/`--details-enable` mode.
 - `-s` statistic name match  
 The statistic name match switch allows you to specify a regex to filter on a statistic name or statistics names.
+
 
 # output
 ```
@@ -68,9 +74,9 @@ fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.
 (this is a partial output)
 - The first column shows the hostname:port number endpoint specification.
 - The second column shows the metric type (cluster, server, table, tablet).
-- The third column shows the 'id' of the type. This results in different types: for server, this is yb.tabletserver or yb.master. For a table, this is the unique identifier for a table, and for a tablet this is the UUID of the tablet. The last 15 characters are displayed.
-- The fourth column is the namespace. For the server type, this is '-'.
-- The fifth column is the table_name. For the server type, this is '-'.
+- The third column shows the 'id' of the type. This results in different types: for server, this is yb.tabletserver or yb.master. In detail mode (not default), for a table, this is the unique identifier for a table, and for a tablet this is the UUID of the tablet. The last 15 characters are displayed.
+- The fourth column is the namespace (in detail mode). For the server type, this is '-'.
+- The fifth column is the table_name (in detail mode). For the server type, this is '-'.
 - The sixth column is the statistic name.
 - The seventh column is the difference between the previous and the current fetch for counter type statistics, and for gauge types this is the value of the current fetch. For non-latency statistics, it includes the type of the statistic, such as 'ms' for milliseconds, bytes, etc.
 - The eighth column is the difference between the previous and the current fetch divided by the time of the two fetches, to get an idea of rate of the statistic happening, and for gauge types it's the difference (positive or negative) between the previous and current fetch.

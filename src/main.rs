@@ -10,8 +10,10 @@ use std::io::stdin;
 use std::time::SystemTime;
 use regex::Regex;
 use substring::Substring;
+use std::fs;
+use std::path::Path;
 
-use yb_stats::{NamedMetrics, Values, Latencies, LatencyStatisticDetails, ValueStatisticDetails, build_detail_value_metric, build_detail_latency_metric, build_summary_value_metric, build_summary_latency_metric};
+use yb_stats::{NamedMetrics, Values, Latencies, LatencyStatisticDetails, ValueStatisticDetails, build_detail_value_metric, build_detail_latency_metric, build_summary_value_metric, build_summary_latency_metric, Snapshots};
 
 #[derive(Debug, StructOpt)]
 struct Opts {
@@ -29,6 +31,8 @@ struct Opts {
     gauges_enable: bool,
     #[structopt(short, long)]
     details_enable: bool,
+    #[structopt(short, long)]
+    snapshot: bool,
 }
 
 fn main()
@@ -47,6 +51,7 @@ fn main()
     let begin_end_mode = options.begin_end_mode as bool;
     let gauges_enable = options.gauges_enable as bool;
     let details_enable = options.details_enable as bool;
+    let snapshot: bool = options.snapshot as bool;
 
     // the bail_out boolean is used for 'begin-end mode' to quit the execution (bail out) the second time.
     let mut bail_out = false;
@@ -186,6 +191,25 @@ fn main()
             };
         };
 
+        if snapshot {
+            let mut snapshot_number: i32 = 0;
+            let mut snapshots: Vec<Snapshots>;
+            // This creates the yb_stats.snapshots directory if it doesn't exist.
+            fs::create_dir_all("yb_stats.snapshots")
+                .unwrap_or_else(|e| {
+                    eprintln!("Error creating directory yb_stats.snapshots: {}", e);
+                    process::exit(1);
+                });
+            // if yb_stats.snapshots/snapshot.index exists, read it and get the maximum snapshot number
+            if Path::new("yb_stats.snapshots/snapshot.index").exists() {
+                // read file, get next snapshot number
+                let file = fs::File::open("yb_stats.snapshots/snapshot.index").unwrap();
+                let mut reader = csv::Reader::from_reader(file);
+                snapshots = reader.records().collect();
+
+
+            }
+        }
         if ! begin_end_mode { std::process::Command::new("clear").status().unwrap(); };
 
         for (hostname_key, hostname_value) in value_statistics.iter() {

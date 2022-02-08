@@ -2,6 +2,7 @@ extern crate serde;
 extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
+extern crate csv;
 
 use std::time::SystemTime;
 use std::collections::BTreeMap;
@@ -89,6 +90,13 @@ pub struct ValueStatisticDetails {
     pub unit: String,
     pub unit_suffix: String,
     pub stat_type: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Snapshots {
+    pub number: i32,
+    pub timestamp: SystemTime,
+    pub remark: String,
 }
 
 pub fn build_detail_value_metric( name: &String,

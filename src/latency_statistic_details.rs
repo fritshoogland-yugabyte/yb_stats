@@ -1,7 +1,15 @@
 use std::collections::HashMap;
-use yb_stats::LatencyStatisticDetails;
 
-pub fn create_hashmap() -> HashMap<String, LatencyStatisticDetails> {
+#[derive(Debug)]
+pub struct LatencyStatisticDetails {
+    pub unit: String,
+    pub unit_suffix: String,
+    pub divisor: i64,
+    pub stat_type: String,
+}
+
+#[allow(dead_code)]
+pub fn latency_create_hashmap() -> HashMap<String, LatencyStatisticDetails> {
     let mut latency_statistic_details: HashMap<String, LatencyStatisticDetails> = HashMap::new();
 
     latency_statistic_details.insert(String::from("Create_Tablet_Attempt"), LatencyStatisticDetails { unit: String::from("microseconds"), unit_suffix: String::from("us"), divisor: 1000000, stat_type: String::from("counter") });

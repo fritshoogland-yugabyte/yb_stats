@@ -4,15 +4,20 @@ extern crate serde_json;
 extern crate serde_derive;
 extern crate csv;
 
-//mod parse_json;
+mod value_statistic_details;
+use value_statistic_details::{ValueStatisticDetails, value_create_hashmap};
+mod latency_statistic_details;
+use latency_statistic_details::{LatencyStatisticDetails, latency_create_hashmap};
 
-//use std::time::SystemTime;
 use std::collections::BTreeMap;
 use chrono::{DateTime, Local};
 use port_scanner::scan_port_addr;
 use std::process;
 use std::fs;
 use std::path::Path;
+use std::env;
+use regex::Regex;
+use substring::Substring;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Metrics {
@@ -117,27 +122,13 @@ pub struct SnapshotDiffLatencies {
     pub first_snapshot_total_sum: u64,
 }
 
-#[derive(Debug)]
-pub struct LatencyStatisticDetails {
-    pub unit: String,
-    pub unit_suffix: String,
-    pub divisor: i64,
-    pub stat_type: String,
-}
-
-#[derive(Debug)]
-pub struct ValueStatisticDetails {
-    pub unit: String,
-    pub unit_suffix: String,
-    pub stat_type: String,
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Snapshot {
     pub number: i32,
     pub timestamp: DateTime<Local>,
     pub comment: String,
 }
+
 pub fn read_metrics( hostname: &str) -> Vec<Metrics> {
         if ! scan_port_addr(hostname) {
             println!("Warning! hostname:port {} cannot be reached, skipping", hostname.to_string());
@@ -230,13 +221,22 @@ pub fn perform_snapshot( hostname_port_vec: Vec<&str>,
         add_to_metric_vectors(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_values, &mut stored_latencies);
     }
 
-    fs::create_dir_all("yb_stats.snapshots")
+    let current_directory = env::current_dir().unwrap();
+    let yb_stats_directory = current_directory.join("yb_stats.snapshots");
+
+    fs::create_dir_all(&yb_stats_directory)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error creating directory yb_stats.snapshots: {}", e);
+            eprintln!("Fatal: error creating directory {}: {}", &yb_stats_directory.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
-    if Path::new("yb_stats.snapshots/snapshot.index").exists() {
-        let file = fs::File::open("yb_stats.snapshots/snapshot.index").unwrap();
+
+    let snapshot_index = &yb_stats_directory.join("snapshot.index");
+    if Path::new(&snapshot_index).exists() {
+        let file = fs::File::open(&snapshot_index)
+            .unwrap_or_else(|e| {
+                eprintln!("Fatal: error opening file {}: {}", &snapshot_index.clone().into_os_string().into_string().unwrap(), e);
+                process::exit(1);
+            });
         let mut reader = csv::Reader::from_reader(file);
         for row in reader.deserialize() {
             let data: Snapshot = row.unwrap();
@@ -245,15 +245,16 @@ pub fn perform_snapshot( hostname_port_vec: Vec<&str>,
         let record_with_highest_snapshot_number = snapshots.iter().max_by_key(|k| k.number).unwrap();
         snapshot_number = record_with_highest_snapshot_number.number + 1;
     }
+
     let current_snapshot: Snapshot = Snapshot { number: snapshot_number, timestamp: snapshot_time, comment: snapshot_comment };
     let _ = &snapshots.push(current_snapshot);
     let file = fs::OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(true)
-        .open("yb_stats.snapshots/snapshot.index")
+        .open(&snapshot_index)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error writing yb_stats.snapshots/snapshot.index file: {}", e);
+            eprintln!("Fatal: error writing {}: {}", &snapshot_index.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
     let mut writer = csv::Writer::from_writer(file);
@@ -261,17 +262,21 @@ pub fn perform_snapshot( hostname_port_vec: Vec<&str>,
         writer.serialize(row).unwrap();
     }
     writer.flush().unwrap();
-    fs::create_dir_all("yb_stats.snapshots/".to_owned()+&snapshot_number.to_string())
+
+    let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
+    fs::create_dir_all(&current_snapshot_directory)
         .unwrap_or_else(|e| {
-            eprintln!("Fatel: error creating directory yb_stats.snapshots/{}: {}", &snapshot_number.to_string(), e);
+            eprintln!("Fatal: error creating directory {}: {}", &current_snapshot_directory.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
+
+    let values_file = &current_snapshot_directory.join("values");
     let file = fs::OpenOptions::new()
         .create(true)
         .write(true)
-        .open("yb_stats.snapshots/".to_owned()+&snapshot_number.to_string()+"/values")
+        .open(&values_file)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error writing values statistics in snapshot directory {}: {}", &snapshot_number.to_string(), e);
+            eprintln!("Fatal: error writing values statistics in snapshot directory {}: {}", &values_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
     let mut writer = csv::Writer::from_writer(file);
@@ -279,12 +284,14 @@ pub fn perform_snapshot( hostname_port_vec: Vec<&str>,
         writer.serialize(row).unwrap();
     }
     writer.flush().unwrap();
+
+    let latencies_file = &current_snapshot_directory.join("latencies");
     let file = fs::OpenOptions::new()
         .create(true)
         .write(true)
-        .open("yb_stats.snapshots/".to_owned()+&snapshot_number.to_string()+"/latencies")
+        .open(&latencies_file)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error writing latencies statistics in snapshot directory {}: {}", &snapshot_number.to_string(), e);
+            eprintln!("Fatal: error writing latencies statistics in snapshot directory {}: {}", &latencies_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
     let mut writer = csv::Writer::from_writer(file);
@@ -292,6 +299,7 @@ pub fn perform_snapshot( hostname_port_vec: Vec<&str>,
         writer.serialize(row).unwrap();
     }
     writer.flush().unwrap();
+
     snapshot_number
 }
 
@@ -355,6 +363,33 @@ pub fn build_summary(values_summary: &mut BTreeMap<(String, String, String, Stri
                     });
                 }
             }
+        } else {
+            match values_summary.get_mut(&(row.hostname_port.clone(), row.metric_type.clone(), String::from("-"), row.metric_name.clone())) {
+                Some(values_summary_row) => {
+                    *values_summary_row = StoredValues {
+                        hostname_port: values_summary_row.hostname_port.to_string(),
+                        timestamp: values_summary_row.timestamp,
+                        metric_type: values_summary_row.metric_type.to_string(),
+                        metric_id: values_summary_row.metric_id.to_string(),
+                        attribute_namespace: values_summary_row.attribute_namespace.to_string(),
+                        attribute_table_name: values_summary_row.attribute_table_name.to_string(),
+                        metric_name: values_summary_row.metric_name.to_string(),
+                        metric_value: values_summary_row.metric_value
+                    }
+                },
+                None => {
+                    values_summary.insert((row.hostname_port.clone(), row.metric_type.clone(), String::from("-"), row.metric_name.clone()), StoredValues {
+                        hostname_port: row.hostname_port.to_string(),
+                        timestamp: row.timestamp,
+                        metric_type: row.metric_type.to_string(),
+                        metric_id: String::from("-"),
+                        attribute_namespace: String::from("-"),
+                        attribute_table_name: String::from("-"),
+                        metric_name: row.metric_name.to_string(),
+                        metric_value: row.metric_value
+                    });
+                }
+            }
         }
     }
     for row in stored_latencies {
@@ -379,6 +414,51 @@ pub fn build_summary(values_summary: &mut BTreeMap<(String, String, String, Stri
                         metric_percentile_99_99: 0,
                         metric_max: 0,
                         metric_total_sum: latencies_summary_row.metric_total_sum + row.metric_total_sum
+                    }
+                },
+                None => {
+                    latencies_summary.insert((row.hostname_port.clone(), row.metric_type.clone(), String::from("-"), row.metric_name.clone()), StoredLatencies {
+                        hostname_port: row.hostname_port.to_string(),
+                        timestamp: row.timestamp,
+                        metric_type: row.metric_type.to_string(),
+                        metric_id: String::from("-"),
+                        attribute_namespace: String::from("-"),
+                        attribute_table_name: String::from("-"),
+                        metric_name: row.metric_name.to_string(),
+                        metric_total_count: row.metric_total_count,
+                        metric_min: 0,
+                        metric_mean: 0.0,
+                        metric_percentile_75: 0,
+                        metric_percentile_95: 0,
+                        metric_percentile_99: 0,
+                        metric_percentile_99_9: 0,
+                        metric_percentile_99_99: 0,
+                        metric_max: 0,
+                        metric_total_sum: row.metric_total_sum
+                    });
+                }
+            }
+        } else {
+            match latencies_summary.get_mut(&(row.hostname_port.clone(), row.metric_type.clone(), String::from("-"), row.metric_name.clone())) {
+                Some(latencies_summary_row) => {
+                    *latencies_summary_row = StoredLatencies {
+                        hostname_port: latencies_summary_row.hostname_port.to_string(),
+                        timestamp: latencies_summary_row.timestamp,
+                        metric_type: latencies_summary_row.metric_type.to_string(),
+                        metric_id: latencies_summary_row.metric_id.to_string(),
+                        attribute_namespace: latencies_summary_row.attribute_namespace.to_string(),
+                        attribute_table_name: latencies_summary_row.attribute_table_name.to_string(),
+                        metric_name: latencies_summary_row.metric_name.to_string(),
+                        metric_total_count: latencies_summary_row.metric_total_count + row.metric_total_count,
+                        metric_min: 0,
+                        metric_mean: 0.0,
+                        metric_percentile_75: 0,
+                        metric_percentile_95: 0,
+                        metric_percentile_99: 0,
+                        metric_percentile_99_9: 0,
+                        metric_percentile_99_99: 0,
+                        metric_max: 0,
+                        metric_total_sum: latencies_summary_row.metric_total_sum
                     }
                 },
                 None => {
@@ -527,10 +607,10 @@ pub fn insert_second_snap_into_diff(values_diff: &mut BTreeMap<(String, String, 
                                    values_btree: &BTreeMap<(String, String, String, String), StoredValues>,
                                    latencies_diff: &mut BTreeMap<(String, String, String, String), SnapshotDiffLatencies>,
                                    latencies_btree: &BTreeMap<(String, String, String, String), StoredLatencies>,
-                                   first_snapshot_time: DateTime<Local>
+                                   first_snapshot_time: &DateTime<Local>
 ) {
     for ((hostname_port, metric_type, metric_id, metric_name), storedvalues) in values_btree {
-        match values_diff.get_mut(&(hostname_port.clone(), metric_type.clone(), metric_id.clone(), metric_name.clone())) {
+        match values_diff.get_mut(&(hostname_port.to_string(), metric_type.to_string(), metric_id.to_string(), metric_name.to_string())) {
             Some(values_diff_row) => {
                 *values_diff_row = SnapshotDiffValues {
                     table_name: values_diff_row.table_name.to_string(),
@@ -545,7 +625,7 @@ pub fn insert_second_snap_into_diff(values_diff: &mut BTreeMap<(String, String, 
                 values_diff.insert((hostname_port.to_string(), metric_type.to_string(), metric_id.to_string(), metric_name.to_string()), SnapshotDiffValues {
                     table_name: storedvalues.attribute_table_name.to_string(),
                     namespace: storedvalues.attribute_namespace.to_string(),
-                    first_snapshot_time: first_snapshot_time,
+                    first_snapshot_time: *first_snapshot_time,
                     second_snapshot_time: storedvalues.timestamp,
                     first_snapshot_value: 0,
                     second_snapshot_value: storedvalues.metric_value
@@ -554,7 +634,7 @@ pub fn insert_second_snap_into_diff(values_diff: &mut BTreeMap<(String, String, 
         }
     }
     for ((hostname_port, metric_type, metric_id, metric_name), storedlatencies) in latencies_btree {
-        match latencies_diff.get_mut( &(hostname_port.clone(), metric_type.clone(), metric_id.clone(), metric_name.clone())) {
+        match latencies_diff.get_mut( &(hostname_port.to_string(), metric_type.to_string(), metric_id.to_string(), metric_name.to_string())) {
             Some(latencies_diff_row) => {
                *latencies_diff_row = SnapshotDiffLatencies {
                    table_name: latencies_diff_row.table_name.to_string(),
@@ -572,14 +652,14 @@ pub fn insert_second_snap_into_diff(values_diff: &mut BTreeMap<(String, String, 
                    second_snapshot_max: storedlatencies.metric_max,
                    second_snapshot_total_sum: storedlatencies.metric_total_sum,
                    first_snapshot_total_count: latencies_diff_row.first_snapshot_total_count,
-                   first_snapshot_total_sum:latencies_diff_row.first_snapshot_total_sum
+                   first_snapshot_total_sum: latencies_diff_row.first_snapshot_total_sum
                }
             },
             None => {
                latencies_diff.insert((hostname_port.to_string(), metric_type.to_string(), metric_id.to_string(), metric_name.to_string()), SnapshotDiffLatencies {
                    table_name: storedlatencies.attribute_table_name.to_string(),
                    namespace: storedlatencies.attribute_namespace.to_string(),
-                   first_snapshot_time: first_snapshot_time,
+                   first_snapshot_time: *first_snapshot_time,
                    second_snapshot_time: storedlatencies.timestamp,
                    second_snapshot_total_count: storedlatencies.metric_total_count,
                    second_snapshot_min: storedlatencies.metric_min,
@@ -598,6 +678,125 @@ pub fn insert_second_snap_into_diff(values_diff: &mut BTreeMap<(String, String, 
         }
     }
 }
+
+pub fn print_diff(value_diff: &BTreeMap<(String, String, String, String), SnapshotDiffValues>,
+                  latency_diff: &BTreeMap<(String, String, String, String), SnapshotDiffLatencies>,
+                  hostname_filter: &Regex,
+                  stat_name_filter: &Regex,
+                  table_name_filter: &Regex,
+                  details_enable: &bool,
+                  gauges_enable: &bool
+) {
+    // value_diff
+    for ((hostname, metric_type, metric_id, metric_name), value_diff_row) in value_diff {
+        let value_statistic_details_lookup = value_create_hashmap();
+        if hostname_filter.is_match(&hostname) {
+            if stat_name_filter.is_match(&metric_name) {
+                if table_name_filter.is_match(&value_diff_row.table_name) {
+                    let details = match value_statistic_details_lookup.get(&metric_name.to_string()) {
+                        Some(x) => { ValueStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), stat_type: x.stat_type.to_string() } },
+                        None => { ValueStatisticDetails { unit: String::from("?"), unit_suffix: String::from("?"), stat_type: String::from("?") } }
+                    };
+                    let adaptive_length = if metric_id.len() < 15 { 0 } else { metric_id.len() - 15 };
+                    if details.stat_type != "gauge" {
+                        if value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value != 0 {
+                            if *details_enable {
+                                println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:6} {:>15.3}/s",
+                                         hostname,
+                                         metric_type,
+                                         metric_id.substring(adaptive_length, metric_id.len()),
+                                         value_diff_row.namespace,
+                                         value_diff_row.table_name,
+                                         metric_name,
+                                         value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value,
+                                         details.unit_suffix,
+                                         ((value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value) as f64 / (value_diff_row.second_snapshot_time - value_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64)
+                                );
+                            } else {
+                                println!("{:20} {:8} {:70} {:15} {:6} {:>15.3}/s",
+                                         hostname,
+                                         metric_type,
+                                         metric_name,
+                                         value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value,
+                                         details.unit_suffix,
+                                         ((value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value) as f64 / (value_diff_row.second_snapshot_time - value_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64)
+                                );
+                            }
+                        }
+                    }
+                    if details.stat_type == "gauge" && *gauges_enable {
+                        if *details_enable {
+                            println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:6} {:+15}",
+                                     hostname,
+                                     metric_type,
+                                     metric_id.substring(adaptive_length, metric_id.len()),
+                                     value_diff_row.namespace,
+                                     value_diff_row.table_name,
+                                     metric_name,
+                                     value_diff_row.second_snapshot_value,
+                                     details.unit_suffix,
+                                     value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value
+                            );
+                        } else {
+                            println!("{:20} {:8} {:70} {:15} {:6} {:+15}",
+                                     hostname,
+                                     metric_type,
+                                     metric_name,
+                                     value_diff_row.second_snapshot_value,
+                                     details.unit_suffix,
+                                     value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // latency_diff
+    for ((hostname, metric_type, metric_id, metric_name), latency_diff_row) in latency_diff {
+        let latency_statistic_details_lookup = latency_create_hashmap();
+        if hostname_filter.is_match(&hostname) {
+            if stat_name_filter.is_match(&metric_name) {
+                if table_name_filter.is_match(&latency_diff_row.table_name) {
+                    let details = match latency_statistic_details_lookup.get(&metric_name.to_string()) {
+                        Some(x) => { LatencyStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), divisor: x.divisor, stat_type: x.stat_type.to_string() } },
+                        None => { LatencyStatisticDetails { unit: String::from("?"), unit_suffix: String::from("?"), divisor: 0, stat_type: String::from("?") } }
+                    };
+                    let adaptive_length = if metric_id.len() < 15 { 0 } else { metric_id.len() - 15 };
+                    if latency_diff_row.second_snapshot_total_count - latency_diff_row.first_snapshot_total_count != 0 {
+                        if *details_enable {
+                            println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:>15.3}/s avg.time: {:<9.0} tot: {:>15.3} {:10}",
+                                     hostname,
+                                     metric_type,
+                                     metric_id.substring(adaptive_length, metric_id.len()),
+                                     latency_diff_row.namespace,
+                                     latency_diff_row.table_name,
+                                     metric_name,
+                                     latency_diff_row.second_snapshot_total_count - latency_diff_row.first_snapshot_total_count,
+                                     (latency_diff_row.second_snapshot_total_count - latency_diff_row.first_snapshot_total_count) as f64 / (latency_diff_row.second_snapshot_time - latency_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64,
+                                     ((latency_diff_row.second_snapshot_total_sum - latency_diff_row.first_snapshot_total_sum) / (latency_diff_row.second_snapshot_total_count - latency_diff_row.first_snapshot_total_count)) as f64,
+                                     latency_diff_row.second_snapshot_total_sum - latency_diff_row.first_snapshot_total_sum,
+                                     details.unit_suffix
+                            );
+                        } else {
+                            println!("{:20} {:8} {:70} {:15} {:>15.3}/s avg.time: {:<9.0} tot: {:>15.3} {:10}",
+                                     hostname,
+                                     metric_type,
+                                     metric_name,
+                                     latency_diff_row.second_snapshot_total_count - latency_diff_row.first_snapshot_total_count,
+                                     (latency_diff_row.second_snapshot_total_count - latency_diff_row.first_snapshot_total_count) as f64 / (latency_diff_row.second_snapshot_time - latency_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64,
+                                     ((latency_diff_row.second_snapshot_total_sum - latency_diff_row.first_snapshot_total_sum) / (latency_diff_row.second_snapshot_total_count - latency_diff_row.first_snapshot_total_count)) as f64,
+                                     latency_diff_row.second_snapshot_total_sum - latency_diff_row.first_snapshot_total_sum,
+                                     details.unit_suffix
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 pub fn build_value_diffs( value_statistics: &mut BTreeMap<(String, String, String, String), StoredValues>,
                           stored_values: &Vec<StoredValues>
                          ) {
@@ -612,290 +811,5 @@ pub fn build_value_diffs( value_statistics: &mut BTreeMap<(String, String, Strin
             metric_name: row.metric_name.clone(),
             metric_value: row.metric_value
         });
-        /*
-        diff_value_statistics.entry( row.hostname_port.to_string().into()).or_insert(BTreeMap::new());
-        match diff_value_statistics.get_mut(row.hostname_port.to_string()) {
-            None => { panic!("diff_value_statistics level 1: hostname_port not found, should have been inserted") }
-            Some(hostname_port) => {
-                hostname_port.entry(row.metric_type.to_string().into()).or_insert(BTreeMap::new());
-                match hostname_port.get_mut(row.metric_type.to_string()) {
-                    None => { panic!("diff_value_statistics level 2: metric_type not found, should have been inserted") }
-                    Some(metric_type) => {
-                        metric_type.entry(row.metric_id.to_string().into()).or_insert(BtreeMap::new());
-                        match metric_type.get_mut(row.metric_id.to_string()) {
-                            None => { panic!("diff_value_statistics level 3: metric_id not found, should have been inserted") }
-                            Some(metric_id) => {
-                                match metric_id.get_mut(row.metric_name) {
-                                    None => {
-                                        metric_id.insert(row.metric_name, SnapshotDiffValues {
-                                            table_name: row.attribute_table_name.to_string(),
-                                            namespace: row.attribute_namespace.to_string(),
-                                            first_snapshot_time: *row.timestamp,
-                                            second_snapshot_time: *row.timestamp,
-                                            first_snapshot_value: 0,
-                                            second_snapshot_value: *row.metric_value
-                                        })
-                                    }
-                                    Some (metric_name) => {
-                                        *metric_name = SnapshotDiffValues {
-                                            table_name: row.attribute_table_name.to_string(),
-                                            namespace: row.attribute_namespace.to_string(),
-                                            first_snapshot_time: metric_name.second_snapshot_time,
-                                            second_snapshot_time: *row.timestamp,
-                                            first_snapshot_value: metric_name.second_snapshot_value,
-                                            second_snapshot_value: *row.metric_value
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-         */
-    }
-    /*
-    summary_value_statistics: &mut BTreeMap<String, BTreeMap<String, BTreeMap<String, BTreeMap<String, StoredValues>>>>
-    for row in stored_values.into_iter() {
-        if row.metric_type == "table" || row.metric_type == "tablet" {
-            summary_value_statistics.entry( row.hostname_port.to_string().into()).or_insert(BTreeMap::new());
-            match summary_value_statistics.get_mut(row.hostname_port.to_string()) {
-                None => { panic!("summary_value_statistics level 1: hostname_port not found, should have been inserted") }
-                Some(hostname_port) => {
-                    hostname_port.entry(row.metric_type.to_string().into()).or_insert(BTreeMap::new());
-                    match hostname_port.get_mut(row.metric_type.to_string()) {
-                        None => { panic!("summary_value_statistics level 2: metric_type not found, should have been inserted") }
-                        Some(metric_type) => {
-                            metric_type.entry(String::from("-").into()).or_insert(BtreeMap::new());
-                            match metric_type.get_mut(row.metric_id.to_string()) {
-                                None => { panic!("summary_value_statistics level 3: metric_id not found, should have been inserted") }
-                                Some(metric_id) => {
-                                    match metric_id.get_mut(row.metric_name) {
-                                        None => {
-                                            metric_id.insert(row.metric_name, StoredValues {
-                                                hostname_port: row.hostname_port.to_string(),
-                                                timestamp: *row.timestamp,
-                                                metric_type: row.metric_type.to_string(),
-                                                metric_id: String::from("-"),
-                                                attribute_namespace: String::from("-"),
-                                                attribute_table_name: String::from("-"),
-
-                                                table_name: String::from("-"),
-                                                namespace: String::from("-")
-                                                first_snapshot_time: *row.timestamp,
-                                                second_snapshot_time: *row.timestamp,
-                                                first_snapshot_value: 0,
-                                                second_snapshot_value: *row.metric_value
-                                            })
-                                        }
-                                        Some(metric_name) => {
-                                            *metric_name = SnapshotDiffValues {
-                                                table_name: String::from("-"),
-                                                namespace: String::from("-")
-                                                first_snapshot_time: metric_name.second_snapshot_time,
-                                                second_snapshot_time: *row.timestamp,
-                                                first_snapshot_value: metric_name.second_snapshot_value,
-                                                second_snapshot_value: *row.metric_value
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-     */
-}
-/*
-pub fn build_detail_value_metric( name: &String,
-                                  value: &i64,
-                                  hostname: &&str,
-                                  metrics_type: &String,
-                                  metrics_id: &String,
-                                  metrics_attribute_table_name: &String,
-                                  metrics_attribute_namespace_name: &String,
-                                  fetch_time: &DateTime<Local>,
-                                  previous_fetch_time: &DateTime<Local>,
-                                  value_statistics: &mut BTreeMap<String, BTreeMap<String, BTreeMap<String, BTreeMap<String, Values>>>>,
-                                  previous_value_to_return: &mut i64
-                                 ) {
-    if *value > 0 {
-        value_statistics.entry(hostname.to_string().into()).or_insert(BTreeMap::new());
-        match value_statistics.get_mut(&hostname.to_string()) {
-            None => { panic!("value_statistics 1. hostname not found, should have been inserted") }
-            Some(vs_hostname) => {
-                vs_hostname.entry(metrics_type.to_string().into()).or_insert(BTreeMap::new());
-                match vs_hostname.get_mut(&metrics_type.to_string()) {
-                    None => { panic!("value_statistics 2. type not found, should have been inserted")}
-                    Some (vs_type) => {
-                        vs_type.entry( metrics_id.to_string().into()).or_insert(BTreeMap::new());
-                        match vs_type.get_mut( &metrics_id.to_string()) {
-                            None => { panic!("value_statistics 3. id not found, should have been inserted")}
-                            Some (vs_id) => {
-                                match vs_id.get_mut(&name.to_string()) {
-                                    None => {
-                                        vs_id.insert(name.to_string(), Values { table_name: metrics_attribute_table_name.to_string(), namespace: metrics_attribute_namespace_name.to_string(), current_time: *fetch_time, previous_time: *previous_fetch_time, current_value: *value, previous_value: 0 });
-                                        *previous_value_to_return = 0;
-                                    }
-                                    Some(vs_name) => {
-                                        *vs_name = Values { table_name: metrics_attribute_table_name.to_string(), namespace: metrics_attribute_namespace_name.to_string(), current_time: *fetch_time, previous_time: vs_name.current_time, current_value: *value, previous_value: vs_name.current_value };
-                                        *previous_value_to_return = vs_name.previous_value;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    };
-}
-
-pub fn build_summary_value_metric( name: &String,
-                                   value: &i64,
-                                   hostname: &&str,
-                                   metrics_type: &String,
-                                   fetch_time: &DateTime<Local>,
-                                   previous_fetch_time: &DateTime<Local>,
-                                   summary_value_statistics: &mut BTreeMap<String, BTreeMap<String, BTreeMap<String, BTreeMap<String, Values>>>>,
-                                   previous_value_to_return: &i64
-                                 ) {
-    if metrics_type == "table" || metrics_type == "tablet" {
-        if *value > 0 {
-            summary_value_statistics.entry(hostname.to_string().into()).or_insert(BTreeMap::new());
-            match summary_value_statistics.get_mut(&hostname.to_string()) {
-                None => { panic!("summary_value_statistics 1. hostname not found, should have been inserted") }
-                Some(vs_hostname) => {
-                    vs_hostname.entry(metrics_type.to_string().into()).or_insert(BTreeMap::new());
-                    match vs_hostname.get_mut(&metrics_type.to_string()) {
-                        None => { panic!("summary_value_statistics 2. type not found, should have been inserted") }
-                        Some(vs_type) => {
-                            vs_type.entry(String::from("-").into()).or_insert(BTreeMap::new());
-                            match vs_type.get_mut(&String::from("-")) {
-                                None => { panic!("summary_value_statistics 3. id not found, should have been inserted") }
-                                Some(vs_id) => {
-                                    match vs_id.get_mut(&name.to_string()) {
-                                        None => {
-                                            vs_id.insert(name.to_string(), Values { table_name: String::from("-"), namespace: String::from("-"), current_time: *fetch_time, previous_time: *previous_fetch_time, current_value: *value, previous_value: *previous_value_to_return });
-                                        }
-                                        Some(vs_name) => {
-                                            *vs_name = Values { table_name: String::from("-"), namespace: String::from("-"), current_time: *fetch_time, previous_time: *previous_fetch_time, current_value: vs_name.current_value + *value, previous_value: vs_name.previous_value + *previous_value_to_return };
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
 }
-
-pub fn build_detail_latency_metric( name: &String,
-                                    total_count: &u64,
-                                    min: &u64,
-                                    mean: &f64,
-                                    percentile_75: &u64,
-                                    percentile_95: &u64,
-                                    percentile_99: &u64,
-                                    percentile_99_9: &u64,
-                                    percentile_99_99: &u64,
-                                    max: &u64,
-                                    total_sum: &u64,
-                                    hostname: &&str,
-                                    metrics_type: &String,
-                                    metrics_id: &String,
-                                    metrics_attribute_table_name: &String,
-                                    metrics_attribute_namespace_name: &String,
-                                    fetch_time: &DateTime<Local>,
-                                    previous_fetch_time: &DateTime<Local>,
-                                    latency_statistics: &mut BTreeMap<String, BTreeMap<String, BTreeMap<String, BTreeMap<String, Latencies>>>>,
-                                    previous_total_count_to_return: &mut u64,
-                                    previous_total_sum_to_return: &mut u64
-                                  ) {
-    if *total_count > 0 {
-        latency_statistics.entry(hostname.to_string().into()).or_insert(BTreeMap::new());
-        match latency_statistics.get_mut(&hostname.to_string()) {
-            None => { panic!("latency_statistics - hostname not found, should have been inserted") }
-            Some(ls_hostname) => {
-                ls_hostname.entry(metrics_type.to_string().into()).or_insert(BTreeMap::new());
-                match ls_hostname.get_mut(&metrics_type.to_string()) {
-                    None => { panic!("latency_statistics - hostname.type not found, should have been inserted")}
-                    Some (ls_type) => {
-                        ls_type.entry( metrics_id.to_string().into()).or_insert(BTreeMap::new());
-                        match ls_type.get_mut( &metrics_id.to_string()) {
-                            None => { panic!("latency_statistics - hostname.type.id not found, should have been inserted")}
-                            Some (ls_id) => {
-                                match ls_id.get_mut(&name.to_string()) {
-                                    None => {
-                                        ls_id.insert(name.to_string(), Latencies { table_name: metrics_attribute_table_name.to_string(), namespace: metrics_attribute_namespace_name.to_string(), current_time: *fetch_time, previous_time: *previous_fetch_time, current_total_count: *total_count, previous_total_count: 0, current_min: *min, current_mean: *mean, current_percentile_75: *percentile_75, current_percentile_95: *percentile_95, current_percentile_99: *percentile_99, current_percentile_99_9: *percentile_99_9, current_percentile_99_99: *percentile_99_99, current_max: *max, current_total_sum: *total_sum, previous_total_sum: 0 });
-                                        *previous_total_count_to_return = 0;
-                                        *previous_total_sum_to_return = 0;
-                                    }
-                                    Some(ls_name) => {
-                                        *ls_name = Latencies { table_name: metrics_attribute_table_name.to_string(), namespace: metrics_attribute_namespace_name.to_string(), current_time: *fetch_time, previous_time: ls_name.current_time, current_total_count: *total_count, previous_total_count: ls_name.current_total_count, current_min: *min, current_mean: *mean, current_percentile_75: *percentile_75, current_percentile_95: *percentile_95, current_percentile_99: *percentile_99, current_percentile_99_9: *percentile_99_9, current_percentile_99_99: *percentile_99_99, current_max: *max, current_total_sum: *total_sum, previous_total_sum: ls_name.current_total_sum };
-                                        *previous_total_count_to_return = ls_name.previous_total_count;
-                                        *previous_total_sum_to_return = ls_name.previous_total_sum;
-                                    }
-                                };
-                            }
-                        };
-                    }
-                };
-            }
-        };
-    };
-}
-
-pub fn build_summary_latency_metric( name: &String,
-                                     total_count: &u64,
-                                     total_sum: &u64,
-                                     hostname: &&str,
-                                     metrics_type: &String,
-                                     fetch_time: &DateTime<Local>,
-                                     previous_fetch_time: &DateTime<Local>,
-                                     summary_latency_statistics: &mut BTreeMap<String, BTreeMap<String, BTreeMap<String, BTreeMap<String, Latencies>>>>,
-                                     previous_total_count_to_return: &u64,
-                                     previous_total_sum_to_return: &u64
-                                   ) {
-    if metrics_type == "table" || metrics_type == "tablet" {
-        if *total_count > 0 {
-            summary_latency_statistics.entry(hostname.to_string().into()).or_insert(BTreeMap::new());
-            match summary_latency_statistics.get_mut(&hostname.to_string()) {
-                None => { panic!("summary_latency_statistics - hostname not found, should have been inserted") }
-                Some(ls_hostname) => {
-                    ls_hostname.entry(metrics_type.to_string().into()).or_insert(BTreeMap::new());
-                    match ls_hostname.get_mut(&metrics_type.to_string()) {
-                        None => { panic!("summary_latency_statistics - hostname.type not found, should have been inserted") }
-                        Some(ls_type) => {
-                            ls_type.entry(String::from("-").into()).or_insert(BTreeMap::new());
-                            match ls_type.get_mut(&String::from("-")) {
-                                None => { panic!("summary_latency_statistics - hostname.type.id not found, should have been inserted") }
-                                Some(ls_id) => {
-                                    match ls_id.get_mut(&name.to_string()) {
-                                        None => {
-                                            ls_id.insert(name.to_string(), Latencies { table_name: String::from("-"), namespace: String::from("-"), current_time: *fetch_time, previous_time: *previous_fetch_time, current_total_count: *total_count, previous_total_count: *previous_total_count_to_return, current_min: 0, current_mean: 0 as f64, current_percentile_75: 0, current_percentile_95: 0, current_percentile_99: 0, current_percentile_99_9: 0, current_percentile_99_99: 0, current_max: 0, current_total_sum: *total_sum, previous_total_sum: *previous_total_sum_to_return });
-                                        }
-                                        Some(ls_name) => {
-                                            *ls_name = Latencies { table_name: String::from("-"), namespace: String::from("-"), current_time: *fetch_time, previous_time: *previous_fetch_time, current_total_count: ls_name.current_total_count + *total_count, previous_total_count: ls_name.previous_total_count + *previous_total_count_to_return, current_min: 0, current_mean: 0 as f64, current_percentile_75: 0, current_percentile_95: 0, current_percentile_99: 0, current_percentile_99_9: 0, current_percentile_99_99: 0, current_max: 0, current_total_sum: ls_name.current_total_sum + *total_sum, previous_total_sum: ls_name.previous_total_sum + *previous_total_sum_to_return };
-                                        }
-                                    };
-                                }
-                            };
-                        }
-                    };
-                }
-            };
-        };
-    }
-}
-
-
- */

@@ -1,7 +1,14 @@
 use std::collections::HashMap;
-use yb_stats::ValueStatisticDetails;
 
-pub fn create_hashmap() -> HashMap<String, ValueStatisticDetails> {
+#[derive(Debug)]
+pub struct ValueStatisticDetails {
+    pub unit: String,
+    pub unit_suffix: String,
+    pub stat_type: String,
+}
+
+#[allow(dead_code)]
+pub fn value_create_hashmap() -> HashMap<String, ValueStatisticDetails> {
     let mut value_statistic_details: HashMap<String, ValueStatisticDetails> = HashMap::new();
 
     value_statistic_details.insert( String::from("all_operations_inflight"), ValueStatisticDetails { unit: String::from("operations"), unit_suffix: String::from("ops"), stat_type: String::from("gauge") } );

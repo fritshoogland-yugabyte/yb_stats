@@ -1,38 +1,52 @@
 mod latency_statistic_details;
+//use value_statistic_details::ValueStatisticDetails;
 mod value_statistic_details;
+//use latency_statistic_details::LatencyStatisticDetails;
 
 use structopt::StructOpt;
 use std::process;
 use std::collections::BTreeMap;
 use regex::Regex;
 use chrono::Local;
+use std::io::{stdin, stdout, Write};
+use std::fs;
+use std::env;
 
-use yb_stats::{SnapshotDiffValues, SnapshotDiffLatencies, StoredValues, StoredLatencies, perform_snapshot, read_metrics, add_to_metric_vectors, insert_first_snap_into_diff, insert_second_snap_into_diff, build_summary, build_detail};
+use yb_stats::{SnapshotDiffValues, SnapshotDiffLatencies, StoredValues, StoredLatencies, perform_snapshot, read_metrics, add_to_metric_vectors, insert_first_snap_into_diff, insert_second_snap_into_diff, build_summary, build_detail, Snapshot, print_diff};
 
 #[derive(Debug, StructOpt)]
 struct Opts {
+    /// all metric endpoints to be used, a metric endpoint is a hostname or ip address with colon and port number, comma separated.
     #[structopt(short, long, default_value = "192.168.66.80:7000,192.168.66.81:7000,192.168.66.82:7000")]
     metric_sources: String,
+    /// regex to select specific statistic names
     #[structopt(short, long, default_value = ".*")]
     stat_name_match: String,
+    /// regex to select specific table names (only sensible with --details-enable, default mode adds the statistics for all tables)
     #[structopt(short, long, default_value = ".*")]
     table_name_match: String,
-    #[structopt(short, long, default_value = "2")]
-    wait_time: i32,
-    #[structopt(short, long)]
-    begin_end_mode: bool,
+    /// regex to select hostnames or ports (so you can select master or tserver by port number)
+    #[structopt(long, default_value = ".*")]
+    hostname_match:String,
+    /// boolean (set to enable) to add statistics that are not counters
     #[structopt(short, long)]
     gauges_enable: bool,
+    /// boolean (set to enable) to report for each table or tablet individually
     #[structopt(short, long)]
     details_enable: bool,
+    /// boolean (set to enable) to perform a snapshot of the statistics, stored as CSV files in yb_stats.snapshots
     #[structopt(long)]
     snapshot: bool,
+    /// comment to be added with the snapshot, to make review or use more easy
     #[structopt(long, default_value = "")]
     snapshot_comment: String,
+    /// this lists the snapshots, and allows you to select a begin and end snapshot for a diff report
+    #[structopt(long)]
+    snapshot_diff: bool,
 }
 
-fn main()
-{
+fn main() {
+
     // create variables based on StructOpt values
     let options = Opts::from_args();
     let hostname_port_vec: Vec<&str> = options.metric_sources.split(",").collect();
@@ -40,69 +54,185 @@ fn main()
     let stat_name_filter = Regex::new(stat_name_match).unwrap();
     let table_name_match = &options.table_name_match.as_str();
     let table_name_filter = Regex::new(table_name_match).unwrap();
-    let wait_time = options.wait_time as u64;
-    let begin_end_mode = options.begin_end_mode as bool;
+    let hostname_match = &options.hostname_match.as_str();
+    let hostname_filter = Regex::new(hostname_match).unwrap();
     let gauges_enable = options.gauges_enable as bool;
     let details_enable = options.details_enable as bool;
     let snapshot: bool = options.snapshot as bool;
     let snapshot_comment: String = options.snapshot_comment;
-
+    let snapshot_diff: bool = options.snapshot_diff as bool;
 
     if snapshot {
+
         let snapshot_number: i32 = perform_snapshot(hostname_port_vec, snapshot_comment);
         println!("snapshot number {}", snapshot_number);
         process::exit(0);
+
     }
 
-    let mut stored_values: Vec<StoredValues> = Vec::new();
-    let mut values_diff: BTreeMap<(String, String, String, String), SnapshotDiffValues> = BTreeMap::new();
-    let mut values_detail: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
-    let mut values_summary: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
-    let mut stored_latencies: Vec<StoredLatencies> = Vec::new();
-    let mut latencies_diff: BTreeMap<(String, String, String, String), SnapshotDiffLatencies> = BTreeMap::new();
-    let mut latencies_detail: BTreeMap<(String, String, String, String), StoredLatencies> = BTreeMap::new();
-    let mut latencies_summary: BTreeMap<(String, String, String, String), StoredLatencies> = BTreeMap::new();
-    let first_snapshot_time = Local::now();
-    for hostname in &hostname_port_vec {
-        let detail_snapshot_time = Local::now();
-        let data_parsed_from_json = read_metrics(&hostname);
-        add_to_metric_vectors(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_values, &mut stored_latencies);
-    }
-    if details_enable {
-        build_detail(&mut values_detail, &stored_values, &mut latencies_detail, &stored_latencies);
-        insert_first_snap_into_diff(&mut values_diff, &values_detail, &mut latencies_diff, &latencies_detail);
-    } else {
-        build_summary(&mut values_summary, &stored_values, &mut latencies_summary, &stored_latencies);
-        insert_first_snap_into_diff(&mut values_diff, &values_summary, &mut latencies_diff, &latencies_summary);
-    }
+    if snapshot_diff {
 
-    let mut stored_values: Vec<StoredValues> = Vec::new();
-    let mut values_detail: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
-    let mut values_summary: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
-    let mut stored_latencies: Vec<StoredLatencies> = Vec::new();
-    let mut latencies_diff: BTreeMap<(String, String, String, String), SnapshotDiffLatencies> = BTreeMap::new();
-    let mut latencies_detail: BTreeMap<(String, String, String, String), StoredLatencies> = BTreeMap::new();
-    for hostname in &hostname_port_vec {
-        let detail_snapshot_time = Local::now();
-        let data_parsed_from_json = read_metrics(&hostname);
-        add_to_metric_vectors(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_values, &mut stored_latencies);
-    }
-    if details_enable {
-        build_detail(&mut values_detail, &stored_values, &mut latencies_detail, &stored_latencies);
-        insert_second_snap_into_diff(&mut values_diff, &values_detail, &mut latencies_diff, &latencies_detail, first_snapshot_time);
-    } else {
-        build_summary(&mut values_summary, &stored_values, &mut latencies_summary, &stored_latencies);
-        insert_second_snap_into_diff(&mut values_diff, &values_summary, &mut latencies_diff, &latencies_summary, first_snapshot_time);
-    }
+        let mut snapshots: Vec<Snapshot> = Vec::new();
+        let current_directory = env::current_dir().unwrap();
+        let yb_stats_directory = current_directory.join("yb_stats.snapshots");
+        let snapshot_index = &yb_stats_directory.join("snapshot.index");
 
-    for ((hostname_port, metric_type, metric_id, metric_name), diff_values) in values_diff {
-       if diff_values.second_snapshot_value - diff_values.first_snapshot_value > 0 {
-           println!("{} {} {} {} {} {}", hostname_port, metric_id,  metric_name, diff_values.table_name, diff_values.second_snapshot_value, diff_values.first_snapshot_value );
-       }
-    }
-    for ((hostname_port, metric_type, metric_id, metric_name), diff_latencies) in latencies_diff {
-        if diff_latencies.second_snapshot_total_count - diff_latencies.first_snapshot_total_count > 0 {
-            println!("{} {} {} {} {} {}", hostname_port, metric_id, metric_name, diff_latencies.table_name, diff_latencies.second_snapshot_total_count, diff_latencies.first_snapshot_total_count );
+        let file = fs::File::open(&snapshot_index)
+            .unwrap_or_else(|e| {
+                eprintln!("Fatal: error opening file {}: {}", &snapshot_index.clone().into_os_string().into_string().unwrap(), e);
+                process::exit(1);
+            });
+        let mut reader = csv::Reader::from_reader(file);
+        for row in reader.deserialize() {
+            let data: Snapshot = row.unwrap();
+            let _ = &snapshots.push(data);
         }
+
+        for row in &snapshots {
+            println!("{} {} {}", row.number, row.timestamp, row.comment);
+        }
+        let mut begin_snapshot = String::new();
+        let mut end_snapshot = String::new();
+        print!("Enter begin snapshot: ");
+        let _ = stdout().flush();
+        stdin().read_line(&mut begin_snapshot).expect("Failed to read input.");
+        let begin_snapshot: i32 = begin_snapshot.trim().parse().expect("Invalid input");
+        let begin_snapshot_row = snapshots.iter().find(|&row| row.number == begin_snapshot).unwrap();
+
+        print!("Enter end snapshot: ");
+        let _ = stdout().flush();
+        stdin().read_line(&mut end_snapshot).expect("Failed to read input.");
+        let end_snapshot: i32 = end_snapshot.trim().parse().expect("Invalid input");
+
+        let mut stored_values: Vec<StoredValues> = Vec::new();
+        let mut values_diff: BTreeMap<(String, String, String, String), SnapshotDiffValues> = BTreeMap::new();
+        let mut values_detail: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
+        let mut values_summary: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
+        let values_file = &yb_stats_directory.join(&begin_snapshot.to_string()).join("values");
+        let file = fs::File::open(&values_file)
+            .unwrap_or_else(|e| {
+                eprintln!("Fatal: error reading file: {}: {}", &values_file.clone().into_os_string().into_string().unwrap(), e);
+                process::exit(1);
+            });
+        let mut reader = csv::Reader::from_reader(file);
+        for row in reader.deserialize() {
+            let data: StoredValues = row.unwrap();
+            let _ = &stored_values.push(data);
+        }
+
+        let mut stored_latencies: Vec<StoredLatencies> = Vec::new();
+        let mut latencies_diff: BTreeMap<(String, String, String, String), SnapshotDiffLatencies> = BTreeMap::new();
+        let mut latencies_detail: BTreeMap<(String, String, String, String), StoredLatencies> = BTreeMap::new();
+        let mut latencies_summary: BTreeMap<(String, String, String, String), StoredLatencies> = BTreeMap::new();
+        let latencies_file = &yb_stats_directory.join(&begin_snapshot.to_string()).join("latencies");
+        let file = fs::File::open(&latencies_file)
+            .unwrap_or_else(|e| {
+                eprintln!("Fatal: error reading file: {}: {}", &values_file.clone().into_os_string().into_string().unwrap(), e);
+                process::exit(1);
+            });
+        let mut reader = csv::Reader::from_reader(file);
+        for row in reader.deserialize() {
+            let data: StoredLatencies = row.unwrap();
+            let _ = &stored_latencies.push(data);
+        }
+
+        if details_enable {
+            build_detail(&mut values_detail, &stored_values, &mut latencies_detail, &stored_latencies);
+            insert_first_snap_into_diff(&mut values_diff, &values_detail, &mut latencies_diff, &latencies_detail);
+        } else {
+            build_summary(&mut values_summary, &stored_values, &mut latencies_summary, &stored_latencies);
+            insert_first_snap_into_diff(&mut values_diff, &values_summary, &mut latencies_diff, &latencies_summary);
+        }
+
+        let mut stored_values: Vec<StoredValues> = Vec::new();
+        let mut values_detail: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
+        let mut values_summary: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
+        let values_file = &yb_stats_directory.join(&end_snapshot.to_string()).join("values");
+        let file = fs::File::open(&values_file)
+            .unwrap_or_else(|e| {
+                eprintln!("Fatal: error reading file: {}: {}", &values_file.clone().into_os_string().into_string().unwrap(), e);
+                process::exit(1);
+            });
+        let mut reader = csv::Reader::from_reader(file);
+        for row in reader.deserialize() {
+            let data: StoredValues = row.unwrap();
+            let _ = &stored_values.push(data);
+        }
+
+        let mut stored_latencies: Vec<StoredLatencies> = Vec::new();
+        let mut latencies_detail: BTreeMap<(String, String, String, String), StoredLatencies> = BTreeMap::new();
+        let mut latencies_summary: BTreeMap<(String, String, String, String), StoredLatencies> = BTreeMap::new();
+
+        let latencies_file = &yb_stats_directory.join(&end_snapshot.to_string()).join("latencies");
+        let file = fs::File::open(&latencies_file)
+            .unwrap_or_else(|e| {
+                eprintln!("Fatal: error reading file: {}: {}", &latencies_file.clone().into_os_string().into_string().unwrap(), e);
+                process::exit(1);
+            });
+        let mut reader = csv::Reader::from_reader(file);
+        for row in reader.deserialize() {
+            let data: StoredLatencies = row.unwrap();
+            let _ = &stored_latencies.push(data);
+        }
+
+        if details_enable {
+            build_detail(&mut values_detail, &stored_values, &mut latencies_detail, &stored_latencies);
+            insert_second_snap_into_diff(&mut values_diff, &values_detail, &mut latencies_diff, &latencies_detail, &begin_snapshot_row.timestamp);
+        } else {
+            build_summary(&mut values_summary, &stored_values, &mut latencies_summary, &stored_latencies);
+            insert_second_snap_into_diff(&mut values_diff, &values_summary, &mut latencies_diff, &latencies_summary, &begin_snapshot_row.timestamp);
+        }
+
+        print_diff(&values_diff, &latencies_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
+
+    } else {
+
+        let mut stored_values: Vec<StoredValues> = Vec::new();
+        let mut values_diff: BTreeMap<(String, String, String, String), SnapshotDiffValues> = BTreeMap::new();
+        let mut values_detail: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
+        let mut values_summary: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
+        let mut stored_latencies: Vec<StoredLatencies> = Vec::new();
+        let mut latencies_diff: BTreeMap<(String, String, String, String), SnapshotDiffLatencies> = BTreeMap::new();
+        let mut latencies_detail: BTreeMap<(String, String, String, String), StoredLatencies> = BTreeMap::new();
+        let mut latencies_summary: BTreeMap<(String, String, String, String), StoredLatencies> = BTreeMap::new();
+        let first_snapshot_time = Local::now();
+        for hostname in &hostname_port_vec {
+            let detail_snapshot_time = Local::now();
+            let data_parsed_from_json = read_metrics(&hostname);
+            add_to_metric_vectors(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_values, &mut stored_latencies);
+        }
+        if details_enable {
+            build_detail(&mut values_detail, &stored_values, &mut latencies_detail, &stored_latencies);
+            insert_first_snap_into_diff(&mut values_diff, &values_detail, &mut latencies_diff, &latencies_detail);
+        } else {
+            build_summary(&mut values_summary, &stored_values, &mut latencies_summary, &stored_latencies);
+            insert_first_snap_into_diff(&mut values_diff, &values_summary, &mut latencies_diff, &latencies_summary);
+        }
+
+        println!("Begin metrics snapshot created, press enter to create end snapshot for difference calculation.");
+        let mut input = String::new();
+        stdin().read_line(&mut input).ok().expect("failed");
+
+        let mut stored_values: Vec<StoredValues> = Vec::new();
+        let mut values_detail: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
+        let mut values_summary: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
+        let mut stored_latencies: Vec<StoredLatencies> = Vec::new();
+        let mut latencies_detail: BTreeMap<(String, String, String, String), StoredLatencies> = BTreeMap::new();
+        let mut latencies_summary: BTreeMap<(String, String, String, String), StoredLatencies> = BTreeMap::new();
+        for hostname in &hostname_port_vec {
+            let detail_snapshot_time = Local::now();
+            let data_parsed_from_json = read_metrics(&hostname);
+            add_to_metric_vectors(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_values, &mut stored_latencies);
+        }
+        if details_enable {
+            build_detail(&mut values_detail, &stored_values, &mut latencies_detail, &stored_latencies);
+            insert_second_snap_into_diff(&mut values_diff, &values_detail, &mut latencies_diff, &latencies_detail, &first_snapshot_time);
+        } else {
+            build_summary(&mut values_summary, &stored_values, &mut latencies_summary, &stored_latencies);
+            insert_second_snap_into_diff(&mut values_diff, &values_summary, &mut latencies_diff, &latencies_summary, &first_snapshot_time);
+        }
+
+        print_diff(&values_diff, &latencies_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
+
     }
 }

@@ -12,7 +12,7 @@ use std::io::{stdin, stdout, Write};
 use std::fs;
 use std::env;
 
-use yb_stats::{SnapshotDiffValues, SnapshotDiffCountSum, StoredValues, StoredCountSum, perform_snapshot, read_metrics, add_to_metric_vectors, insert_first_snap_into_diff, insert_second_snap_into_diff, build_summary, build_detail, Snapshot, print_diff, StoredCountSumRows, SnapshotDiffCountSumRows};
+use yb_stats::{SnapshotDiffStatements, SnapshotDiffValues, SnapshotDiffCountSum, StoredValues, StoredCountSum, perform_snapshot, read_metrics, add_to_metric_vectors, insert_first_snap_into_diff, insert_second_snap_into_diff, build_summary, build_detail, Snapshot, print_diff, StoredCountSumRows, SnapshotDiffCountSumRows, StoredStatements, insert_first_snap_into_statements_diff, insert_second_snap_into_statements_diff, print_diff_statements, read_statements, add_to_statements_vector};
 
 #[derive(Debug, StructOpt)]
 struct Opts {
@@ -152,6 +152,20 @@ fn main() {
             let _ = &stored_countsumrows.push(data);
         }
 
+        let mut stored_statements: Vec<StoredStatements> = Vec::new();
+        let mut statements_diff: BTreeMap<(String, String), SnapshotDiffStatements> = BTreeMap::new();
+        let statements_file = &yb_stats_directory.join(&begin_snapshot.to_string()).join("statements");
+        let file = fs::File::open(&statements_file)
+            .unwrap_or_else(|e| {
+                eprintln!("Fatal: error reading file: {}: {}", &statements_file.clone().into_os_string().into_string().unwrap(), e);
+                process::exit(1);
+            });
+        let mut reader = csv::Reader::from_reader(file);
+        for  row in reader.deserialize() {
+            let data: StoredStatements = row.unwrap();
+            let _ = &stored_statements.push(data);
+        }
+
         if details_enable {
             build_detail(&mut values_detail, &stored_values, &mut countsum_detail, &stored_countsum, &mut countsumrows_detail, &stored_countsumrows);
             insert_first_snap_into_diff(&mut values_diff, &values_detail, &mut countsum_diff, &countsum_detail, &mut countsumrows_diff, &countsumrows_detail);
@@ -159,6 +173,7 @@ fn main() {
             build_summary(&mut values_summary, &stored_values, &mut countsum_summary, &stored_countsum, &mut countsumrows_summary, &stored_countsumrows);
             insert_first_snap_into_diff(&mut values_diff, &values_summary, &mut countsum_diff, &countsum_summary, &mut countsumrows_diff, &countsumrows_summary);
         }
+        insert_first_snap_into_statements_diff(&mut statements_diff, &stored_statements);
 
         let mut stored_values: Vec<StoredValues> = Vec::new();
         let mut values_detail: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
@@ -207,6 +222,19 @@ fn main() {
             let _ = &stored_countsumrows.push(data);
         }
 
+        let mut stored_statements: Vec<StoredStatements> = Vec::new();
+        let statements_file = &yb_stats_directory.join(&end_snapshot.to_string()).join("statements");
+        let file = fs::File::open(&statements_file)
+            .unwrap_or_else(|e| {
+                eprintln!("Fatal: error reading file: {}: {}", &statements_file.clone().into_os_string().into_string().unwrap(), e);
+                process::exit(1);
+            });
+        let mut reader = csv::Reader::from_reader(file);
+        for  row in reader.deserialize() {
+            let data: StoredStatements = row.unwrap();
+            let _ = &stored_statements.push(data);
+        }
+
         if details_enable {
             build_detail(&mut values_detail, &stored_values, &mut countsum_detail, &stored_countsum, &mut countsumrows_detail, &stored_countsumrows);
             insert_second_snap_into_diff(&mut values_diff, &values_detail, &mut countsum_diff, &countsum_detail, &mut countsumrows_diff, &countsumrows_detail, &begin_snapshot_row.timestamp);
@@ -214,8 +242,11 @@ fn main() {
             build_summary(&mut values_summary, &stored_values, &mut countsum_summary, &stored_countsum, &mut countsumrows_summary, &stored_countsumrows);
             insert_second_snap_into_diff(&mut values_diff, &values_summary, &mut countsum_diff, &countsum_summary, &mut countsumrows_diff, &countsumrows_summary, &begin_snapshot_row.timestamp);
         }
+        insert_second_snap_into_statements_diff(&mut statements_diff, &stored_statements, &begin_snapshot_row.timestamp);
 
         print_diff(&values_diff, &countsum_diff, &countsumrows_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
+
+        print_diff_statements(&statements_diff, &hostname_filter);
 
     } else {
 
@@ -231,11 +262,16 @@ fn main() {
         let mut countsumrows_diff: BTreeMap<(String, String, String, String), SnapshotDiffCountSumRows> = BTreeMap::new();
         let mut countsumrows_detail: BTreeMap<(String, String, String, String), StoredCountSumRows> = BTreeMap::new();
         let mut countsumrows_summary: BTreeMap<(String, String, String, String), StoredCountSumRows> = BTreeMap::new();
+        let mut stored_statements: Vec<StoredStatements> = Vec::new();
+        let mut statements_diff: BTreeMap<(String, String), SnapshotDiffStatements> = BTreeMap::new();
+
         let first_snapshot_time = Local::now();
         for hostname in &hostname_port_vec {
             let detail_snapshot_time = Local::now();
             let data_parsed_from_json = read_metrics(&hostname);
             add_to_metric_vectors(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_values, &mut stored_countsum, &mut stored_countsumrows);
+            let data_parsed_from_json = read_statements(&hostname);
+            add_to_statements_vector(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_statements);
         }
         if details_enable {
             build_detail(&mut values_detail, &stored_values, &mut countsum_detail, &stored_countsum, &mut countsumrows_detail, &stored_countsumrows);
@@ -244,6 +280,7 @@ fn main() {
             build_summary(&mut values_summary, &stored_values, &mut countsum_summary, &stored_countsum, &mut countsumrows_summary, &stored_countsumrows);
             insert_first_snap_into_diff(&mut values_diff, &values_summary, &mut countsum_diff, &countsum_summary, &mut countsumrows_diff, &countsumrows_summary);
         }
+        insert_first_snap_into_statements_diff(&mut statements_diff, &stored_statements);
 
         println!("Begin metrics snapshot created, press enter to create end snapshot for difference calculation.");
         let mut input = String::new();
@@ -258,10 +295,14 @@ fn main() {
         let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
         let mut countsumrows_detail: BTreeMap<(String, String, String, String), StoredCountSumRows> = BTreeMap::new();
         let mut countsumrows_summary: BTreeMap<(String, String, String, String), StoredCountSumRows> = BTreeMap::new();
+        let mut stored_statements: Vec<StoredStatements> = Vec::new();
+
         for hostname in &hostname_port_vec {
             let detail_snapshot_time = Local::now();
             let data_parsed_from_json = read_metrics(&hostname);
             add_to_metric_vectors(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_values, &mut stored_countsum, &mut stored_countsumrows);
+            let data_parsed_from_json = read_statements(&hostname);
+            add_to_statements_vector(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_statements);
         }
         if details_enable {
             build_detail(&mut values_detail, &stored_values, &mut countsum_detail, &stored_countsum, &mut countsumrows_detail, &stored_countsumrows);
@@ -270,8 +311,11 @@ fn main() {
             build_summary(&mut values_summary, &stored_values, &mut countsum_summary, &stored_countsum, &mut countsumrows_summary, &stored_countsumrows);
             insert_second_snap_into_diff(&mut values_diff, &values_summary, &mut countsum_diff, &countsum_summary, &mut countsumrows_diff, &countsumrows_summary, &first_snapshot_time);
         }
+        insert_second_snap_into_statements_diff(&mut statements_diff, &stored_statements, &first_snapshot_time);
 
         print_diff(&values_diff, &countsum_diff, &countsumrows_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
+
+        print_diff_statements(&statements_diff, &hostname_filter);
 
     }
 }

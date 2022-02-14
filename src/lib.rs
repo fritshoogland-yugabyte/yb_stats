@@ -49,6 +49,23 @@ pub struct VersionData {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct Statement {
+    pub statements: Vec<Queries>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Queries {
+    pub query: String,
+    pub calls: i64,
+    pub total_time: f64,
+    pub min_time: f64,
+    pub max_time: f64,
+    pub mean_time: f64,
+    pub stddev_time: f64,
+    pub rows: i64,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
 pub enum NamedMetrics {
     MetricValue {
@@ -78,6 +95,20 @@ pub enum NamedMetrics {
         sum: i64,
         rows: i64,
     },
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct StoredStatements {
+    pub hostname_port: String,
+    pub timestamp: DateTime<Local>,
+    pub query: String,
+    pub calls: i64,
+    pub total_time: f64,
+    pub min_time: f64,
+    pub max_time: f64,
+    pub mean_time: f64,
+    pub stddev_time: f64,
+    pub rows: i64,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -143,6 +174,18 @@ pub struct StoredCountSumRows {
 }
 
 #[derive(Debug)]
+pub struct SnapshotDiffStatements {
+    pub first_snapshot_time: DateTime<Local>,
+    pub second_snapshot_time: DateTime<Local>,
+    pub first_calls: i64,
+    pub second_calls: i64,
+    pub first_total_time: f64,
+    pub second_total_time: f64,
+    pub first_rows: i64,
+    pub second_rows: i64,
+}
+
+#[derive(Debug)]
 pub struct SnapshotDiffValues {
     pub table_name: String,
     pub namespace: String,
@@ -205,22 +248,7 @@ pub fn read_metrics( hostname: &str) -> Vec<Metrics> {
             .text().unwrap();
         parse_metrics(data_from_http)
 }
-/*
-pub fn read_version( hostname: &str) -> VersionData {
-    if ! scan_port_addr(hostname) {
-        println!("Warning! hostname:port {} cannot be reached, skipping", hostname.to_string());
-        return parse_version(String::from(""))
-    };
-    let data_from_http = reqwest::blocking::get(format!("http://{}/api/v1/version", hostname.to_string())).unwrap()
-        /*.unwrap_or_else(|e| {
-            eprintln!("Fatal: error reading from URL: {}", e);
-            //process::exit(1);
-        })
-         */
-        .text().unwrap();
-    parse_version(data_from_http)
-}
- */
+
 pub fn read_version( hostname: &str) -> VersionData {
     if ! scan_port_addr( hostname) {
         println!("Warning hostname:port {} cannot be reached, skipping", hostname.to_string());
@@ -231,7 +259,39 @@ pub fn read_version( hostname: &str) -> VersionData {
     } else {
         parse_version(String::from(""))
     }
+}
 
+pub fn read_statements( hostname: &str) -> Statement {
+    if ! scan_port_addr( hostname ) {
+        println!("Warning: hostname:port {} cannot be reached, skipping", hostname.to_string());
+        return parse_statements(String::from(""))
+    }
+    if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}/statements", hostname.to_string())) {
+        parse_statements(data_from_http.text().unwrap())
+    } else {
+        parse_statements(String::from(""))
+    }
+}
+
+pub fn add_to_statements_vector(statementdata: Statement,
+    hostname: &str,
+    snapshot_time: DateTime<Local>,
+    stored_statements: &mut Vec<StoredStatements>
+) {
+    for statement in statementdata.statements {
+        stored_statements.push( StoredStatements {
+            hostname_port: hostname.to_string(),
+            timestamp: snapshot_time,
+            query: statement.query.to_string(),
+            calls: statement.calls,
+            total_time: statement.total_time,
+            min_time: statement.min_time,
+            max_time: statement.max_time,
+            mean_time: statement.mean_time,
+            stddev_time: statement.stddev_time,
+            rows: statement.rows
+        });
+    }
 }
 
 pub fn add_to_version_vector(versiondata: VersionData,
@@ -368,6 +428,7 @@ pub fn perform_snapshot( hostname_port_vec: Vec<&str>,
     let mut stored_countsum: Vec<StoredCountSum> = Vec::new();
     let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
     let mut stored_versiondata: Vec<StoredVersionData> = Vec::new();
+    let mut stored_statements: Vec<StoredStatements> = Vec::new();
 
     for hostname in &hostname_port_vec {
         let detail_snapshot_time = Local::now();
@@ -376,6 +437,8 @@ pub fn perform_snapshot( hostname_port_vec: Vec<&str>,
         add_to_metric_vectors(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_values, &mut stored_countsum, &mut stored_countsumrows);
         let data_parsed_from_json = read_version(&hostname);
         add_to_version_vector(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_versiondata);
+        let data_parsed_from_json = read_statements(&hostname);
+        add_to_statements_vector(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_statements)
     }
 
     let current_directory = env::current_dir().unwrap();
@@ -489,6 +552,23 @@ pub fn perform_snapshot( hostname_port_vec: Vec<&str>,
     }
     writer.flush().unwrap();
 
+    let statements_file = &current_snapshot_directory.join("statements");
+    let file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(&statements_file)
+        .unwrap_or_else(|e| {
+            eprintln!("Fatal: error writing statements data in snapshot directory {}: {}", &statements_file.clone().into_os_string().into_string().unwrap(), e);
+            process::exit(1);
+        });
+    let mut writer = csv::Writer::from_writer(file);
+    for row in stored_statements {
+        if row.query != "" {
+            writer.serialize(row).unwrap();
+        }
+    }
+    writer.flush().unwrap();
+
     snapshot_number
 }
 
@@ -503,8 +583,14 @@ pub fn parse_metrics( metrics_data: String ) -> Vec<Metrics> {
 pub fn parse_version( version_data: String ) -> VersionData {
     serde_json::from_str( &version_data )
         .unwrap_or_else(|_e| {
-            //println!("Warning: issue parsing /api/v1/version json data: {}", e);
             return VersionData { git_hash: "".to_string(), build_hostname: "".to_string(), build_timestamp: "".to_string(), build_username: "".to_string(), build_clean_repo: true, build_id: "".to_string(), build_type: "".to_string(), version_number: "".to_string(), build_number: "".to_string() };
+        })
+}
+
+pub fn parse_statements( statements_data: String ) -> Statement {
+    serde_json::from_str( &statements_data )
+        .unwrap_or_else(|_e| {
+            return Statement { statements: Vec::<Queries>::new() };
         })
 }
 
@@ -850,6 +936,59 @@ pub fn build_detail(values_detail: &mut BTreeMap<(String, String, String, String
     }
 }
 
+pub fn insert_first_snap_into_statements_diff(
+    statements_diff: &mut BTreeMap<(String, String), SnapshotDiffStatements>,
+    stored_statements: &Vec<StoredStatements>
+) {
+    for statement in stored_statements {
+        statements_diff.insert( (statement.hostname_port.to_string(), statement.query.to_string()), SnapshotDiffStatements {
+            first_snapshot_time: statement.timestamp,
+            second_snapshot_time: statement.timestamp,
+            first_calls: statement.calls,
+            first_total_time: statement.total_time,
+            first_rows: statement.rows,
+            second_calls: 0,
+            second_total_time: 0.0,
+            second_rows: 0
+        });
+    }
+}
+
+pub fn insert_second_snap_into_statements_diff(
+    statements_diff: &mut BTreeMap<(String, String), SnapshotDiffStatements>,
+    stored_statements: &Vec<StoredStatements>,
+    first_snapshot_time: &DateTime<Local>
+) {
+    for statement in stored_statements {
+        match statements_diff.get_mut( &(statement.hostname_port.to_string(), statement.query.to_string()) ) {
+            Some(statements_diff_row) => {
+               *statements_diff_row = SnapshotDiffStatements {
+                   first_snapshot_time: statements_diff_row.first_snapshot_time,
+                   second_snapshot_time: statement.timestamp,
+                   first_calls: statements_diff_row.first_calls,
+                   second_calls: statement.calls,
+                   first_total_time: statements_diff_row.first_total_time,
+                   second_total_time: statement.total_time,
+                   first_rows: statements_diff_row.first_rows,
+                   second_rows: statement.rows
+               }
+            },
+            None => {
+              statements_diff.insert( (statement.hostname_port.to_string(), statement.query.to_string()), SnapshotDiffStatements {
+                  first_snapshot_time: *first_snapshot_time,
+                  second_snapshot_time: statement.timestamp,
+                  first_calls: 0,
+                  second_calls: statement.calls,
+                  first_total_time: 0.0,
+                  second_total_time: statement.total_time,
+                  first_rows: 0,
+                  second_rows: statement.rows
+              });
+            }
+        }
+    }
+}
+
 pub fn insert_first_snap_into_diff(values_diff: &mut BTreeMap<(String, String, String, String), SnapshotDiffValues>,
                                    values_btree: &BTreeMap<(String, String, String, String), StoredValues>,
                                    countsum_diff: &mut BTreeMap<(String, String, String, String), SnapshotDiffCountSum>,
@@ -1007,6 +1146,26 @@ pub fn insert_second_snap_into_diff(values_diff: &mut BTreeMap<(String, String, 
                     second_snapshot_sum: storedcountsumrows.metric_sum,
                     second_snapshot_rows: storedcountsumrows.metric_rows
                 });
+            }
+        }
+    }
+}
+
+pub fn print_diff_statements(
+    statements_diff: &BTreeMap<(String, String), SnapshotDiffStatements>,
+    hostname_filter: &Regex
+) {
+    for ((hostname, query), statements_row) in statements_diff {
+        if hostname_filter.is_match(&hostname) {
+            if statements_row.second_calls - statements_row.first_calls != 0 {
+                let adaptive_length = if query.len() < 50 { query.len() } else { 50 };
+                println!("{:20} {:10} avg.time: {:15.3} ms avg.rows: {:10} : {:50}",
+                    hostname,
+                    statements_row.second_calls - statements_row.first_calls,
+                    (statements_row.second_total_time - statements_row.first_total_time) / (statements_row.second_calls as f64 - statements_row.first_calls as f64),
+                    (statements_row.second_rows - statements_row.first_rows) / (statements_row.second_calls - statements_row.first_calls),
+                    query.substring(0,adaptive_length).replace("\n","")
+                );
             }
         }
     }

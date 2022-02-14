@@ -5,11 +5,15 @@ It uses the metric endpoints (not the prometheus-metrics endpoints, these do not
 The metric endpoints are available at the following places with default settings:
 - HOSTNAME:7000/metrics for the master server
 - HOSTNAME:9000/metrics for the tablet server
-- HOSTNAME:12000/metrics for the YCQL (cassandra) server
+- HOSTNAME:12000/metrics for the YCQL (cassandra API) server
+- HOSTNAME:13000/metrics for the YSQL (postgres API) server
+- HOSTNAME:13000/statements for the YSQL (postgres API) server
 
-The main types of data are 'value' and 'latency' type statistics.
-- The 'value' type consists of a statistic name and a value. The value can be time, bytes, a number of occurences, etc. Also the value can be a counter or a gauge (absolute number).
+The main types of data are 'values', 'countsum' and 'countsumrows', 'statements' type statistics.
+- The 'values' type consists of a statistic name and a value. The value can be time, bytes, a number of occurences, etc. Also the value can be a counter or a gauge (absolute number).
 - The 'countsum' type consists of a statistic name and total_count (number of times the statistic is triggered), total_sum (total time in microseconds), which are both counters. The statistics also includes min, mean, max and several percentiles. These are absolute values (obviously). 
+- The 'countsumrows' type consists of a statistic name and count (the number of times the statistic is triggered), sum (total time in millisecons) and rows (amount of rows returned from the statistic topic). The statistics are counters.
+- The 'statements' type consists of the query, together with common pg_stat_statements timing information.
 
 The goal of yb_stats is to capture this information and show it or store it, to learn and help with performance investigations.
 Another goal is to make this a support package (hence the CSV format), which allows a client to capture all current available information and transport it to Yugabyte for review.
@@ -49,7 +53,10 @@ OPTIONS:
             regex to select specific table names (only sensible with --details-enable, default mode adds the statistics
             for all tables) [default: .*]
 ```
-The most important switch is `-m` or `--metric-sources`, which allows you to specify a comma-separated list of hostname:port combinations. Yes, this is quite a lot of work for even a modest cluster; to capture the master and tservers in my lab my setting is: `yb_stats -m 192.168.66.80:7000,192.168.66.80:9000,192.168.66.81:7000,192.168.66.81:9000,192.168.66.82:7000,192.168.66.82:9000`. However, there is no endpoint that provides the ip addresses to be used as an administrator. One thing which might be useful is to create a settings file that allows storing this.
+The most important switch is `-m` or `--metric-sources`, which allows you to specify a comma-separated list of hostname:port combinations. 
+Yes, this is quite a lot of work for even a modest cluster; to capture the master and tservers in my lab my setting is: `yb_stats -m 192.168.66.80:7000,192.168.66.80:9000,192.168.66.80:13000,192.168.66.81:7000,192.168.66.81:9000,192.168.66.81:13000,192.168.66.82:7000,192.168.66.82:9000,192.168.66.82:13000`. 
+The reason for doing it in this way is that there is no view/URL/endpoint in the cluster that can consistenly be used to query the ip addresses to be used as an administrator.
+One thing which might be a useful addition is to create a settings file that allows storing the hostnames, so you reuse that.
 
 The yb_stats has three modes:
 - STDOUT mode (default): when invoked, it gathers data to take as the begin situation, and then displays `Begin metrics snapshot created, press enter to create end snapshot for difference calculation.`. If you press enter, yb_stats gathers data again, and shows any statistic that has changed since the begin situation.
@@ -111,7 +118,7 @@ The next section are countsum statistics. 'countsum' statistics contain a value 
 - The sixth column show the difference between the first and second snapshot for the total_sum statistic, divided by the difference between the total_count statistics, to get the average amount of time per occasion of the statistic.
 - The seventh column shows the difference between the first and the second snapshot for the total_sum statistic to get the total amount of time measured by this statistic.
 
-The optional last section are countsumrows statistics. 'countsumrows' statistics are unique to YSQL and contain: a value for the count of occurences, a sum about the data that the statistic is collecting, which is time (in ms, milliseconds), and rows, which are the number of rows that are processed by the topic about which the statistic is collecting information:
+The optional next section are countsumrows statistics. 'countsumrows' statistics are unique to YSQL and contain: a value for the count of occurences, a sum about the data that the statistic is collecting, which is time (in ms, milliseconds), and rows, which are the number of rows that are processed by the topic about which the statistic is collecting information:
 ```
 ...snipped
 192.168.66.80:13000  handler_latency_yb_ysqlserver_SQLProcessor_CatalogCacheMisses                     3189 avg.time:               0 ms, avg.rows:            3280
@@ -131,6 +138,23 @@ The optional last section are countsumrows statistics. 'countsumrows' statistics
 CatalogCacheMisses
 - Please mind the CatalogCacheMisses statistic currently does not measure time (sum): this is an item on the todo list of development.
 - A backend that is initialized as part of logon does create a catalogcache in its heap. CatalogCacheMisses does currently not count these in the statistic.
+
+The optional next section are statement statistics. 'statement' statistics are unique to YSQL and are the externalisation of the pg_stat_statement statistics.
+```
+...snipped
+192.168.66.80:13000           1 avg.time:          21.452 ms avg.rows:          0 : create or replace procedure ybio.insert( p_rows bi
+192.168.66.80:13000           1 avg.time:          15.222 ms avg.rows:          0 : create or replace procedure ybio.remove ( p_config
+192.168.66.80:13000           1 avg.time:          18.475 ms avg.rows:          0 : create or replace procedure ybio.run( p_config_id
+192.168.66.80:13000           1 avg.time:          20.190 ms avg.rows:          0 : create or replace procedure ybio.setup ( p_config_
+192.168.66.80:13000           1 avg.time:          10.476 ms avg.rows:          0 : create schema ybio
+192.168.66.80:13000           1 avg.time:         453.551 ms avg.rows:          0 : create table ybio.config (  id 				    serial   p
+192.168.66.80:13000           1 avg.time:         180.096 ms avg.rows:          0 : create table ybio.results (  run_id
+192.168.66.80:13000           1 avg.time:           2.749 ms avg.rows:          0 : do $$declare  orafce_available int;  orafce_ins
+```
+- The first column is the hostname:port endpoint specification.
+- The second column shows the number of calls for the query, which is calculated as the difference between the calls figure of the second snapshot and the first snapshot.
+- The number between the avg.time: and ms is the average query latency, calculated as the difference between the total_time figure of the second snapshot and the first snapshot, divided by the difference in calls from the second column. This value is in milliseconds (ms).
+- The number after avg.rows: is the average number of rows returned by the query, calculated as the difference between the rows figure of the second snapshot and the first snapshot, divided by the difference in calls from the second column.
 
 # Examples
 ## Investigate CPU usage
@@ -242,40 +266,76 @@ This shows statistics related to the YugabyteDB write ahead logging mechanism. P
 
 ## Investigate number and size of sst files
 How many sst files does the server have? And what is the size (which means compressed), and the uncompressed size of these?
-Please mind a tablet can have zero sst files if all the data is in the memtable only and not flushed yet.
+Please mind a table can have zero sst files if all the data is in the memtable only and not flushed yet.
 ```
-fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:7000,192.168.66.80:9000,192.168.66.81:7000,192.168.66.81:9000,192.168.66.82:7000,192.168.66.82:9000 --stat-name-match sst_files --gauges-enable
+fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:7000,192.168.66.80:9000,192.168.66.81:7000,192.168.66.81:9000,192.168.66.82:7000,192.168.66.82:9000 --stat-name-match sst_files --gauges-enable --hostname-match 9000
 Begin metrics snapshot created, press enter to create end snapshot for difference calculation.
 
-192.168.66.80:7000   tablet   rocksdb_current_version_num_sst_files                                                2 files               +0
-192.168.66.80:7000   tablet   rocksdb_current_version_sst_files_size                                        25007513 bytes               +0
-192.168.66.80:7000   tablet   rocksdb_current_version_sst_files_uncompressed_size                          109146009 bytes               +0
-192.168.66.81:7000   tablet   rocksdb_current_version_num_sst_files                                                2 files               +0
-192.168.66.81:7000   tablet   rocksdb_current_version_sst_files_size                                        25007513 bytes               +0
-192.168.66.81:7000   tablet   rocksdb_current_version_sst_files_uncompressed_size                          109146009 bytes               +0
-192.168.66.82:7000   tablet   rocksdb_current_version_num_sst_files                                                2 files               +0
-192.168.66.82:7000   tablet   rocksdb_current_version_sst_files_size                                        25007513 bytes               +0
-192.168.66.82:7000   tablet   rocksdb_current_version_sst_files_uncompressed_size                          109146009 bytes               +0
+192.168.66.80:9000   tablet   rocksdb_current_version_num_sst_files                                                8 files               +0
+192.168.66.80:9000   tablet   rocksdb_current_version_sst_files_size                                       992041573 bytes               +0
+192.168.66.80:9000   tablet   rocksdb_current_version_sst_files_uncompressed_size                         1456980905 bytes               +0
+192.168.66.81:9000   tablet   rocksdb_current_version_num_sst_files                                               12 files               +0
+192.168.66.81:9000   tablet   rocksdb_current_version_sst_files_size                                       995005984 bytes               +0
+192.168.66.81:9000   tablet   rocksdb_current_version_sst_files_uncompressed_size                         1460605799 bytes               +0
+192.168.66.82:9000   tablet   rocksdb_current_version_num_sst_files                                               12 files               +0
+192.168.66.82:9000   tablet   rocksdb_current_version_sst_files_size                                       994599640 bytes               +0
+192.168.66.82:9000   tablet   rocksdb_current_version_sst_files_uncompressed_size                         1461586770 bytes               +0
 ```
 Please mind I had to enable the `--gauges-enable` flag again. (officially these are counters, but these make more sense as gauge).
-This is very fast and easy way to understand the amount and the sizes of the SST files.
+This is very fast and easy way to understand the amount and the sizes of the SST files.  
+
 If you want to know more about a specific table(/tablet), you can use the `--details-enable` flag to show the statistics per table/tablet:
 ```
-fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:7000,192.168.66.80:9000,192.168.66.81:7000,192.168.66.81:9000,192.168.66.82:7000,192.168.66.82:9000 --stat-name-match sst_files --gauges-enable --details-enable
+fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:7000,192.168.66.80:9000,192.168.66.81:7000,192.168.66.81:9000,192.168.66.82:7000,192.168.66.82:9000 --stat-name-match sst_files --gauges-enable --details-enable  --hostname-match 9000
 Begin metrics snapshot created, press enter to create end snapshot for difference calculation.
 
-192.168.66.80:7000   tablet   000000000000000                 sys.catalog                    rocksdb_current_version_num_sst_files                                                2 files               +0
-192.168.66.80:7000   tablet   000000000000000                 sys.catalog                    rocksdb_current_version_sst_files_size                                        25007513 bytes               +0
-192.168.66.80:7000   tablet   000000000000000                 sys.catalog                    rocksdb_current_version_sst_files_uncompressed_size                          109146009 bytes               +0
-192.168.66.81:7000   tablet   000000000000000                 sys.catalog                    rocksdb_current_version_num_sst_files                                                2 files               +0
-192.168.66.81:7000   tablet   000000000000000                 sys.catalog                    rocksdb_current_version_sst_files_size                                        25007513 bytes               +0
-192.168.66.81:7000   tablet   000000000000000                 sys.catalog                    rocksdb_current_version_sst_files_uncompressed_size                          109146009 bytes               +0
-192.168.66.82:7000   tablet   000000000000000                 sys.catalog                    rocksdb_current_version_num_sst_files                                                2 files               +0
-192.168.66.82:7000   tablet   000000000000000                 sys.catalog                    rocksdb_current_version_sst_files_size                                        25007513 bytes               +0
-192.168.66.82:7000   tablet   000000000000000                 sys.catalog                    rocksdb_current_version_sst_files_uncompressed_size                          109146009 bytes               +0
+192.168.66.80:9000   tablet   3ba5f729fb1f0e7 system_postgres sequences_data                 rocksdb_current_version_num_sst_files                                                1 files               +0
+192.168.66.80:9000   tablet   3ba5f729fb1f0e7 system_postgres sequences_data                 rocksdb_current_version_sst_files_size                                           66565 bytes               +0
+192.168.66.80:9000   tablet   3ba5f729fb1f0e7 system_postgres sequences_data                 rocksdb_current_version_sst_files_uncompressed_size                              66773 bytes               +0
+192.168.66.80:9000   tablet   a75aa293b4e061b yugabyte        benchmark_table                rocksdb_current_version_num_sst_files                                                2 files               +0
+192.168.66.80:9000   tablet   a75aa293b4e061b yugabyte        benchmark_table                rocksdb_current_version_sst_files_size                                       328174660 bytes               +0
+192.168.66.80:9000   tablet   a75aa293b4e061b yugabyte        benchmark_table                rocksdb_current_version_sst_files_uncompressed_size                          481972237 bytes               +0
+192.168.66.80:9000   tablet   efd7118f32e0d37 yugabyte        config                         rocksdb_current_version_num_sst_files                                                1 files               +0
+192.168.66.80:9000   tablet   efd7118f32e0d37 yugabyte        config                         rocksdb_current_version_sst_files_size                                           66796 bytes               +0
+192.168.66.80:9000   tablet   efd7118f32e0d37 yugabyte        config                         rocksdb_current_version_sst_files_uncompressed_size                              67332 bytes               +0
+192.168.66.80:9000   tablet   422e112629d3dfa yugabyte        benchmark_table                rocksdb_current_version_num_sst_files                                                2 files               +0
+192.168.66.80:9000   tablet   422e112629d3dfa yugabyte        benchmark_table                rocksdb_current_version_sst_files_size                                       331407656 bytes               +0
+192.168.66.80:9000   tablet   422e112629d3dfa yugabyte        benchmark_table                rocksdb_current_version_sst_files_uncompressed_size                          486494998 bytes               +0
+192.168.66.80:9000   tablet   f51033d9b8ed29c yugabyte        benchmark_table                rocksdb_current_version_num_sst_files                                                2 files               +0
+192.168.66.80:9000   tablet   f51033d9b8ed29c yugabyte        benchmark_table                rocksdb_current_version_sst_files_size                                       332325896 bytes               +0
+192.168.66.80:9000   tablet   f51033d9b8ed29c yugabyte        benchmark_table                rocksdb_current_version_sst_files_uncompressed_size                          488379565 bytes               +0
+192.168.66.81:9000   tablet   3ba5f729fb1f0e7 system_postgres sequences_data                 rocksdb_current_version_num_sst_files                                                1 files               +0
+192.168.66.81:9000   tablet   3ba5f729fb1f0e7 system_postgres sequences_data                 rocksdb_current_version_sst_files_size                                           66565 bytes               +0
+192.168.66.81:9000   tablet   3ba5f729fb1f0e7 system_postgres sequences_data                 rocksdb_current_version_sst_files_uncompressed_size                              66773 bytes               +0
+192.168.66.81:9000   tablet   a75aa293b4e061b yugabyte        benchmark_table                rocksdb_current_version_num_sst_files                                                4 files               +0
+192.168.66.81:9000   tablet   a75aa293b4e061b yugabyte        benchmark_table                rocksdb_current_version_sst_files_size                                       330375390 bytes               +0
+192.168.66.81:9000   tablet   a75aa293b4e061b yugabyte        benchmark_table                rocksdb_current_version_sst_files_uncompressed_size                          485473077 bytes               +0
+192.168.66.81:9000   tablet   efd7118f32e0d37 yugabyte        config                         rocksdb_current_version_num_sst_files                                                1 files               +0
+192.168.66.81:9000   tablet   efd7118f32e0d37 yugabyte        config                         rocksdb_current_version_sst_files_size                                           66796 bytes               +0
+192.168.66.81:9000   tablet   efd7118f32e0d37 yugabyte        config                         rocksdb_current_version_sst_files_uncompressed_size                              67332 bytes               +0
+192.168.66.81:9000   tablet   422e112629d3dfa yugabyte        benchmark_table                rocksdb_current_version_num_sst_files                                                4 files               +0
+192.168.66.81:9000   tablet   422e112629d3dfa yugabyte        benchmark_table                rocksdb_current_version_sst_files_size                                       335030701 bytes               +0
+192.168.66.81:9000   tablet   422e112629d3dfa yugabyte        benchmark_table                rocksdb_current_version_sst_files_uncompressed_size                          491055899 bytes               +0
+192.168.66.81:9000   tablet   f51033d9b8ed29c yugabyte        benchmark_table                rocksdb_current_version_num_sst_files                                                2 files               +0
+192.168.66.81:9000   tablet   f51033d9b8ed29c yugabyte        benchmark_table                rocksdb_current_version_sst_files_size                                       329466532 bytes               +0
+192.168.66.81:9000   tablet   f51033d9b8ed29c yugabyte        benchmark_table                rocksdb_current_version_sst_files_uncompressed_size                          483942718 bytes               +0
+192.168.66.82:9000   tablet   3ba5f729fb1f0e7 system_postgres sequences_data                 rocksdb_current_version_num_sst_files                                                1 files               +0
+192.168.66.82:9000   tablet   3ba5f729fb1f0e7 system_postgres sequences_data                 rocksdb_current_version_sst_files_size                                           66565 bytes               +0
+192.168.66.82:9000   tablet   3ba5f729fb1f0e7 system_postgres sequences_data                 rocksdb_current_version_sst_files_uncompressed_size                              66773 bytes               +0
+192.168.66.82:9000   tablet   a75aa293b4e061b yugabyte        benchmark_table                rocksdb_current_version_num_sst_files                                                4 files               +0
+192.168.66.82:9000   tablet   a75aa293b4e061b yugabyte        benchmark_table                rocksdb_current_version_sst_files_size                                       332053412 bytes               +0
+192.168.66.82:9000   tablet   a75aa293b4e061b yugabyte        benchmark_table                rocksdb_current_version_sst_files_uncompressed_size                          488401350 bytes               +0
+192.168.66.82:9000   tablet   efd7118f32e0d37 yugabyte        config                         rocksdb_current_version_num_sst_files                                                1 files               +0
+192.168.66.82:9000   tablet   efd7118f32e0d37 yugabyte        config                         rocksdb_current_version_sst_files_size                                           66796 bytes               +0
+192.168.66.82:9000   tablet   efd7118f32e0d37 yugabyte        config                         rocksdb_current_version_sst_files_uncompressed_size                              67332 bytes               +0
+192.168.66.82:9000   tablet   422e112629d3dfa yugabyte        benchmark_table                rocksdb_current_version_num_sst_files                                                3 files               +0
+192.168.66.82:9000   tablet   422e112629d3dfa yugabyte        benchmark_table                rocksdb_current_version_sst_files_size                                       330458839 bytes               +0
+192.168.66.82:9000   tablet   422e112629d3dfa yugabyte        benchmark_table                rocksdb_current_version_sst_files_uncompressed_size                          486059811 bytes               +0
+192.168.66.82:9000   tablet   f51033d9b8ed29c yugabyte        benchmark_table                rocksdb_current_version_num_sst_files                                                3 files               +0
+192.168.66.82:9000   tablet   f51033d9b8ed29c yugabyte        benchmark_table                rocksdb_current_version_sst_files_size                                       331954028 bytes               +0
+192.168.66.82:9000   tablet   f51033d9b8ed29c yugabyte        benchmark_table                rocksdb_current_version_sst_files_uncompressed_size                          486991504 bytes               +0
 ```
-My lab cluster is freshly created, so it doesn't have any SST files for user tables, although I created one. But this shows the principle.
-
+With `--details-enable` all table and tablet data is shown. This is my lab cluster after a run of ybio. The data is ordered by the tablet id, so not all tablets might be grouped with the table. 
 ## Investigate physical IO and latencies
 How much physical IO was performed, and how much did that take on average and overall?
 ```

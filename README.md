@@ -9,7 +9,7 @@ The metric endpoints are available at the following places with default settings
 
 The main types of data are 'value' and 'latency' type statistics.
 - The 'value' type consists of a statistic name and a value. The value can be time, bytes, a number of occurences, etc. Also the value can be a counter or a gauge (absolute number).
-- The 'latency' type consists of a statistic name and total_count (number of times the statistic is triggered), total_sum (total time in microseconds), which are both counters. The statistics also includes min, mean, max and several percentiles. These are absolute values (obviously). 
+- The 'countsum' type consists of a statistic name and total_count (number of times the statistic is triggered), total_sum (total time in microseconds), which are both counters. The statistics also includes min, mean, max and several percentiles. These are absolute values (obviously). 
 
 The goal of yb_stats is to capture this information and show it or store it, to learn and help with performance investigations.
 Another goal is to make this a support package (hence the CSV format), which allows a client to capture all current available information and transport it to Yugabyte for review.
@@ -84,7 +84,7 @@ Begin metrics snapshot created, press enter to create end snapshot for differenc
 192.168.66.80:9000   server   proxy_request_bytes_yb_master_MasterService_TSHeartbeat                            156 bytes          132.316/s
 ...snipped 
 ```
-These are 'value' statistics.
+These are 'value' statistics. 'value' statistics contain a statistic name and a value with the statistic.
 - The first column shows the hostname:port number endpoint specification.
 - The second column shows the metric type (cluster, server, table, tablet).
 - The third column shows the name of the statistic.
@@ -92,7 +92,7 @@ These are 'value' statistics.
 - The fifth column shows the difference of the value in the statistic between the first and second snapshot, divided by the time between the two snapshots.
 The statistics are ordered by hostname-portnumber, metric type, id.
 
-the bottom, the latency statistics are shown:
+The next section are countsum statistics. 'countsum' statistics contain a value for the count of occurences and a value for the sum of data that the statistic is collecting. This is mostly time (mostly in us, microseconds) but can also be something else (like bytes):
 ```
 ...snipped
 192.168.66.82:7000   server   handler_latency_yb_master_MasterService_TSHeartbeat                                  4           3.387/s avg.time: 187       tot:             749 us
@@ -110,6 +110,27 @@ the bottom, the latency statistics are shown:
 - The fifth column shows the difference between the first and second snapshot for the total_count statistic, divided by the time between the two snapshots.
 - The sixth column show the difference between the first and second snapshot for the total_sum statistic, divided by the difference between the total_count statistics, to get the average amount of time per occasion of the statistic.
 - The seventh column shows the difference between the first and the second snapshot for the total_sum statistic to get the total amount of time measured by this statistic.
+
+The optional last section are countsumrows statistics. 'countsumrows' statistics are unique to YSQL and contain: a value for the count of occurences, a sum about the data that the statistic is collecting, which is time (in ms, milliseconds), and rows, which are the number of rows that are processed by the topic about which the statistic is collecting information:
+```
+...snipped
+192.168.66.80:13000  handler_latency_yb_ysqlserver_SQLProcessor_CatalogCacheMisses                     3189 avg.time:               0 ms, avg.rows:            3280
+192.168.66.80:13000  handler_latency_yb_ysqlserver_SQLProcessor_InsertStmt                                2 avg.time:              54 ms, avg.rows:               2
+192.168.66.80:13000  handler_latency_yb_ysqlserver_SQLProcessor_OtherStmts                                8 avg.time:         2787939 ms, avg.rows:               0
+192.168.66.80:13000  handler_latency_yb_ysqlserver_SQLProcessor_SelectStmt                                4 avg.time:            7051 ms, avg.rows:               4
+192.168.66.80:13000  handler_latency_yb_ysqlserver_SQLProcessor_Single_Shard_Transactions                 8 avg.time:            3739 ms, avg.rows:               8
+192.168.66.80:13000  handler_latency_yb_ysqlserver_SQLProcessor_Transactions                             15 avg.time:          494247 ms, avg.rows:               8
+192.168.66.80:13000  handler_latency_yb_ysqlserver_SQLProcessor_UpdateStmt                                2 avg.time:             800 ms, avg.rows:               2
+```
+- The first column is the hostname:port number endpoint specification.
+- The second columns shows the statistic.
+- The third column shows the number of times the statistic was triggered.
+- The amount between avg.time: and ms is the sum value divided by the number of times the statistic was triggered.
+- The number after avg.rows: is the rows value divided by the number of times the statistic was triggered.  
+ 
+CatalogCacheMisses
+- Please mind the CatalogCacheMisses statistic currently does not measure time (sum): this is an item on the todo list of development.
+- A backend that is initialized as part of logon does create a catalogcache in its heap. CatalogCacheMisses does currently not count these in the statistic.
 
 # Examples
 ## Investigate CPU usage
@@ -254,6 +275,28 @@ Begin metrics snapshot created, press enter to create end snapshot for differenc
 192.168.66.82:7000   tablet   000000000000000                 sys.catalog                    rocksdb_current_version_sst_files_uncompressed_size                          109146009 bytes               +0
 ```
 My lab cluster is freshly created, so it doesn't have any SST files for user tables, although I created one. But this shows the principle.
+
+## Investigate physical IO and latencies
+How much physical IO was performed, and how much did that take on average and overall?
+```
+fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:7000,192.168.66.80:9000,192.168.66.81:7000,192.168.66.81:9000,192.168.66.82:7000,192.168.66.82:9000 --stat-name-match '(log_append_latency|log_sync_latency|rocksdb_sst_read_micros|rocksdb_write_raw_blocks)'
+Begin metrics snapshot created, press enter to create end snapshot for difference calculation.
+
+192.168.66.80:9000   table    log_append_latency                                                                 762          57.276/s avg.time: 36        tot:           28041 us
+192.168.66.80:9000   table    log_sync_latency                                                                   761          57.201/s avg.time: 835       tot:          635686 us
+192.168.66.80:9000   table    rocksdb_sst_read_micros                                                           5899         443.400/s avg.time: 96        tot:          571313 us
+192.168.66.81:9000   table    log_append_latency                                                                 842          57.683/s avg.time: 63        tot:           53503 us
+192.168.66.81:9000   table    log_sync_latency                                                                   842          57.683/s avg.time: 1467      tot:         1235801 us
+192.168.66.81:9000   table    rocksdb_sst_read_micros                                                          21424        1467.699/s avg.time: 117       tot:         2507733 us
+192.168.66.82:9000   table    log_append_latency                                                                 846          57.535/s avg.time: 36        tot:           31079 us
+192.168.66.82:9000   table    log_sync_latency                                                                   846          57.535/s avg.time: 819       tot:          693134 us
+192.168.66.82:9000   table    rocksdb_sst_read_micros                                                           7502         510.201/s avg.time: 62        tot:          468070 us
+```
+This shows the physical IO statistics:
+- log_append_latency: the number of and time spent adding the changes to the WAL (via a buffer writev() call). (older versions perform two write calls per WAL entry: https://github.com/yugabyte/yugabyte-db/issues/11035)
+- rocksdb_sst_read_micros: the number of and time spent reading (via a buffered pread64() call).
+- rocksdb_write_raw_blocks: the number of and time spent writing to SST files (via a buffered write() call).
+- log_sync_latency: this the number of and time spent in the function that performs fsync() of the WAL file. Mind the specific wording: not all calls to the function result in fsync() being called, which means that this statistic also measures running the function not performing the fsync() call, and thus will be much too positive, and not a valid average of time spent in the fsync() call. The total time is still a valid amount for tuning. See: https://github.com/yugabyte/yugabyte-db/issues/11039
 
 # How to install
 Currently, this is only available as source code, not as executable.  

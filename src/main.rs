@@ -1,7 +1,7 @@
-mod latency_statistic_details;
 //use value_statistic_details::ValueStatisticDetails;
 mod value_statistic_details;
-//use latency_statistic_details::LatencyStatisticDetails;
+//use countsum_statistic_details::CountSumStatisticDetails;
+mod countsum_statistic_details;
 
 use structopt::StructOpt;
 use std::process;
@@ -12,7 +12,7 @@ use std::io::{stdin, stdout, Write};
 use std::fs;
 use std::env;
 
-use yb_stats::{SnapshotDiffValues, SnapshotDiffLatencies, StoredValues, StoredLatencies, perform_snapshot, read_metrics, add_to_metric_vectors, insert_first_snap_into_diff, insert_second_snap_into_diff, build_summary, build_detail, Snapshot, print_diff};
+use yb_stats::{SnapshotDiffValues, SnapshotDiffCountSum, StoredValues, StoredCountSum, perform_snapshot, read_metrics, add_to_metric_vectors, insert_first_snap_into_diff, insert_second_snap_into_diff, build_summary, build_detail, Snapshot, print_diff, StoredCountSumRows, SnapshotDiffCountSumRows};
 
 #[derive(Debug, StructOpt)]
 struct Opts {
@@ -120,28 +120,44 @@ fn main() {
             let _ = &stored_values.push(data);
         }
 
-        let mut stored_latencies: Vec<StoredLatencies> = Vec::new();
-        let mut latencies_diff: BTreeMap<(String, String, String, String), SnapshotDiffLatencies> = BTreeMap::new();
-        let mut latencies_detail: BTreeMap<(String, String, String, String), StoredLatencies> = BTreeMap::new();
-        let mut latencies_summary: BTreeMap<(String, String, String, String), StoredLatencies> = BTreeMap::new();
-        let latencies_file = &yb_stats_directory.join(&begin_snapshot.to_string()).join("latencies");
-        let file = fs::File::open(&latencies_file)
+        let mut stored_countsum: Vec<StoredCountSum> = Vec::new();
+        let mut countsum_diff: BTreeMap<(String, String, String, String), SnapshotDiffCountSum> = BTreeMap::new();
+        let mut countsum_detail: BTreeMap<(String, String, String, String), StoredCountSum> = BTreeMap::new();
+        let mut countsum_summary: BTreeMap<(String, String, String, String), StoredCountSum> = BTreeMap::new();
+        let countsum_file = &yb_stats_directory.join(&begin_snapshot.to_string()).join("countsum");
+        let file = fs::File::open(&countsum_file)
             .unwrap_or_else(|e| {
-                eprintln!("Fatal: error reading file: {}: {}", &values_file.clone().into_os_string().into_string().unwrap(), e);
+                eprintln!("Fatal: error reading file: {}: {}", &countsum_file.clone().into_os_string().into_string().unwrap(), e);
                 process::exit(1);
             });
         let mut reader = csv::Reader::from_reader(file);
         for row in reader.deserialize() {
-            let data: StoredLatencies = row.unwrap();
-            let _ = &stored_latencies.push(data);
+            let data: StoredCountSum = row.unwrap();
+            let _ = &stored_countsum.push(data);
+        }
+
+        let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
+        let mut countsumrows_diff: BTreeMap<(String, String, String, String), SnapshotDiffCountSumRows> = BTreeMap::new();
+        let mut countsumrows_detail: BTreeMap<(String, String, String, String), StoredCountSumRows> = BTreeMap::new();
+        let mut countsumrows_summary: BTreeMap<(String, String, String, String), StoredCountSumRows> = BTreeMap::new();
+        let countsumrows_file = &yb_stats_directory.join(&begin_snapshot.to_string()).join("countsumrows");
+        let file = fs::File::open(&countsumrows_file)
+            .unwrap_or_else(|e| {
+                eprintln!("Fatal: error reading file: {}: {}", &countsumrows_file.clone().into_os_string().into_string().unwrap(), e);
+                process::exit(1);
+            });
+        let mut reader = csv::Reader::from_reader(file);
+        for row in reader.deserialize() {
+            let data: StoredCountSumRows = row.unwrap();
+            let _ = &stored_countsumrows.push(data);
         }
 
         if details_enable {
-            build_detail(&mut values_detail, &stored_values, &mut latencies_detail, &stored_latencies);
-            insert_first_snap_into_diff(&mut values_diff, &values_detail, &mut latencies_diff, &latencies_detail);
+            build_detail(&mut values_detail, &stored_values, &mut countsum_detail, &stored_countsum, &mut countsumrows_detail, &stored_countsumrows);
+            insert_first_snap_into_diff(&mut values_diff, &values_detail, &mut countsum_diff, &countsum_detail, &mut countsumrows_diff, &countsumrows_detail);
         } else {
-            build_summary(&mut values_summary, &stored_values, &mut latencies_summary, &stored_latencies);
-            insert_first_snap_into_diff(&mut values_diff, &values_summary, &mut latencies_diff, &latencies_summary);
+            build_summary(&mut values_summary, &stored_values, &mut countsum_summary, &stored_countsum, &mut countsumrows_summary, &stored_countsumrows);
+            insert_first_snap_into_diff(&mut values_diff, &values_summary, &mut countsum_diff, &countsum_summary, &mut countsumrows_diff, &countsumrows_summary);
         }
 
         let mut stored_values: Vec<StoredValues> = Vec::new();
@@ -159,31 +175,47 @@ fn main() {
             let _ = &stored_values.push(data);
         }
 
-        let mut stored_latencies: Vec<StoredLatencies> = Vec::new();
-        let mut latencies_detail: BTreeMap<(String, String, String, String), StoredLatencies> = BTreeMap::new();
-        let mut latencies_summary: BTreeMap<(String, String, String, String), StoredLatencies> = BTreeMap::new();
+        let mut stored_countsum: Vec<StoredCountSum> = Vec::new();
+        let mut countsum_detail: BTreeMap<(String, String, String, String), StoredCountSum> = BTreeMap::new();
+        let mut countsum_summary: BTreeMap<(String, String, String, String), StoredCountSum> = BTreeMap::new();
 
-        let latencies_file = &yb_stats_directory.join(&end_snapshot.to_string()).join("latencies");
-        let file = fs::File::open(&latencies_file)
+        let countsum_file = &yb_stats_directory.join(&end_snapshot.to_string()).join("countsum");
+        let file = fs::File::open(&countsum_file)
             .unwrap_or_else(|e| {
-                eprintln!("Fatal: error reading file: {}: {}", &latencies_file.clone().into_os_string().into_string().unwrap(), e);
+                eprintln!("Fatal: error reading file: {}: {}", &countsum_file.clone().into_os_string().into_string().unwrap(), e);
                 process::exit(1);
             });
         let mut reader = csv::Reader::from_reader(file);
         for row in reader.deserialize() {
-            let data: StoredLatencies = row.unwrap();
-            let _ = &stored_latencies.push(data);
+            let data: StoredCountSum = row.unwrap();
+            let _ = &stored_countsum.push(data);
+        }
+
+        let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
+        let mut countsumrows_detail: BTreeMap<(String, String, String, String), StoredCountSumRows> = BTreeMap::new();
+        let mut countsumrows_summary: BTreeMap<(String, String, String, String), StoredCountSumRows> = BTreeMap::new();
+
+        let countsumrows_file = &yb_stats_directory.join(&end_snapshot.to_string()).join("countsumrows");
+        let file = fs::File::open(&countsumrows_file)
+            .unwrap_or_else(|e| {
+                eprintln!("Fatal: error reading file: {}: {}", &countsumrows_file.clone().into_os_string().into_string().unwrap(), e);
+                process::exit(1);
+            });
+        let mut reader = csv::Reader::from_reader(file);
+        for row in reader.deserialize() {
+            let data: StoredCountSumRows = row.unwrap();
+            let _ = &stored_countsumrows.push(data);
         }
 
         if details_enable {
-            build_detail(&mut values_detail, &stored_values, &mut latencies_detail, &stored_latencies);
-            insert_second_snap_into_diff(&mut values_diff, &values_detail, &mut latencies_diff, &latencies_detail, &begin_snapshot_row.timestamp);
+            build_detail(&mut values_detail, &stored_values, &mut countsum_detail, &stored_countsum, &mut countsumrows_detail, &stored_countsumrows);
+            insert_second_snap_into_diff(&mut values_diff, &values_detail, &mut countsum_diff, &countsum_detail, &mut countsumrows_diff, &countsumrows_detail, &begin_snapshot_row.timestamp);
         } else {
-            build_summary(&mut values_summary, &stored_values, &mut latencies_summary, &stored_latencies);
-            insert_second_snap_into_diff(&mut values_diff, &values_summary, &mut latencies_diff, &latencies_summary, &begin_snapshot_row.timestamp);
+            build_summary(&mut values_summary, &stored_values, &mut countsum_summary, &stored_countsum, &mut countsumrows_summary, &stored_countsumrows);
+            insert_second_snap_into_diff(&mut values_diff, &values_summary, &mut countsum_diff, &countsum_summary, &mut countsumrows_diff, &countsumrows_summary, &begin_snapshot_row.timestamp);
         }
 
-        print_diff(&values_diff, &latencies_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
+        print_diff(&values_diff, &countsum_diff, &countsumrows_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
 
     } else {
 
@@ -191,22 +223,26 @@ fn main() {
         let mut values_diff: BTreeMap<(String, String, String, String), SnapshotDiffValues> = BTreeMap::new();
         let mut values_detail: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
         let mut values_summary: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
-        let mut stored_latencies: Vec<StoredLatencies> = Vec::new();
-        let mut latencies_diff: BTreeMap<(String, String, String, String), SnapshotDiffLatencies> = BTreeMap::new();
-        let mut latencies_detail: BTreeMap<(String, String, String, String), StoredLatencies> = BTreeMap::new();
-        let mut latencies_summary: BTreeMap<(String, String, String, String), StoredLatencies> = BTreeMap::new();
+        let mut stored_countsum: Vec<StoredCountSum> = Vec::new();
+        let mut countsum_diff: BTreeMap<(String, String, String, String), SnapshotDiffCountSum> = BTreeMap::new();
+        let mut countsum_detail: BTreeMap<(String, String, String, String), StoredCountSum> = BTreeMap::new();
+        let mut countsum_summary: BTreeMap<(String, String, String, String), StoredCountSum> = BTreeMap::new();
+        let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
+        let mut countsumrows_diff: BTreeMap<(String, String, String, String), SnapshotDiffCountSumRows> = BTreeMap::new();
+        let mut countsumrows_detail: BTreeMap<(String, String, String, String), StoredCountSumRows> = BTreeMap::new();
+        let mut countsumrows_summary: BTreeMap<(String, String, String, String), StoredCountSumRows> = BTreeMap::new();
         let first_snapshot_time = Local::now();
         for hostname in &hostname_port_vec {
             let detail_snapshot_time = Local::now();
             let data_parsed_from_json = read_metrics(&hostname);
-            add_to_metric_vectors(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_values, &mut stored_latencies);
+            add_to_metric_vectors(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_values, &mut stored_countsum, &mut stored_countsumrows);
         }
         if details_enable {
-            build_detail(&mut values_detail, &stored_values, &mut latencies_detail, &stored_latencies);
-            insert_first_snap_into_diff(&mut values_diff, &values_detail, &mut latencies_diff, &latencies_detail);
+            build_detail(&mut values_detail, &stored_values, &mut countsum_detail, &stored_countsum, &mut countsumrows_detail, &stored_countsumrows);
+            insert_first_snap_into_diff(&mut values_diff, &values_detail, &mut countsum_diff, &countsum_detail, &mut countsumrows_diff, &countsumrows_detail);
         } else {
-            build_summary(&mut values_summary, &stored_values, &mut latencies_summary, &stored_latencies);
-            insert_first_snap_into_diff(&mut values_diff, &values_summary, &mut latencies_diff, &latencies_summary);
+            build_summary(&mut values_summary, &stored_values, &mut countsum_summary, &stored_countsum, &mut countsumrows_summary, &stored_countsumrows);
+            insert_first_snap_into_diff(&mut values_diff, &values_summary, &mut countsum_diff, &countsum_summary, &mut countsumrows_diff, &countsumrows_summary);
         }
 
         println!("Begin metrics snapshot created, press enter to create end snapshot for difference calculation.");
@@ -216,23 +252,26 @@ fn main() {
         let mut stored_values: Vec<StoredValues> = Vec::new();
         let mut values_detail: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
         let mut values_summary: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
-        let mut stored_latencies: Vec<StoredLatencies> = Vec::new();
-        let mut latencies_detail: BTreeMap<(String, String, String, String), StoredLatencies> = BTreeMap::new();
-        let mut latencies_summary: BTreeMap<(String, String, String, String), StoredLatencies> = BTreeMap::new();
+        let mut stored_countsum: Vec<StoredCountSum> = Vec::new();
+        let mut countsum_detail: BTreeMap<(String, String, String, String), StoredCountSum> = BTreeMap::new();
+        let mut countsum_summary: BTreeMap<(String, String, String, String), StoredCountSum> = BTreeMap::new();
+        let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
+        let mut countsumrows_detail: BTreeMap<(String, String, String, String), StoredCountSumRows> = BTreeMap::new();
+        let mut countsumrows_summary: BTreeMap<(String, String, String, String), StoredCountSumRows> = BTreeMap::new();
         for hostname in &hostname_port_vec {
             let detail_snapshot_time = Local::now();
             let data_parsed_from_json = read_metrics(&hostname);
-            add_to_metric_vectors(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_values, &mut stored_latencies);
+            add_to_metric_vectors(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_values, &mut stored_countsum, &mut stored_countsumrows);
         }
         if details_enable {
-            build_detail(&mut values_detail, &stored_values, &mut latencies_detail, &stored_latencies);
-            insert_second_snap_into_diff(&mut values_diff, &values_detail, &mut latencies_diff, &latencies_detail, &first_snapshot_time);
+            build_detail(&mut values_detail, &stored_values, &mut countsum_detail, &stored_countsum, &mut countsumrows_detail, &stored_countsumrows);
+            insert_second_snap_into_diff(&mut values_diff, &values_detail, &mut countsum_diff, &countsum_detail, &mut countsumrows_diff, &countsumrows_detail, &first_snapshot_time);
         } else {
-            build_summary(&mut values_summary, &stored_values, &mut latencies_summary, &stored_latencies);
-            insert_second_snap_into_diff(&mut values_diff, &values_summary, &mut latencies_diff, &latencies_summary, &first_snapshot_time);
+            build_summary(&mut values_summary, &stored_values, &mut countsum_summary, &stored_countsum, &mut countsumrows_summary, &stored_countsumrows);
+            insert_second_snap_into_diff(&mut values_diff, &values_summary, &mut countsum_diff, &countsum_summary, &mut countsumrows_diff, &countsumrows_summary, &first_snapshot_time);
         }
 
-        print_diff(&values_diff, &latencies_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
+        print_diff(&values_diff, &countsum_diff, &countsumrows_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
 
     }
 }

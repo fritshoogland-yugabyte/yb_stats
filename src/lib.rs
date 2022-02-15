@@ -1191,33 +1191,33 @@ pub fn print_diff(value_diff: &BTreeMap<(String, String, String, String), Snapsh
                 None => { ValueStatisticDetails { unit: String::from("?"), unit_suffix: String::from("?"), stat_type: String::from("?") } }
             };
             let adaptive_length = if metric_id.len() < 15 { 0 } else { metric_id.len() - 15 };
-            if details.stat_type != "gauge" {
-                if value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value != 0 {
-                    if *details_enable {
-                        println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:6} {:>15.3}/s",
-                                 hostname,
-                                 metric_type,
-                                 metric_id.substring(adaptive_length, metric_id.len()),
-                                 value_diff_row.namespace,
-                                 value_diff_row.table_name,
-                                 metric_name,
-                                 value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value,
-                                 details.unit_suffix,
-                                 ((value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value) as f64 / (value_diff_row.second_snapshot_time - value_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64)
-                        );
-                    } else {
-                        println!("{:20} {:8} {:70} {:15} {:6} {:>15.3}/s",
-                                 hostname,
-                                 metric_type,
-                                 metric_name,
-                                 value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value,
-                                 details.unit_suffix,
-                                 ((value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value) as f64 / (value_diff_row.second_snapshot_time - value_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64)
-                        );
-                    }
+            if details.stat_type != "gauge"
+            && value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value != 0 {
+                if *details_enable {
+                    println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:6} {:>15.3}/s",
+                             hostname,
+                             metric_type,
+                             metric_id.substring(adaptive_length, metric_id.len()),
+                             value_diff_row.namespace,
+                             value_diff_row.table_name,
+                             metric_name,
+                             value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value,
+                             details.unit_suffix,
+                             ((value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value) as f64 / (value_diff_row.second_snapshot_time - value_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64)
+                    );
+                } else {
+                    println!("{:20} {:8} {:70} {:15} {:6} {:>15.3}/s",
+                             hostname,
+                             metric_type,
+                             metric_name,
+                             value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value,
+                             details.unit_suffix,
+                             ((value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value) as f64 / (value_diff_row.second_snapshot_time - value_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64)
+                    );
                 }
             }
-            if details.stat_type == "gauge" && *gauges_enable {
+            if details.stat_type == "gauge"
+            && *gauges_enable {
                 if *details_enable {
                     println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:6} {:+15}",
                              hostname,
@@ -1256,7 +1256,7 @@ pub fn print_diff(value_diff: &BTreeMap<(String, String, String, String), Snapsh
             let adaptive_length = if metric_id.len() < 15 { 0 } else { metric_id.len() - 15 };
             if countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count != 0 {
                 if *details_enable {
-                    println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:>15.3}/s avg.time: {:<9.0} tot: {:>15.3} {:10}",
+                    println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:>15.3}/s avg.time: {:9.0} tot: {:>15.3} {:10}",
                              hostname,
                              metric_type,
                              metric_id.substring(adaptive_length, metric_id.len()),
@@ -1270,7 +1270,7 @@ pub fn print_diff(value_diff: &BTreeMap<(String, String, String, String), Snapsh
                              details.unit_suffix
                     );
                 } else {
-                    println!("{:20} {:8} {:70} {:15} {:>15.3}/s avg.time: {:<9.0} tot: {:>15.3} {:10}",
+                    println!("{:20} {:8} {:70} {:15} {:>15.3}/s avg.time: {:9.0} tot: {:>15.3} {:10}",
                              hostname,
                              metric_type,
                              metric_name,
@@ -1289,11 +1289,11 @@ pub fn print_diff(value_diff: &BTreeMap<(String, String, String, String), Snapsh
         if hostname_filter.is_match( &hostname)
         && stat_name_filter.is_match(&metric_name) {
             if countsumrows_diff_row.second_snapshot_count - countsumrows_diff_row.first_snapshot_count != 0 {
-                println!("{:20} {:70} {:>15} avg.time: {:>15} ms, avg.rows: {:>15}",
+                println!("{:20} {:70} {:>15} avg.time: {:>15.3} ms, avg.rows: {:>15}",
                     hostname,
                     metric_name,
                     countsumrows_diff_row.second_snapshot_count - countsumrows_diff_row.first_snapshot_count,
-                    (countsumrows_diff_row.second_snapshot_sum - countsumrows_diff_row.first_snapshot_sum) / (countsumrows_diff_row.second_snapshot_count - countsumrows_diff_row.first_snapshot_count),
+                    ((countsumrows_diff_row.second_snapshot_sum as f64 - countsumrows_diff_row.first_snapshot_sum as f64)/1000.0) / (countsumrows_diff_row.second_snapshot_count - countsumrows_diff_row.first_snapshot_count) as f64,
                     countsumrows_diff_row.second_snapshot_rows - countsumrows_diff_row.first_snapshot_rows / (countsumrows_diff_row.second_snapshot_count - countsumrows_diff_row.first_snapshot_count)
                 );
             }

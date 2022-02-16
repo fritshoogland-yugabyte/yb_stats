@@ -8,11 +8,10 @@ use std::process;
 use std::collections::BTreeMap;
 use regex::Regex;
 use chrono::Local;
-use std::io::{stdin, stdout, Write};
-use std::fs;
+use std::io::stdin;
 use std::env;
 
-use yb_stats::{SnapshotDiffStatements, SnapshotDiffValues, SnapshotDiffCountSum, StoredValues, StoredCountSum, perform_snapshot, read_metrics, add_to_metric_vectors, insert_first_snap_into_diff, insert_second_snap_into_diff, build_summary, build_detail, Snapshot, print_diff, StoredCountSumRows, SnapshotDiffCountSumRows, StoredStatements, insert_first_snap_into_statements_diff, insert_second_snap_into_statements_diff, print_diff_statements, read_statements, add_to_statements_vector};
+use yb_stats::{SnapshotDiffStatements, SnapshotDiffValues, SnapshotDiffCountSum, StoredValues, StoredCountSum, perform_snapshot, read_metrics, add_to_metric_vectors, insert_first_snap_into_diff, insert_second_snap_into_diff, build_summary, build_detail, Snapshot, print_diff, StoredCountSumRows, SnapshotDiffCountSumRows, StoredStatements, insert_first_snap_into_statements_diff, insert_second_snap_into_statements_diff, print_diff_statements, read_statements, add_to_statements_vector, read_snapshots_from_file, read_begin_end_snapshot_from_user, read_values_snapshot, read_countsum_snapshot, read_countsumrows_snapshot, read_statements_snapshot};
 
 #[derive(Debug, StructOpt)]
 struct Opts {
@@ -72,99 +71,37 @@ fn main() {
 
     if snapshot_diff {
 
-        let mut snapshots: Vec<Snapshot> = Vec::new();
+
         let current_directory = env::current_dir().unwrap();
         let yb_stats_directory = current_directory.join("yb_stats.snapshots");
-        let snapshot_index = &yb_stats_directory.join("snapshot.index");
-
-        let file = fs::File::open(&snapshot_index)
-            .unwrap_or_else(|e| {
-                eprintln!("Fatal: error opening file {}: {}", &snapshot_index.clone().into_os_string().into_string().unwrap(), e);
-                process::exit(1);
-            });
-        let mut reader = csv::Reader::from_reader(file);
-        for row in reader.deserialize() {
-            let data: Snapshot = row.unwrap();
-            let _ = &snapshots.push(data);
-        }
+        let snapshots: Vec<Snapshot> = read_snapshots_from_file(&yb_stats_directory);
 
         for row in &snapshots {
-            println!("{} {} {}", row.number, row.timestamp, row.comment);
+            println!("{:>3} {:30} {:50}", row.number, row.timestamp, row.comment);
         }
-        let mut begin_snapshot = String::new();
-        let mut end_snapshot = String::new();
-        print!("Enter begin snapshot: ");
-        let _ = stdout().flush();
-        stdin().read_line(&mut begin_snapshot).expect("Failed to read input.");
-        let begin_snapshot: i32 = begin_snapshot.trim().parse().expect("Invalid input");
-        let begin_snapshot_row = snapshots.iter().find(|&row| row.number == begin_snapshot).unwrap();
 
-        print!("Enter end snapshot: ");
-        let _ = stdout().flush();
-        stdin().read_line(&mut end_snapshot).expect("Failed to read input.");
-        let end_snapshot: i32 = end_snapshot.trim().parse().expect("Invalid input");
+        let (begin_snapshot, end_snapshot, begin_snapshot_row) = read_begin_end_snapshot_from_user(&snapshots);
 
-        let mut stored_values: Vec<StoredValues> = Vec::new();
         let mut values_diff: BTreeMap<(String, String, String, String), SnapshotDiffValues> = BTreeMap::new();
         let mut values_detail: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
         let mut values_summary: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
-        let values_file = &yb_stats_directory.join(&begin_snapshot.to_string()).join("values");
-        let file = fs::File::open(&values_file)
-            .unwrap_or_else(|e| {
-                eprintln!("Fatal: error reading file: {}: {}", &values_file.clone().into_os_string().into_string().unwrap(), e);
-                process::exit(1);
-            });
-        let mut reader = csv::Reader::from_reader(file);
-        for row in reader.deserialize() {
-            let data: StoredValues = row.unwrap();
-            let _ = &stored_values.push(data);
-        }
+        let stored_values: Vec<StoredValues> = read_values_snapshot(&begin_snapshot, &yb_stats_directory);
 
-        let mut stored_countsum: Vec<StoredCountSum> = Vec::new();
         let mut countsum_diff: BTreeMap<(String, String, String, String), SnapshotDiffCountSum> = BTreeMap::new();
         let mut countsum_detail: BTreeMap<(String, String, String, String), StoredCountSum> = BTreeMap::new();
         let mut countsum_summary: BTreeMap<(String, String, String, String), StoredCountSum> = BTreeMap::new();
-        let countsum_file = &yb_stats_directory.join(&begin_snapshot.to_string()).join("countsum");
-        let file = fs::File::open(&countsum_file)
-            .unwrap_or_else(|e| {
-                eprintln!("Fatal: error reading file: {}: {}", &countsum_file.clone().into_os_string().into_string().unwrap(), e);
-                process::exit(1);
-            });
-        let mut reader = csv::Reader::from_reader(file);
-        for row in reader.deserialize() {
-            let data: StoredCountSum = row.unwrap();
-            let _ = &stored_countsum.push(data);
-        }
+        let stored_countsum: Vec<StoredCountSum> = read_countsum_snapshot( &begin_snapshot, &yb_stats_directory);
 
-        let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
         let mut countsumrows_diff: BTreeMap<(String, String, String, String), SnapshotDiffCountSumRows> = BTreeMap::new();
         let mut countsumrows_detail: BTreeMap<(String, String, String, String), StoredCountSumRows> = BTreeMap::new();
         let mut countsumrows_summary: BTreeMap<(String, String, String, String), StoredCountSumRows> = BTreeMap::new();
-        let countsumrows_file = &yb_stats_directory.join(&begin_snapshot.to_string()).join("countsumrows");
-        let file = fs::File::open(&countsumrows_file)
-            .unwrap_or_else(|e| {
-                eprintln!("Fatal: error reading file: {}: {}", &countsumrows_file.clone().into_os_string().into_string().unwrap(), e);
-                process::exit(1);
-            });
-        let mut reader = csv::Reader::from_reader(file);
-        for row in reader.deserialize() {
-            let data: StoredCountSumRows = row.unwrap();
-            let _ = &stored_countsumrows.push(data);
-        }
+        let stored_countsumrows: Vec<StoredCountSumRows> = read_countsumrows_snapshot( &begin_snapshot, &yb_stats_directory);
 
-        let mut stored_statements: Vec<StoredStatements> = Vec::new();
         let mut statements_diff: BTreeMap<(String, String), SnapshotDiffStatements> = BTreeMap::new();
-        let statements_file = &yb_stats_directory.join(&begin_snapshot.to_string()).join("statements");
-        let file = fs::File::open(&statements_file)
-            .unwrap_or_else(|e| {
-                eprintln!("Fatal: error reading file: {}: {}", &statements_file.clone().into_os_string().into_string().unwrap(), e);
-                process::exit(1);
-            });
-        let mut reader = csv::Reader::from_reader(file);
-        for  row in reader.deserialize() {
-            let data: StoredStatements = row.unwrap();
-            let _ = &stored_statements.push(data);
-        }
+        let stored_statements: Vec<StoredStatements> = read_statements_snapshot( &begin_snapshot, &yb_stats_directory);
+
+        let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps(details_enable, stored_values, stored_countsum, storoed_countsumrows);
+        insert_first_snapshot_metrics(&mut values_diff, values_map, &mut countsum_diff, countsum_map, &mut countsumrows_diff, countsumrows_map);
 
         if details_enable {
             build_detail(&mut values_detail, &stored_values, &mut countsum_detail, &stored_countsum, &mut countsumrows_detail, &stored_countsumrows);
@@ -175,65 +112,22 @@ fn main() {
         }
         insert_first_snap_into_statements_diff(&mut statements_diff, &stored_statements);
 
-        let mut stored_values: Vec<StoredValues> = Vec::new();
+        //let mut stored_values: Vec<StoredValues> = Vec::new();
         let mut values_detail: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
         let mut values_summary: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
-        let values_file = &yb_stats_directory.join(&end_snapshot.to_string()).join("values");
-        let file = fs::File::open(&values_file)
-            .unwrap_or_else(|e| {
-                eprintln!("Fatal: error reading file: {}: {}", &values_file.clone().into_os_string().into_string().unwrap(), e);
-                process::exit(1);
-            });
-        let mut reader = csv::Reader::from_reader(file);
-        for row in reader.deserialize() {
-            let data: StoredValues = row.unwrap();
-            let _ = &stored_values.push(data);
-        }
+        let stored_values: Vec<StoredValues> = read_values_snapshot(&end_snapshot, &yb_stats_directory);
 
-        let mut stored_countsum: Vec<StoredCountSum> = Vec::new();
+        //let mut stored_countsum: Vec<StoredCountSum> = Vec::new();
         let mut countsum_detail: BTreeMap<(String, String, String, String), StoredCountSum> = BTreeMap::new();
         let mut countsum_summary: BTreeMap<(String, String, String, String), StoredCountSum> = BTreeMap::new();
+        let stored_countsum: Vec<StoredCountSum> = read_countsum_snapshot( &end_snapshot, &yb_stats_directory);
 
-        let countsum_file = &yb_stats_directory.join(&end_snapshot.to_string()).join("countsum");
-        let file = fs::File::open(&countsum_file)
-            .unwrap_or_else(|e| {
-                eprintln!("Fatal: error reading file: {}: {}", &countsum_file.clone().into_os_string().into_string().unwrap(), e);
-                process::exit(1);
-            });
-        let mut reader = csv::Reader::from_reader(file);
-        for row in reader.deserialize() {
-            let data: StoredCountSum = row.unwrap();
-            let _ = &stored_countsum.push(data);
-        }
-
-        let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
+        //let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
         let mut countsumrows_detail: BTreeMap<(String, String, String, String), StoredCountSumRows> = BTreeMap::new();
         let mut countsumrows_summary: BTreeMap<(String, String, String, String), StoredCountSumRows> = BTreeMap::new();
+        let stored_countsumrows: Vec<StoredCountSumRows> = read_countsumrows_snapshot( &end_snapshot, &yb_stats_directory);
 
-        let countsumrows_file = &yb_stats_directory.join(&end_snapshot.to_string()).join("countsumrows");
-        let file = fs::File::open(&countsumrows_file)
-            .unwrap_or_else(|e| {
-                eprintln!("Fatal: error reading file: {}: {}", &countsumrows_file.clone().into_os_string().into_string().unwrap(), e);
-                process::exit(1);
-            });
-        let mut reader = csv::Reader::from_reader(file);
-        for row in reader.deserialize() {
-            let data: StoredCountSumRows = row.unwrap();
-            let _ = &stored_countsumrows.push(data);
-        }
-
-        let mut stored_statements: Vec<StoredStatements> = Vec::new();
-        let statements_file = &yb_stats_directory.join(&end_snapshot.to_string()).join("statements");
-        let file = fs::File::open(&statements_file)
-            .unwrap_or_else(|e| {
-                eprintln!("Fatal: error reading file: {}: {}", &statements_file.clone().into_os_string().into_string().unwrap(), e);
-                process::exit(1);
-            });
-        let mut reader = csv::Reader::from_reader(file);
-        for  row in reader.deserialize() {
-            let data: StoredStatements = row.unwrap();
-            let _ = &stored_statements.push(data);
-        }
+        let stored_statements: Vec<StoredStatements> = read_statements_snapshot( &begin_snapshot, &yb_stats_directory);
 
         if details_enable {
             build_detail(&mut values_detail, &stored_values, &mut countsum_detail, &stored_countsum, &mut countsumrows_detail, &stored_countsumrows);

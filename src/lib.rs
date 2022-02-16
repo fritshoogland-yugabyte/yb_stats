@@ -14,10 +14,12 @@ use chrono::{DateTime, Local};
 use port_scanner::scan_port_addr;
 use std::process;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::env;
 use regex::Regex;
 use substring::Substring;
+use std::io::{stdin, stdout, Write};
+
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Metrics {
@@ -228,7 +230,7 @@ pub struct SnapshotDiffCountSumRows {
     pub second_snapshot_rows: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Snapshot {
     pub number: i32,
     pub timestamp: DateTime<Local>,
@@ -416,6 +418,125 @@ pub fn add_to_metric_vectors(data_parsed_from_json: Vec<Metrics>,
             }
         }
     }
+}
+
+pub fn read_snapshots_from_file( yb_stats_directory: &PathBuf ) -> Vec<Snapshot> {
+
+    let mut snapshots: Vec<Snapshot> = Vec::new();
+    let snapshot_index = &yb_stats_directory.join("snapshot.index");
+
+    let file = fs::File::open(&snapshot_index)
+        .unwrap_or_else(|e| {
+            eprintln!("Fatal: error opening file {}: {}", &snapshot_index.clone().into_os_string().into_string().unwrap(), e);
+            process::exit(1);
+        });
+    let mut reader = csv::Reader::from_reader(file);
+    for row in reader.deserialize() {
+        let data: Snapshot = row.unwrap();
+        let _ = &snapshots.push(data);
+    }
+    snapshots
+
+}
+
+pub fn read_begin_end_snapshot_from_user( snapshots: &Vec<Snapshot> ) -> (String, String, Snapshot) {
+
+    let mut begin_snapshot = String::new();
+    print!("Enter begin snapshot: ");
+    let _ = stdout().flush();
+    stdin().read_line(&mut begin_snapshot).expect("Failed to read input.");
+    let begin_snapshot: i32 = begin_snapshot.trim().parse().expect("Invalid input");
+    let begin_snapshot_row = match snapshots.iter().find(|&row| row.number == begin_snapshot) {
+        Some(snapshot_find_result) => snapshot_find_result.clone(),
+        None => {
+            eprintln!("Fatal: snapshot number {} is not found in the snapshot list", begin_snapshot);
+            process::exit(1);
+        }
+    };
+
+    let mut end_snapshot = String::new();
+    print!("Enter end snapshot: ");
+    let _ = stdout().flush();
+    stdin().read_line(&mut end_snapshot).expect("Failed to read input.");
+    let end_snapshot: i32 = end_snapshot.trim().parse().expect("Invalid input");
+    let _ = match snapshots.iter().find(|&row| row.number == end_snapshot) {
+        Some(snapshot_find_result) => snapshot_find_result.clone(),
+        None => {
+            eprintln!("Fatal: snapshot number {} is not found in the snapshot list", end_snapshot);
+            process::exit(1);
+        }
+    };
+
+    (begin_snapshot.to_string(), end_snapshot.to_string(), begin_snapshot_row)
+
+}
+
+pub fn read_values_snapshot( snapshot_number: &String, yb_stats_directory: &PathBuf ) -> Vec<StoredValues> {
+
+    let mut stored_values: Vec<StoredValues> = Vec::new();
+    let values_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("values");
+    let file = fs::File::open(&values_file)
+        .unwrap_or_else(|e| {
+            eprintln!("Fatal: error reading file: {}: {}", &values_file.clone().into_os_string().into_string().unwrap(), e);
+            process::exit(1);
+        });
+    let mut reader = csv::Reader::from_reader(file);
+    for row in reader.deserialize() {
+        let data: StoredValues = row.unwrap();
+        let _ = &stored_values.push(data);
+    }
+    stored_values
+}
+
+pub fn read_countsum_snapshot( snapshot_number: &String, yb_stats_directory: &PathBuf ) -> Vec<StoredCountSum> {
+
+    let mut stored_countsum: Vec<StoredCountSum> = Vec::new();
+    let countsum_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("countsum");
+    let file = fs::File::open(&countsum_file)
+        .unwrap_or_else(|e| {
+            eprintln!("Fatal: error reading file: {}: {}", &countsum_file.clone().into_os_string().into_string().unwrap(), e);
+            process::exit(1);
+        });
+    let mut reader = csv::Reader::from_reader(file);
+    for row in reader.deserialize() {
+        let data: StoredCountSum = row.unwrap();
+        let _ = &stored_countsum.push(data);
+    }
+    stored_countsum
+}
+
+pub fn read_countsumrows_snapshot( snapshot_number: &String, yb_stats_directory: &PathBuf ) -> Vec<StoredCountSumRows> {
+
+    let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
+    let countsumrows_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("countsumrows");
+    let file = fs::File::open(&countsumrows_file)
+        .unwrap_or_else(|e| {
+            eprintln!("Fatal: error reading file: {}: {}", &countsumrows_file.clone().into_os_string().into_string().unwrap(), e);
+            process::exit(1);
+        });
+    let mut reader = csv::Reader::from_reader(file);
+    for row in reader.deserialize() {
+        let data: StoredCountSumRows = row.unwrap();
+        let _ = &stored_countsumrows.push(data);
+    }
+    stored_countsumrows
+}
+
+pub fn read_statements_snapshot( snapshot_number: &String, yb_stats_directory: &PathBuf ) -> Vec<StoredStatements> {
+
+    let mut stored_statements: Vec<StoredStatements> = Vec::new();
+    let statements_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("statements");
+    let file = fs::File::open(&statements_file)
+        .unwrap_or_else(|e| {
+            eprintln!("Fatal: error reading file: {}: {}", &statements_file.clone().into_os_string().into_string().unwrap(), e);
+            process::exit(1);
+        });
+    let mut reader = csv::Reader::from_reader(file);
+    for  row in reader.deserialize() {
+        let data: StoredStatements = row.unwrap();
+        let _ = &stored_statements.push(data);
+    }
+    stored_statements
 }
 
 pub fn perform_snapshot( hostname_port_vec: Vec<&str>,
@@ -1153,20 +1274,19 @@ pub fn insert_second_snap_into_diff(values_diff: &mut BTreeMap<(String, String, 
 
 pub fn print_diff_statements(
     statements_diff: &BTreeMap<(String, String), SnapshotDiffStatements>,
-    hostname_filter: &Regex
+    hostname_filter: &Regex,
 ) {
     for ((hostname, query), statements_row) in statements_diff {
-        if hostname_filter.is_match(&hostname) {
-            if statements_row.second_calls - statements_row.first_calls != 0 {
-                let adaptive_length = if query.len() < 50 { query.len() } else { 50 };
-                println!("{:20} {:10} avg.time: {:15.3} ms avg.rows: {:10} : {:50}",
-                    hostname,
-                    statements_row.second_calls - statements_row.first_calls,
-                    (statements_row.second_total_time - statements_row.first_total_time) / (statements_row.second_calls as f64 - statements_row.first_calls as f64),
-                    (statements_row.second_rows - statements_row.first_rows) / (statements_row.second_calls - statements_row.first_calls),
-                    query.substring(0,adaptive_length).replace("\n","")
-                );
-            }
+        if hostname_filter.is_match(&hostname)
+        && statements_row.second_calls - statements_row.first_calls != 0 {
+            let adaptive_length = if query.len() < 50 { query.len() } else { 50 };
+            println!("{:20} {:10} avg.time: {:15.3} ms avg.rows: {:10} : {:50}",
+                     hostname,
+                     statements_row.second_calls - statements_row.first_calls,
+                     (statements_row.second_total_time - statements_row.first_total_time) / (statements_row.second_calls as f64 - statements_row.first_calls as f64),
+                     (statements_row.second_rows - statements_row.first_rows) / (statements_row.second_calls - statements_row.first_calls),
+                     query.substring(0, adaptive_length).replace("\n", "")
+            );
         }
     }
 }
@@ -1256,7 +1376,7 @@ pub fn print_diff(value_diff: &BTreeMap<(String, String, String, String), Snapsh
             let adaptive_length = if metric_id.len() < 15 { 0 } else { metric_id.len() - 15 };
             if countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count != 0 {
                 if *details_enable {
-                    println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:>15.3}/s avg.time: {:9.0} tot: {:>15.3} {:10}",
+                    println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:>15.3}/s avg: {:9.0} tot: {:>15.3} {:10}",
                              hostname,
                              metric_type,
                              metric_id.substring(adaptive_length, metric_id.len()),
@@ -1270,7 +1390,7 @@ pub fn print_diff(value_diff: &BTreeMap<(String, String, String, String), Snapsh
                              details.unit_suffix
                     );
                 } else {
-                    println!("{:20} {:8} {:70} {:15} {:>15.3}/s avg.time: {:9.0} tot: {:>15.3} {:10}",
+                    println!("{:20} {:8} {:70} {:15} {:>15.3}/s avg: {:9.0} tot: {:>15.3} {:10}",
                              hostname,
                              metric_type,
                              metric_name,
@@ -1289,7 +1409,7 @@ pub fn print_diff(value_diff: &BTreeMap<(String, String, String, String), Snapsh
         if hostname_filter.is_match( &hostname)
         && stat_name_filter.is_match(&metric_name) {
             if countsumrows_diff_row.second_snapshot_count - countsumrows_diff_row.first_snapshot_count != 0 {
-                println!("{:20} {:70} {:>15} avg.time: {:>15.3} ms, avg.rows: {:>15}",
+                println!("{:20} {:70} {:>15} avg: {:>15.3} ms, avg.rows: {:>15}",
                     hostname,
                     metric_name,
                     countsumrows_diff_row.second_snapshot_count - countsumrows_diff_row.first_snapshot_count,

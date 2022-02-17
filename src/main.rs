@@ -1,400 +1,175 @@
-mod latency_statistic_details;
-mod value_statistic_details;
-mod parse_json;
-
 use structopt::StructOpt;
-use port_scanner::scan_port_addr;
 use std::process;
-use std::collections::BTreeMap;
-use std::io::stdin;
-use std::time::SystemTime;
 use regex::Regex;
-use substring::Substring;
+use chrono::Local;
+use std::io::stdin;
+use std::env;
 
-use yb_stats::{NamedMetrics, Values, Latencies, LatencyStatisticDetails, ValueStatisticDetails, build_detail_value_metric, build_detail_latency_metric, build_summary_value_metric, build_summary_latency_metric};
+// structs from lib
+use yb_stats::{StoredValues,
+               StoredCountSum,
+               Snapshot,
+               StoredCountSumRows,
+               StoredStatements};
+
+// functions from lib
+use yb_stats::{perform_snapshot,
+               read_metrics,
+               add_to_metric_vectors,
+               read_statements,
+               add_to_statements_vector,
+               print_diff,
+               print_diff_statements,
+               read_snapshots_from_file,
+               read_begin_end_snapshot_from_user,
+               read_values_snapshot,
+               read_countsum_snapshot,
+               read_countsumrows_snapshot,
+               read_statements_snapshot,
+               build_metrics_btreemaps,
+               insert_first_snapshot_metrics,
+               insert_first_snapshot_statements,
+               insert_second_snapshot_metrics,
+               insert_second_snapshot_statements};
 
 #[derive(Debug, StructOpt)]
 struct Opts {
+    /// all metric endpoints to be used, a metric endpoint is a hostname or ip address with colon and port number, comma separated.
     #[structopt(short, long, default_value = "192.168.66.80:7000,192.168.66.81:7000,192.168.66.82:7000")]
     metric_sources: String,
+    /// regex to select specific statistic names
     #[structopt(short, long, default_value = ".*")]
     stat_name_match: String,
+    /// regex to select specific table names (only sensible with --details-enable, default mode adds the statistics for all tables)
     #[structopt(short, long, default_value = ".*")]
     table_name_match: String,
-    #[structopt(short, long, default_value = "2")]
-    wait_time: i32,
-    #[structopt(short, long)]
-    begin_end_mode: bool,
+    /// regex to select hostnames or ports (so you can select master or tserver by port number)
+    #[structopt(long, default_value = ".*")]
+    hostname_match:String,
+    /// boolean (set to enable) to add statistics that are not counters
     #[structopt(short, long)]
     gauges_enable: bool,
+    /// boolean (set to enable) to report for each table or tablet individually
     #[structopt(short, long)]
     details_enable: bool,
+    /// boolean (set to enable) to perform a snapshot of the statistics, stored as CSV files in yb_stats.snapshots
+    #[structopt(long)]
+    snapshot: bool,
+    /// comment to be added with the snapshot, to make review or use more easy
+    #[structopt(long, default_value = "")]
+    snapshot_comment: String,
+    /// this lists the snapshots, and allows you to select a begin and end snapshot for a diff report
+    #[structopt(long)]
+    snapshot_diff: bool,
 }
 
-fn main()
-{
-    let latency_statistic_details_lookup = latency_statistic_details::create_hashmap();
-    let value_statistic_details_lookup = value_statistic_details::create_hashmap();
+fn main() {
 
     // create variables based on StructOpt values
     let options = Opts::from_args();
-    let metric_sources_vec: Vec<&str> = options.metric_sources.split(",").collect();
+    let hostname_port_vec: Vec<&str> = options.metric_sources.split(",").collect();
     let stat_name_match = &options.stat_name_match.as_str();
     let stat_name_filter = Regex::new(stat_name_match).unwrap();
     let table_name_match = &options.table_name_match.as_str();
     let table_name_filter = Regex::new(table_name_match).unwrap();
-    let wait_time = options.wait_time as u64;
-    let begin_end_mode = options.begin_end_mode as bool;
+    let hostname_match = &options.hostname_match.as_str();
+    let hostname_filter = Regex::new(hostname_match).unwrap();
     let gauges_enable = options.gauges_enable as bool;
     let details_enable = options.details_enable as bool;
+    let snapshot: bool = options.snapshot as bool;
+    let snapshot_comment: String = options.snapshot_comment;
+    let snapshot_diff: bool = options.snapshot_diff as bool;
 
-    // the bail_out boolean is used for 'begin-end mode' to quit the execution (bail out) the second time.
-    let mut bail_out = false;
-    // the first_pass boolean is used to determine the special case that we have no previous values.
-    let mut first_pass = true;
-    let mut fetch_time = SystemTime::now();
-    let mut previous_fetch_time = SystemTime::now();
+    if snapshot {
 
-    // these are the definitions of the two types of statistics that are obtained and parsed from the specified metric sources.
-    // These are nested btreemaps.
-    // A btreemap will automatically order its contents.
-    // The levels in the btreemap are: hostname:port, type (cluster, server, table, tablet), id, statistic name, statistic properties + previous values of total_count, total_sum or value and (measurement) time.
-    let mut value_statistics: BTreeMap<String, BTreeMap<String, BTreeMap<String, BTreeMap<String, Values>>>> = BTreeMap::new();
-    let mut summary_value_statistics: BTreeMap<String, BTreeMap<String, BTreeMap<String, BTreeMap<String, Values>>>> = BTreeMap::new();
-    let mut latency_statistics: BTreeMap<String, BTreeMap<String, BTreeMap<String, BTreeMap<String, Latencies>>>> = BTreeMap::new();
-    let mut summary_latency_statistics: BTreeMap<String, BTreeMap<String, BTreeMap<String, BTreeMap<String, Latencies>>>> = BTreeMap::new();
+        let snapshot_number: i32 = perform_snapshot(hostname_port_vec, snapshot_comment);
+        println!("snapshot number {}", snapshot_number);
+        process::exit(0);
 
-    loop {
-        summary_value_statistics.clear();
-        summary_latency_statistics.clear();
+    }
 
-        for hostname in &metric_sources_vec {
-            if !scan_port_addr(hostname) {
-                println!("Warning, unresponsive: {}", hostname.to_string());
-                continue;
-            };
-            fetch_time = SystemTime::now();
-            previous_fetch_time = if first_pass { fetch_time } else { previous_fetch_time };
-            let metrics_data = reqwest::blocking::get(format!("http://{}/metrics", hostname.to_string()))
-                .unwrap_or_else(|e| {
-                    eprintln!("Error reading from URL: {}", e);
-                    process::exit(1);
-                })
-                .text().unwrap();
-            let metrics_parse = parse_json::parse_metrics(metrics_data);
+    if snapshot_diff {
 
-            // a metric is a unit such as cluster, server, table or tablet.
-            // it can contain a lot of actual statistics
-            for metric in &metrics_parse {
+        let current_directory = env::current_dir().unwrap();
+        let yb_stats_directory = current_directory.join("yb_stats.snapshots");
+        let snapshots: Vec<Snapshot> = read_snapshots_from_file(&yb_stats_directory);
 
-                /*
-                  These are the main properties that make a metric unique:
-                  metrics_type (cluster, server, table, tablet)
-                  metrics_id   (yb.cluster for cluster, yb.tabletserver for tabletserver, yb.master for master,
-                                on the master '00000000000000000000000000000000' for the sys.catalog tablet, sys.catalog.uuid for the sys.catalog table,
-                                and a UUID for table and tablet types)
-                  metrics_attribute_namespace (the namespace for table and tablets, otherwise empty)
-                  metrics_attribute_table_name (the name of the table for table and tablets, otherwise empty)
-                 */
-                let metrics_type = &metric.metrics_type;
-                let metrics_id = &metric.id;
-                let metrics_attribute_namespace_name = match &metric.attributes.namespace_name {
-                    Some(namespace_name) => namespace_name.to_string(),
-                    None => "-".to_string(),
-                };
-                let metrics_attribute_table_name = match &metric.attributes.table_name {
-                    Some(table_name) => table_name.to_string(),
-                    None => "-".to_string(),
-                };
-
-                /*
-                  the actual statistics are in a vec/list called 'metrics'. That is what is parsed here.
-                  the interesting bit is there are two types the randomly are encountered when parsing the metrics:
-                  - value type: contain 'name' and 'value'.
-                  - latency type: contain 'name', 'total_count', 'total_sum', 'min', 'mean', 'max' and 'percentile_75', 'percentile_95', 'percentile_99', 'percentile_99_9', percentile_99_99'.
-                  These statistics are inserted in a nested hashtable in the following way:
-                  - hostname:port > metrics_type > metrics_id > statistic name: {metrics/statistics without the name}
-                  With an additional caveat: for the 'value', 'total_count' and 'total_sum' the current measurement goes into a field which has 'current_' as prefix.
-                  If there is a value in 'current', it is moved to a field with the prefix 'previous_'. That way we can calculate the difference between two measurements.
-                */
-                for statistic in &metric.metrics {
-                    match statistic {
-                        NamedMetrics::MetricValue { name, value } => {
-                            let mut previous_value_to_return: i64 = 0;
-                            build_detail_value_metric( name,
-                                                       value,
-                                                       &hostname,
-                                                       metrics_type,
-                                                       metrics_id,
-                                                       &metrics_attribute_table_name,
-                                                       &metrics_attribute_namespace_name,
-                                                       &fetch_time,
-                                                       &previous_fetch_time,
-                                                       &mut value_statistics,
-                                                       &mut previous_value_to_return
-                            );
-                            build_summary_value_metric( name,
-                                                        value,
-                                                        &hostname,
-                                                        metrics_type,
-                                                        &fetch_time,
-                                                        &previous_fetch_time,
-                                                        &mut summary_value_statistics,
-                                                        &previous_value_to_return
-                            );
-                        },
-                        NamedMetrics::MetricLatency { name, total_count, min, mean, percentile_75, percentile_95, percentile_99, percentile_99_9, percentile_99_99, max, total_sum } => {
-                            let mut previous_total_count_to_return: u64 = 0;
-                            let mut previous_total_sum_to_return: u64 = 0;
-                            build_detail_latency_metric( name,
-                                                         total_count,
-                                                         min,
-                                                         mean,
-                                                         percentile_75,
-                                                         percentile_95,
-                                                         percentile_99,
-                                                         percentile_99_9,
-                                                         percentile_99_99,
-                                                         max,
-                                                         total_sum,
-                                                         &hostname,
-                                                         metrics_type,
-                                                         metrics_id,
-                                                         &metrics_attribute_table_name,
-                                                         &metrics_attribute_namespace_name,
-                                                         &fetch_time,
-                                                         &previous_fetch_time,
-                                                         &mut latency_statistics,
-                                                         &mut previous_total_count_to_return,
-                                                         &mut previous_total_sum_to_return
-                            );
-                            build_summary_latency_metric( name,
-                                                          total_count,
-                                                          total_sum,
-                                                          &hostname,
-                                                          metrics_type,
-                                                          &fetch_time,
-                                                          &previous_fetch_time,
-                                                          &mut summary_latency_statistics,
-                                                          &previous_total_count_to_return,
-                                                          &previous_total_sum_to_return
-                            );
-                        }
-                        NamedMetrics::RejectedMetricValue {name: _, value: _} => {}
-                    };
-                };
-            };
-        };
-
-        if ! begin_end_mode { std::process::Command::new("clear").status().unwrap(); };
-
-        for (hostname_key, hostname_value) in value_statistics.iter() {
-            for (type_key, type_value) in hostname_value.iter() {
-                if ! details_enable && ( type_key == "table" || type_key == "tablet" ) { continue };
-                for (id_key,  id_value) in type_value.iter() {
-                    for (name_key, name_value) in id_value.iter().filter(|(k,_v)| stat_name_filter.is_match(k)) {
-                        //if name_value.current_value - name_value.previous_value != 0
-                        if name_value.current_time.duration_since(name_value.previous_time).unwrap().as_millis() != 0
-                        && table_name_filter.is_match(&name_value.table_name) {
-                            let details = match value_statistic_details_lookup.get(&name_key.to_string()) {
-                                None => { ValueStatisticDetails { unit: String::from('?'), unit_suffix: String::from('?'), stat_type: String::from('?') }},
-                                Some(x) => { ValueStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), stat_type: x.stat_type.to_string() }  }
-                            } ;
-                            let adaptive_length = if id_key.len() < 15 { 0 }  else { id_key.len()-15 };
-                            if details_enable {
-                                if details.stat_type == "counter" {
-                                    if name_value.current_value - name_value.previous_value != 0 {
-                                        println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:6} {:>15.3}/s",
-                                                 hostname_key,
-                                                 type_key,
-                                                 id_key.substring(adaptive_length, id_key.len()),
-                                                 name_value.namespace,
-                                                 name_value.table_name,
-                                                 name_key,
-                                                 name_value.current_value - name_value.previous_value,
-                                                 details.unit_suffix,
-                                                 ((name_value.current_value - name_value.previous_value) as f64 / (name_value.current_time.duration_since(name_value.previous_time).unwrap().as_millis() as f64) * 1000 as f64),
-                                        );
-                                    };
-                                } else {
-                                    if gauges_enable {
-                                        println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:6} {:+15}",
-                                                 hostname_key,
-                                                 type_key,
-                                                 id_key.substring(adaptive_length, id_key.len()),
-                                                 name_value.namespace,
-                                                 name_value.table_name,
-                                                 name_key,
-                                                 name_value.current_value,
-                                                 details.unit_suffix,
-                                                 name_value.current_value - name_value.previous_value
-                                        );
-                                    };
-                                };
-                            } else {
-                                if details.stat_type == "counter" {
-                                    if name_value.current_value - name_value.previous_value != 0 {
-                                        println!("{:20} {:8} {:15} {:70} {:15} {:6} {:>15.3}/s",
-                                                 hostname_key,
-                                                 type_key,
-                                                 id_key.substring(adaptive_length, id_key.len()),
-                                                 name_key,
-                                                 name_value.current_value - name_value.previous_value,
-                                                 details.unit_suffix,
-                                                 ((name_value.current_value - name_value.previous_value) as f64 / (name_value.current_time.duration_since(name_value.previous_time).unwrap().as_millis() as f64) * 1000 as f64),
-                                        );
-                                    };
-                                } else {
-                                    if gauges_enable {
-                                        println!("{:20} {:8} {:15} {:70} {:15} {:6} {:+15}",
-                                                 hostname_key,
-                                                 type_key,
-                                                 id_key.substring(adaptive_length, id_key.len()),
-                                                 name_key,
-                                                 name_value.current_value,
-                                                 details.unit_suffix,
-                                                 name_value.current_value - name_value.previous_value
-                                        );
-                                    };
-                                };
-                            }
-                        };
-                    };
-                };
-            };
-        };
-        if ! details_enable {
-            for (hostname_key, hostname_value) in summary_value_statistics.iter() {
-                for (type_key, type_value) in hostname_value.iter() {
-                    for (id_key, id_value) in type_value.iter() {
-                        for (name_key, name_value) in id_value.iter().filter(|(k, _v)| stat_name_filter.is_match(k)) {
-                            //if name_value.current_value - name_value.previous_value != 0
-                            if name_value.current_time.duration_since(name_value.previous_time).unwrap().as_millis() != 0 {
-                                let details = match value_statistic_details_lookup.get(&name_key.to_string()) {
-                                    None => { ValueStatisticDetails { unit: String::from('?'), unit_suffix: String::from('?'), stat_type: String::from('?') } },
-                                    Some(x) => { ValueStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), stat_type: x.stat_type.to_string() } }
-                                };
-                                let adaptive_length = if id_key.len() < 15 { 0 } else { id_key.len() - 15 };
-                                if details.stat_type == "counter" {
-                                    if name_value.current_value - name_value.previous_value != 0 {
-                                        println!("{:20} {:8} {:15} {:70} {:15} {:6} {:>15.3}/s",
-                                                 hostname_key,
-                                                 type_key,
-                                                 id_key.substring(adaptive_length, id_key.len()),
-                                                 name_key,
-                                                 name_value.current_value - name_value.previous_value,
-                                                 details.unit_suffix,
-                                                 ((name_value.current_value - name_value.previous_value) as f64 / (name_value.current_time.duration_since(name_value.previous_time).unwrap().as_millis() as f64) * 1000 as f64),
-                                        );
-                                    };
-                                } else {
-                                    if gauges_enable {
-                                        println!("{:20} {:8} {:15} {:70} {:15} {:6} {:+15}",
-                                                 hostname_key,
-                                                 type_key,
-                                                 id_key.substring(adaptive_length, id_key.len()),
-                                                 name_key,
-                                                 name_value.current_value,
-                                                 details.unit_suffix,
-                                                 name_value.current_value - name_value.previous_value
-                                        );
-                                    };
-                                };
-                            };
-                        };
-                    };
-                };
-            };
-        }
-        for (hostname_key, hostname_value) in latency_statistics.iter() {
-            for (type_key, type_value) in hostname_value.iter() {
-                if ! details_enable && ( type_key == "table" || type_key == "tablet" ) { continue };
-                for (id_key, id_value) in type_value.iter() {
-                    for (name_key, name_value) in id_value.iter().filter(|(k,_v)| stat_name_filter.is_match(k)) {
-                        if name_value.current_total_count - name_value.previous_total_count != 0
-                            && name_value.current_time.duration_since(name_value.previous_time).unwrap().as_millis() != 0
-                            && table_name_filter.is_match(&name_value.table_name) {
-                            let details = match latency_statistic_details_lookup.get(&name_key.to_string()) {
-                                 None => { LatencyStatisticDetails { unit: String::from('?'), unit_suffix: String::from('?'), divisor: 1, stat_type: String::from('?') }},
-                                 Some(x) => { LatencyStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), divisor: x.divisor, stat_type: x.stat_type.to_string() }  }
-                            } ;
-                            let adaptive_length = if id_key.len() < 15 { 0 } else { id_key.len()-15 };
-                            if details_enable {
-                                println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:>15.3}/s avg: {:>9.0} tot: {:>15.3} {:10}",
-                                         hostname_key,
-                                         type_key,
-                                         id_key.substring(adaptive_length, id_key.len()),
-                                         name_value.namespace,
-                                         name_value.table_name,
-                                         name_key,
-                                         name_value.current_total_count - name_value.previous_total_count,
-                                         ((name_value.current_total_count - name_value.previous_total_count) as f64 / (name_value.current_time.duration_since(name_value.previous_time).unwrap().as_millis() as f64) * 100 as f64),
-                                         ((name_value.current_total_sum - name_value.previous_total_sum) / (name_value.current_total_count - name_value.previous_total_count)) as f64,
-                                         name_value.current_total_sum - name_value.previous_total_sum,
-                                         details.unit_suffix
-                                );
-                            } else {
-                                println!("{:20} {:8} {:15} {:70} {:15} {:>15.3}/s avg: {:>9.0} tot: {:>15.3} {:10}",
-                                         hostname_key,
-                                         type_key,
-                                         id_key.substring(adaptive_length, id_key.len()),
-                                         name_key,
-                                         name_value.current_total_count - name_value.previous_total_count,
-                                         ((name_value.current_total_count - name_value.previous_total_count) as f64 / (name_value.current_time.duration_since(name_value.previous_time).unwrap().as_millis() as f64) * 100 as f64),
-                                         ((name_value.current_total_sum - name_value.previous_total_sum) / (name_value.current_total_count - name_value.previous_total_count)) as f64,
-                                         name_value.current_total_sum - name_value.previous_total_sum,
-                                         details.unit_suffix
-                                );
-                            }
-                        };
-                    };
-                };
-            };
-        };
-        if ! details_enable {
-            for (hostname_key, hostname_value) in summary_latency_statistics.iter() {
-                for (type_key, type_value) in hostname_value.iter() {
-                    for (id_key, id_value) in type_value.iter() {
-                        for (name_key, name_value) in id_value.iter().filter(|(k, _v)| stat_name_filter.is_match(k)) {
-                            if name_value.current_total_count - name_value.previous_total_count != 0
-                                && name_value.current_time.duration_since(name_value.previous_time).unwrap().as_millis() != 0 {
-                                let details = match latency_statistic_details_lookup.get(&name_key.to_string()) {
-                                    None => { LatencyStatisticDetails { unit: String::from('?'), unit_suffix: String::from('?'), divisor: 1, stat_type: String::from('?') } },
-                                    Some(x) => { LatencyStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), divisor: x.divisor, stat_type: x.stat_type.to_string() } }
-                                };
-                                let adaptive_length = if id_key.len() < 15 { 0 } else { id_key.len() - 15 };
-                                println!("{:20} {:8} {:15} {:70} {:15} {:>15.3}/s avg: {:>9.0} tot: {:>15.3} {:10}",
-                                         hostname_key,
-                                         type_key,
-                                         id_key.substring(adaptive_length, id_key.len()),
-                                         name_key,
-                                         name_value.current_total_count - name_value.previous_total_count,
-                                         ((name_value.current_total_count - name_value.previous_total_count) as f64 / (name_value.current_time.duration_since(name_value.previous_time).unwrap().as_millis() as f64) * 100 as f64),
-                                         ((name_value.current_total_sum - name_value.previous_total_sum) / (name_value.current_total_count - name_value.previous_total_count)) as f64,
-                                         name_value.current_total_sum-name_value.previous_total_sum,
-                                         details.unit_suffix
-                                );
-                            };
-                        };
-                    };
-                };
-            };
+        for row in &snapshots {
+            println!("{:>3} {:30} {:50}", row.number, row.timestamp, row.comment);
         }
 
-        first_pass = false;
-        previous_fetch_time = fetch_time;
+        let (begin_snapshot, end_snapshot, begin_snapshot_row) = read_begin_end_snapshot_from_user(&snapshots);
 
-        if begin_end_mode {
-            if bail_out {
-                std::process::exit(0);
-            } else {
-                bail_out = true;
-                println!("Begin metrics snapshot created, press enter to create end snapshot for difference calculation.");
-                let mut input = String::new();
-                stdin().read_line(&mut input).ok().expect("failed");
-            };
-        } else {
-            std::thread::sleep(std::time::Duration::from_secs(wait_time));
-        };
-   };
+        // first snapshot
+        let stored_values: Vec<StoredValues> = read_values_snapshot(&begin_snapshot, &yb_stats_directory);
+        let stored_countsum: Vec<StoredCountSum> = read_countsum_snapshot( &begin_snapshot, &yb_stats_directory);
+        let stored_countsumrows: Vec<StoredCountSumRows> = read_countsumrows_snapshot( &begin_snapshot, &yb_stats_directory);
+        let stored_statements: Vec<StoredStatements> = read_statements_snapshot( &begin_snapshot, &yb_stats_directory);
+        // process first snapshot results
+        let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps(details_enable, stored_values, stored_countsum, stored_countsumrows);
+        let (mut values_diff, mut countsum_diff, mut countsumrows_diff) = insert_first_snapshot_metrics(values_map, countsum_map, countsumrows_map);
+        let mut statements_diff = insert_first_snapshot_statements(stored_statements);
+
+        // second snapshot
+        let stored_values: Vec<StoredValues> = read_values_snapshot(&end_snapshot, &yb_stats_directory);
+        let stored_countsum: Vec<StoredCountSum> = read_countsum_snapshot( &end_snapshot, &yb_stats_directory);
+        let stored_countsumrows: Vec<StoredCountSumRows> = read_countsumrows_snapshot( &end_snapshot, &yb_stats_directory);
+        let stored_statements: Vec<StoredStatements> = read_statements_snapshot( &end_snapshot, &yb_stats_directory);
+        // process second snapshot results
+        let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps(details_enable, stored_values, stored_countsum, stored_countsumrows);
+        insert_second_snapshot_metrics(values_map, &mut values_diff, countsum_map, &mut countsum_diff, countsumrows_map, &mut countsumrows_diff, &begin_snapshot_row.timestamp);
+        insert_second_snapshot_statements(stored_statements, &mut statements_diff, &begin_snapshot_row.timestamp);
+
+        // print difference
+        print_diff(&values_diff, &countsum_diff, &countsumrows_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
+        print_diff_statements(&statements_diff, &hostname_filter);
+
+    } else {
+
+        // first snapshot
+        let mut stored_values: Vec<StoredValues> = Vec::new();
+        let mut stored_countsum: Vec<StoredCountSum> = Vec::new();
+        let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
+        let mut stored_statements: Vec<StoredStatements> = Vec::new();
+
+        let first_snapshot_time = Local::now();
+        for hostname in &hostname_port_vec {
+            let detail_snapshot_time = Local::now();
+            let data_parsed_from_json = read_metrics(&hostname);
+            add_to_metric_vectors(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_values, &mut stored_countsum, &mut stored_countsumrows);
+            let data_parsed_from_json = read_statements(&hostname);
+            add_to_statements_vector(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_statements);
+        }
+        // process first snapshot results
+        let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps(details_enable, stored_values, stored_countsum, stored_countsumrows);
+        let (mut values_diff, mut countsum_diff, mut countsumrows_diff) = insert_first_snapshot_metrics(values_map, countsum_map, countsumrows_map);
+        let mut statements_diff = insert_first_snapshot_statements(stored_statements);
+
+        println!("Begin metrics snapshot created, press enter to create end snapshot for difference calculation.");
+        let mut input = String::new();
+        stdin().read_line(&mut input).ok().expect("failed");
+
+        // second snapshot
+        let mut stored_values: Vec<StoredValues> = Vec::new();
+        let mut stored_countsum: Vec<StoredCountSum> = Vec::new();
+        let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
+        let mut stored_statements: Vec<StoredStatements> = Vec::new();
+
+        for hostname in &hostname_port_vec {
+            let detail_snapshot_time = Local::now();
+            let data_parsed_from_json = read_metrics(&hostname);
+            add_to_metric_vectors(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_values, &mut stored_countsum, &mut stored_countsumrows);
+            let data_parsed_from_json = read_statements(&hostname);
+            add_to_statements_vector(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_statements);
+        }
+        // process second snapshot results
+        let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps(details_enable, stored_values, stored_countsum, stored_countsumrows);
+        insert_second_snapshot_metrics(values_map, &mut values_diff, countsum_map, &mut countsum_diff, countsumrows_map, &mut countsumrows_diff, &first_snapshot_time);
+        insert_second_snapshot_statements(stored_statements, &mut statements_diff, &first_snapshot_time);
+
+        // print difference
+        print_diff(&values_diff, &countsum_diff, &countsumrows_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
+        print_diff_statements(&statements_diff, &hostname_filter);
+
+    }
 }

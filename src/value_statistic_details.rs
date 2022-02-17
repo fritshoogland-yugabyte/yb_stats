@@ -7,7 +7,6 @@ pub struct ValueStatisticDetails {
     pub stat_type: String,
 }
 
-#[allow(dead_code)]
 pub fn value_create_hashmap() -> HashMap<String, ValueStatisticDetails> {
     let mut value_statistic_details: HashMap<String, ValueStatisticDetails> = HashMap::new();
 

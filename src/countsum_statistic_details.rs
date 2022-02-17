@@ -8,7 +8,6 @@ pub struct CountSumStatisticDetails {
     pub stat_type: String,
 }
 
-#[allow(dead_code)]
 pub fn countsum_create_hashmap() -> HashMap<String, CountSumStatisticDetails> {
     let mut countsum_statistic_details: HashMap<String, CountSumStatisticDetails> = HashMap::new();
 

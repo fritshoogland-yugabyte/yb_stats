@@ -1,8 +1,3 @@
-//use value_statistic_details::ValueStatisticDetails;
-mod value_statistic_details;
-//use countsum_statistic_details::CountSumStatisticDetails;
-mod countsum_statistic_details;
-
 use structopt::StructOpt;
 use std::process;
 use regex::Regex;
@@ -10,7 +5,32 @@ use chrono::Local;
 use std::io::stdin;
 use std::env;
 
-use yb_stats::{StoredValues, StoredCountSum, perform_snapshot, read_metrics, add_to_metric_vectors, Snapshot, print_diff, StoredCountSumRows, StoredStatements, print_diff_statements, read_statements, add_to_statements_vector, read_snapshots_from_file, read_begin_end_snapshot_from_user, read_values_snapshot, read_countsum_snapshot, read_countsumrows_snapshot, read_statements_snapshot, build_metrics_btreemaps, insert_first_snapshot_metrics, insert_first_snapshot_statements, insert_second_snapshot_statements, insert_second_snapshot_metrics};
+// structs from lib
+use yb_stats::{StoredValues,
+               StoredCountSum,
+               Snapshot,
+               StoredCountSumRows,
+               StoredStatements};
+
+// functions from lib
+use yb_stats::{perform_snapshot,
+               read_metrics,
+               add_to_metric_vectors,
+               read_statements,
+               add_to_statements_vector,
+               print_diff,
+               print_diff_statements,
+               read_snapshots_from_file,
+               read_begin_end_snapshot_from_user,
+               read_values_snapshot,
+               read_countsum_snapshot,
+               read_countsumrows_snapshot,
+               read_statements_snapshot,
+               build_metrics_btreemaps,
+               insert_first_snapshot_metrics,
+               insert_first_snapshot_statements,
+               insert_second_snapshot_metrics,
+               insert_second_snapshot_statements};
 
 #[derive(Debug, StructOpt)]
 struct Opts {

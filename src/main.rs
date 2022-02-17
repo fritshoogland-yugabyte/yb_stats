@@ -5,13 +5,12 @@ mod countsum_statistic_details;
 
 use structopt::StructOpt;
 use std::process;
-use std::collections::BTreeMap;
 use regex::Regex;
 use chrono::Local;
 use std::io::stdin;
 use std::env;
 
-use yb_stats::{SnapshotDiffStatements, SnapshotDiffValues, SnapshotDiffCountSum, StoredValues, StoredCountSum, perform_snapshot, read_metrics, add_to_metric_vectors, insert_first_snap_into_diff, insert_second_snap_into_diff, build_summary, build_detail, Snapshot, print_diff, StoredCountSumRows, SnapshotDiffCountSumRows, StoredStatements, insert_first_snap_into_statements_diff, insert_second_snap_into_statements_diff, print_diff_statements, read_statements, add_to_statements_vector, read_snapshots_from_file, read_begin_end_snapshot_from_user, read_values_snapshot, read_countsum_snapshot, read_countsumrows_snapshot, read_statements_snapshot};
+use yb_stats::{StoredValues, StoredCountSum, perform_snapshot, read_metrics, add_to_metric_vectors, Snapshot, print_diff, StoredCountSumRows, StoredStatements, print_diff_statements, read_statements, add_to_statements_vector, read_snapshots_from_file, read_begin_end_snapshot_from_user, read_values_snapshot, read_countsum_snapshot, read_countsumrows_snapshot, read_statements_snapshot, build_metrics_btreemaps, insert_first_snapshot_metrics, insert_first_snapshot_statements, insert_second_snapshot_statements, insert_second_snapshot_metrics};
 
 #[derive(Debug, StructOpt)]
 struct Opts {
@@ -71,7 +70,6 @@ fn main() {
 
     if snapshot_diff {
 
-
         let current_directory = env::current_dir().unwrap();
         let yb_stats_directory = current_directory.join("yb_stats.snapshots");
         let snapshots: Vec<Snapshot> = read_snapshots_from_file(&yb_stats_directory);
@@ -82,82 +80,37 @@ fn main() {
 
         let (begin_snapshot, end_snapshot, begin_snapshot_row) = read_begin_end_snapshot_from_user(&snapshots);
 
-        let mut values_diff: BTreeMap<(String, String, String, String), SnapshotDiffValues> = BTreeMap::new();
-        let mut values_detail: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
-        let mut values_summary: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
+        // first snapshot
         let stored_values: Vec<StoredValues> = read_values_snapshot(&begin_snapshot, &yb_stats_directory);
-
-        let mut countsum_diff: BTreeMap<(String, String, String, String), SnapshotDiffCountSum> = BTreeMap::new();
-        let mut countsum_detail: BTreeMap<(String, String, String, String), StoredCountSum> = BTreeMap::new();
-        let mut countsum_summary: BTreeMap<(String, String, String, String), StoredCountSum> = BTreeMap::new();
         let stored_countsum: Vec<StoredCountSum> = read_countsum_snapshot( &begin_snapshot, &yb_stats_directory);
-
-        let mut countsumrows_diff: BTreeMap<(String, String, String, String), SnapshotDiffCountSumRows> = BTreeMap::new();
-        let mut countsumrows_detail: BTreeMap<(String, String, String, String), StoredCountSumRows> = BTreeMap::new();
-        let mut countsumrows_summary: BTreeMap<(String, String, String, String), StoredCountSumRows> = BTreeMap::new();
         let stored_countsumrows: Vec<StoredCountSumRows> = read_countsumrows_snapshot( &begin_snapshot, &yb_stats_directory);
-
-        let mut statements_diff: BTreeMap<(String, String), SnapshotDiffStatements> = BTreeMap::new();
         let stored_statements: Vec<StoredStatements> = read_statements_snapshot( &begin_snapshot, &yb_stats_directory);
+        // process first snapshot results
+        let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps(details_enable, stored_values, stored_countsum, stored_countsumrows);
+        let (mut values_diff, mut countsum_diff, mut countsumrows_diff) = insert_first_snapshot_metrics(values_map, countsum_map, countsumrows_map);
+        let mut statements_diff = insert_first_snapshot_statements(stored_statements);
 
-        let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps(details_enable, stored_values, stored_countsum, storoed_countsumrows);
-        insert_first_snapshot_metrics(&mut values_diff, values_map, &mut countsum_diff, countsum_map, &mut countsumrows_diff, countsumrows_map);
-
-        if details_enable {
-            build_detail(&mut values_detail, &stored_values, &mut countsum_detail, &stored_countsum, &mut countsumrows_detail, &stored_countsumrows);
-            insert_first_snap_into_diff(&mut values_diff, &values_detail, &mut countsum_diff, &countsum_detail, &mut countsumrows_diff, &countsumrows_detail);
-        } else {
-            build_summary(&mut values_summary, &stored_values, &mut countsum_summary, &stored_countsum, &mut countsumrows_summary, &stored_countsumrows);
-            insert_first_snap_into_diff(&mut values_diff, &values_summary, &mut countsum_diff, &countsum_summary, &mut countsumrows_diff, &countsumrows_summary);
-        }
-        insert_first_snap_into_statements_diff(&mut statements_diff, &stored_statements);
-
-        //let mut stored_values: Vec<StoredValues> = Vec::new();
-        let mut values_detail: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
-        let mut values_summary: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
+        // second snapshot
         let stored_values: Vec<StoredValues> = read_values_snapshot(&end_snapshot, &yb_stats_directory);
-
-        //let mut stored_countsum: Vec<StoredCountSum> = Vec::new();
-        let mut countsum_detail: BTreeMap<(String, String, String, String), StoredCountSum> = BTreeMap::new();
-        let mut countsum_summary: BTreeMap<(String, String, String, String), StoredCountSum> = BTreeMap::new();
         let stored_countsum: Vec<StoredCountSum> = read_countsum_snapshot( &end_snapshot, &yb_stats_directory);
-
-        //let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
-        let mut countsumrows_detail: BTreeMap<(String, String, String, String), StoredCountSumRows> = BTreeMap::new();
-        let mut countsumrows_summary: BTreeMap<(String, String, String, String), StoredCountSumRows> = BTreeMap::new();
         let stored_countsumrows: Vec<StoredCountSumRows> = read_countsumrows_snapshot( &end_snapshot, &yb_stats_directory);
+        let stored_statements: Vec<StoredStatements> = read_statements_snapshot( &end_snapshot, &yb_stats_directory);
+        // process second snapshot results
+        let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps(details_enable, stored_values, stored_countsum, stored_countsumrows);
+        insert_second_snapshot_metrics(values_map, &mut values_diff, countsum_map, &mut countsum_diff, countsumrows_map, &mut countsumrows_diff, &begin_snapshot_row.timestamp);
+        insert_second_snapshot_statements(stored_statements, &mut statements_diff, &begin_snapshot_row.timestamp);
 
-        let stored_statements: Vec<StoredStatements> = read_statements_snapshot( &begin_snapshot, &yb_stats_directory);
-
-        if details_enable {
-            build_detail(&mut values_detail, &stored_values, &mut countsum_detail, &stored_countsum, &mut countsumrows_detail, &stored_countsumrows);
-            insert_second_snap_into_diff(&mut values_diff, &values_detail, &mut countsum_diff, &countsum_detail, &mut countsumrows_diff, &countsumrows_detail, &begin_snapshot_row.timestamp);
-        } else {
-            build_summary(&mut values_summary, &stored_values, &mut countsum_summary, &stored_countsum, &mut countsumrows_summary, &stored_countsumrows);
-            insert_second_snap_into_diff(&mut values_diff, &values_summary, &mut countsum_diff, &countsum_summary, &mut countsumrows_diff, &countsumrows_summary, &begin_snapshot_row.timestamp);
-        }
-        insert_second_snap_into_statements_diff(&mut statements_diff, &stored_statements, &begin_snapshot_row.timestamp);
-
+        // print difference
         print_diff(&values_diff, &countsum_diff, &countsumrows_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
-
         print_diff_statements(&statements_diff, &hostname_filter);
 
     } else {
 
+        // first snapshot
         let mut stored_values: Vec<StoredValues> = Vec::new();
-        let mut values_diff: BTreeMap<(String, String, String, String), SnapshotDiffValues> = BTreeMap::new();
-        let mut values_detail: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
-        let mut values_summary: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
         let mut stored_countsum: Vec<StoredCountSum> = Vec::new();
-        let mut countsum_diff: BTreeMap<(String, String, String, String), SnapshotDiffCountSum> = BTreeMap::new();
-        let mut countsum_detail: BTreeMap<(String, String, String, String), StoredCountSum> = BTreeMap::new();
-        let mut countsum_summary: BTreeMap<(String, String, String, String), StoredCountSum> = BTreeMap::new();
         let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
-        let mut countsumrows_diff: BTreeMap<(String, String, String, String), SnapshotDiffCountSumRows> = BTreeMap::new();
-        let mut countsumrows_detail: BTreeMap<(String, String, String, String), StoredCountSumRows> = BTreeMap::new();
-        let mut countsumrows_summary: BTreeMap<(String, String, String, String), StoredCountSumRows> = BTreeMap::new();
         let mut stored_statements: Vec<StoredStatements> = Vec::new();
-        let mut statements_diff: BTreeMap<(String, String), SnapshotDiffStatements> = BTreeMap::new();
 
         let first_snapshot_time = Local::now();
         for hostname in &hostname_port_vec {
@@ -167,28 +120,19 @@ fn main() {
             let data_parsed_from_json = read_statements(&hostname);
             add_to_statements_vector(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_statements);
         }
-        if details_enable {
-            build_detail(&mut values_detail, &stored_values, &mut countsum_detail, &stored_countsum, &mut countsumrows_detail, &stored_countsumrows);
-            insert_first_snap_into_diff(&mut values_diff, &values_detail, &mut countsum_diff, &countsum_detail, &mut countsumrows_diff, &countsumrows_detail);
-        } else {
-            build_summary(&mut values_summary, &stored_values, &mut countsum_summary, &stored_countsum, &mut countsumrows_summary, &stored_countsumrows);
-            insert_first_snap_into_diff(&mut values_diff, &values_summary, &mut countsum_diff, &countsum_summary, &mut countsumrows_diff, &countsumrows_summary);
-        }
-        insert_first_snap_into_statements_diff(&mut statements_diff, &stored_statements);
+        // process first snapshot results
+        let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps(details_enable, stored_values, stored_countsum, stored_countsumrows);
+        let (mut values_diff, mut countsum_diff, mut countsumrows_diff) = insert_first_snapshot_metrics(values_map, countsum_map, countsumrows_map);
+        let mut statements_diff = insert_first_snapshot_statements(stored_statements);
 
         println!("Begin metrics snapshot created, press enter to create end snapshot for difference calculation.");
         let mut input = String::new();
         stdin().read_line(&mut input).ok().expect("failed");
 
+        // second snapshot
         let mut stored_values: Vec<StoredValues> = Vec::new();
-        let mut values_detail: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
-        let mut values_summary: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
         let mut stored_countsum: Vec<StoredCountSum> = Vec::new();
-        let mut countsum_detail: BTreeMap<(String, String, String, String), StoredCountSum> = BTreeMap::new();
-        let mut countsum_summary: BTreeMap<(String, String, String, String), StoredCountSum> = BTreeMap::new();
         let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
-        let mut countsumrows_detail: BTreeMap<(String, String, String, String), StoredCountSumRows> = BTreeMap::new();
-        let mut countsumrows_summary: BTreeMap<(String, String, String, String), StoredCountSumRows> = BTreeMap::new();
         let mut stored_statements: Vec<StoredStatements> = Vec::new();
 
         for hostname in &hostname_port_vec {
@@ -198,17 +142,13 @@ fn main() {
             let data_parsed_from_json = read_statements(&hostname);
             add_to_statements_vector(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_statements);
         }
-        if details_enable {
-            build_detail(&mut values_detail, &stored_values, &mut countsum_detail, &stored_countsum, &mut countsumrows_detail, &stored_countsumrows);
-            insert_second_snap_into_diff(&mut values_diff, &values_detail, &mut countsum_diff, &countsum_detail, &mut countsumrows_diff, &countsumrows_detail, &first_snapshot_time);
-        } else {
-            build_summary(&mut values_summary, &stored_values, &mut countsum_summary, &stored_countsum, &mut countsumrows_summary, &stored_countsumrows);
-            insert_second_snap_into_diff(&mut values_diff, &values_summary, &mut countsum_diff, &countsum_summary, &mut countsumrows_diff, &countsumrows_summary, &first_snapshot_time);
-        }
-        insert_second_snap_into_statements_diff(&mut statements_diff, &stored_statements, &first_snapshot_time);
+        // process second snapshot results
+        let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps(details_enable, stored_values, stored_countsum, stored_countsumrows);
+        insert_second_snapshot_metrics(values_map, &mut values_diff, countsum_map, &mut countsum_diff, countsumrows_map, &mut countsumrows_diff, &first_snapshot_time);
+        insert_second_snapshot_statements(stored_statements, &mut statements_diff, &first_snapshot_time);
 
+        // print difference
         print_diff(&values_diff, &countsum_diff, &countsumrows_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
-
         print_diff_statements(&statements_diff, &hostname_filter);
 
     }

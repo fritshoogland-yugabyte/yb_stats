@@ -20,6 +20,11 @@ use regex::Regex;
 use substring::Substring;
 use std::io::{stdin, stdout, Write};
 
+#[derive(Debug)]
+pub struct GFlag {
+    pub name: String,
+    pub value: String,
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Metrics {
@@ -141,6 +146,14 @@ pub struct StoredValues {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct StoredGFlags {
+    pub hostname_port: String,
+    pub timestamp: DateTime<Local>,
+    pub gflag_name: String,
+    pub gflag_value: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct StoredCountSum {
     pub hostname_port: String,
     pub timestamp: DateTime<Local>,
@@ -237,6 +250,18 @@ pub struct Snapshot {
     pub comment: String,
 }
 
+pub fn read_gflags( hostname: &str) -> Vec<GFlag> {
+    if ! scan_port_addr( hostname ) {
+        println!("Warning: hostname:port {} cannot be reached, skipping", hostname.to_string());
+        return Vec::new(); //String::from(""); //Vec::new() //parse_statements(String::from(""))
+    }
+    if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}/varz?raw", hostname.to_string())) {
+        parse_gflags(data_from_http.text().unwrap())
+    } else {
+        parse_gflags(String::from(""))
+    }
+}
+
 pub fn read_metrics( hostname: &str) -> Vec<Metrics> {
         if ! scan_port_addr(hostname) {
             println!("Warning! hostname:port {} cannot be reached, skipping", hostname.to_string());
@@ -296,26 +321,39 @@ pub fn add_to_statements_vector(statementdata: Statement,
     }
 }
 
+pub fn add_to_gflags_vector(gflagdata: Vec<GFlag>,
+                            hostname: &str,
+                            snapshot_time: DateTime<Local>,
+                            stored_gflags: &mut Vec<StoredGFlags>
+) {
+    for gflag in gflagdata {
+        stored_gflags.push( StoredGFlags {
+            hostname_port: hostname.to_string(),
+            timestamp: snapshot_time,
+            gflag_name: gflag.name.to_string(),
+            gflag_value: gflag.value.to_string()
+        });
+    }
+}
+
 pub fn add_to_version_vector(versiondata: VersionData,
     hostname: &str,
     snapshot_time: DateTime<Local>,
     stored_versiondata: &mut Vec<StoredVersionData>
 ) {
-   //for versiondata_row in versiondata {
-       stored_versiondata.push( StoredVersionData {
-           hostname_port: hostname.to_string(),
-           timestamp: snapshot_time,
-           git_hash: versiondata.git_hash.to_string(),
-           build_hostname: versiondata.build_hostname.to_string(),
-           build_timestamp: versiondata.build_timestamp.to_string(),
-           build_username: versiondata.build_username.to_string(),
-           build_clean_repo: versiondata.build_clean_repo.to_string(),
-           build_id: versiondata.build_id.to_string(),
-           build_type: versiondata.build_type.to_string(),
-           version_number: versiondata.version_number.to_string(),
-           build_number: versiondata.build_number.to_string()
-       });
-   //}
+    stored_versiondata.push(StoredVersionData {
+        hostname_port: hostname.to_string(),
+        timestamp: snapshot_time,
+        git_hash: versiondata.git_hash.to_string(),
+        build_hostname: versiondata.build_hostname.to_string(),
+        build_timestamp: versiondata.build_timestamp.to_string(),
+        build_username: versiondata.build_username.to_string(),
+        build_clean_repo: versiondata.build_clean_repo.to_string(),
+        build_id: versiondata.build_id.to_string(),
+        build_type: versiondata.build_type.to_string(),
+        version_number: versiondata.version_number.to_string(),
+        build_number: versiondata.build_number.to_string(),
+    });
 }
 
 pub fn add_to_metric_vectors(data_parsed_from_json: Vec<Metrics>,
@@ -538,6 +576,7 @@ pub fn perform_snapshot( hostname_port_vec: Vec<&str>,
     let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
     let mut stored_versiondata: Vec<StoredVersionData> = Vec::new();
     let mut stored_statements: Vec<StoredStatements> = Vec::new();
+    let mut stored_gflags: Vec<StoredGFlags> = Vec::new();
 
     for hostname in &hostname_port_vec {
         let detail_snapshot_time = Local::now();
@@ -547,7 +586,9 @@ pub fn perform_snapshot( hostname_port_vec: Vec<&str>,
         let data_parsed_from_json = read_version(&hostname);
         add_to_version_vector(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_versiondata);
         let data_parsed_from_json = read_statements(&hostname);
-        add_to_statements_vector(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_statements)
+        add_to_statements_vector(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_statements);
+        let gflags = read_gflags(&hostname);
+        add_to_gflags_vector(gflags, hostname, detail_snapshot_time, &mut stored_gflags);
     }
 
     let current_directory = env::current_dir().unwrap();
@@ -678,6 +719,21 @@ pub fn perform_snapshot( hostname_port_vec: Vec<&str>,
     }
     writer.flush().unwrap();
 
+    let gflags_file = &current_snapshot_directory.join("gflags");
+    let file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(&gflags_file)
+        .unwrap_or_else(|e| {
+            eprintln!("Fatal: error writing gflags data in snapshot directory {}: {}", &gflags_file.clone().into_os_string().into_string().unwrap(), e);
+            process::exit(1);
+        });
+    let mut writer = csv::Writer::from_writer(file);
+    for row in stored_gflags {
+        writer.serialize(row).unwrap();
+    }
+    writer.flush().unwrap();
+
     snapshot_number
 }
 
@@ -701,6 +757,16 @@ fn parse_statements( statements_data: String ) -> Statement {
         .unwrap_or_else(|_e| {
             return Statement { statements: Vec::<Queries>::new() };
         })
+}
+
+fn parse_gflags( gflags_data: String ) -> Vec<GFlag> {
+    let mut gflags: Vec<GFlag> = Vec::new();
+    let re = Regex::new( r"--([A-Za-z_0-9]*)=(.*)\n" ).unwrap();
+    for captures in re.captures_iter(&gflags_data) {
+        gflags.push(GFlag { name: captures.get(1).unwrap().as_str().to_string(), value: captures.get(2).unwrap().as_str().to_string() });
+        //println!("name: {}, value: {}", f.get(1).unwrap().as_str(), f.get(2).unwrap().as_str());
+    }
+    gflags
 }
 
 #[cfg(test)]

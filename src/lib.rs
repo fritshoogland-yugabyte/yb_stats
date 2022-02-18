@@ -19,6 +19,15 @@ use std::env;
 use regex::Regex;
 use substring::Substring;
 use std::io::{stdin, stdout, Write};
+use table_extract;
+
+#[derive(Debug)]
+pub struct MemTrackers {
+    pub id: String,
+    pub current_consumption: String,
+    pub peak_consumption: String,
+    pub limit: String,
+}
 
 #[derive(Debug)]
 pub struct LogLine {
@@ -163,6 +172,16 @@ pub struct StoredGFlags {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct StoredMemTrackers {
+    pub hostname_port: String,
+    pub timestamp: DateTime<Local>,
+    pub id: String,
+    pub current_consumption: String,
+    pub peak_consumption: String,
+    pub limit: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct StoredLogLines {
     pub hostname_port: String,
     pub timestamp: DateTime<Local>,
@@ -267,6 +286,18 @@ pub struct Snapshot {
     pub number: i32,
     pub timestamp: DateTime<Local>,
     pub comment: String,
+}
+
+pub fn read_memtrackers( hostname: &str) -> Vec<MemTrackers> {
+    if ! scan_port_addr( hostname ) {
+        println!("Warning: hostname:port {} cannot be reached, skipping", hostname.to_string());
+        return Vec::new();
+    }
+    if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}/mem-trackers", hostname.to_string())) {
+        parse_memtrackers(data_from_http.text().unwrap())
+    } else {
+        parse_memtrackers(String::from(""))
+    }
 }
 
 pub fn read_loglines( hostname: &str) -> Vec<LogLine> {
@@ -379,6 +410,23 @@ pub fn add_to_loglines_vector(loglinedata: Vec<LogLine>,
             tid: logline.tid.to_string(),
             sourcefile_nr: logline.sourcefile_nr.to_string(),
             message: logline.message.to_string()
+        });
+    }
+}
+
+pub fn add_to_memtrackers_vector(memtrackersdata: Vec<MemTrackers>,
+                                 hostname: &str,
+                                 snapshot_time: DateTime<Local>,
+                                 stored_memtrackers: &mut Vec<StoredMemTrackers>
+) {
+    for line in memtrackersdata {
+        stored_memtrackers.push( StoredMemTrackers {
+            hostname_port: hostname.to_string(),
+            timestamp: snapshot_time,
+            id: line.id.to_string(),
+            current_consumption: line.current_consumption.to_string(),
+            peak_consumption: line.peak_consumption.to_string(),
+            limit: line.limit.to_string()
         });
     }
 }
@@ -625,6 +673,7 @@ pub fn perform_snapshot( hostname_port_vec: Vec<&str>,
     let mut stored_statements: Vec<StoredStatements> = Vec::new();
     let mut stored_gflags: Vec<StoredGFlags> = Vec::new();
     let mut stored_loglines: Vec<StoredLogLines> = Vec::new();
+    let mut stored_memtrackers: Vec<StoredMemTrackers> = Vec::new();
 
     for hostname in &hostname_port_vec {
         let detail_snapshot_time = Local::now();
@@ -639,6 +688,8 @@ pub fn perform_snapshot( hostname_port_vec: Vec<&str>,
         add_to_gflags_vector(gflags, hostname, detail_snapshot_time, &mut stored_gflags);
         let loglines = read_loglines(&hostname);
         add_to_loglines_vector(loglines, hostname, &mut stored_loglines);
+        let memtrackers: Vec<MemTrackers> = read_memtrackers(&hostname);
+        add_to_memtrackers_vector(memtrackers, hostname, detail_snapshot_time, &mut stored_memtrackers);
     }
 
     let current_directory = env::current_dir().unwrap();
@@ -799,6 +850,21 @@ pub fn perform_snapshot( hostname_port_vec: Vec<&str>,
     }
     writer.flush().unwrap();
 
+    let memtrackers_file = &current_snapshot_directory.join("memtrackers");
+    let file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(&memtrackers_file)
+        .unwrap_or_else(|e| {
+            eprintln!("Fatal: error writing memtrackers data in snapshot directory {}: {}", &memtrackers_file.clone().into_os_string().into_string().unwrap(), e);
+            process::exit(1);
+        });
+    let mut writer = csv::Writer::from_writer(file);
+    for row in stored_memtrackers {
+        writer.serialize(row).unwrap();
+    }
+    writer.flush().unwrap();
+
     snapshot_number
 }
 
@@ -867,6 +933,28 @@ fn parse_loglines( logs_data: String ) -> Vec<LogLine> {
         });
     }
     loglines
+}
+
+fn parse_memtrackers( http_data: String ) -> Vec<MemTrackers> {
+    //println!("in parse_memtrackers");
+    let mut memtrackers: Vec<MemTrackers> = Vec::new();
+    //let table = table_extract::Table::find_first(&http_data).unwrap();
+    match table_extract::Table::find_first(&http_data) {
+        Some ( table ) => {
+            for row in &table {
+                memtrackers.push(MemTrackers {
+                    id: row.get("Id").unwrap_or("<Missing>").to_string(),
+                    current_consumption: row.get("Current Consumption").unwrap_or("<Missing>").to_string(),
+                    // mind 'consumption': it doesn't start with a capital, which is different from 'Current Consumption' above.
+                    peak_consumption: row.get("Peak consumption").unwrap_or("<Missing>").to_string(),
+                    limit: row.get("Limit").unwrap_or("<Missing>").to_string()
+                });
+            }
+        }
+        None => {}
+    }
+
+    memtrackers
 }
 
 #[cfg(test)]

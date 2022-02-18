@@ -21,6 +21,15 @@ use substring::Substring;
 use std::io::{stdin, stdout, Write};
 
 #[derive(Debug)]
+pub struct LogLine {
+    pub severity: String,
+    pub timestamp: DateTime<Local>,
+    pub tid: String,
+    pub sourcefile_nr: String,
+    pub message: String,
+}
+
+#[derive(Debug)]
 pub struct GFlag {
     pub name: String,
     pub value: String,
@@ -154,6 +163,16 @@ pub struct StoredGFlags {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct StoredLogLines {
+    pub hostname_port: String,
+    pub timestamp: DateTime<Local>,
+    pub severity: String,
+    pub tid: String,
+    pub sourcefile_nr: String,
+    pub message: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct StoredCountSum {
     pub hostname_port: String,
     pub timestamp: DateTime<Local>,
@@ -250,6 +269,18 @@ pub struct Snapshot {
     pub comment: String,
 }
 
+pub fn read_loglines( hostname: &str) -> Vec<LogLine> {
+    if ! scan_port_addr( hostname ) {
+        println!("Warning: hostname:port {} cannot be reached, skipping", hostname.to_string());
+        return Vec::new();
+    }
+    if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}/logs?raw", hostname.to_string())) {
+        parse_loglines(data_from_http.text().unwrap())
+    } else {
+        parse_loglines(String::from(""))
+    }
+}
+
 pub fn read_gflags( hostname: &str) -> Vec<GFlag> {
     if ! scan_port_addr( hostname ) {
         println!("Warning: hostname:port {} cannot be reached, skipping", hostname.to_string());
@@ -332,6 +363,22 @@ pub fn add_to_gflags_vector(gflagdata: Vec<GFlag>,
             timestamp: snapshot_time,
             gflag_name: gflag.name.to_string(),
             gflag_value: gflag.value.to_string()
+        });
+    }
+}
+
+pub fn add_to_loglines_vector(loglinedata: Vec<LogLine>,
+                              hostname: &str,
+                              stored_loglines: &mut Vec<StoredLogLines>
+) {
+    for logline in loglinedata {
+        stored_loglines.push( StoredLogLines {
+            hostname_port: hostname.to_string(),
+            timestamp: logline.timestamp,
+            severity: logline.severity.to_string(),
+            tid: logline.tid.to_string(),
+            sourcefile_nr: logline.sourcefile_nr.to_string(),
+            message: logline.message.to_string()
         });
     }
 }
@@ -577,6 +624,7 @@ pub fn perform_snapshot( hostname_port_vec: Vec<&str>,
     let mut stored_versiondata: Vec<StoredVersionData> = Vec::new();
     let mut stored_statements: Vec<StoredStatements> = Vec::new();
     let mut stored_gflags: Vec<StoredGFlags> = Vec::new();
+    let mut stored_loglines: Vec<StoredLogLines> = Vec::new();
 
     for hostname in &hostname_port_vec {
         let detail_snapshot_time = Local::now();
@@ -589,6 +637,8 @@ pub fn perform_snapshot( hostname_port_vec: Vec<&str>,
         add_to_statements_vector(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_statements);
         let gflags = read_gflags(&hostname);
         add_to_gflags_vector(gflags, hostname, detail_snapshot_time, &mut stored_gflags);
+        let loglines = read_loglines(&hostname);
+        add_to_loglines_vector(loglines, hostname, &mut stored_loglines);
     }
 
     let current_directory = env::current_dir().unwrap();
@@ -734,6 +784,21 @@ pub fn perform_snapshot( hostname_port_vec: Vec<&str>,
     }
     writer.flush().unwrap();
 
+    let loglines_file = &current_snapshot_directory.join("loglines");
+    let file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(&loglines_file)
+        .unwrap_or_else(|e| {
+            eprintln!("Fatal: error writing loglines data in snapshot directory {}: {}", &loglines_file.clone().into_os_string().into_string().unwrap(), e);
+            process::exit(1);
+        });
+    let mut writer = csv::Writer::from_writer(file);
+    for row in stored_loglines {
+        writer.serialize(row).unwrap();
+    }
+    writer.flush().unwrap();
+
     snapshot_number
 }
 
@@ -764,9 +829,44 @@ fn parse_gflags( gflags_data: String ) -> Vec<GFlag> {
     let re = Regex::new( r"--([A-Za-z_0-9]*)=(.*)\n" ).unwrap();
     for captures in re.captures_iter(&gflags_data) {
         gflags.push(GFlag { name: captures.get(1).unwrap().as_str().to_string(), value: captures.get(2).unwrap().as_str().to_string() });
-        //println!("name: {}, value: {}", f.get(1).unwrap().as_str(), f.get(2).unwrap().as_str());
     }
     gflags
+}
+
+fn parse_loglines( logs_data: String ) -> Vec<LogLine> {
+    let mut loglines: Vec<LogLine> = Vec::new();
+    // This regex does not capture the backtraces
+    // I0217 10:19:56.834905 31987 docdb_rocksdb_util.cc:416] FLAGS_rocksdb_base_background_compactions was not set, automatically configuring 1 base background compactions.
+    let re = Regex::new( r"([IWFE])(\d{2})(\d{2}) (\d{2}):(\d{2}):(\d{2})\.(\d{6}) (\d{1,6}) ([a-z_A-Z.:0-9]*)] (.*)\n" ).unwrap();
+
+    // Just take the year, it's not in the loglines, however, when the year switches this will lead to error results
+    let year= Local::now().format("%Y").to_string();
+    let timezone = Local::now().format("%z").to_string();
+    for captures in re.captures_iter(&logs_data) {
+        let mut timestamp_string: String = year.to_owned();
+        timestamp_string.push_str(":");
+        timestamp_string.push_str(&captures.get(2).unwrap().as_str());        // month
+        timestamp_string.push_str(":");
+        timestamp_string.push_str(&captures.get(3).unwrap().as_str());        // day
+        timestamp_string.push_str(":");
+        timestamp_string.push_str(&captures.get(4).unwrap().as_str());        // hour
+        timestamp_string.push_str(":");
+        timestamp_string.push_str(&captures.get(5).unwrap().as_str());        // minute
+        timestamp_string.push_str(":");
+        timestamp_string.push_str(&captures.get(6).unwrap().as_str());        // seconds
+        timestamp_string.push_str(":");
+        timestamp_string.push_str(&captures.get(7).unwrap().as_str());        // seconds
+        timestamp_string.push_str(":");
+        timestamp_string.push_str(&timezone.to_owned());
+        loglines.push(LogLine {
+            severity: captures.get(1).unwrap().as_str().to_string(),
+            timestamp: DateTime::parse_from_str(&timestamp_string, "%Y:%m:%d:%H:%M:%S:%6f:%z").unwrap().with_timezone(&Local),
+            tid: captures.get(8).unwrap().as_str().to_string(),
+            sourcefile_nr: captures.get(9).unwrap().as_str().to_string(),
+            message: captures.get(10).unwrap().as_str().to_string()
+        });
+    }
+    loglines
 }
 
 #[cfg(test)]

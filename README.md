@@ -23,7 +23,7 @@ Therefore, the tools allows filtering data via regexes, to be ultimately flexibl
 
 # Usage
 ```
-yb_stats 0.3.0
+yb_stats 0.5.0
 
 USAGE:
     yb_stats [FLAGS] [OPTIONS]
@@ -45,10 +45,11 @@ OPTIONS:
     -m, --metric-sources <metric-sources>
             all metric endpoints to be used, a metric endpoint is a hostname or ip address with colon and port number,
             comma separated [default: 192.168.66.80:7000,192.168.66.81:7000,192.168.66.82:7000]
+        --print-memtrackers <print-memtrackers>    print memtrackers data for the given snapshot [default: -1]
         --snapshot-comment <snapshot-comment>
             comment to be added with the snapshot, to make review or use more easy [default: ]
 
-    -s, --stat-name-match <stat-name-match>      regex to select specific statistic names [default: .*]
+    -s, --stat-name-match <stat-name-match>        regex to select specific statistic names [default: .*]
     -t, --table-name-match <table-name-match>
             regex to select specific table names (only sensible with --details-enable, default mode adds the statistics
             for all tables) [default: .*]
@@ -58,10 +59,11 @@ Yes, this is quite a lot of work for even a modest cluster; to capture the maste
 The reason for doing it in this way is that there is no view/URL/endpoint in the cluster that can consistenly be used to query the ip addresses to be used as an administrator.
 One thing which might be a useful addition is to create a settings file that allows storing the hostnames, so you reuse that.
 
-The yb_stats has three modes:
+The yb_stats has four modes:
 - STDOUT mode (default): when invoked, it gathers data to take as the begin situation, and then displays `Begin metrics snapshot created, press enter to create end snapshot for difference calculation.`. If you press enter, yb_stats gathers data again, and shows any statistic that has changed since the begin situation.
 - Snapshot mode: when the `--snapshot` flag is specified, yb_stats gathers the data from the YugabyteDB cluster, reads the `yb_stats.snapshots/snapshot.index` file in the current directory, determines the highest snapshot number, increases it by one, and adds that to the file. If the file or directory doesn't exist, it tries to create it, and begins with snapshot number 0. It then creates a directory with the snapshot number in the `yb_stats.snapshots` directory, and writes the values and latencies statistics to files with that name.
 - Snapshot-diff mode: when the `--snapshot-diff` flag is specified, yb_stats reads the `yb_stats.snapshots/snapshot.index` file for available snapshots, and displays the snapshot information, and asks for a begin and an end snapshot. When these have been specified, a diff is run between these snapshots.
+- Memtrackers mode: when the `--print-memtrackers` flag is specified, yb_stats reads the `yb_stats.snapshots/snapshot.index` file for available snapshots, and displays the memtrackers snapshot data for the number given as the argument. Please mind the hostname and stat-name filters (see below) can be used for the hosts and the memtracker id (name). The default value is `-1`, which means not to print memtrackers data.
 
 Even modest changes do generate lots of statistic differences. Therefore, by default yb_stats does not specify statistics per table or tablet, but adds these together per server (per hostname:port combination). If you want to see the statistics per table and tablet, specify the `--details-enable` switch.
 
@@ -72,7 +74,9 @@ For investigations, you might be interested in a subset of the data. yb_stats al
 - statisticname: `--stat-name-match`: if you know the names of one or more statistics, you can filter for their names.
 - tablename: `--table-name-match`: this only makes sense if you use `--details-enable` to have the table names be printed. If you did, this allows you to filter only for the tables you are interested in.
 
-# output
+# Output
+
+## value statistics
 ```
 fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:7000,192.168.66.80:9000,192.168.66.81:7000,192.168.66.81:9000,192.168.66.82:7000,192.168.66.82:9000
 Begin metrics snapshot created, press enter to create end snapshot for difference calculation.
@@ -99,6 +103,7 @@ These are 'value' statistics. 'value' statistics contain a statistic name and a 
 - The fifth column shows the difference of the value in the statistic between the first and second snapshot, divided by the time between the two snapshots.
 The statistics are ordered by hostname-portnumber, metric type, id.
 
+## countsum statistics
 The next section are countsum statistics. 'countsum' statistics contain a value for the count of occurences and a value for the sum of data that the statistic is collecting. This is mostly time (mostly in us, microseconds) but can also be something else (like bytes):
 ```
 ...snipped
@@ -118,6 +123,7 @@ The next section are countsum statistics. 'countsum' statistics contain a value 
 - The sixth column show the difference between the first and second snapshot for the total_sum statistic, divided by the difference between the total_count statistics, to get the average amount of time per occasion of the statistic.
 - The seventh column shows the difference between the first and the second snapshot for the total_sum statistic to get the total amount of time measured by this statistic.
 
+## countsumrows statistics
 The optional next section are countsumrows statistics. 'countsumrows' statistics are unique to YSQL and contain: a value for the count of occurences, a sum about the data that the statistic is collecting, which is time (in ms, milliseconds), and rows, which are the number of rows that are processed by the topic about which the statistic is collecting information:
 ```
 ...snipped
@@ -139,6 +145,7 @@ CatalogCacheMisses
 - Please mind the CatalogCacheMisses statistic currently does not measure time (sum): this is an item on the todo list of development.
 - A backend that is initialized as part of logon does create a catalogcache in its heap. CatalogCacheMisses does currently not count these in the statistic.
 
+## statement statistics
 The optional next section are statement statistics. 'statement' statistics are unique to YSQL and are the externalisation of the pg_stat_statement statistics.
 ```
 ...snipped
@@ -357,6 +364,7 @@ This shows the physical IO statistics:
 - rocksdb_sst_read_micros: the number of and time spent reading (via a buffered pread64() call).
 - rocksdb_write_raw_blocks: the number of and time spent writing to SST files (via a buffered write() call).
 - log_sync_latency: this the number of and time spent in the function that performs fsync() of the WAL file. Mind the specific wording: not all calls to the function result in fsync() being called, which means that this statistic also measures running the function not performing the fsync() call, and thus will be much too positive, and not a valid average of time spent in the fsync() call. The total time is still a valid amount for tuning. See: https://github.com/yugabyte/yugabyte-db/issues/11039
+
 
 # How to install
 Currently, this is only available as source code, not as executable.  

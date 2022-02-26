@@ -362,6 +362,46 @@ pub fn read_statements( hostname: &str) -> Statement {
     }
 }
 
+pub fn read_memtrackers_snapshot(snapshot_number: &String, yb_stats_directory: &PathBuf ) -> Vec<StoredMemTrackers> {
+
+    let mut stored_memtrackers: Vec<StoredMemTrackers> = Vec::new();
+    let memtrackers_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("memtrackers");
+    let file = fs::File::open(&memtrackers_file)
+        .unwrap_or_else(|e| {
+            eprintln!("Fatal: error reading file: {}: {}", &memtrackers_file.clone().into_os_string().into_string().unwrap(), e);
+            process::exit(1);
+        });
+    let mut reader = csv::Reader::from_reader(file);
+    for row in reader.deserialize() {
+        let data: StoredMemTrackers = row.unwrap();
+        let _ = &stored_memtrackers.push(data);
+    }
+    stored_memtrackers
+}
+
+pub fn print_memtrackers_data(
+    snapshot_number: &String,
+    yb_stats_directory: &PathBuf,
+    hostname_filter: &Regex,
+    stat_name_filter: &Regex
+) {
+
+    let stored_memtrackers: Vec<StoredMemTrackers> = read_memtrackers_snapshot(&snapshot_number, yb_stats_directory);
+    let mut previous_hostname_port = String::from("");
+    for row in stored_memtrackers {
+        if hostname_filter.is_match(&row.hostname_port)
+        && stat_name_filter.is_match(&row.id) {
+            if row.hostname_port != previous_hostname_port {
+                println!("--------------------------------------------------------------------------------------------------------------------------------------");
+                println!("Host: {}, Snapshot number: {}, Snapshot time: {}", &row.hostname_port.to_string(), &snapshot_number, row.timestamp);
+                println!("--------------------------------------------------------------------------------------------------------------------------------------");
+                previous_hostname_port = row.hostname_port.to_string();
+            }
+            println!("{:20} {:50} {:>20} {:>20} {:>20}", row.hostname_port, row.id, row.current_consumption, row.peak_consumption, row.limit)
+        }
+    }
+}
+
 pub fn add_to_statements_vector(statementdata: Statement,
     hostname: &str,
     snapshot_time: DateTime<Local>,

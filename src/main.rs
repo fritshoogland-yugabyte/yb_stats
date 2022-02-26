@@ -30,7 +30,8 @@ use yb_stats::{perform_snapshot,
                insert_first_snapshot_metrics,
                insert_first_snapshot_statements,
                insert_second_snapshot_metrics,
-               insert_second_snapshot_statements};
+               insert_second_snapshot_statements,
+               print_memtrackers_data};
 
 #[derive(Debug, StructOpt)]
 struct Opts {
@@ -61,6 +62,9 @@ struct Opts {
     /// this lists the snapshots, and allows you to select a begin and end snapshot for a diff report
     #[structopt(long)]
     snapshot_diff: bool,
+    /// print memtrackers data for the given snapshot
+    #[structopt(long, default_value = "-1")]
+    print_memtrackers: String,
 }
 
 fn main() {
@@ -79,6 +83,7 @@ fn main() {
     let snapshot: bool = options.snapshot as bool;
     let snapshot_comment: String = options.snapshot_comment;
     let snapshot_diff: bool = options.snapshot_diff as bool;
+    let print_memtrackers: String = options.print_memtrackers;
 
     if snapshot {
 
@@ -102,9 +107,9 @@ fn main() {
 
         // first snapshot
         let stored_values: Vec<StoredValues> = read_values_snapshot(&begin_snapshot, &yb_stats_directory);
-        let stored_countsum: Vec<StoredCountSum> = read_countsum_snapshot( &begin_snapshot, &yb_stats_directory);
-        let stored_countsumrows: Vec<StoredCountSumRows> = read_countsumrows_snapshot( &begin_snapshot, &yb_stats_directory);
-        let stored_statements: Vec<StoredStatements> = read_statements_snapshot( &begin_snapshot, &yb_stats_directory);
+        let stored_countsum: Vec<StoredCountSum> = read_countsum_snapshot(&begin_snapshot, &yb_stats_directory);
+        let stored_countsumrows: Vec<StoredCountSumRows> = read_countsumrows_snapshot(&begin_snapshot, &yb_stats_directory);
+        let stored_statements: Vec<StoredStatements> = read_statements_snapshot(&begin_snapshot, &yb_stats_directory);
         // process first snapshot results
         let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps(details_enable, stored_values, stored_countsum, stored_countsumrows);
         let (mut values_diff, mut countsum_diff, mut countsumrows_diff) = insert_first_snapshot_metrics(values_map, countsum_map, countsumrows_map);
@@ -112,9 +117,9 @@ fn main() {
 
         // second snapshot
         let stored_values: Vec<StoredValues> = read_values_snapshot(&end_snapshot, &yb_stats_directory);
-        let stored_countsum: Vec<StoredCountSum> = read_countsum_snapshot( &end_snapshot, &yb_stats_directory);
-        let stored_countsumrows: Vec<StoredCountSumRows> = read_countsumrows_snapshot( &end_snapshot, &yb_stats_directory);
-        let stored_statements: Vec<StoredStatements> = read_statements_snapshot( &end_snapshot, &yb_stats_directory);
+        let stored_countsum: Vec<StoredCountSum> = read_countsum_snapshot(&end_snapshot, &yb_stats_directory);
+        let stored_countsumrows: Vec<StoredCountSumRows> = read_countsumrows_snapshot(&end_snapshot, &yb_stats_directory);
+        let stored_statements: Vec<StoredStatements> = read_statements_snapshot(&end_snapshot, &yb_stats_directory);
         // process second snapshot results
         let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps(details_enable, stored_values, stored_countsum, stored_countsumrows);
         insert_second_snapshot_metrics(values_map, &mut values_diff, countsum_map, &mut countsum_diff, countsumrows_map, &mut countsumrows_diff, &begin_snapshot_row.timestamp);
@@ -123,6 +128,14 @@ fn main() {
         // print difference
         print_diff(&values_diff, &countsum_diff, &countsumrows_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
         print_diff_statements(&statements_diff, &hostname_filter);
+    }
+
+    if print_memtrackers != "-1" {
+
+        let current_directory = env::current_dir().unwrap();
+        let yb_stats_directory = current_directory.join("yb_stats.snapshots");
+
+        print_memtrackers_data(&print_memtrackers, &yb_stats_directory, &hostname_filter, &stat_name_filter);
 
     } else {
 

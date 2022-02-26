@@ -31,7 +31,8 @@ use yb_stats::{perform_snapshot,
                insert_first_snapshot_statements,
                insert_second_snapshot_metrics,
                insert_second_snapshot_statements,
-               print_memtrackers_data};
+               print_memtrackers_data,
+               print_loglines};
 
 #[derive(Debug, StructOpt)]
 struct Opts {
@@ -65,6 +66,12 @@ struct Opts {
     /// print memtrackers data for the given snapshot
     #[structopt(long, default_value = "-1")]
     print_memtrackers: String,
+    /// print log data for the given snapshot
+    #[structopt(long, default_value = "-1")]
+    print_log: String,
+    /// log data severity to include: default: WEF, optional: I
+    #[structopt(long, default_value = "WEF")]
+    log_severity: String,
 }
 
 fn main() {
@@ -84,6 +91,8 @@ fn main() {
     let snapshot_comment: String = options.snapshot_comment;
     let snapshot_diff: bool = options.snapshot_diff as bool;
     let print_memtrackers: String = options.print_memtrackers;
+    let print_log: String = options.print_log;
+    let log_severity: String = options.log_severity;
 
     if snapshot {
 
@@ -131,11 +140,17 @@ fn main() {
     }
 
     if print_memtrackers != "-1" {
-
         let current_directory = env::current_dir().unwrap();
         let yb_stats_directory = current_directory.join("yb_stats.snapshots");
 
         print_memtrackers_data(&print_memtrackers, &yb_stats_directory, &hostname_filter, &stat_name_filter);
+    }
+
+    if print_log != "-1" {
+        let current_directory = env::current_dir().unwrap();
+        let yb_stats_directory = current_directory.join("yb_stats.snapshots");
+
+        print_loglines(&print_log, &yb_stats_directory, &hostname_filter, &log_severity);
 
     } else {
 

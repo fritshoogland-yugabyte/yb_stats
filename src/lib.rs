@@ -402,6 +402,46 @@ pub fn print_memtrackers_data(
     }
 }
 
+pub fn read_loglines_snapshot(snapshot_number: &String, yb_stats_directory: &PathBuf ) -> Vec<StoredLogLines> {
+
+    let mut stored_loglines: Vec<StoredLogLines> = Vec::new();
+    let loglines_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("loglines");
+    let file = fs::File::open(&loglines_file)
+        .unwrap_or_else(|e| {
+            eprintln!("Fatal: error reading file: {}: {}", &loglines_file.clone().into_os_string().into_string().unwrap(), e);
+            process::exit(1);
+        });
+    let mut reader = csv::Reader::from_reader(file);
+    for row in reader.deserialize() {
+        let data: StoredLogLines = row.unwrap();
+        let _ = &stored_loglines.push(data);
+    }
+    stored_loglines
+}
+
+pub fn print_loglines(
+    snapshot_number: &String,
+    yb_stats_directory: &PathBuf,
+    hostname_filter: &Regex,
+    log_severity: &String
+) {
+
+    let stored_loglines: Vec<StoredLogLines> = read_loglines_snapshot(&snapshot_number, yb_stats_directory);
+    let mut previous_hostname_port = String::from("");
+    for row in stored_loglines {
+        if hostname_filter.is_match(&row.hostname_port)
+        && log_severity.contains(&row.severity) {
+            if row.hostname_port != previous_hostname_port {
+                println!("--------------------------------------------------------------------------------------------------------------------------------------");
+                println!("Host: {}, Snapshot number: {}, Snapshot time: {}", &row.hostname_port.to_string(), &snapshot_number, row.timestamp);
+                println!("--------------------------------------------------------------------------------------------------------------------------------------");
+                previous_hostname_port = row.hostname_port.to_string();
+            }
+            println!("{:20} {:33} {:1} {:20} {:50}", row.hostname_port, row.timestamp, row.severity, row.sourcefile_nr, row.message)
+        }
+    }
+}
+
 pub fn add_to_statements_vector(statementdata: Statement,
     hostname: &str,
     snapshot_time: DateTime<Local>,

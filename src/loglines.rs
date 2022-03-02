@@ -39,7 +39,7 @@ pub fn read_loglines( hostname: &str) -> Vec<LogLine> {
 }
 
 #[allow(dead_code)]
-pub fn read_loglines_snapshot(snapshot_number: &String, yb_stats_directory: &PathBuf ) -> Vec<StoredLogLines> {
+fn read_loglines_snapshot(snapshot_number: &String, yb_stats_directory: &PathBuf ) -> Vec<StoredLogLines> {
 
     let mut stored_loglines: Vec<StoredLogLines> = Vec::new();
     let loglines_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("loglines");

@@ -1,5 +1,10 @@
 use chrono::{DateTime, Local};
 use port_scanner::scan_port_addr;
+use std::path::PathBuf;
+use std::fs;
+use std::process;
+use regex::Regex;
+use serde_derive::{Serialize,Deserialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct VersionData {
@@ -29,6 +34,7 @@ pub struct StoredVersionData {
     pub build_number: String,
 }
 
+#[allow(dead_code)]
 pub fn read_version( hostname: &str) -> VersionData {
     if ! scan_port_addr( hostname) {
         println!("Warning hostname:port {} cannot be reached, skipping", hostname.to_string());
@@ -41,6 +47,55 @@ pub fn read_version( hostname: &str) -> VersionData {
     }
 }
 
+#[allow(dead_code)]
+fn read_version_snapshot(snapshot_number: &String, yb_stats_directory: &PathBuf ) -> Vec<StoredVersionData> {
+
+    let mut stored_versions: Vec<StoredVersionData> = Vec::new();
+    let versions_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("versions");
+    let file = fs::File::open(&versions_file)
+        .unwrap_or_else(|e| {
+            eprintln!("Fatal: error reading file: {}: {}", &versions_file.clone().into_os_string().into_string().unwrap(), e);
+            process::exit(1);
+        });
+    let mut reader = csv::Reader::from_reader(file);
+    for row in reader.deserialize() {
+        let data: StoredVersionData = row.unwrap();
+        let _ = &stored_versions.push(data);
+    }
+    stored_versions
+}
+
+#[allow(dead_code)]
+pub fn print_version_data(
+    snapshot_number: &String,
+    yb_stats_directory: &PathBuf,
+    hostname_filter: &Regex
+) {
+
+    let stored_versions: Vec<StoredVersionData> = read_version_snapshot(&snapshot_number, yb_stats_directory);
+    println!("{:20} {:15} {:10} {:10} {:24} {:10}",
+             "hostname_port",
+             "version_number",
+             "build_nr",
+             "build_type",
+             "build_timestamp",
+             "git_hash"
+    );
+    for row in stored_versions {
+        if hostname_filter.is_match(&row.hostname_port) {
+            println!("{:20} {:15} {:10} {:10} {:24} {:10}",
+                     row.hostname_port,
+                     row.version_number,
+                     row.build_number,
+                     row.build_type,
+                     row.build_timestamp,
+                     row.git_hash
+            );
+        }
+    }
+}
+
+#[allow(dead_code)]
 pub fn add_to_version_vector(versiondata: VersionData,
                              hostname: &str,
                              snapshot_time: DateTime<Local>,
@@ -61,6 +116,7 @@ pub fn add_to_version_vector(versiondata: VersionData,
     });
 }
 
+#[allow(dead_code)]
 fn parse_version( version_data: String ) -> VersionData {
     serde_json::from_str( &version_data )
         .unwrap_or_else(|_e| {

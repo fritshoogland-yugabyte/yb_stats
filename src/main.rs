@@ -5,19 +5,24 @@ use chrono::Local;
 use std::io::stdin;
 use std::env;
 
+//mod yb_statsmetrics};
+use yb_stats::metrics::{
+    StoredValues,
+    StoredCountSum,
+    StoredCountSumRows,
+    read_metrics,
+    add_to_metric_vectors,
+    build_metrics_btreemaps
+};
+
+
 // structs from lib
-use yb_stats::{StoredValues,
-               StoredCountSum,
-               Snapshot,
-               StoredCountSumRows,
-               StoredStatements};
+use yb_stats::{
+    Snapshot,
+};
 
 // functions from lib
 use yb_stats::{perform_snapshot,
-               read_metrics,
-               add_to_metric_vectors,
-               read_statements,
-               add_to_statements_vector,
                print_diff,
                print_diff_statements,
                read_snapshots_from_file,
@@ -26,13 +31,16 @@ use yb_stats::{perform_snapshot,
                read_countsum_snapshot,
                read_countsumrows_snapshot,
                read_statements_snapshot,
-               build_metrics_btreemaps,
                insert_first_snapshot_metrics,
                insert_first_snapshot_statements,
                insert_second_snapshot_metrics,
-               insert_second_snapshot_statements,
-               print_memtrackers_data,
-               print_loglines};
+               insert_second_snapshot_statements};
+
+mod memtrackers;
+use memtrackers::print_memtrackers_data;
+mod loglines;
+use loglines::print_loglines;
+use yb_stats::statements::{StoredStatements, read_statements, add_to_statements_vector};
 
 #[derive(Debug, StructOpt)]
 struct Opts {
@@ -69,7 +77,7 @@ struct Opts {
     /// print log data for the given snapshot
     #[structopt(long, default_value = "-1")]
     print_log: String,
-    /// log data severity to include: default: WEF, optional: I
+    /// log data severity to include: optional: I
     #[structopt(long, default_value = "WEF")]
     log_severity: String,
 }
@@ -100,9 +108,7 @@ fn main() {
         println!("snapshot number {}", snapshot_number);
         process::exit(0);
 
-    }
-
-    if snapshot_diff {
+    } else if snapshot_diff {
 
         let current_directory = env::current_dir().unwrap();
         let yb_stats_directory = current_directory.join("yb_stats.snapshots");
@@ -137,19 +143,17 @@ fn main() {
         // print difference
         print_diff(&values_diff, &countsum_diff, &countsumrows_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
         print_diff_statements(&statements_diff, &hostname_filter);
-    }
 
-    if print_memtrackers != "-1" {
+    } else if print_memtrackers != "-1" {
+
         let current_directory = env::current_dir().unwrap();
         let yb_stats_directory = current_directory.join("yb_stats.snapshots");
-
         print_memtrackers_data(&print_memtrackers, &yb_stats_directory, &hostname_filter, &stat_name_filter);
-    }
 
-    if print_log != "-1" {
+    } else if print_log != "-1" {
+
         let current_directory = env::current_dir().unwrap();
         let yb_stats_directory = current_directory.join("yb_stats.snapshots");
-
         print_loglines(&print_log, &yb_stats_directory, &hostname_filter, &log_severity);
 
     } else {

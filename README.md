@@ -42,9 +42,13 @@ OPTIONS:
         --hostname-match <hostname-match>
             regex to select hostnames or ports (so you can select master or tserver by port number) [default: .*]
 
+        --log-severity <log-severity>
+            log data severity to include: default: WEF, optional: I
+
     -m, --metric-sources <metric-sources>
             all metric endpoints to be used, a metric endpoint is a hostname or ip address with colon and port number,
             comma separated [default: 192.168.66.80:7000,192.168.66.81:7000,192.168.66.82:7000]
+        --print-log <print-log>                    print log data for the given snapshot [default: -1]
         --print-memtrackers <print-memtrackers>    print memtrackers data for the given snapshot [default: -1]
         --snapshot-comment <snapshot-comment>
             comment to be added with the snapshot, to make review or use more easy [default: ]

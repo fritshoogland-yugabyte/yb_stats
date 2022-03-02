@@ -124,3 +124,25 @@ fn parse_version( version_data: String ) -> VersionData {
         })
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_version_data() {
+        // This is what /api/v1/version return.
+        let version = r#"{
+    "git_hash": "d142556567b5e1c83ea5c915ec7b9964492b2321",
+    "build_hostname": "centos-gcp-cloud-jenkins-worker-emjsmd",
+    "build_timestamp": "25 Jan 2022 17:51:08 UTC",
+    "build_username": "jenkins",
+    "build_clean_repo": true,
+    "build_id": "3801",
+    "build_type": "RELEASE",
+    "version_number": "2.11.2.0",
+    "build_number": "89"
+}"#.to_string();
+        let result = parse_version(version.clone());
+        assert_eq!(result.git_hash, "d142556567b5e1c83ea5c915ec7b9964492b2321");
+    }
+}

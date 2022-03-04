@@ -487,6 +487,124 @@ mod tests {
     use super::*;
 
     #[test]
+    fn parse_tablet_metrics_value() {
+        let json = r#"[
+    {
+        "type": "tablet",
+        "id": "16add7b1248a45d2880e5527b2059b54",
+        "attributes": {
+            "namespace_name": "yugabyte",
+            "table_name": "config",
+            "table_id": "000033e10000300080000000000042d9"
+        },
+        "metrics": [
+            {
+                "name": "rocksdb_sequence_number",
+                "value": 1125899906842624
+            }
+        ]
+    }
+    ]"#.to_string();
+        let result = parse_metrics(json.clone());
+        assert_eq!(result[0].metrics_type,"tablet");
+        let statistic_value = match &result[0].metrics[0] {
+            NamedMetrics::MetricValue { name, value} => format!("{}, {}",name, value),
+            _ => String::from("")
+        };
+        assert_eq!(statistic_value, "rocksdb_sequence_number, 1125899906842624");
+    }
+
+    #[test]
+    fn parse_tablet_metrics_countsum() {
+        let json = r#"[
+    {
+        "type": "table",
+        "id": "000033e10000300080000000000042ac",
+        "attributes": {
+            "namespace_name": "yugabyte",
+            "table_name": "benchmark_table",
+            "table_id": "000033e10000300080000000000042ac"
+        },
+        "metrics": [
+            {
+                "name": "log_sync_latency",
+                "total_count": 21,
+                "min": 0,
+                "mean": 0.0,
+                "percentile_75": 0,
+                "percentile_95": 0,
+                "percentile_99": 0,
+                "percentile_99_9": 0,
+                "percentile_99_99": 0,
+                "max": 0,
+                "total_sum": 22349
+            }
+        ]
+    }
+    ]"#.to_string();
+        let result = parse_metrics(json.clone());
+        assert_eq!(result[0].metrics_type,"table");
+        let statistic_value = match &result[0].metrics[0] {
+            NamedMetrics::MetricCountSum { name, total_count, min: _, mean: _, percentile_75: _, percentile_95: _, percentile_99: _, percentile_99_9: _, percentile_99_99: _, max: _, total_sum} => format!("{}, {}, {}",name, total_count, total_sum),
+            _ => String::from("")
+        };
+        assert_eq!(statistic_value, "log_sync_latency, 21, 22349");
+    }
+
+    #[test]
+    fn parse_tablet_metrics_countsumrows() {
+        let json = r#"[
+    {
+        "type": "server",
+        "id": "yb.ysqlserver",
+        "metrics": [
+            {
+                "name": "handler_latency_yb_ysqlserver_SQLProcessor_CatalogCacheMisses",
+                "count": 439,
+                "sum": 0,
+                "rows": 439
+            }
+        ]
+    }
+    ]"#.to_string();
+        let result = parse_metrics(json.clone());
+        assert_eq!(result[0].metrics_type,"server");
+        let statistic_value = match &result[0].metrics[0] {
+            NamedMetrics::MetricCountSumRows { name, count, sum, rows} => format!("{}, {}, {}, {}",name, count, sum, rows),
+            _ => String::from("")
+        };
+        assert_eq!(statistic_value, "handler_latency_yb_ysqlserver_SQLProcessor_CatalogCacheMisses, 439, 0, 439");
+    }
+
+    #[test]
+    fn parse_tablet_metrics_rejectedmetricvalue() {
+        // Funny, when I checked with version 2.11.2.0-b89 I could not find the value that only fitted in an unsigned 64 bit integer.
+        // Still let's check for it.
+        // The id is yb.cqlserver, because that is where I found this value.
+        // The value 18446744073709551615 is too big for a signed 64 bit integer (limit = 2^63-1), this value is 2^64-1.
+        let json = r#"[
+    {
+        "type": "server",
+        "id": "yb.cqlserver",
+        "attributes": {},
+        "metrics": [
+            {
+                "name": "madeup_value",
+                "value": 18446744073709551615
+            }
+        ]
+    }
+    ]"#.to_string();
+        let result = parse_metrics(json.clone());
+        assert_eq!(result[0].metrics_type,"server");
+        let statistic_value = match &result[0].metrics[0] {
+            NamedMetrics::RejectedMetricValue { name, value} => format!("{}, {}",name, value),
+            _ => String::from("Not RejectedMetricValue")
+        };
+        assert_eq!(statistic_value, "madeup_value, 18446744073709551615");
+    }
+
+        #[test]
     fn parse_master_2_11_1_0_build_305() {
         let master_metrics = include_str!("master_metrics_2_11_1_0_build_305.json");
         let metrics_parse: serde_json::Result<Vec<Metrics>> = serde_json::from_str(&master_metrics);

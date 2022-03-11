@@ -212,7 +212,6 @@ fn parse_metrics( metrics_data: String ) -> Vec<Metrics> {
 }
 
 pub fn build_metrics_btreemaps(
-    details_enable: bool,
     stored_values: Vec<StoredValues>,
     stored_countsum: Vec<StoredCountSum>,
     stored_countsumrows: Vec<StoredCountSumRows>
@@ -221,75 +220,40 @@ pub fn build_metrics_btreemaps(
     BTreeMap<(String, String, String, String), StoredCountSum>,
     BTreeMap<(String, String, String, String), StoredCountSumRows>
 ) {
-    let values_btreemap: BTreeMap<(String, String, String, String), StoredValues> = build_metrics_values_btreemap(&details_enable, stored_values);
-    let countsum_btreemap: BTreeMap<(String, String, String, String), StoredCountSum> = build_metrics_countsum_btreemap(&details_enable, stored_countsum);
+    let values_btreemap: BTreeMap<(String, String, String, String), StoredValues> = build_metrics_values_btreemap(stored_values);
+    let countsum_btreemap: BTreeMap<(String, String, String, String), StoredCountSum> = build_metrics_countsum_btreemap(stored_countsum);
     let countsumrows_btreemap: BTreeMap<(String, String, String, String), StoredCountSumRows> = build_metrics_countsumrows_btreemap(stored_countsumrows);
 
     (values_btreemap, countsum_btreemap, countsumrows_btreemap)
 }
 
 fn build_metrics_values_btreemap(
-    details_enable: &bool,
     stored_values: Vec<StoredValues>
 ) -> BTreeMap<(String, String, String, String), StoredValues>
 {
     let mut values_btreemap: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
     for row in stored_values {
         if row.metric_type == "table" || row.metric_type == "tablet" {
-            if *details_enable {
-                match values_btreemap.get_mut( &( row.hostname_port.clone(), row.metric_type.clone(), row.metric_id.clone(), row.metric_name.clone()) ) {
-                    Some( _value_row ) => {
-                        panic!("Error: (values_btreemap) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port.clone(), &row.metric_type.clone(), &row.metric_id.clone(), &row.metric_name.clone());
-                    },
-                    None => {
-                        values_btreemap.insert( (
-                                                    row.hostname_port.to_string(),
-                                                    row.metric_type.to_string(),
-                                                    row.metric_id.to_string(),
-                                                    row.metric_name.to_string()
-                                                ), StoredValues {
-                            hostname_port: row.hostname_port.to_string(),
-                            timestamp: row.timestamp,
-                            metric_type: row.metric_type.to_string(),
-                            metric_id: row.metric_id.to_string(),
-                            attribute_namespace: row.attribute_namespace.to_string(),
-                            attribute_table_name: row.attribute_table_name.to_string(),
-                            metric_name: row.metric_name.to_string(),
-                            metric_value: row.metric_value
-                        });
-                    }
-                }
-            } else {
-                match values_btreemap.get_mut(&( row.hostname_port.clone(), row.metric_type.clone(), String::from("-"), row.metric_name.clone()) ) {
-                    Some(value_row) => {
-                        *value_row = StoredValues {
-                            hostname_port: value_row.hostname_port.to_string(),
-                            timestamp: value_row.timestamp,
-                            metric_type: value_row.metric_type.to_string(),
-                            metric_id: String::from("-"),
-                            attribute_namespace: String::from("-"),
-                            attribute_table_name: String::from("-"),
-                            metric_name: value_row.metric_name.to_string(),
-                            metric_value: value_row.metric_value + row.metric_value
-                        }
-                    },
-                    None => {
-                        values_btreemap.insert((
-                                                   row.hostname_port.to_string(),
-                                                   row.metric_type.to_string(),
-                                                   String::from("-"),
-                                                   row.metric_name.to_string()
-                                               ), StoredValues {
-                            hostname_port: row.hostname_port.to_string(),
-                            timestamp: row.timestamp,
-                            metric_type: row.metric_type.to_string(),
-                            metric_id: String::from("-"),
-                            attribute_namespace: String::from("-"),
-                            attribute_table_name: String::from("-"),
-                            metric_name: row.metric_name.to_string(),
-                            metric_value: row.metric_value,
-                        });
-                    }
+            match values_btreemap.get_mut(&(row.hostname_port.clone(), row.metric_type.clone(), row.metric_id.clone(), row.metric_name.clone())) {
+                Some(_value_row) => {
+                    panic!("Error: (values_btreemap) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port.clone(), &row.metric_type.clone(), &row.metric_id.clone(), &row.metric_name.clone());
+                },
+                None => {
+                    values_btreemap.insert((
+                                               row.hostname_port.to_string(),
+                                               row.metric_type.to_string(),
+                                               row.metric_id.to_string(),
+                                               row.metric_name.to_string()
+                                           ), StoredValues {
+                        hostname_port: row.hostname_port.to_string(),
+                        timestamp: row.timestamp,
+                        metric_type: row.metric_type.to_string(),
+                        metric_id: row.metric_id.to_string(),
+                        attribute_namespace: row.attribute_namespace.to_string(),
+                        attribute_table_name: row.attribute_table_name.to_string(),
+                        metric_name: row.metric_name.to_string(),
+                        metric_value: row.metric_value,
+                    });
                 }
             }
         } else {
@@ -321,94 +285,41 @@ fn build_metrics_values_btreemap(
 }
 
 fn build_metrics_countsum_btreemap(
-    details_enable: &bool,
     stored_countsum: Vec<StoredCountSum>
 ) -> BTreeMap<(String, String, String, String), StoredCountSum>
 {
     let mut countsum_btreemap: BTreeMap<(String, String, String, String), StoredCountSum> = BTreeMap::new();
     for row in stored_countsum {
         if row.metric_type == "table" || row.metric_type == "tablet" {
-            if *details_enable {
-                match countsum_btreemap.get_mut( &( row.hostname_port.clone(), row.metric_type.clone(), row.metric_id.clone(), row.metric_name.clone()) ) {
-                    Some( _countsum_row ) => {
-                        panic!("Error: (countsum_btreemap) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port.clone(), &row.metric_type.clone(), &row.metric_id.clone(), &row.metric_name.clone());
-                    },
-                    None => {
-                        countsum_btreemap.insert((
-                                                     row.hostname_port.to_string(),
-                                                     row.metric_type.to_string(),
-                                                     row.metric_id.to_string(),
-                                                     row.metric_name.to_string()
-                                                 ), StoredCountSum {
-                            hostname_port: row.hostname_port.to_string(),
-                            timestamp: row.timestamp,
-                            metric_type: row.metric_type.to_string(),
-                            metric_id: row.metric_id.to_string(),
-                            attribute_namespace: row.attribute_namespace.to_string(),
-                            attribute_table_name: row.attribute_table_name.to_string(),
-                            metric_name: row.metric_name.to_string(),
-                            metric_total_count: row.metric_total_count,
-                            metric_min: 0,
-                            metric_mean: 0.0,
-                            metric_percentile_75: 0,
-                            metric_percentile_95: 0,
-                            metric_percentile_99: 0,
-                            metric_percentile_99_9: 0,
-                            metric_percentile_99_99: 0,
-                            metric_max: 0,
-                            metric_total_sum: row.metric_total_sum
-                        });
-                    }
-                }
-            } else {
-                match countsum_btreemap.get_mut(&( row.hostname_port.clone(), row.metric_type.clone(), String::from("-"), row.metric_name.clone()) ) {
-                    Some( countsum_row) => {
-                        *countsum_row = StoredCountSum {
-                            hostname_port: countsum_row.hostname_port.to_string(),
-                            timestamp: countsum_row.timestamp,
-                            metric_type: countsum_row.metric_type.to_string(),
-                            metric_id: String::from("-"),
-                            attribute_namespace: String::from("-"),
-                            attribute_table_name: String::from("-"),
-                            metric_name: countsum_row.metric_name.to_string(),
-                            metric_total_count: countsum_row.metric_total_count + row.metric_total_count,
-                            metric_min: 0,
-                            metric_mean: 0.0,
-                            metric_percentile_75: 0,
-                            metric_percentile_95: 0,
-                            metric_percentile_99: 0,
-                            metric_percentile_99_9: 0,
-                            metric_percentile_99_99: 0,
-                            metric_max: 0,
-                            metric_total_sum: countsum_row.metric_total_sum + row.metric_total_sum
-                        }
-                    },
-                    None => {
-                        countsum_btreemap.insert((
-                                                     row.hostname_port.to_string(),
-                                                     row.metric_type.to_string(),
-                                                     String::from("-"),
-                                                     row.metric_name.to_string()
-                                                 ), StoredCountSum {
-                            hostname_port: row.hostname_port.to_string(),
-                            timestamp: row.timestamp,
-                            metric_type: row.metric_type.to_string(),
-                            metric_id: String::from("-"),
-                            attribute_namespace: String::from("-"),
-                            attribute_table_name: String::from("-"),
-                            metric_name: row.metric_name.to_string(),
-                            metric_total_count: row.metric_total_count,
-                            metric_min: 0,
-                            metric_mean: 0.0,
-                            metric_percentile_75: 0,
-                            metric_percentile_95: 0,
-                            metric_percentile_99: 0,
-                            metric_percentile_99_9: 0,
-                            metric_percentile_99_99: 0,
-                            metric_max: 0,
-                            metric_total_sum: row.metric_total_sum
-                        });
-                    }
+            match countsum_btreemap.get_mut(&(row.hostname_port.clone(), row.metric_type.clone(), row.metric_id.clone(), row.metric_name.clone())) {
+                Some(_countsum_row) => {
+                    panic!("Error: (countsum_btreemap) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port.clone(), &row.metric_type.clone(), &row.metric_id.clone(), &row.metric_name.clone());
+                },
+                None => {
+                    countsum_btreemap.insert((
+                                                 row.hostname_port.to_string(),
+                                                 row.metric_type.to_string(),
+                                                 row.metric_id.to_string(),
+                                                 row.metric_name.to_string()
+                                             ), StoredCountSum {
+                        hostname_port: row.hostname_port.to_string(),
+                        timestamp: row.timestamp,
+                        metric_type: row.metric_type.to_string(),
+                        metric_id: row.metric_id.to_string(),
+                        attribute_namespace: row.attribute_namespace.to_string(),
+                        attribute_table_name: row.attribute_table_name.to_string(),
+                        metric_name: row.metric_name.to_string(),
+                        metric_total_count: row.metric_total_count,
+                        metric_min: 0,
+                        metric_mean: 0.0,
+                        metric_percentile_75: 0,
+                        metric_percentile_95: 0,
+                        metric_percentile_99: 0,
+                        metric_percentile_99_9: 0,
+                        metric_percentile_99_99: 0,
+                        metric_max: 0,
+                        metric_total_sum: row.metric_total_sum,
+                    });
                 }
             }
         } else {

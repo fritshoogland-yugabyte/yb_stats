@@ -132,7 +132,7 @@ fn main() {
         let stored_countsumrows: Vec<StoredCountSumRows> = read_countsumrows_snapshot(&begin_snapshot, &yb_stats_directory);
         let stored_statements: Vec<StoredStatements> = read_statements_snapshot(&begin_snapshot, &yb_stats_directory);
         // process first snapshot results
-        let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps(details_enable, stored_values, stored_countsum, stored_countsumrows);
+        let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps(stored_values, stored_countsum, stored_countsumrows);
         let (mut values_diff, mut countsum_diff, mut countsumrows_diff) = insert_first_snapshot_metrics(values_map, countsum_map, countsumrows_map);
         let mut statements_diff = insert_first_snapshot_statements(stored_statements);
 
@@ -142,7 +142,7 @@ fn main() {
         let stored_countsumrows: Vec<StoredCountSumRows> = read_countsumrows_snapshot(&end_snapshot, &yb_stats_directory);
         let stored_statements: Vec<StoredStatements> = read_statements_snapshot(&end_snapshot, &yb_stats_directory);
         // process second snapshot results
-        let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps(details_enable, stored_values, stored_countsum, stored_countsumrows);
+        let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps(stored_values, stored_countsum, stored_countsumrows);
         insert_second_snapshot_metrics(values_map, &mut values_diff, countsum_map, &mut countsum_diff, countsumrows_map, &mut countsumrows_diff, &begin_snapshot_row.timestamp);
         insert_second_snapshot_statements(stored_statements, &mut statements_diff, &begin_snapshot_row.timestamp);
 
@@ -185,7 +185,7 @@ fn main() {
             add_to_statements_vector(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_statements);
         }
         // process first snapshot results
-        let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps(details_enable, stored_values, stored_countsum, stored_countsumrows);
+        let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps( stored_values, stored_countsum, stored_countsumrows);
         let (mut values_diff, mut countsum_diff, mut countsumrows_diff) = insert_first_snapshot_metrics(values_map, countsum_map, countsumrows_map);
         let mut statements_diff = insert_first_snapshot_statements(stored_statements);
 
@@ -208,7 +208,7 @@ fn main() {
             add_to_statements_vector(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_statements);
         }
         // process second snapshot results
-        let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps(details_enable, stored_values, stored_countsum, stored_countsumrows);
+        let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps( stored_values, stored_countsum, stored_countsumrows);
         insert_second_snapshot_metrics(values_map, &mut values_diff, countsum_map, &mut countsum_diff, countsumrows_map, &mut countsumrows_diff, &first_snapshot_time);
         insert_second_snapshot_statements(stored_statements, &mut statements_diff, &first_snapshot_time);
 

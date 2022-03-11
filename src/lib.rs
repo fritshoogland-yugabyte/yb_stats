@@ -84,12 +84,12 @@ pub struct SnapshotDiffCountSumRows {
     pub namespace: String,
     pub first_snapshot_time: DateTime<Local>,
     pub second_snapshot_time: DateTime<Local>,
-    pub first_snapshot_count: i64,
-    pub first_snapshot_sum: i64,
-    pub first_snapshot_rows: i64,
-    pub second_snapshot_count: i64,
-    pub second_snapshot_sum: i64,
-    pub second_snapshot_rows: i64,
+    pub first_snapshot_count: u64,
+    pub first_snapshot_sum: u64,
+    pub first_snapshot_rows: u64,
+    pub second_snapshot_count: u64,
+    pub second_snapshot_sum: u64,
+    pub second_snapshot_rows: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -425,19 +425,6 @@ pub fn perform_snapshot( hostname_port_vec: Vec<&str>,
     snapshot_number
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 pub fn insert_first_snapshot_statements(
     stored_statements: Vec<StoredStatements>
 ) -> BTreeMap<(String, String), SnapshotDiffStatements>
@@ -674,11 +661,13 @@ pub fn print_diff_statements(
         if hostname_filter.is_match(&hostname)
         && statements_row.second_calls - statements_row.first_calls != 0 {
             let adaptive_length = if query.len() < 50 { query.len() } else { 50 };
-            println!("{:20} {:10} avg.time: {:15.3} ms avg.rows: {:10} : {:50}",
+            println!("{:20} {:10} avg: {:15.3} tot: {:15.3} ms avg: {:10} tot: {:10} rows: {:50}",
                      hostname,
                      statements_row.second_calls - statements_row.first_calls,
                      (statements_row.second_total_time - statements_row.first_total_time) / (statements_row.second_calls as f64 - statements_row.first_calls as f64),
+                     statements_row.second_total_time - statements_row.first_total_time as f64,
                      (statements_row.second_rows - statements_row.first_rows) / (statements_row.second_calls - statements_row.first_calls),
+                     statements_row.second_rows - statements_row.first_rows,
                      query.substring(0, adaptive_length).replace("\n", "")
             );
         }
@@ -708,7 +697,7 @@ pub fn print_diff(value_diff: &BTreeMap<(String, String, String, String), Snapsh
             if details.stat_type != "gauge"
             && value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value != 0 {
                 if *details_enable {
-                    println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:6} {:>15.3}/s",
+                    println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:6} {:>15.3} /s",
                              hostname,
                              metric_type,
                              metric_id.substring(adaptive_length, metric_id.len()),
@@ -720,7 +709,7 @@ pub fn print_diff(value_diff: &BTreeMap<(String, String, String, String), Snapsh
                              ((value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value) as f64 / (value_diff_row.second_snapshot_time - value_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64)
                     );
                 } else {
-                    println!("{:20} {:8} {:70} {:15} {:6} {:>15.3}/s",
+                    println!("{:20} {:8} {:70} {:15} {:6} {:>15.3} /s",
                              hostname,
                              metric_type,
                              metric_name,
@@ -770,7 +759,7 @@ pub fn print_diff(value_diff: &BTreeMap<(String, String, String, String), Snapsh
             let adaptive_length = if metric_id.len() < 15 { 0 } else { metric_id.len() - 15 };
             if countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count != 0 {
                 if *details_enable {
-                    println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:>15.3}/s avg: {:9.0} tot: {:>15.3} {:10}",
+                    println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15}        {:>15.3} /s avg: {:9.0} tot: {:>15.3} {:10}",
                              hostname,
                              metric_type,
                              metric_id.substring(adaptive_length, metric_id.len()),
@@ -784,7 +773,7 @@ pub fn print_diff(value_diff: &BTreeMap<(String, String, String, String), Snapsh
                              details.unit_suffix
                     );
                 } else {
-                    println!("{:20} {:8} {:70} {:15} {:>15.3}/s avg: {:9.0} tot: {:>15.3} {:10}",
+                    println!("{:20} {:8} {:70} {:15}        {:>15.3} /s avg: {:9.0} tot: {:>15.3} {:10}",
                              hostname,
                              metric_type,
                              metric_name,
@@ -803,12 +792,14 @@ pub fn print_diff(value_diff: &BTreeMap<(String, String, String, String), Snapsh
         if hostname_filter.is_match( &hostname)
         && stat_name_filter.is_match(&metric_name) {
             if countsumrows_diff_row.second_snapshot_count - countsumrows_diff_row.first_snapshot_count != 0 {
-                println!("{:20} {:70} {:>15} avg: {:>15.3} ms, avg.rows: {:>15}",
+                println!("{:20} {:70} {:>15} avg: {:>15.3} tot: {:>15.3} ms, avg: {:>15} tot: {:>15} rows",
                     hostname,
                     metric_name,
                     countsumrows_diff_row.second_snapshot_count - countsumrows_diff_row.first_snapshot_count,
                     ((countsumrows_diff_row.second_snapshot_sum as f64 - countsumrows_diff_row.first_snapshot_sum as f64)/1000.0) / (countsumrows_diff_row.second_snapshot_count - countsumrows_diff_row.first_snapshot_count) as f64,
-                    countsumrows_diff_row.second_snapshot_rows - countsumrows_diff_row.first_snapshot_rows / (countsumrows_diff_row.second_snapshot_count - countsumrows_diff_row.first_snapshot_count)
+                    (countsumrows_diff_row.second_snapshot_sum as f64 - countsumrows_diff_row.first_snapshot_sum as f64)/1000.0,
+                    (countsumrows_diff_row.second_snapshot_rows - countsumrows_diff_row.first_snapshot_rows) / (countsumrows_diff_row.second_snapshot_count - countsumrows_diff_row.first_snapshot_count),
+                    countsumrows_diff_row.second_snapshot_rows - countsumrows_diff_row.first_snapshot_rows
                 );
             }
         }

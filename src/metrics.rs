@@ -46,9 +46,9 @@ pub enum NamedMetrics {
     },
     MetricCountSumRows {
         name: String,
-        count: i64,
-        sum: i64,
-        rows: i64,
+        count: u64,
+        sum: u64,
+        rows: u64,
     },
 }
 
@@ -94,9 +94,9 @@ pub struct StoredCountSumRows {
     pub attribute_namespace: String,
     pub attribute_table_name: String,
     pub metric_name: String,
-    pub metric_count: i64,
-    pub metric_sum: i64,
-    pub metric_rows: i64,
+    pub metric_count: u64,
+    pub metric_sum: u64,
+    pub metric_rows: u64,
 }
 
 pub fn read_metrics( hostname: &str) -> Vec<Metrics> {

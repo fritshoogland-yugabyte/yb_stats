@@ -199,6 +199,7 @@ fn main() {
         let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
         let mut stored_statements: Vec<StoredStatements> = Vec::new();
 
+        let second_snapshot_time = Local::now();
         for hostname in &hostname_port_vec {
             let detail_snapshot_time = Local::now();
             let data_parsed_from_json = read_metrics(&hostname);
@@ -212,6 +213,8 @@ fn main() {
         insert_second_snapshot_statements(stored_statements, &mut statements_diff, &first_snapshot_time);
 
         // print difference
+        //println!("Time between snapshots: {:5.3}", (second_snapshot_time-first_snapshot_time).num_milliseconds()/1000);
+        println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time-first_snapshot_time).num_milliseconds() as f64/1000 as f64);
         print_diff(&values_diff, &countsum_diff, &countsumrows_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
         print_diff_statements(&statements_diff, &hostname_filter);
 

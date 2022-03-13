@@ -15,7 +15,7 @@ use memtrackers::{MemTrackers, StoredMemTrackers, read_memtrackers, add_to_memtr
 mod loglines;
 use loglines::{StoredLogLines, read_loglines, add_to_loglines_vector};
 
-mod gflags;
+pub mod gflags;
 use gflags::{StoredGFlags, read_gflags, add_to_gflags_vector};
 
 mod versions;

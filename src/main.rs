@@ -5,19 +5,24 @@ use chrono::Local;
 use std::io::stdin;
 use std::env;
 
+//mod yb_statsmetrics};
+use yb_stats::metrics::{
+    StoredValues,
+    StoredCountSum,
+    StoredCountSumRows,
+    read_metrics,
+    add_to_metric_vectors,
+    build_metrics_btreemaps
+};
+
+
 // structs from lib
-use yb_stats::{StoredValues,
-               StoredCountSum,
-               Snapshot,
-               StoredCountSumRows,
-               StoredStatements};
+use yb_stats::{
+    Snapshot,
+};
 
 // functions from lib
 use yb_stats::{perform_snapshot,
-               read_metrics,
-               add_to_metric_vectors,
-               read_statements,
-               add_to_statements_vector,
                print_diff,
                print_diff_statements,
                read_snapshots_from_file,
@@ -26,11 +31,18 @@ use yb_stats::{perform_snapshot,
                read_countsum_snapshot,
                read_countsumrows_snapshot,
                read_statements_snapshot,
-               build_metrics_btreemaps,
                insert_first_snapshot_metrics,
                insert_first_snapshot_statements,
                insert_second_snapshot_metrics,
                insert_second_snapshot_statements};
+
+mod memtrackers;
+use memtrackers::print_memtrackers_data;
+mod loglines;
+use loglines::print_loglines;
+mod versions;
+use versions::print_version_data;
+use yb_stats::statements::{StoredStatements, read_statements, add_to_statements_vector};
 
 #[derive(Debug, StructOpt)]
 struct Opts {
@@ -61,6 +73,18 @@ struct Opts {
     /// this lists the snapshots, and allows you to select a begin and end snapshot for a diff report
     #[structopt(long)]
     snapshot_diff: bool,
+    /// print memtrackers data for the given snapshot
+    #[structopt(long, default_value = "-1")]
+    print_memtrackers: String,
+    /// print log data for the given snapshot
+    #[structopt(long, default_value = "-1")]
+    print_log: String,
+    /// print version data for the given snapshot
+    #[structopt(long, default_value = "-1")]
+    print_version: String,
+    /// log data severity to include: optional: I
+    #[structopt(long, default_value = "WEF")]
+    log_severity: String,
 }
 
 fn main() {
@@ -79,6 +103,10 @@ fn main() {
     let snapshot: bool = options.snapshot as bool;
     let snapshot_comment: String = options.snapshot_comment;
     let snapshot_diff: bool = options.snapshot_diff as bool;
+    let print_memtrackers: String = options.print_memtrackers;
+    let print_log: String = options.print_log;
+    let print_version: String = options.print_version;
+    let log_severity: String = options.log_severity;
 
     if snapshot {
 
@@ -86,9 +114,7 @@ fn main() {
         println!("snapshot number {}", snapshot_number);
         process::exit(0);
 
-    }
-
-    if snapshot_diff {
+    } else if snapshot_diff {
 
         let current_directory = env::current_dir().unwrap();
         let yb_stats_directory = current_directory.join("yb_stats.snapshots");
@@ -102,27 +128,45 @@ fn main() {
 
         // first snapshot
         let stored_values: Vec<StoredValues> = read_values_snapshot(&begin_snapshot, &yb_stats_directory);
-        let stored_countsum: Vec<StoredCountSum> = read_countsum_snapshot( &begin_snapshot, &yb_stats_directory);
-        let stored_countsumrows: Vec<StoredCountSumRows> = read_countsumrows_snapshot( &begin_snapshot, &yb_stats_directory);
-        let stored_statements: Vec<StoredStatements> = read_statements_snapshot( &begin_snapshot, &yb_stats_directory);
+        let stored_countsum: Vec<StoredCountSum> = read_countsum_snapshot(&begin_snapshot, &yb_stats_directory);
+        let stored_countsumrows: Vec<StoredCountSumRows> = read_countsumrows_snapshot(&begin_snapshot, &yb_stats_directory);
+        let stored_statements: Vec<StoredStatements> = read_statements_snapshot(&begin_snapshot, &yb_stats_directory);
         // process first snapshot results
-        let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps(details_enable, stored_values, stored_countsum, stored_countsumrows);
+        let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps(stored_values, stored_countsum, stored_countsumrows);
         let (mut values_diff, mut countsum_diff, mut countsumrows_diff) = insert_first_snapshot_metrics(values_map, countsum_map, countsumrows_map);
         let mut statements_diff = insert_first_snapshot_statements(stored_statements);
 
         // second snapshot
         let stored_values: Vec<StoredValues> = read_values_snapshot(&end_snapshot, &yb_stats_directory);
-        let stored_countsum: Vec<StoredCountSum> = read_countsum_snapshot( &end_snapshot, &yb_stats_directory);
-        let stored_countsumrows: Vec<StoredCountSumRows> = read_countsumrows_snapshot( &end_snapshot, &yb_stats_directory);
-        let stored_statements: Vec<StoredStatements> = read_statements_snapshot( &end_snapshot, &yb_stats_directory);
+        let stored_countsum: Vec<StoredCountSum> = read_countsum_snapshot(&end_snapshot, &yb_stats_directory);
+        let stored_countsumrows: Vec<StoredCountSumRows> = read_countsumrows_snapshot(&end_snapshot, &yb_stats_directory);
+        let stored_statements: Vec<StoredStatements> = read_statements_snapshot(&end_snapshot, &yb_stats_directory);
         // process second snapshot results
-        let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps(details_enable, stored_values, stored_countsum, stored_countsumrows);
+        let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps(stored_values, stored_countsum, stored_countsumrows);
         insert_second_snapshot_metrics(values_map, &mut values_diff, countsum_map, &mut countsum_diff, countsumrows_map, &mut countsumrows_diff, &begin_snapshot_row.timestamp);
         insert_second_snapshot_statements(stored_statements, &mut statements_diff, &begin_snapshot_row.timestamp);
 
         // print difference
         print_diff(&values_diff, &countsum_diff, &countsumrows_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
         print_diff_statements(&statements_diff, &hostname_filter);
+
+    } else if print_memtrackers != "-1" {
+
+        let current_directory = env::current_dir().unwrap();
+        let yb_stats_directory = current_directory.join("yb_stats.snapshots");
+        print_memtrackers_data(&print_memtrackers, &yb_stats_directory, &hostname_filter, &stat_name_filter);
+
+    } else if print_log != "-1" {
+
+        let current_directory = env::current_dir().unwrap();
+        let yb_stats_directory = current_directory.join("yb_stats.snapshots");
+        print_loglines(&print_log, &yb_stats_directory, &hostname_filter, &log_severity);
+
+    } else if print_version != "-1" {
+
+        let current_directory = env::current_dir().unwrap();
+        let yb_stats_directory = current_directory.join("yb_stats.snapshots");
+        print_version_data(&print_version, &yb_stats_directory, &hostname_filter);
 
     } else {
 
@@ -141,7 +185,7 @@ fn main() {
             add_to_statements_vector(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_statements);
         }
         // process first snapshot results
-        let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps(details_enable, stored_values, stored_countsum, stored_countsumrows);
+        let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps( stored_values, stored_countsum, stored_countsumrows);
         let (mut values_diff, mut countsum_diff, mut countsumrows_diff) = insert_first_snapshot_metrics(values_map, countsum_map, countsumrows_map);
         let mut statements_diff = insert_first_snapshot_statements(stored_statements);
 
@@ -155,6 +199,7 @@ fn main() {
         let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
         let mut stored_statements: Vec<StoredStatements> = Vec::new();
 
+        let second_snapshot_time = Local::now();
         for hostname in &hostname_port_vec {
             let detail_snapshot_time = Local::now();
             let data_parsed_from_json = read_metrics(&hostname);
@@ -163,11 +208,13 @@ fn main() {
             add_to_statements_vector(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_statements);
         }
         // process second snapshot results
-        let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps(details_enable, stored_values, stored_countsum, stored_countsumrows);
+        let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps( stored_values, stored_countsum, stored_countsumrows);
         insert_second_snapshot_metrics(values_map, &mut values_diff, countsum_map, &mut countsum_diff, countsumrows_map, &mut countsumrows_diff, &first_snapshot_time);
         insert_second_snapshot_statements(stored_statements, &mut statements_diff, &first_snapshot_time);
 
         // print difference
+        //println!("Time between snapshots: {:5.3}", (second_snapshot_time-first_snapshot_time).num_milliseconds()/1000);
+        println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time-first_snapshot_time).num_milliseconds() as f64/1000 as f64);
         print_diff(&values_diff, &countsum_diff, &countsumrows_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
         print_diff_statements(&statements_diff, &hostname_filter);
 

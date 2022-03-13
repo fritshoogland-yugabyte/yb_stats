@@ -9,9 +9,26 @@ use value_statistic_details::{ValueStatisticDetails, value_create_hashmap};
 mod countsum_statistic_details;
 use countsum_statistic_details::{CountSumStatisticDetails, countsum_create_hashmap};
 
+mod memtrackers;
+use memtrackers::{MemTrackers, StoredMemTrackers, read_memtrackers, add_to_memtrackers_vector};
+
+mod loglines;
+use loglines::{StoredLogLines, read_loglines, add_to_loglines_vector};
+
+mod gflags;
+use gflags::{StoredGFlags, read_gflags, add_to_gflags_vector};
+
+mod versions;
+use versions::{StoredVersionData, read_version, add_to_version_vector};
+
+pub mod metrics;
+use metrics::{StoredValues,StoredCountSum, StoredCountSumRows, read_metrics, add_to_metric_vectors};
+
+pub mod statements;
+use statements::{StoredStatements, read_statements, add_to_statements_vector};
+
 use std::collections::BTreeMap;
 use chrono::{DateTime, Local};
-use port_scanner::scan_port_addr;
 use std::process;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -19,161 +36,6 @@ use std::env;
 use regex::Regex;
 use substring::Substring;
 use std::io::{stdin, stdout, Write};
-
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Metrics {
-    #[serde(rename = "type")]
-    pub metrics_type: String,
-    pub id: String,
-    pub attributes: Option<Attributes>,
-    pub metrics: Vec<NamedMetrics>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Attributes {
-    pub namespace_name: Option<String>,
-    pub table_name: Option<String>,
-    pub table_id: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct VersionData {
-    pub git_hash: String,
-    pub build_hostname: String,
-    pub build_timestamp: String,
-    pub build_username: String,
-    pub build_clean_repo: bool,
-    pub build_id: String,
-    pub build_type: String,
-    pub version_number: String,
-    pub build_number: String
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Statement {
-    pub statements: Vec<Queries>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Queries {
-    pub query: String,
-    pub calls: i64,
-    pub total_time: f64,
-    pub min_time: f64,
-    pub max_time: f64,
-    pub mean_time: f64,
-    pub stddev_time: f64,
-    pub rows: i64,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(untagged)]
-pub enum NamedMetrics {
-    MetricValue {
-        name: String,
-        value: i64,
-    },
-    RejectedMetricValue {
-        name: String,
-        value: u64,
-    },
-    MetricCountSum {
-        name: String,
-        total_count: u64,
-        min: u64,
-        mean: f64,
-        percentile_75: u64,
-        percentile_95: u64,
-        percentile_99: u64,
-        percentile_99_9: u64,
-        percentile_99_99: u64,
-        max: u64,
-        total_sum: u64,
-    },
-    MetricCountSumRows {
-        name: String,
-        count: i64,
-        sum: i64,
-        rows: i64,
-    },
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct StoredStatements {
-    pub hostname_port: String,
-    pub timestamp: DateTime<Local>,
-    pub query: String,
-    pub calls: i64,
-    pub total_time: f64,
-    pub min_time: f64,
-    pub max_time: f64,
-    pub mean_time: f64,
-    pub stddev_time: f64,
-    pub rows: i64,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct StoredVersionData {
-    pub hostname_port: String,
-    pub timestamp: DateTime<Local>,
-    pub git_hash: String,
-    pub build_hostname: String,
-    pub build_timestamp: String,
-    pub build_username: String,
-    pub build_clean_repo: String,
-    pub build_id: String,
-    pub build_type: String,
-    pub version_number: String,
-    pub build_number: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct StoredValues {
-    pub hostname_port: String,
-    pub timestamp: DateTime<Local>,
-    pub metric_type: String,
-    pub metric_id: String,
-    pub attribute_namespace: String,
-    pub attribute_table_name: String,
-    pub metric_name: String,
-    pub metric_value: i64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct StoredCountSum {
-    pub hostname_port: String,
-    pub timestamp: DateTime<Local>,
-    pub metric_type: String,
-    pub metric_id: String,
-    pub attribute_namespace: String,
-    pub attribute_table_name: String,
-    pub metric_name: String,
-    pub metric_total_count: u64,
-    pub metric_min: u64,
-    pub metric_mean: f64,
-    pub metric_percentile_75: u64,
-    pub metric_percentile_95: u64,
-    pub metric_percentile_99: u64,
-    pub metric_percentile_99_9: u64,
-    pub metric_percentile_99_99: u64,
-    pub metric_max: u64,
-    pub metric_total_sum: u64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct StoredCountSumRows {
-    pub hostname_port: String,
-    pub timestamp: DateTime<Local>,
-    pub metric_type: String,
-    pub metric_id: String,
-    pub attribute_namespace: String,
-    pub attribute_table_name: String,
-    pub metric_name: String,
-    pub metric_count: i64,
-    pub metric_sum: i64,
-    pub metric_rows: i64,
-}
 
 #[derive(Debug)]
 pub struct SnapshotDiffStatements {
@@ -222,12 +84,12 @@ pub struct SnapshotDiffCountSumRows {
     pub namespace: String,
     pub first_snapshot_time: DateTime<Local>,
     pub second_snapshot_time: DateTime<Local>,
-    pub first_snapshot_count: i64,
-    pub first_snapshot_sum: i64,
-    pub first_snapshot_rows: i64,
-    pub second_snapshot_count: i64,
-    pub second_snapshot_sum: i64,
-    pub second_snapshot_rows: i64,
+    pub first_snapshot_count: u64,
+    pub first_snapshot_sum: u64,
+    pub first_snapshot_rows: u64,
+    pub second_snapshot_count: u64,
+    pub second_snapshot_sum: u64,
+    pub second_snapshot_rows: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -235,177 +97,6 @@ pub struct Snapshot {
     pub number: i32,
     pub timestamp: DateTime<Local>,
     pub comment: String,
-}
-
-pub fn read_metrics( hostname: &str) -> Vec<Metrics> {
-        if ! scan_port_addr(hostname) {
-            println!("Warning! hostname:port {} cannot be reached, skipping", hostname.to_string());
-            return parse_metrics(String::from(""))
-        };
-        let data_from_http = reqwest::blocking::get(format!("http://{}/metrics", hostname.to_string()))
-            .unwrap_or_else(|e| {
-                eprintln!("Fatal: error reading from URL: {}", e);
-                process::exit(1);
-            })
-            .text().unwrap();
-        parse_metrics(data_from_http)
-}
-
-pub fn read_version( hostname: &str) -> VersionData {
-    if ! scan_port_addr( hostname) {
-        println!("Warning hostname:port {} cannot be reached, skipping", hostname.to_string());
-        return parse_version(String::from(""))
-    }
-    if let Ok(data_from_http) = reqwest::blocking::get( format!("http://{}/api/v1/version", hostname.to_string())) {
-        parse_version(data_from_http.text().unwrap())
-    } else {
-        parse_version(String::from(""))
-    }
-}
-
-pub fn read_statements( hostname: &str) -> Statement {
-    if ! scan_port_addr( hostname ) {
-        println!("Warning: hostname:port {} cannot be reached, skipping", hostname.to_string());
-        return parse_statements(String::from(""))
-    }
-    if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}/statements", hostname.to_string())) {
-        parse_statements(data_from_http.text().unwrap())
-    } else {
-        parse_statements(String::from(""))
-    }
-}
-
-pub fn add_to_statements_vector(statementdata: Statement,
-    hostname: &str,
-    snapshot_time: DateTime<Local>,
-    stored_statements: &mut Vec<StoredStatements>
-) {
-    for statement in statementdata.statements {
-        stored_statements.push( StoredStatements {
-            hostname_port: hostname.to_string(),
-            timestamp: snapshot_time,
-            query: statement.query.to_string(),
-            calls: statement.calls,
-            total_time: statement.total_time,
-            min_time: statement.min_time,
-            max_time: statement.max_time,
-            mean_time: statement.mean_time,
-            stddev_time: statement.stddev_time,
-            rows: statement.rows
-        });
-    }
-}
-
-pub fn add_to_version_vector(versiondata: VersionData,
-    hostname: &str,
-    snapshot_time: DateTime<Local>,
-    stored_versiondata: &mut Vec<StoredVersionData>
-) {
-   //for versiondata_row in versiondata {
-       stored_versiondata.push( StoredVersionData {
-           hostname_port: hostname.to_string(),
-           timestamp: snapshot_time,
-           git_hash: versiondata.git_hash.to_string(),
-           build_hostname: versiondata.build_hostname.to_string(),
-           build_timestamp: versiondata.build_timestamp.to_string(),
-           build_username: versiondata.build_username.to_string(),
-           build_clean_repo: versiondata.build_clean_repo.to_string(),
-           build_id: versiondata.build_id.to_string(),
-           build_type: versiondata.build_type.to_string(),
-           version_number: versiondata.version_number.to_string(),
-           build_number: versiondata.build_number.to_string()
-       });
-   //}
-}
-
-pub fn add_to_metric_vectors(data_parsed_from_json: Vec<Metrics>,
-                             hostname: &str,
-                             detail_snapshot_time: DateTime<Local>,
-                             stored_values: &mut Vec<StoredValues>,
-                             stored_countsum: &mut Vec<StoredCountSum>,
-                             stored_countsumrows: &mut Vec<StoredCountSumRows>,
-) {
-    for metric in data_parsed_from_json {
-        let metric_type = &metric.metrics_type;
-        let metric_id = &metric.id;
-        let metric_attribute_namespace_name = match &metric.attributes {
-            None => String::from("-"),
-            Some(attribute) => {
-                match &attribute.namespace_name {
-                    Some(namespace_name) => namespace_name.to_string(),
-                    None => String::from("-"),
-                }
-            }
-        };
-        let metric_attribute_table_name = match &metric.attributes {
-            None => String::from("-"),
-            Some(attribute) => {
-                match &attribute.table_name {
-                    Some(table_name) => table_name.to_string(),
-                    None => String::from("-"),
-                }
-            }
-        };
-        for statistic in &metric.metrics {
-            match statistic {
-                NamedMetrics::MetricValue { name, value } => {
-                    if *value > 0 {
-                        stored_values.push(StoredValues {
-                            hostname_port: hostname.to_string(),
-                            timestamp: detail_snapshot_time,
-                            metric_type: metric_type.to_string(),
-                            metric_id: metric_id.to_string(),
-                            attribute_namespace: metric_attribute_namespace_name.to_string(),
-                            attribute_table_name: metric_attribute_table_name.to_string(),
-                            metric_name: name.to_string(),
-                            metric_value: *value,
-                        });
-                    }
-                },
-                NamedMetrics::MetricCountSum { name, total_count, min, mean, percentile_75, percentile_95, percentile_99, percentile_99_9, percentile_99_99, max, total_sum } => {
-                    if *total_count > 0 {
-                        stored_countsum.push(StoredCountSum {
-                            hostname_port: hostname.to_string(),
-                            timestamp: detail_snapshot_time,
-                            metric_type: metric_type.to_string(),
-                            metric_id: metric_id.to_string(),
-                            attribute_namespace: metric_attribute_namespace_name.to_string(),
-                            attribute_table_name: metric_attribute_table_name.to_string(),
-                            metric_name: name.to_string(),
-                            metric_total_count: *total_count,
-                            metric_min: *min,
-                            metric_mean: *mean,
-                            metric_percentile_75: *percentile_75,
-                            metric_percentile_95: *percentile_95,
-                            metric_percentile_99: *percentile_99,
-                            metric_percentile_99_9: *percentile_99_9,
-                            metric_percentile_99_99: *percentile_99_99,
-                            metric_max: *max,
-                            metric_total_sum: *total_sum,
-                        });
-                    }
-                },
-                NamedMetrics::MetricCountSumRows { name, count, sum, rows} => {
-                    if *count > 0 {
-                        stored_countsumrows.push( StoredCountSumRows {
-                            hostname_port: hostname.to_string(),
-                            timestamp: detail_snapshot_time,
-                            metric_type: metric_type.to_string(),
-                            metric_id: metric_id.to_string(),
-                            attribute_namespace: metric_attribute_namespace_name.to_string(),
-                            attribute_table_name: metric_attribute_table_name.to_string(),
-                            metric_name: name.to_string(),
-                            metric_count: *count,
-                            metric_sum: *sum,
-                            metric_rows: *rows,
-                        })
-                    }
-                }
-                // this is to to soak up invalid/rejected values
-                NamedMetrics::RejectedMetricValue { name: _, value: _ } => {}
-            }
-        }
-    }
 }
 
 pub fn read_snapshots_from_file( yb_stats_directory: &PathBuf ) -> Vec<Snapshot> {
@@ -424,7 +115,6 @@ pub fn read_snapshots_from_file( yb_stats_directory: &PathBuf ) -> Vec<Snapshot>
         let _ = &snapshots.push(data);
     }
     snapshots
-
 }
 
 pub fn read_begin_end_snapshot_from_user( snapshots: &Vec<Snapshot> ) -> (String, String, Snapshot) {
@@ -538,6 +228,9 @@ pub fn perform_snapshot( hostname_port_vec: Vec<&str>,
     let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
     let mut stored_versiondata: Vec<StoredVersionData> = Vec::new();
     let mut stored_statements: Vec<StoredStatements> = Vec::new();
+    let mut stored_gflags: Vec<StoredGFlags> = Vec::new();
+    let mut stored_loglines: Vec<StoredLogLines> = Vec::new();
+    let mut stored_memtrackers: Vec<StoredMemTrackers> = Vec::new();
 
     for hostname in &hostname_port_vec {
         let detail_snapshot_time = Local::now();
@@ -547,7 +240,13 @@ pub fn perform_snapshot( hostname_port_vec: Vec<&str>,
         let data_parsed_from_json = read_version(&hostname);
         add_to_version_vector(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_versiondata);
         let data_parsed_from_json = read_statements(&hostname);
-        add_to_statements_vector(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_statements)
+        add_to_statements_vector(data_parsed_from_json, hostname, detail_snapshot_time, &mut stored_statements);
+        let gflags = read_gflags(&hostname);
+        add_to_gflags_vector(gflags, hostname, detail_snapshot_time, &mut stored_gflags);
+        let loglines = read_loglines(&hostname);
+        add_to_loglines_vector(loglines, hostname, &mut stored_loglines);
+        let memtrackers: Vec<MemTrackers> = read_memtrackers(&hostname);
+        add_to_memtrackers_vector(memtrackers, hostname, detail_snapshot_time, &mut stored_memtrackers);
     }
 
     let current_directory = env::current_dir().unwrap();
@@ -678,319 +377,52 @@ pub fn perform_snapshot( hostname_port_vec: Vec<&str>,
     }
     writer.flush().unwrap();
 
-    snapshot_number
-}
-
-fn parse_metrics( metrics_data: String ) -> Vec<Metrics> {
-    serde_json::from_str(&metrics_data )
+    let gflags_file = &current_snapshot_directory.join("gflags");
+    let file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(&gflags_file)
         .unwrap_or_else(|e| {
-            println!("Warning: error parsing /metrics json data: {}", e);
-            return Vec::<Metrics>::new();
-        })
-}
-
-fn parse_version( version_data: String ) -> VersionData {
-    serde_json::from_str( &version_data )
-        .unwrap_or_else(|_e| {
-            return VersionData { git_hash: "".to_string(), build_hostname: "".to_string(), build_timestamp: "".to_string(), build_username: "".to_string(), build_clean_repo: true, build_id: "".to_string(), build_type: "".to_string(), version_number: "".to_string(), build_number: "".to_string() };
-        })
-}
-
-fn parse_statements( statements_data: String ) -> Statement {
-    serde_json::from_str( &statements_data )
-        .unwrap_or_else(|_e| {
-            return Statement { statements: Vec::<Queries>::new() };
-        })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parse_master_2_11_1_0_build_305() {
-        let master_metrics = include_str!("master_metrics_2_11_1_0_build_305.json");
-        let metrics_parse: serde_json::Result<Vec<Metrics>> = serde_json::from_str(&master_metrics);
-        let metrics_parse = metrics_parse.unwrap();
-        assert_eq!(metrics_parse.len(),4);
+            eprintln!("Fatal: error writing gflags data in snapshot directory {}: {}", &gflags_file.clone().into_os_string().into_string().unwrap(), e);
+            process::exit(1);
+        });
+    let mut writer = csv::Writer::from_writer(file);
+    for row in stored_gflags {
+        writer.serialize(row).unwrap();
     }
-    #[test]
-    fn parse_tserver_2_11_1_0_build_305() {
-        let tserver_metrics = include_str!("tserver_metrics_2_11_1_0_build_305.json");
-        let metrics_parse: serde_json::Result<Vec<Metrics>> = serde_json::from_str(&tserver_metrics);
-        let metrics_parse = metrics_parse.unwrap();
-        assert_eq!(metrics_parse.len(),6);
-    }
-}
+    writer.flush().unwrap();
 
-pub fn build_metrics_btreemaps(
-    details_enable: bool,
-    stored_values: Vec<StoredValues>,
-    stored_countsum: Vec<StoredCountSum>,
-    stored_countsumrows: Vec<StoredCountSumRows>
-) -> (
-    BTreeMap<(String, String, String, String), StoredValues>,
-    BTreeMap<(String, String, String, String), StoredCountSum>,
-    BTreeMap<(String, String, String, String), StoredCountSumRows>
-) {
-    let values_btreemap: BTreeMap<(String, String, String, String), StoredValues> = build_metrics_values_btreemap(&details_enable, stored_values);
-    let countsum_btreemap: BTreeMap<(String, String, String, String), StoredCountSum> = build_metrics_countsum_btreemap(&details_enable, stored_countsum);
-    let countsumrows_btreemap: BTreeMap<(String, String, String, String), StoredCountSumRows> = build_metrics_countsumrows_btreemap(stored_countsumrows);
-
-    (values_btreemap, countsum_btreemap, countsumrows_btreemap)
-}
-fn build_metrics_values_btreemap(
-    details_enable: &bool,
-    stored_values: Vec<StoredValues>
-) -> BTreeMap<(String, String, String, String), StoredValues>
-{
-    let mut values_btreemap: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
-    for row in stored_values {
-        if row.metric_type == "table" || row.metric_type == "tablet" {
-            if *details_enable {
-                match values_btreemap.get_mut( &( row.hostname_port.clone(), row.metric_type.clone(), row.metric_id.clone(), row.metric_name.clone()) ) {
-                    Some( _value_row ) => {
-                        panic!("Error: (values_btreemap) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port.clone(), &row.metric_type.clone(), &row.metric_id.clone(), &row.metric_name.clone());
-                    },
-                    None => {
-                        values_btreemap.insert( (
-                            row.hostname_port.to_string(),
-                            row.metric_type.to_string(),
-                            row.metric_id.to_string(),
-                            row.metric_name.to_string()
-                        ), StoredValues {
-                            hostname_port: row.hostname_port.to_string(),
-                            timestamp: row.timestamp,
-                            metric_type: row.metric_type.to_string(),
-                            metric_id: row.metric_id.to_string(),
-                            attribute_namespace: row.attribute_namespace.to_string(),
-                            attribute_table_name: row.attribute_table_name.to_string(),
-                            metric_name: row.metric_name.to_string(),
-                            metric_value: row.metric_value
-                        });
-                    }
-                }
-            } else {
-                match values_btreemap.get_mut(&( row.hostname_port.clone(), row.metric_type.clone(), String::from("-"), row.metric_name.clone()) ) {
-                    Some(value_row) => {
-                        *value_row = StoredValues {
-                            hostname_port: value_row.hostname_port.to_string(),
-                            timestamp: value_row.timestamp,
-                            metric_type: value_row.metric_type.to_string(),
-                            metric_id: String::from("-"),
-                            attribute_namespace: String::from("-"),
-                            attribute_table_name: String::from("-"),
-                            metric_name: value_row.metric_name.to_string(),
-                            metric_value: value_row.metric_value + row.metric_value
-                        }
-                    },
-                    None => {
-                        values_btreemap.insert((
-                            row.hostname_port.to_string(),
-                            row.metric_type.to_string(),
-                            String::from("-"),
-                            row.metric_name.to_string()
-                        ), StoredValues {
-                            hostname_port: row.hostname_port.to_string(),
-                            timestamp: row.timestamp,
-                            metric_type: row.metric_type.to_string(),
-                            metric_id: String::from("-"),
-                            attribute_namespace: String::from("-"),
-                            attribute_table_name: String::from("-"),
-                            metric_name: row.metric_name.to_string(),
-                            metric_value: row.metric_value,
-                        });
-                    }
-                }
-            }
-        } else {
-            match values_btreemap.get_mut( &( row.hostname_port.clone(), row.metric_type.clone(), String::from("-"), row.metric_name.clone()) ) {
-                Some( _value_row ) => {
-                    panic!("Error: (values_btreemap) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port.clone(), &row.metric_type.clone(), String::from("-"), &row.metric_name.clone());
-                },
-                None => {
-                    values_btreemap.insert((
-                        row.hostname_port.to_string(),
-                        row.metric_type.to_string(),
-                        String::from("-"),
-                        row.metric_name.to_string()
-                    ), StoredValues {
-                        hostname_port: row.hostname_port.to_string(),
-                        timestamp: row.timestamp,
-                        metric_type: row.metric_type.to_string(),
-                        metric_id: String::from("-"),
-                        attribute_namespace: String::from("-"),
-                        attribute_table_name: String::from("-"),
-                        metric_name: row.metric_name.to_string(),
-                        metric_value: row.metric_value,
-                    });
-                }
-            }
-        }
+    let loglines_file = &current_snapshot_directory.join("loglines");
+    let file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(&loglines_file)
+        .unwrap_or_else(|e| {
+            eprintln!("Fatal: error writing loglines data in snapshot directory {}: {}", &loglines_file.clone().into_os_string().into_string().unwrap(), e);
+            process::exit(1);
+        });
+    let mut writer = csv::Writer::from_writer(file);
+    for row in stored_loglines {
+        writer.serialize(row).unwrap();
     }
-    values_btreemap
-}
+    writer.flush().unwrap();
 
-fn build_metrics_countsum_btreemap(
-    details_enable: &bool,
-    stored_countsum: Vec<StoredCountSum>
-) -> BTreeMap<(String, String, String, String), StoredCountSum>
-{
-    let mut countsum_btreemap: BTreeMap<(String, String, String, String), StoredCountSum> = BTreeMap::new();
-    for row in stored_countsum {
-        if row.metric_type == "table" || row.metric_type == "tablet" {
-            if *details_enable {
-                match countsum_btreemap.get_mut( &( row.hostname_port.clone(), row.metric_type.clone(), row.metric_id.clone(), row.metric_name.clone()) ) {
-                    Some( _countsum_row ) => {
-                        panic!("Error: (countsum_btreemap) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port.clone(), &row.metric_type.clone(), &row.metric_id.clone(), &row.metric_name.clone());
-                    },
-                    None => {
-                        countsum_btreemap.insert((
-                            row.hostname_port.to_string(),
-                            row.metric_type.to_string(),
-                            row.metric_id.to_string(),
-                            row.metric_name.to_string()
-                        ), StoredCountSum {
-                            hostname_port: row.hostname_port.to_string(),
-                            timestamp: row.timestamp,
-                            metric_type: row.metric_type.to_string(),
-                            metric_id: row.metric_id.to_string(),
-                            attribute_namespace: row.attribute_namespace.to_string(),
-                            attribute_table_name: row.attribute_table_name.to_string(),
-                            metric_name: row.metric_name.to_string(),
-                            metric_total_count: row.metric_total_count,
-                            metric_min: 0,
-                            metric_mean: 0.0,
-                            metric_percentile_75: 0,
-                            metric_percentile_95: 0,
-                            metric_percentile_99: 0,
-                            metric_percentile_99_9: 0,
-                            metric_percentile_99_99: 0,
-                            metric_max: 0,
-                            metric_total_sum: row.metric_total_sum
-                        });
-                    }
-                }
-            } else {
-                match countsum_btreemap.get_mut(&( row.hostname_port.clone(), row.metric_type.clone(), String::from("-"), row.metric_name.clone()) ) {
-                    Some( countsum_row) => {
-                        *countsum_row = StoredCountSum {
-                            hostname_port: countsum_row.hostname_port.to_string(),
-                            timestamp: countsum_row.timestamp,
-                            metric_type: countsum_row.metric_type.to_string(),
-                            metric_id: String::from("-"),
-                            attribute_namespace: String::from("-"),
-                            attribute_table_name: String::from("-"),
-                            metric_name: countsum_row.metric_name.to_string(),
-                            metric_total_count: countsum_row.metric_total_count + row.metric_total_count,
-                            metric_min: 0,
-                            metric_mean: 0.0,
-                            metric_percentile_75: 0,
-                            metric_percentile_95: 0,
-                            metric_percentile_99: 0,
-                            metric_percentile_99_9: 0,
-                            metric_percentile_99_99: 0,
-                            metric_max: 0,
-                            metric_total_sum: countsum_row.metric_total_sum + row.metric_total_sum
-                        }
-                    },
-                    None => {
-                        countsum_btreemap.insert((
-                            row.hostname_port.to_string(),
-                            row.metric_type.to_string(),
-                            String::from("-"),
-                            row.metric_name.to_string()
-                        ), StoredCountSum {
-                            hostname_port: row.hostname_port.to_string(),
-                            timestamp: row.timestamp,
-                            metric_type: row.metric_type.to_string(),
-                            metric_id: String::from("-"),
-                            attribute_namespace: String::from("-"),
-                            attribute_table_name: String::from("-"),
-                            metric_name: row.metric_name.to_string(),
-                            metric_total_count: row.metric_total_count,
-                            metric_min: 0,
-                            metric_mean: 0.0,
-                            metric_percentile_75: 0,
-                            metric_percentile_95: 0,
-                            metric_percentile_99: 0,
-                            metric_percentile_99_9: 0,
-                            metric_percentile_99_99: 0,
-                            metric_max: 0,
-                            metric_total_sum: row.metric_total_sum
-                        });
-                    }
-                }
-            }
-        } else {
-            match countsum_btreemap.get_mut( &( row.hostname_port.clone(), row.metric_type.clone(), String::from("-"), row.metric_name.clone()) ) {
-                Some( _countsum_row ) => {
-                    panic!("Error: (countsum_btreemap) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port.clone(), &row.metric_type.clone(), &row.metric_id.clone(), &row.metric_name.clone());
-                },
-                None => {
-                    countsum_btreemap.insert((
-                        row.hostname_port.to_string(),
-                        row.metric_type.to_string(),
-                        String::from("-"),
-                        row.metric_name.to_string()
-                    ), StoredCountSum {
-                        hostname_port: row.hostname_port.to_string(),
-                        timestamp: row.timestamp,
-                        metric_type: row.metric_type.to_string(),
-                        metric_id: String::from("-"),
-                        attribute_namespace: String::from("-"),
-                        attribute_table_name: String::from("-"),
-                        metric_name: row.metric_name.to_string(),
-                        metric_total_count: row.metric_total_count,
-                        metric_min: 0,
-                        metric_mean: 0.0,
-                        metric_percentile_75: 0,
-                        metric_percentile_95: 0,
-                        metric_percentile_99: 0,
-                        metric_percentile_99_9: 0,
-                        metric_percentile_99_99: 0,
-                        metric_max: 0,
-                        metric_total_sum: row.metric_total_sum
-                    });
-                }
-            }
-        }
+    let memtrackers_file = &current_snapshot_directory.join("memtrackers");
+    let file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(&memtrackers_file)
+        .unwrap_or_else(|e| {
+            eprintln!("Fatal: error writing memtrackers data in snapshot directory {}: {}", &memtrackers_file.clone().into_os_string().into_string().unwrap(), e);
+            process::exit(1);
+        });
+    let mut writer = csv::Writer::from_writer(file);
+    for row in stored_memtrackers {
+        writer.serialize(row).unwrap();
     }
-    countsum_btreemap
-}
+    writer.flush().unwrap();
 
-fn build_metrics_countsumrows_btreemap(
-    stored_countsumrows: Vec<StoredCountSumRows>
-) -> BTreeMap<(String, String, String, String), StoredCountSumRows>
-{
-    let mut countsumrows_btreemap: BTreeMap<(String, String, String, String), StoredCountSumRows> = BTreeMap::new();
-    for row in stored_countsumrows {
-        match countsumrows_btreemap.get_mut( &( row.hostname_port.clone(), row.metric_type.clone(), row.metric_id.clone(), row.metric_name.clone())  ) {
-            Some( _countsumrows_summary_row ) => {
-                panic!("Error: (countsumrows_btreemap) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port.clone(), &row.metric_type.clone(), &row.metric_id.clone(), &row.metric_name.clone());
-            },
-            None => {
-                countsumrows_btreemap.insert( (
-                    row.hostname_port.to_string(),
-                    row.metric_type.to_string(),
-                    row.metric_id.to_string(),
-                    row.metric_name.to_string()
-                ), StoredCountSumRows {
-                   hostname_port: row.hostname_port.to_string(),
-                   timestamp: row.timestamp,
-                   metric_type: row.metric_type.to_string(),
-                   metric_id: row.metric_id.to_string(),
-                   attribute_namespace: row.attribute_namespace.to_string(),
-                   attribute_table_name: row.attribute_table_name.to_string(),
-                   metric_name: row.metric_name.to_string(),
-                   metric_count: row.metric_count,
-                   metric_sum: row.metric_sum,
-                   metric_rows: row.metric_rows
-                });
-            }
-        }
-    }
-    countsumrows_btreemap
+    snapshot_number
 }
 
 pub fn insert_first_snapshot_statements(
@@ -1229,11 +661,13 @@ pub fn print_diff_statements(
         if hostname_filter.is_match(&hostname)
         && statements_row.second_calls - statements_row.first_calls != 0 {
             let adaptive_length = if query.len() < 50 { query.len() } else { 50 };
-            println!("{:20} {:10} avg.time: {:15.3} ms avg.rows: {:10} : {:50}",
+            println!("{:20} {:10} avg: {:15.3} tot: {:15.3} ms avg: {:10} tot: {:10} rows: {:50}",
                      hostname,
                      statements_row.second_calls - statements_row.first_calls,
                      (statements_row.second_total_time - statements_row.first_total_time) / (statements_row.second_calls as f64 - statements_row.first_calls as f64),
+                     statements_row.second_total_time - statements_row.first_total_time as f64,
                      (statements_row.second_rows - statements_row.first_rows) / (statements_row.second_calls - statements_row.first_calls),
+                     statements_row.second_rows - statements_row.first_rows,
                      query.substring(0, adaptive_length).replace("\n", "")
             );
         }
@@ -1249,106 +683,360 @@ pub fn print_diff(value_diff: &BTreeMap<(String, String, String, String), Snapsh
                   details_enable: &bool,
                   gauges_enable: &bool
 ) {
-    // value_diff
-    let value_statistic_details_lookup = value_create_hashmap();
-    for ((hostname, metric_type, metric_id, metric_name), value_diff_row) in value_diff {
-        if hostname_filter.is_match(&hostname)
-        && stat_name_filter.is_match(&metric_name)
-        && table_name_filter.is_match(&value_diff_row.table_name) {
-            let details = match value_statistic_details_lookup.get(&metric_name.to_string()) {
-                Some(x) => { ValueStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), stat_type: x.stat_type.to_string() } },
-                None => { ValueStatisticDetails { unit: String::from("?"), unit_suffix: String::from("?"), stat_type: String::from("?") } }
-            };
-            let adaptive_length = if metric_id.len() < 15 { 0 } else { metric_id.len() - 15 };
-            if details.stat_type != "gauge"
-            && value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value != 0 {
-                if *details_enable {
-                    println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:6} {:>15.3}/s",
-                             hostname,
-                             metric_type,
-                             metric_id.substring(adaptive_length, metric_id.len()),
-                             value_diff_row.namespace,
-                             value_diff_row.table_name,
-                             metric_name,
-                             value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value,
-                             details.unit_suffix,
-                             ((value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value) as f64 / (value_diff_row.second_snapshot_time - value_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64)
-                    );
-                } else {
-                    println!("{:20} {:8} {:70} {:15} {:6} {:>15.3}/s",
-                             hostname,
-                             metric_type,
-                             metric_name,
-                             value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value,
-                             details.unit_suffix,
-                             ((value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value) as f64 / (value_diff_row.second_snapshot_time - value_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64)
-                    );
-                }
-            }
-            if details.stat_type == "gauge"
-            && *gauges_enable {
-                if *details_enable {
-                    println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:6} {:+15}",
-                             hostname,
-                             metric_type,
-                             metric_id.substring(adaptive_length, metric_id.len()),
-                             value_diff_row.namespace,
-                             value_diff_row.table_name,
-                             metric_name,
-                             value_diff_row.second_snapshot_value,
-                             details.unit_suffix,
-                             value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value
-                    );
-                } else {
-                    println!("{:20} {:8} {:70} {:15} {:6} {:+15}",
-                             hostname,
-                             metric_type,
-                             metric_name,
-                             value_diff_row.second_snapshot_value,
-                             details.unit_suffix,
-                             value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value
-                    );
+    if *details_enable {
+        // value_diff
+        let value_statistic_details_lookup = value_create_hashmap();
+        for ((hostname, metric_type, metric_id, metric_name), value_diff_row) in value_diff {
+            if value_diff_row.second_snapshot_value > 0 {
+                if hostname_filter.is_match(&hostname)
+                    && stat_name_filter.is_match(&metric_name)
+                    && table_name_filter.is_match(&value_diff_row.table_name) {
+                    let details = match value_statistic_details_lookup.get(&metric_name.to_string()) {
+                        Some(x) => { ValueStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), stat_type: x.stat_type.to_string() } },
+                        None => { ValueStatisticDetails { unit: String::from("?"), unit_suffix: String::from("?"), stat_type: String::from("?") } }
+                    };
+                    let adaptive_length = if metric_id.len() < 15 { 0 } else { metric_id.len() - 15 };
+                    if details.stat_type != "gauge"
+                        && value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value != 0 {
+                        if *details_enable {
+                            println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:6} {:>15.3} /s",
+                                     hostname,
+                                     metric_type,
+                                     metric_id.substring(adaptive_length, metric_id.len()),
+                                     value_diff_row.namespace,
+                                     value_diff_row.table_name,
+                                     metric_name,
+                                     value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value,
+                                     details.unit_suffix,
+                                     ((value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value) as f64 / (value_diff_row.second_snapshot_time - value_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64)
+                            );
+                        } else {
+                            println!("{:20} {:8} {:70} {:15} {:6} {:>15.3} /s",
+                                     hostname,
+                                     metric_type,
+                                     metric_name,
+                                     value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value,
+                                     details.unit_suffix,
+                                     ((value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value) as f64 / (value_diff_row.second_snapshot_time - value_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64)
+                            );
+                        }
+                    }
+                    if details.stat_type == "gauge"
+                        && *gauges_enable {
+                        if *details_enable {
+                            println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:6} {:+15}",
+                                     hostname,
+                                     metric_type,
+                                     metric_id.substring(adaptive_length, metric_id.len()),
+                                     value_diff_row.namespace,
+                                     value_diff_row.table_name,
+                                     metric_name,
+                                     value_diff_row.second_snapshot_value,
+                                     details.unit_suffix,
+                                     value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value
+                            );
+                        } else {
+                            println!("{:20} {:8} {:70} {:15} {:6} {:+15}",
+                                     hostname,
+                                     metric_type,
+                                     metric_name,
+                                     value_diff_row.second_snapshot_value,
+                                     details.unit_suffix,
+                                     value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value
+                            );
+                        }
+                    }
                 }
             }
         }
-    }
-    // countsum_diff
-    let countsum_statistic_details_lookup = countsum_create_hashmap();
-    for ((hostname, metric_type, metric_id, metric_name), countsum_diff_row) in countsum_diff {
-        if hostname_filter.is_match(&hostname)
-        && stat_name_filter.is_match(&metric_name)
-        && table_name_filter.is_match(&countsum_diff_row.table_name) {
-            let details = match countsum_statistic_details_lookup.get(&metric_name.to_string()) {
-                Some(x) => { CountSumStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), divisor: x.divisor, stat_type: x.stat_type.to_string() } },
-                None => { CountSumStatisticDetails { unit: String::from("?"), unit_suffix: String::from("?"), divisor: 0, stat_type: String::from("?") } }
-            };
-            let adaptive_length = if metric_id.len() < 15 { 0 } else { metric_id.len() - 15 };
-            if countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count != 0 {
-                if *details_enable {
-                    println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:>15.3}/s avg: {:9.0} tot: {:>15.3} {:10}",
-                             hostname,
-                             metric_type,
-                             metric_id.substring(adaptive_length, metric_id.len()),
-                             countsum_diff_row.namespace,
-                             countsum_diff_row.table_name,
-                             metric_name,
-                             countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count,
-                             (countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count) as f64 / (countsum_diff_row.second_snapshot_time - countsum_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64,
-                             ((countsum_diff_row.second_snapshot_total_sum - countsum_diff_row.first_snapshot_total_sum) / (countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count)) as f64,
-                             countsum_diff_row.second_snapshot_total_sum - countsum_diff_row.first_snapshot_total_sum,
-                             details.unit_suffix
-                    );
-                } else {
-                    println!("{:20} {:8} {:70} {:15} {:>15.3}/s avg: {:9.0} tot: {:>15.3} {:10}",
-                             hostname,
-                             metric_type,
-                             metric_name,
-                             countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count,
-                             (countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count) as f64 / (countsum_diff_row.second_snapshot_time - countsum_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64,
-                             ((countsum_diff_row.second_snapshot_total_sum - countsum_diff_row.first_snapshot_total_sum) / (countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count)) as f64,
-                             countsum_diff_row.second_snapshot_total_sum - countsum_diff_row.first_snapshot_total_sum,
-                             details.unit_suffix
-                    );
+        // countsum_diff
+        let countsum_statistic_details_lookup = countsum_create_hashmap();
+        for ((hostname, metric_type, metric_id, metric_name), countsum_diff_row) in countsum_diff {
+            if countsum_diff_row.second_snapshot_total_count > 0 {
+                if hostname_filter.is_match(&hostname)
+                    && stat_name_filter.is_match(&metric_name)
+                    && table_name_filter.is_match(&countsum_diff_row.table_name) {
+                    let details = match countsum_statistic_details_lookup.get(&metric_name.to_string()) {
+                        Some(x) => { CountSumStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), divisor: x.divisor, stat_type: x.stat_type.to_string() } },
+                        None => { CountSumStatisticDetails { unit: String::from("?"), unit_suffix: String::from("?"), divisor: 0, stat_type: String::from("?") } }
+                    };
+                    let adaptive_length = if metric_id.len() < 15 { 0 } else { metric_id.len() - 15 };
+                    if countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count != 0 {
+                        if *details_enable {
+                            println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15}        {:>15.3} /s avg: {:9.0} tot: {:>15.3} {:10}",
+                                     hostname,
+                                     metric_type,
+                                     metric_id.substring(adaptive_length, metric_id.len()),
+                                     countsum_diff_row.namespace,
+                                     countsum_diff_row.table_name,
+                                     metric_name,
+                                     countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count,
+                                     (countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count) as f64 / (countsum_diff_row.second_snapshot_time - countsum_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64,
+                                     ((countsum_diff_row.second_snapshot_total_sum - countsum_diff_row.first_snapshot_total_sum) / (countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count)) as f64,
+                                     countsum_diff_row.second_snapshot_total_sum - countsum_diff_row.first_snapshot_total_sum,
+                                     details.unit_suffix
+                            );
+                        } else {
+                            println!("{:20} {:8} {:70} {:15}        {:>15.3} /s avg: {:9.0} tot: {:>15.3} {:10}",
+                                     hostname,
+                                     metric_type,
+                                     metric_name,
+                                     countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count,
+                                     (countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count) as f64 / (countsum_diff_row.second_snapshot_time - countsum_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64,
+                                     ((countsum_diff_row.second_snapshot_total_sum - countsum_diff_row.first_snapshot_total_sum) / (countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count)) as f64,
+                                     countsum_diff_row.second_snapshot_total_sum - countsum_diff_row.first_snapshot_total_sum,
+                                     details.unit_suffix
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        // value_diff
+        let value_statistic_details_lookup = value_create_hashmap();
+        let mut sum_value_diff: BTreeMap<(String, String, String, String), SnapshotDiffValues> = BTreeMap::new();
+        for ((hostname_port, metric_type, _metric_id, metric_name), value_diff_row) in value_diff {
+            if metric_type == "table" || metric_type == "tablet" {
+                // if a table and thus its tablets have been deleted between the first and second snapshot, the second_snapshot_value is 0.
+                // however, the first_snapshot_value is > 0, it means it can make the subtraction between the second and the first snapshot get negative, and a summary overview be incorrect.
+                // therefore we remove individual statistics where the second snapshot value is set to 0.
+                if value_diff_row.second_snapshot_value > 0 {
+                    match sum_value_diff.get_mut(&(hostname_port.to_string(), metric_type.to_string(), String::from("-"), metric_name.to_string())) {
+                        Some(sum_value_diff_row) => {
+                            *sum_value_diff_row = SnapshotDiffValues {
+                                table_name: sum_value_diff_row.table_name.to_string(),
+                                namespace: sum_value_diff_row.namespace.to_string(),
+                                first_snapshot_time: sum_value_diff_row.first_snapshot_time,
+                                second_snapshot_time: sum_value_diff_row.second_snapshot_time,
+                                first_snapshot_value: sum_value_diff_row.first_snapshot_value + value_diff_row.first_snapshot_value,
+                                second_snapshot_value: sum_value_diff_row.second_snapshot_value + value_diff_row.second_snapshot_value,
+                            }
+                        },
+                        None => {
+                            sum_value_diff.insert((
+                                                      hostname_port.to_string(),
+                                                      metric_type.to_string(),
+                                                      String::from("-"),
+                                                      metric_name.to_string()
+                                                  ), SnapshotDiffValues {
+                                table_name: String::from("-"),
+                                namespace: String::from("-"),
+                                first_snapshot_time: value_diff_row.first_snapshot_time,
+                                second_snapshot_time: value_diff_row.second_snapshot_time,
+                                first_snapshot_value: value_diff_row.first_snapshot_value,
+                                second_snapshot_value: value_diff_row.second_snapshot_value
+                            });
+                        }
+                    }
+                }
+            } else {
+                match sum_value_diff.get_mut(&(hostname_port.to_string(), metric_type.to_string(), String::from("-"), metric_name.to_string())) {
+                    Some(_sum_value_diff) => {
+                        panic!("Error: (sum_value_diff) found second entry for hostname: {}, type: {}, id: {}, name: {}", &hostname_port.clone(), &metric_type.clone(), String::from("-"), &metric_name.clone());
+                    },
+                    None => {
+                        sum_value_diff.insert((
+                                                  hostname_port.to_string(),
+                                                  metric_type.to_string(),
+                                                  String::from("-"),
+                                                  metric_name.to_string()
+                                              ), SnapshotDiffValues {
+                            table_name: String::from("-"),
+                            namespace: String::from("-"),
+                            first_snapshot_time: value_diff_row.first_snapshot_time,
+                            second_snapshot_time: value_diff_row.second_snapshot_time,
+                            first_snapshot_value: value_diff_row.first_snapshot_value,
+                            second_snapshot_value: value_diff_row.second_snapshot_value,
+                        });
+                    }
+                }
+            }
+        }
+        for ((hostname, metric_type, metric_id, metric_name), value_diff_row) in sum_value_diff {
+            if hostname_filter.is_match(&hostname)
+                && stat_name_filter.is_match(&metric_name)
+                && table_name_filter.is_match(&value_diff_row.table_name) {
+                let details = match value_statistic_details_lookup.get(&metric_name.to_string()) {
+                    Some(x) => { ValueStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), stat_type: x.stat_type.to_string() } },
+                    None => { ValueStatisticDetails { unit: String::from("?"), unit_suffix: String::from("?"), stat_type: String::from("?") } }
+                };
+                let adaptive_length = if metric_id.len() < 15 { 0 } else { metric_id.len() - 15 };
+                if details.stat_type != "gauge"
+                    && value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value != 0 {
+                    if *details_enable {
+                        println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:6} {:>15.3} /s",
+                                 hostname,
+                                 metric_type,
+                                 metric_id.substring(adaptive_length, metric_id.len()),
+                                 value_diff_row.namespace,
+                                 value_diff_row.table_name,
+                                 metric_name,
+                                 value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value,
+                                 details.unit_suffix,
+                                 ((value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value) as f64 / (value_diff_row.second_snapshot_time - value_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64)
+                        );
+                    } else {
+                        println!("{:20} {:8} {:70} {:15} {:6} {:>15.3} /s",
+                                 hostname,
+                                 metric_type,
+                                 metric_name,
+                                 value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value,
+                                 details.unit_suffix,
+                                 ((value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value) as f64 / (value_diff_row.second_snapshot_time - value_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64)
+                        );
+                    }
+                }
+                if details.stat_type == "gauge"
+                    && *gauges_enable {
+                    if *details_enable {
+                        println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:6} {:+15}",
+                                 hostname,
+                                 metric_type,
+                                 metric_id.substring(adaptive_length, metric_id.len()),
+                                 value_diff_row.namespace,
+                                 value_diff_row.table_name,
+                                 metric_name,
+                                 value_diff_row.second_snapshot_value,
+                                 details.unit_suffix,
+                                 value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value
+                        );
+                    } else {
+                        println!("{:20} {:8} {:70} {:15} {:6} {:+15}",
+                                 hostname,
+                                 metric_type,
+                                 metric_name,
+                                 value_diff_row.second_snapshot_value,
+                                 details.unit_suffix,
+                                 value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value
+                        );
+                    }
+                }
+            }
+        }
+        // countsum_diff
+        let countsum_statistic_details_lookup = countsum_create_hashmap();
+        let mut sum_countsum_diff: BTreeMap<(String, String, String, String), SnapshotDiffCountSum> = BTreeMap::new();
+        for ((hostname_port, metric_type, _metric_id, metric_name), countsum_diff_row) in countsum_diff {
+            if metric_type == "table" || metric_type == "tablet" {
+                if countsum_diff_row.second_snapshot_total_count > 0 {
+                    match sum_countsum_diff.get_mut(&(hostname_port.to_string(), metric_type.to_string(), String::from("-"), metric_name.to_string())) {
+                        Some(sum_countsum_diff_row) => {
+                            *sum_countsum_diff_row = SnapshotDiffCountSum {
+                                table_name: sum_countsum_diff_row.table_name.to_string(),
+                                namespace: sum_countsum_diff_row.namespace.to_string(),
+                                first_snapshot_time: sum_countsum_diff_row.first_snapshot_time,
+                                second_snapshot_time: sum_countsum_diff_row.second_snapshot_time,
+                                second_snapshot_total_count: sum_countsum_diff_row.second_snapshot_total_count + countsum_diff_row.second_snapshot_total_count,
+                                second_snapshot_min: 0,
+                                second_snapshot_mean: 0.0,
+                                second_snapshot_percentile_75: 0,
+                                second_snapshot_percentile_95: 0,
+                                second_snapshot_percentile_99: 0,
+                                second_snapshot_percentile_99_9: 0,
+                                second_snapshot_percentile_99_99: 0,
+                                second_snapshot_max: 0,
+                                second_snapshot_total_sum: sum_countsum_diff_row.second_snapshot_total_sum + countsum_diff_row.second_snapshot_total_sum,
+                                first_snapshot_total_count: sum_countsum_diff_row.first_snapshot_total_count + countsum_diff_row.first_snapshot_total_count,
+                                first_snapshot_total_sum: sum_countsum_diff_row.first_snapshot_total_sum + countsum_diff_row.first_snapshot_total_sum
+                            }
+                        },
+                        None => {
+                            sum_countsum_diff.insert((
+                                                      hostname_port.to_string(),
+                                                      metric_type.to_string(),
+                                                      String::from("-"),
+                                                      metric_name.to_string()
+                                                  ), SnapshotDiffCountSum {
+                                table_name: String::from("-"),
+                                namespace: String::from("-"),
+                                first_snapshot_time: countsum_diff_row.first_snapshot_time,
+                                second_snapshot_time: countsum_diff_row.second_snapshot_time,
+                                second_snapshot_total_count: countsum_diff_row.second_snapshot_total_count,
+                                second_snapshot_min: 0,
+                                second_snapshot_mean: 0.0,
+                                second_snapshot_percentile_75: 0,
+                                second_snapshot_percentile_95: 0,
+                                second_snapshot_percentile_99: 0,
+                                second_snapshot_percentile_99_9: 0,
+                                second_snapshot_percentile_99_99: 0,
+                                second_snapshot_max: 0,
+                                second_snapshot_total_sum: countsum_diff_row.second_snapshot_total_sum,
+                                first_snapshot_total_count: countsum_diff_row.first_snapshot_total_count,
+                                first_snapshot_total_sum: countsum_diff_row.first_snapshot_total_sum
+                            });
+                        }
+                    }
+                }
+            } else {
+                match sum_countsum_diff.get_mut(&(hostname_port.to_string(), metric_type.to_string(), String::from("-"), metric_name.to_string())) {
+                    Some(_sum_countsum_diff_row) => {
+                        panic!("Error: (sum_countsum_diff) found second entry for hostname: {}, type: {}, id: {}, name: {}", &hostname_port.clone(), &metric_type.clone(), String::from("-"), &metric_name.clone());
+                    },
+                    None => {
+                        sum_countsum_diff.insert((
+                                                     hostname_port.to_string(),
+                                                     metric_type.to_string(),
+                                                     String::from("-"),
+                                                     metric_name.to_string()
+                                                 ), SnapshotDiffCountSum {
+                            table_name: String::from("-"),
+                            namespace: String::from("-"),
+                            first_snapshot_time: countsum_diff_row.first_snapshot_time,
+                            second_snapshot_time: countsum_diff_row.second_snapshot_time,
+                            second_snapshot_total_count: countsum_diff_row.second_snapshot_total_count,
+                            second_snapshot_min: 0,
+                            second_snapshot_mean: 0.0,
+                            second_snapshot_percentile_75: 0,
+                            second_snapshot_percentile_95: 0,
+                            second_snapshot_percentile_99: 0,
+                            second_snapshot_percentile_99_9: 0,
+                            second_snapshot_percentile_99_99: 0,
+                            second_snapshot_max: 0,
+                            second_snapshot_total_sum: countsum_diff_row.second_snapshot_total_sum,
+                            first_snapshot_total_count: countsum_diff_row.first_snapshot_total_count,
+                            first_snapshot_total_sum: countsum_diff_row.first_snapshot_total_sum
+                        });
+                    }
+                }
+            }
+        }
+        for ((hostname, metric_type, metric_id, metric_name), countsum_diff_row) in sum_countsum_diff {
+            if hostname_filter.is_match(&hostname)
+                && stat_name_filter.is_match(&metric_name)
+                && table_name_filter.is_match(&countsum_diff_row.table_name) {
+                let details = match countsum_statistic_details_lookup.get(&metric_name.to_string()) {
+                    Some(x) => { CountSumStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), divisor: x.divisor, stat_type: x.stat_type.to_string() } },
+                    None => { CountSumStatisticDetails { unit: String::from("?"), unit_suffix: String::from("?"), divisor: 0, stat_type: String::from("?") } }
+                };
+                let adaptive_length = if metric_id.len() < 15 { 0 } else { metric_id.len() - 15 };
+                if countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count != 0 {
+                    if *details_enable {
+                        println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15}        {:>15.3} /s avg: {:9.0} tot: {:>15.3} {:10}",
+                                 hostname,
+                                 metric_type,
+                                 metric_id.substring(adaptive_length, metric_id.len()),
+                                 countsum_diff_row.namespace,
+                                 countsum_diff_row.table_name,
+                                 metric_name,
+                                 countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count,
+                                 (countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count) as f64 / (countsum_diff_row.second_snapshot_time - countsum_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64,
+                                 ((countsum_diff_row.second_snapshot_total_sum - countsum_diff_row.first_snapshot_total_sum) / (countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count)) as f64,
+                                 countsum_diff_row.second_snapshot_total_sum - countsum_diff_row.first_snapshot_total_sum,
+                                 details.unit_suffix
+                        );
+                    } else {
+                        println!("{:20} {:8} {:70} {:15}        {:>15.3} /s avg: {:9.0} tot: {:>15.3} {:10}",
+                                 hostname,
+                                 metric_type,
+                                 metric_name,
+                                 countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count,
+                                 (countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count) as f64 / (countsum_diff_row.second_snapshot_time - countsum_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64,
+                                 ((countsum_diff_row.second_snapshot_total_sum - countsum_diff_row.first_snapshot_total_sum) / (countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count)) as f64,
+                                 countsum_diff_row.second_snapshot_total_sum - countsum_diff_row.first_snapshot_total_sum,
+                                 details.unit_suffix
+                        );
+                    }
                 }
             }
         }
@@ -1358,12 +1046,14 @@ pub fn print_diff(value_diff: &BTreeMap<(String, String, String, String), Snapsh
         if hostname_filter.is_match( &hostname)
         && stat_name_filter.is_match(&metric_name) {
             if countsumrows_diff_row.second_snapshot_count - countsumrows_diff_row.first_snapshot_count != 0 {
-                println!("{:20} {:70} {:>15} avg: {:>15.3} ms, avg.rows: {:>15}",
+                println!("{:20} {:70} {:>15} avg: {:>15.3} tot: {:>15.3} ms, avg: {:>15} tot: {:>15} rows",
                     hostname,
                     metric_name,
                     countsumrows_diff_row.second_snapshot_count - countsumrows_diff_row.first_snapshot_count,
                     ((countsumrows_diff_row.second_snapshot_sum as f64 - countsumrows_diff_row.first_snapshot_sum as f64)/1000.0) / (countsumrows_diff_row.second_snapshot_count - countsumrows_diff_row.first_snapshot_count) as f64,
-                    countsumrows_diff_row.second_snapshot_rows - countsumrows_diff_row.first_snapshot_rows / (countsumrows_diff_row.second_snapshot_count - countsumrows_diff_row.first_snapshot_count)
+                    (countsumrows_diff_row.second_snapshot_sum as f64 - countsumrows_diff_row.first_snapshot_sum as f64)/1000.0,
+                    (countsumrows_diff_row.second_snapshot_rows - countsumrows_diff_row.first_snapshot_rows) / (countsumrows_diff_row.second_snapshot_count - countsumrows_diff_row.first_snapshot_count),
+                    countsumrows_diff_row.second_snapshot_rows - countsumrows_diff_row.first_snapshot_rows
                 );
             }
         }

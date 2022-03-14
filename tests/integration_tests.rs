@@ -46,6 +46,8 @@ fn parse_gflags_master() {
 
     let gflags = read_gflags(&hostname_port.as_str());
     add_to_gflags_vector(gflags, &hostname_port.as_str(), detail_snapshot_time, &mut stored_gflags);
+    // the master must have gflags
+    assert!(stored_gflags.len() > 0);
 }
 #[test]
 fn parse_gflags_tserver() {
@@ -55,6 +57,8 @@ fn parse_gflags_tserver() {
 
     let gflags = read_gflags(&hostname_port.as_str());
     add_to_gflags_vector(gflags, &hostname_port.as_str(), detail_snapshot_time, &mut stored_gflags);
+    // the tserver must have gflags
+    assert!(stored_gflags.len() > 0);
 }
 
 use yb_stats::memtrackers::{MemTrackers, StoredMemTrackers, read_memtrackers, add_to_memtrackers_vector};
@@ -66,6 +70,8 @@ fn parse_memtrackers_master() {
 
     let memtrackers: Vec<MemTrackers> = read_memtrackers(&hostname_port.as_str());
     add_to_memtrackers_vector(memtrackers, &hostname_port.as_str(), detail_snapshot_time, &mut stored_memtrackers);
+    // memtrackers must return some rows
+    assert!(stored_memtrackers.len() > 0);
 }
 #[test]
 fn parse_memtrackers_tserver() {
@@ -75,6 +81,8 @@ fn parse_memtrackers_tserver() {
 
     let memtrackers: Vec<MemTrackers> = read_memtrackers(&hostname_port.as_str());
     add_to_memtrackers_vector(memtrackers, &hostname_port.as_str(), detail_snapshot_time, &mut stored_memtrackers);
+    // memtrackers must return some rows
+    assert!(stored_memtrackers.len() > 0);
 }
 
 use yb_stats::loglines::{StoredLogLines, read_loglines, add_to_loglines_vector};
@@ -85,6 +93,8 @@ fn parse_loglines_master() {
 
     let loglines = read_loglines(&hostname_port.as_str());
     add_to_loglines_vector(loglines, &hostname_port.as_str(), &mut stored_loglines);
+    // it's likely there will be logging
+    assert!(stored_loglines.len() > 0);
 }
 #[test]
 fn parse_loglines_tserver() {
@@ -93,6 +103,8 @@ fn parse_loglines_tserver() {
 
     let loglines = read_loglines(&hostname_port.as_str());
     add_to_loglines_vector(loglines, &hostname_port.as_str(), &mut stored_loglines);
+    // it's likely there will be logging
+    assert!(stored_loglines.len() > 0);
 }
 
 use yb_stats::versions::{StoredVersionData, read_version, add_to_version_vector};
@@ -104,6 +116,8 @@ fn parse_versiondata_master() {
 
     let data_parsed_from_json = read_version(&hostname_port.as_str());
     add_to_version_vector(data_parsed_from_json, &hostname_port.as_str(), detail_snapshot_time, &mut stored_versiondata);
+    // each daemon should return one row.
+    assert!(stored_versiondata.len() == 1);
 }
 #[test]
 fn parse_versiondata_tserver() {
@@ -113,6 +127,8 @@ fn parse_versiondata_tserver() {
 
     let data_parsed_from_json = read_version(&hostname_port.as_str());
     add_to_version_vector(data_parsed_from_json, &hostname_port.as_str(), detail_snapshot_time, &mut stored_versiondata);
+    // each daemon should return one row.
+    assert!(stored_versiondata.len() == 1);
 }
 
 use yb_stats::statements::{StoredStatements, read_statements, add_to_statements_vector};
@@ -124,6 +140,8 @@ fn parse_statements_ysql() {
 
     let data_parsed_from_json = read_statements(&hostname_port.as_str());
     add_to_statements_vector(data_parsed_from_json, &hostname_port.as_str(), detail_snapshot_time, &mut stored_statements);
+    // likely in a test scenario, there are no SQL commands executed, and thus no rows are returned.
+    // to make sure this test works in both the scenario of no statements, and with statements, perform no assertion.
 }
 
 use yb_stats::metrics::{StoredValues,StoredCountSum, StoredCountSumRows, read_metrics, add_to_metric_vectors};
@@ -137,6 +155,10 @@ fn parse_metrics_master() {
 
     let data_parsed_from_json = read_metrics(&hostname_port.as_str());
     add_to_metric_vectors(data_parsed_from_json, &hostname_port.as_str(), detail_snapshot_time, &mut stored_values, &mut stored_countsum, &mut stored_countsumrows);
+    // a master will produce values and countsum rows, but no countsumrows rows, because that belongs to YSQL.
+    assert!(stored_values.len() > 0);
+    assert!(stored_countsum.len() > 0);
+    assert!(stored_countsumrows.len() == 0);
 }
 #[test]
 fn parse_metrics_tserver() {
@@ -148,6 +170,10 @@ fn parse_metrics_tserver() {
 
     let data_parsed_from_json = read_metrics(&hostname_port.as_str());
     add_to_metric_vectors(data_parsed_from_json, &hostname_port.as_str(), detail_snapshot_time, &mut stored_values, &mut stored_countsum, &mut stored_countsumrows);
+    // a master will produce values and countsum rows, but no countsumrows rows, because that belongs to YSQL.
+    assert!(stored_values.len() > 0);
+    assert!(stored_countsum.len() > 0);
+    assert!(stored_countsumrows.len() == 0);
 }
 #[test]
 fn parse_metrics_ysql() {
@@ -159,6 +185,10 @@ fn parse_metrics_ysql() {
 
     let data_parsed_from_json = read_metrics(&hostname_port.as_str());
     add_to_metric_vectors(data_parsed_from_json, &hostname_port.as_str(), detail_snapshot_time, &mut stored_values, &mut stored_countsum, &mut stored_countsumrows);
+    // YSQL will produce countsumrows rows, but no value or countsum rows
+    assert!(stored_values.len() == 0);
+    assert!(stored_countsum.len() == 0);
+    assert!(stored_countsumrows.len() > 0);
 }
 #[test]
 fn parse_metrics_ycql() {
@@ -170,6 +200,11 @@ fn parse_metrics_ycql() {
 
     let data_parsed_from_json = read_metrics(&hostname_port.as_str());
     add_to_metric_vectors(data_parsed_from_json, &hostname_port.as_str(), detail_snapshot_time, &mut stored_values, &mut stored_countsum, &mut stored_countsumrows);
+    // YCQL will produce values and countsum rows, but no countsumrows rows, because that belongs to YSQL.
+    // countsum rows are filtered on count = 0, which is true if it wasn't used. therefore, we do not check on countsum statistics. likely, YCQL wasn't used prior to the test.
+    assert!(stored_values.len() > 0);
+    //assert!(stored_countsum.len() > 0);
+    assert!(stored_countsumrows.len() == 0);
 }
 #[test]
 fn parse_metrics_yedis() {
@@ -181,4 +216,9 @@ fn parse_metrics_yedis() {
 
     let data_parsed_from_json = read_metrics(&hostname_port.as_str());
     add_to_metric_vectors(data_parsed_from_json, &hostname_port.as_str(), detail_snapshot_time, &mut stored_values, &mut stored_countsum, &mut stored_countsumrows);
+    // YEDIS will produce values and countsum rows, but no countsumrows rows, because that belongs to YSQL.
+    // countsum rows are filtered on count == 0, which is true when it wasn't used. therefore, we do not check on countsum statistics. likely, YEDIS wasn't used prior to the test.
+    assert!(stored_values.len() > 0);
+    //assert!(stored_countsum.len() > 0);
+    assert!(stored_countsumrows.len() == 0);
 }

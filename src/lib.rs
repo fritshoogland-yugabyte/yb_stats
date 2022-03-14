@@ -9,16 +9,16 @@ use value_statistic_details::{ValueStatisticDetails, value_create_hashmap};
 mod countsum_statistic_details;
 use countsum_statistic_details::{CountSumStatisticDetails, countsum_create_hashmap};
 
-mod memtrackers;
+pub mod memtrackers;
 use memtrackers::{MemTrackers, StoredMemTrackers, read_memtrackers, add_to_memtrackers_vector};
 
-mod loglines;
+pub mod loglines;
 use loglines::{StoredLogLines, read_loglines, add_to_loglines_vector};
 
 pub mod gflags;
 use gflags::{StoredGFlags, read_gflags, add_to_gflags_vector};
 
-mod versions;
+pub mod versions;
 use versions::{StoredVersionData, read_version, add_to_version_vector};
 
 pub mod metrics;

@@ -9,6 +9,9 @@ use value_statistic_details::{ValueStatisticDetails, value_create_hashmap};
 mod countsum_statistic_details;
 use countsum_statistic_details::{CountSumStatisticDetails, countsum_create_hashmap};
 
+pub mod threads;
+use threads::{Threads, StoredThreads, read_threads, add_to_threads_vector};
+
 pub mod memtrackers;
 use memtrackers::{MemTrackers, StoredMemTrackers, read_memtrackers, add_to_memtrackers_vector};
 
@@ -231,6 +234,7 @@ pub fn perform_snapshot( hostname_port_vec: Vec<&str>,
     let mut stored_gflags: Vec<StoredGFlags> = Vec::new();
     let mut stored_loglines: Vec<StoredLogLines> = Vec::new();
     let mut stored_memtrackers: Vec<StoredMemTrackers> = Vec::new();
+    let mut stored_threads: Vec<StoredThreads> = Vec::new();
 
     for hostname in &hostname_port_vec {
         let detail_snapshot_time = Local::now();
@@ -247,6 +251,9 @@ pub fn perform_snapshot( hostname_port_vec: Vec<&str>,
         add_to_loglines_vector(loglines, hostname, &mut stored_loglines);
         let memtrackers: Vec<MemTrackers> = read_memtrackers(&hostname);
         add_to_memtrackers_vector(memtrackers, hostname, detail_snapshot_time, &mut stored_memtrackers);
+        read_threads(&hostname);
+        let threads: Vec<Threads> = read_threads(&hostname);
+        add_to_threads_vector(threads, hostname, detail_snapshot_time, &mut stored_threads);
     }
 
     let current_directory = env::current_dir().unwrap();
@@ -418,6 +425,21 @@ pub fn perform_snapshot( hostname_port_vec: Vec<&str>,
         });
     let mut writer = csv::Writer::from_writer(file);
     for row in stored_memtrackers {
+        writer.serialize(row).unwrap();
+    }
+    writer.flush().unwrap();
+
+    let threads_file = &current_snapshot_directory.join("threads");
+    let file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(&threads_file)
+        .unwrap_or_else(|e| {
+            eprintln!("Fatal: error writing threads data in snapshot directory {}: {}", &threads_file.clone().into_os_string().into_string().unwrap(), e);
+            process::exit(1);
+        });
+    let mut writer = csv::Writer::from_writer(file);
+    for row in stored_threads {
         writer.serialize(row).unwrap();
     }
     writer.flush().unwrap();

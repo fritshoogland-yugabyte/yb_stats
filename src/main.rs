@@ -43,6 +43,8 @@ use loglines::print_loglines;
 mod versions;
 use versions::print_version_data;
 use yb_stats::statements::{StoredStatements, read_statements, add_to_statements_vector};
+mod threads;
+use threads::print_threads_data;
 
 #[derive(Debug, StructOpt)]
 struct Opts {
@@ -82,6 +84,9 @@ struct Opts {
     /// print version data for the given snapshot
     #[structopt(long, default_value = "-1")]
     print_version: String,
+    /// print threads data for the given snapshot
+    #[structopt(long, default_value = "-1")]
+    print_threads: String,
     /// log data severity to include: optional: I
     #[structopt(long, default_value = "WEF")]
     log_severity: String,
@@ -106,6 +111,7 @@ fn main() {
     let print_memtrackers: String = options.print_memtrackers;
     let print_log: String = options.print_log;
     let print_version: String = options.print_version;
+    let print_threads: String = options.print_threads;
     let log_severity: String = options.log_severity;
 
     if snapshot {
@@ -167,6 +173,12 @@ fn main() {
         let current_directory = env::current_dir().unwrap();
         let yb_stats_directory = current_directory.join("yb_stats.snapshots");
         print_version_data(&print_version, &yb_stats_directory, &hostname_filter);
+
+    } else if print_threads != "-1" {
+
+        let current_directory = env::current_dir().unwrap();
+        let yb_stats_directory = current_directory.join("yb_stats.snapshots");
+        print_threads_data(&print_threads, &yb_stats_directory, &hostname_filter);
 
     } else {
 

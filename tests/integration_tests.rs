@@ -131,6 +131,30 @@ fn parse_versiondata_tserver() {
     assert!(stored_versiondata.len() == 1);
 }
 
+use yb_stats::threads::{StoredThreads, read_threads, add_to_threads_vector};
+#[test]
+fn parse_threadsdata_master() {
+    let mut stored_threadsdata: Vec<StoredThreads> = Vec::new();
+    let detail_snapshot_time = Local::now();
+    let hostname_port = get_hostname_master();
+
+    let data_parsed_from_json = read_threads(&hostname_port.as_str());
+    add_to_threads_vector(data_parsed_from_json, &hostname_port.as_str(), detail_snapshot_time, &mut stored_threadsdata);
+    // each daemon should return one row.
+    assert!(stored_threadsdata.len() > 1);
+}
+#[test]
+fn parse_threadsdata_tserver() {
+    let mut stored_threadsdata: Vec<StoredThreads> = Vec::new();
+    let detail_snapshot_time = Local::now();
+    let hostname_port = get_hostname_tserver();
+
+    let data_parsed_from_json = read_threads(&hostname_port.as_str());
+    add_to_threads_vector(data_parsed_from_json, &hostname_port.as_str(), detail_snapshot_time, &mut stored_threadsdata);
+    // each daemon should return one row.
+    assert!(stored_threadsdata.len() > 1);
+}
+
 use yb_stats::statements::{StoredStatements, read_statements, add_to_statements_vector};
 #[test]
 fn parse_statements_ysql() {

@@ -201,7 +201,7 @@ fn parse_metrics_ycql() {
     let data_parsed_from_json = read_metrics(&hostname_port.as_str());
     add_to_metric_vectors(data_parsed_from_json, &hostname_port.as_str(), detail_snapshot_time, &mut stored_values, &mut stored_countsum, &mut stored_countsumrows);
     // YCQL will produce values and countsum rows, but no countsumrows rows, because that belongs to YSQL.
-    // countsum rows are filtered on count = 0, which is true if it wasn't used. therefore, we do not check on countsum statistics. likely, YCQL wasn't used prior to the test.
+    // countsum rows are filtered on count == 0, which is true if it wasn't used. therefore, we do not check on countsum statistics. likely, YCQL wasn't used prior to the test.
     assert!(stored_values.len() > 0);
     //assert!(stored_countsum.len() > 0);
     assert!(stored_countsumrows.len() == 0);

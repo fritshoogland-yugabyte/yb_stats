@@ -66,6 +66,35 @@ fn read_version_snapshot(snapshot_number: &String, yb_stats_directory: &PathBuf 
 }
 
 #[allow(dead_code)]
+pub fn perform_versions_snapshot(
+    hostname_port_vec: &Vec<&str>,
+    snapshot_number: i32,
+    yb_stats_directory: &PathBuf
+) {
+    let mut stored_versions: Vec<StoredVersionData> = Vec::new();
+    for hostname_port in hostname_port_vec {
+        let detail_snapshot_time = Local::now();
+        let gflags = read_version(&hostname_port);
+        add_to_version_vector(gflags, hostname_port, detail_snapshot_time, &mut stored_versions);
+    }
+    let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
+    let versions_file = &current_snapshot_directory.join("versions");
+    let file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(&versions_file)
+        .unwrap_or_else(|e| {
+            eprintln!("Fatal: error writing versions data in snapshot directory {}: {}", &versions_file.clone().into_os_string().into_string().unwrap(), e);
+            process::exit(1);
+        });
+    let mut writer = csv::Writer::from_writer(file);
+    for row in stored_versions {
+        writer.serialize(row).unwrap();
+    }
+    writer.flush().unwrap();
+}
+
+#[allow(dead_code)]
 pub fn print_version_data(
     snapshot_number: &String,
     yb_stats_directory: &PathBuf,

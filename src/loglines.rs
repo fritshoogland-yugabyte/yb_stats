@@ -57,6 +57,34 @@ fn read_loglines_snapshot(snapshot_number: &String, yb_stats_directory: &PathBuf
 }
 
 #[allow(dead_code)]
+pub fn perform_loglines_snapshot(
+    hostname_port_vec: &Vec<&str>,
+    snapshot_number: i32,
+    yb_stats_directory: &PathBuf
+) {
+    let mut stored_loglines: Vec<StoredLogLines> = Vec::new();
+    for hostname_port in hostname_port_vec {
+        let loglines = read_loglines(&hostname_port);
+        add_to_loglines_vector(loglines, hostname_port, &mut stored_loglines);
+    }
+    let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
+    let loglines_file = &current_snapshot_directory.join("loglines");
+    let file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(&loglines_file)
+        .unwrap_or_else(|e| {
+            eprintln!("Fatal: error writing loglines data in snapshot directory {}: {}", &loglines_file.clone().into_os_string().into_string().unwrap(), e);
+            process::exit(1);
+        });
+    let mut writer = csv::Writer::from_writer(file);
+    for row in stored_loglines {
+        writer.serialize(row).unwrap();
+    }
+    writer.flush().unwrap();
+}
+
+#[allow(dead_code)]
 pub fn print_loglines(
     snapshot_number: &String,
     yb_stats_directory: &PathBuf,
@@ -152,24 +180,8 @@ fn parse_loglines( logs_data: String ) -> Vec<LogLine> {
     // Append final logline and return
     logline.message += remaining;
     loglines.push(logline);
-    loglines
 
-    /*
-    for captures in regular_log_line.captures_iter(&logs_data) {
-        let datetime = captures.get(2).unwrap().as_str();
-        let timestamp_string = format!("{} {}", year, datetime);
-        let timestamp = Local.datetime_from_str(&timestamp_string, "%Y%m%d %H:%M:%S.%6f").unwrap();
-
-        loglines.push(LogLine {
-            severity: captures.get(1).unwrap().as_str().to_string(),
-            timestamp,
-            tid: captures.get(3).unwrap().as_str().to_string(),
-            sourcefile_nr: captures.get(4).unwrap().as_str().to_string(),
-            message: captures.get(5).unwrap().as_str().to_string()
-        });
-    }
     loglines
-     */
 }
 
 #[cfg(test)]

@@ -60,6 +60,36 @@ fn parse_memtrackers(
 }
 
 #[allow(dead_code)]
+pub fn perform_memtrackers_snapshot(
+    hostname_port_vec: &Vec<&str>,
+    snapshot_number: i32,
+    yb_stats_directory: &PathBuf
+) {
+    let mut stored_memtrackers: Vec<StoredMemTrackers> = Vec::new();
+    for hostname_port in hostname_port_vec {
+        let detail_snapshot_time = Local::now();
+        let memtrackers = read_memtrackers( &hostname_port );
+        add_to_memtrackers_vector(memtrackers, hostname_port, detail_snapshot_time, &mut stored_memtrackers);
+    }
+    let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
+    let memtrackers_file = &current_snapshot_directory.join("memtrackers");
+    let file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(&memtrackers_file)
+        .unwrap_or_else(|e| {
+            eprintln!("Fatal: error writing memtrackers data in snapshot directory {}: {}", &memtrackers_file.clone().into_os_string().into_string().unwrap(), e);
+            process::exit(1);
+        });
+    let mut writer = csv::Writer::from_writer(file);
+    for row in stored_memtrackers {
+        writer.serialize(row).unwrap();
+    }
+    writer.flush().unwrap();
+}
+
+
+#[allow(dead_code)]
 pub fn print_memtrackers_data(
     snapshot_number: &String,
     yb_stats_directory: &PathBuf,

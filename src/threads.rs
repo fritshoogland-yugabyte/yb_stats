@@ -28,6 +28,35 @@ pub struct StoredThreads {
 }
 
 #[allow(dead_code)]
+pub fn perform_threads_snapshot(
+    hostname_port_vec: &Vec<&str>,
+    snapshot_number: i32,
+    yb_stats_directory: &PathBuf
+) {
+    let mut stored_threads: Vec<StoredThreads> = Vec::new();
+    for hostname_port in hostname_port_vec {
+        let detail_snapshot_time = Local::now();
+        let threads = read_threads( &hostname_port);
+        add_to_threads_vector(threads, hostname_port, detail_snapshot_time, &mut stored_threads);
+    }
+    let current_snapshot_directory = &yb_stats_directory.join( &snapshot_number.to_string());
+    let threads_file = &current_snapshot_directory.join("threads");
+    let file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(&threads_file)
+        .unwrap_or_else(|e| {
+            eprintln!("Fatal: error writing threads data in snapshots directory {}: {}", &threads_file.clone().into_os_string().into_string().unwrap(), e);
+            process::exit(1);
+        });
+    let mut writer = csv::Writer::from_writer(file);
+    for row in stored_threads {
+        writer.serialize(row).unwrap();
+    }
+    writer.flush().unwrap();
+}
+
+#[allow(dead_code)]
 pub fn read_threads(
     hostname: &str
 ) -> Vec<Threads> {

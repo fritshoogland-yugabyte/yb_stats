@@ -6,7 +6,8 @@ use regex::Regex;
 use std::fs;
 use std::process;
 use serde_derive::{Serialize,Deserialize};
-use scoped_threadpool::Pool;
+//use scoped_threadpool::Pool;
+use rayon;
 use std::sync::mpsc::channel;
 
 #[derive(Debug)]
@@ -66,21 +67,21 @@ pub fn perform_memtrackers_snapshot(
     hostname_port_vec: &Vec<&str>,
     snapshot_number: i32,
     yb_stats_directory: &PathBuf,
-    parallel: &u32
+    parallel: usize
 ) {
-    let mut pool = Pool::new(*parallel);
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
     let (tx, rx) = channel();
-    pool.scoped(|scope| {
+
+    pool.scope(move |s| {
         for hostname_port in hostname_port_vec {
             let tx = tx.clone();
-            scope.execute(move || {
+            s.spawn(move |_| {
                 let detail_snapshot_time = Local::now();
                 let memtrackers = read_memtrackers(&hostname_port);
                 tx.send( (hostname_port, detail_snapshot_time, memtrackers) ).expect("channel will be waiting in the pool");
             });
         }
     });
-    drop(tx);
     let mut stored_memtrackers: Vec<StoredMemTrackers> = Vec::new();
     for (hostname_port, detail_snapshot_time, memtrackers) in rx {
         add_to_memtrackers_vector(memtrackers, hostname_port, detail_snapshot_time, &mut stored_memtrackers);

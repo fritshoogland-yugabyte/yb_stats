@@ -79,7 +79,7 @@ struct Opts {
     log_severity: String,
     /// how much threads to use for fetching data
     #[structopt(short, long, default_value = "1")]
-    parallel: u32,
+    parallel: usize,
 }
 ///// begin snapshot number
 //#[structopt(short, long)]
@@ -97,7 +97,7 @@ fn main() {
     let gauges_enable: bool = options.gauges_enable as bool;
     let details_enable: bool = options.details_enable as bool;
     let snapshot_diff: bool = options.snapshot_diff as bool;
-    let parallel: u32 = options.parallel;
+    let parallel: usize = options.parallel;
     let log_severity: String = options.log_severity;
     let snapshot_comment = match options.snapshot_comment {
         Some(comment) => comment,
@@ -163,16 +163,16 @@ fn main() {
     } else {
 
         let first_snapshot_time = Local::now();
-        let (mut values_diff, mut countsum_diff, mut countsumrows_diff) = get_metrics_into_diff_first_snapshot(&hostname_port_vec, &parallel);
-        let mut statements_diff = get_statements_into_diff_first_snapshot(&hostname_port_vec, &parallel);
+        let (mut values_diff, mut countsum_diff, mut countsumrows_diff) = get_metrics_into_diff_first_snapshot(&hostname_port_vec, parallel);
+        let mut statements_diff = get_statements_into_diff_first_snapshot(&hostname_port_vec, parallel);
 
         println!("Begin metrics snapshot created, press enter to create end snapshot for difference calculation.");
         let mut input = String::new();
         stdin().read_line(&mut input).ok().expect("failed");
 
         let second_snapshot_time = Local::now();
-        get_metrics_into_diff_second_snapshot(&hostname_port_vec, &mut values_diff, &mut countsum_diff, &mut countsumrows_diff, &first_snapshot_time, &parallel);
-        get_statements_into_diff_second_snapshot(&hostname_port_vec, &mut statements_diff, &first_snapshot_time, &parallel);
+        get_metrics_into_diff_second_snapshot(&hostname_port_vec, &mut values_diff, &mut countsum_diff, &mut countsumrows_diff, &first_snapshot_time, parallel);
+        get_statements_into_diff_second_snapshot(&hostname_port_vec, &mut statements_diff, &first_snapshot_time, parallel);
 
         println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time-first_snapshot_time).num_milliseconds() as f64/1000 as f64);
         print_diff_metrics(&values_diff, &countsum_diff, &countsumrows_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);

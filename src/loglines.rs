@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use regex::{Regex,Captures};
 use std::fs;
 use serde_derive::{Serialize,Deserialize};
-use scoped_threadpool::Pool;
+use rayon;
 use std::sync::mpsc::channel;
 
 #[derive(Debug)]
@@ -63,20 +63,19 @@ pub fn perform_loglines_snapshot(
     hostname_port_vec: &Vec<&str>,
     snapshot_number: i32,
     yb_stats_directory: &PathBuf,
-    parallel: &u32
+    parallel: usize
 ) {
-    let mut pool = Pool::new(*parallel);
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
     let (tx, rx) = channel();
-    pool.scoped(|scope| {
+    pool.scope(move |s| {
         for hostname_port in hostname_port_vec {
             let tx = tx.clone();
-            scope.execute(move || {
+            s.spawn(move |_| {
                 let loglines = read_loglines(&hostname_port);
                 tx.send( (hostname_port, loglines )).expect("channel will be waiting in the pool");
             });
         }
     });
-    drop(tx);
     let mut stored_loglines: Vec<StoredLogLines> = Vec::new();
     for (hostname_port, loglines) in rx {
         add_to_loglines_vector(loglines, hostname_port, &mut stored_loglines);

@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use regex::Regex;
 use substring::Substring;
 use std::env;
-use scoped_threadpool::Pool;
+use rayon;
 use std::sync::mpsc::channel;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -68,22 +68,21 @@ fn read_statements( hostname: &str) -> Statement {
 
 pub fn read_statements_into_vector(
     hostname_port_vec: &Vec<&str>,
-    parallel: &u32
+    parallel: usize
 ) -> Vec<StoredStatements>
 {
-    let mut pool = Pool::new(*parallel);
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
     let (tx, rx) = channel();
-    pool.scoped(|scope| {
+    pool.scope(move |s| {
         for hostname_port in hostname_port_vec {
             let tx = tx.clone();
-            scope.execute(move || {
+            s.spawn(move |_| {
                 let detail_snapshot_time = Local::now();
                 let statements = read_statements(&hostname_port);
                 tx.send((hostname_port, detail_snapshot_time, statements)).expect("channel will be waiting in the pool");
             });
         }
     });
-    drop(tx);
     let mut stored_statements: Vec<StoredStatements> = Vec::new();
     for (hostname_port, detail_snapshot_time, statements) in rx {
         add_to_statements_vector(statements, hostname_port, detail_snapshot_time, &mut stored_statements);
@@ -103,9 +102,9 @@ pub fn perform_statements_snapshot(
     hostname_port_vec: &Vec<&str>,
     snapshot_number: i32,
     yb_stats_directory: &PathBuf,
-    parallel: &u32
+    parallel: usize
 ) {
-   let stored_statements = read_statements_into_vector(hostname_port_vec, &parallel);
+   let stored_statements = read_statements_into_vector(hostname_port_vec, parallel);
 
     let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
     let statements_file = &current_snapshot_directory.join("statements");
@@ -269,9 +268,9 @@ pub fn print_statements_diff_for_snapshots(
 #[allow(dead_code)]
 pub fn get_statements_into_diff_first_snapshot(
     hostname_port_vec: &Vec<&str>,
-    parallel: &u32
+    parallel: usize
 ) -> BTreeMap<(String, String), SnapshotDiffStatements> {
-    let stored_statements = read_statements_into_vector(&hostname_port_vec, &parallel);
+    let stored_statements = read_statements_into_vector(&hostname_port_vec, parallel);
     let statements_diff = insert_first_snapshot_statements(stored_statements);
     statements_diff
 }
@@ -281,9 +280,9 @@ pub fn get_statements_into_diff_second_snapshot(
     hostname_port_vec: &Vec<&str>,
     statements_diff: &mut BTreeMap<(String, String), SnapshotDiffStatements>,
     first_snapshot_time: &DateTime<Local>,
-    parallel: &u32
+    parallel: usize
 ) {
-    let stored_statements = read_statements_into_vector(&hostname_port_vec, &parallel);
+    let stored_statements = read_statements_into_vector(&hostname_port_vec, parallel);
     insert_second_snapshot_statements(stored_statements, statements_diff, &first_snapshot_time);
 }
 

@@ -5,8 +5,8 @@ use std::fs;
 use std::process;
 use regex::Regex;
 use serde_derive::{Serialize,Deserialize};
-use scoped_threadpool::Pool;
-//use rayon;
+//use scoped_threadpool::Pool;
+use rayon;
 use std::sync::mpsc::channel;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -73,24 +73,21 @@ pub fn perform_versions_snapshot(
     hostname_port_vec: &Vec<&str>,
     snapshot_number: i32,
     yb_stats_directory: &PathBuf,
-    parallel: &u32
+    parallel: usize
 ) {
-    let mut pool = Pool::new(*parallel);
-    //let pool = rayon::ThreadPoolBuilder::new().num_threads(*parallel).build().unwrap();
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
     let (tx, rx) = channel();
 
-    pool.scoped(|scope| {
+    pool.scope(move |s| {
         for hostname_port in hostname_port_vec {
             let tx = tx.clone();
-            //scope.spawn(move |_| {
-            scope.execute(move || {
+            s.spawn(move |_| {
                 let detail_snapshot_time = Local::now();
                 let version = read_version(&hostname_port);
                 tx.send((hostname_port, detail_snapshot_time, version)).expect("channel will be waiting in the pool");
             });
         }
     });
-    drop(tx);
     let mut stored_versions: Vec<StoredVersionData> = Vec::new();
     for (hostname_port, detail_snapshot_time, version) in rx {
         add_to_version_vector(version, hostname_port, detail_snapshot_time, &mut stored_versions);

@@ -18,5 +18,5 @@ substring = "1.4.5"
 csv = "1.1.6"
 chrono = { version = "0.4.19", features = ["serde"] }
 table-extract = "0.2.2"
-#rayon = "1.5.1"
-scoped_threadpool = "0.1.9"
+rayon = "1.5.1"
+#scoped_threadpool = "0.1.9"

@@ -5,6 +5,9 @@ use std::fs;
 use std::process;
 use regex::Regex;
 use serde_derive::{Serialize,Deserialize};
+use scoped_threadpool::Pool;
+//use rayon;
+use std::sync::mpsc::channel;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct VersionData {
@@ -69,14 +72,30 @@ fn read_version_snapshot(snapshot_number: &String, yb_stats_directory: &PathBuf 
 pub fn perform_versions_snapshot(
     hostname_port_vec: &Vec<&str>,
     snapshot_number: i32,
-    yb_stats_directory: &PathBuf
+    yb_stats_directory: &PathBuf,
+    parallel: &u32
 ) {
+    let mut pool = Pool::new(*parallel);
+    //let pool = rayon::ThreadPoolBuilder::new().num_threads(*parallel).build().unwrap();
+    let (tx, rx) = channel();
+
+    pool.scoped(|scope| {
+        for hostname_port in hostname_port_vec {
+            let tx = tx.clone();
+            //scope.spawn(move |_| {
+            scope.execute(move || {
+                let detail_snapshot_time = Local::now();
+                let version = read_version(&hostname_port);
+                tx.send((hostname_port, detail_snapshot_time, version)).expect("channel will be waiting in the pool");
+            });
+        }
+    });
+    drop(tx);
     let mut stored_versions: Vec<StoredVersionData> = Vec::new();
-    for hostname_port in hostname_port_vec {
-        let detail_snapshot_time = Local::now();
-        let gflags = read_version(&hostname_port);
-        add_to_version_vector(gflags, hostname_port, detail_snapshot_time, &mut stored_versions);
+    for (hostname_port, detail_snapshot_time, version) in rx {
+        add_to_version_vector(version, hostname_port, detail_snapshot_time, &mut stored_versions);
     }
+
     let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
     let versions_file = &current_snapshot_directory.join("versions");
     let file = fs::OpenOptions::new()
@@ -130,19 +149,21 @@ pub fn add_to_version_vector(versiondata: VersionData,
                              snapshot_time: DateTime<Local>,
                              stored_versiondata: &mut Vec<StoredVersionData>
 ) {
-    stored_versiondata.push(StoredVersionData {
-        hostname_port: hostname.to_string(),
-        timestamp: snapshot_time,
-        git_hash: versiondata.git_hash.to_string(),
-        build_hostname: versiondata.build_hostname.to_string(),
-        build_timestamp: versiondata.build_timestamp.to_string(),
-        build_username: versiondata.build_username.to_string(),
-        build_clean_repo: versiondata.build_clean_repo.to_string(),
-        build_id: versiondata.build_id.to_string(),
-        build_type: versiondata.build_type.to_string(),
-        version_number: versiondata.version_number.to_string(),
-        build_number: versiondata.build_number.to_string(),
-    });
+    if versiondata.git_hash != "" {
+        stored_versiondata.push(StoredVersionData {
+            hostname_port: hostname.to_string(),
+            timestamp: snapshot_time,
+            git_hash: versiondata.git_hash.to_string(),
+            build_hostname: versiondata.build_hostname.to_string(),
+            build_timestamp: versiondata.build_timestamp.to_string(),
+            build_username: versiondata.build_username.to_string(),
+            build_clean_repo: versiondata.build_clean_repo.to_string(),
+            build_id: versiondata.build_id.to_string(),
+            build_type: versiondata.build_type.to_string(),
+            version_number: versiondata.version_number.to_string(),
+            build_number: versiondata.build_number.to_string(),
+        });
+    }
 }
 
 #[allow(dead_code)]

@@ -5,6 +5,8 @@ use std::path::PathBuf;
 use regex::{Regex,Captures};
 use std::fs;
 use serde_derive::{Serialize,Deserialize};
+use scoped_threadpool::Pool;
+use std::sync::mpsc::channel;
 
 #[derive(Debug)]
 pub struct LogLine {
@@ -60,13 +62,26 @@ fn read_loglines_snapshot(snapshot_number: &String, yb_stats_directory: &PathBuf
 pub fn perform_loglines_snapshot(
     hostname_port_vec: &Vec<&str>,
     snapshot_number: i32,
-    yb_stats_directory: &PathBuf
+    yb_stats_directory: &PathBuf,
+    parallel: &u32
 ) {
+    let mut pool = Pool::new(*parallel);
+    let (tx, rx) = channel();
+    pool.scoped(|scope| {
+        for hostname_port in hostname_port_vec {
+            let tx = tx.clone();
+            scope.execute(move || {
+                let loglines = read_loglines(&hostname_port);
+                tx.send( (hostname_port, loglines )).expect("channel will be waiting in the pool");
+            });
+        }
+    });
+    drop(tx);
     let mut stored_loglines: Vec<StoredLogLines> = Vec::new();
-    for hostname_port in hostname_port_vec {
-        let loglines = read_loglines(&hostname_port);
+    for (hostname_port, loglines) in rx {
         add_to_loglines_vector(loglines, hostname_port, &mut stored_loglines);
     }
+
     let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
     let loglines_file = &current_snapshot_directory.join("loglines");
     let file = fs::OpenOptions::new()

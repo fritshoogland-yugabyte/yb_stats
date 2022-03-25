@@ -8,6 +8,8 @@ use std::fs;
 use regex::Regex;
 use std::env;
 use substring::Substring;
+use scoped_threadpool::Pool;
+use std::sync::mpsc::channel;
 
 //mod value_statistic_details;
 use crate::value_statistic_details::{ValueStatisticDetails, value_create_hashmap};
@@ -153,7 +155,7 @@ pub struct SnapshotDiffCountSumRows {
     pub second_snapshot_rows: u64,
 }
 
-pub fn read_metrics( hostname: &str) -> Vec<Metrics> {
+fn read_metrics( hostname: &str) -> Vec<Metrics> {
     if ! scan_port_addr(hostname) {
         println!("Warning! hostname:port {} cannot be reached, skipping", hostname.to_string());
         return parse_metrics(String::from(""))
@@ -168,14 +170,30 @@ pub fn read_metrics( hostname: &str) -> Vec<Metrics> {
 }
 
 pub fn read_metrics_into_vectors(
-    hostname_port_vec: &Vec<&str>
-) -> (Vec<StoredValues>, Vec<StoredCountSum>, Vec<StoredCountSumRows>) {
+    hostname_port_vec: &Vec<&str>,
+    parallel: &u32
+) -> (
+    Vec<StoredValues>,
+    Vec<StoredCountSum>,
+    Vec<StoredCountSumRows>
+) {
+    let mut pool = Pool::new(*parallel);
+    let (tx, rx) = channel();
+    pool.scoped(|scope| {
+        for hostname_port in hostname_port_vec {
+            let tx = tx.clone();
+            scope.execute(move || {
+                let detail_snapshot_time = Local::now();
+                let metrics = read_metrics(&hostname_port);
+                tx.send( (hostname_port, detail_snapshot_time, metrics )).expect("channel will be waiting in the pool");
+            });
+        }
+    });
+    drop(tx);
     let mut stored_values: Vec<StoredValues> = Vec::new();
     let mut stored_countsum: Vec<StoredCountSum> = Vec::new();
     let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
-    for hostname_port in hostname_port_vec {
-        let detail_snapshot_time = Local::now();
-        let metrics = read_metrics(&hostname_port);
+    for (hostname_port, detail_snapshot_time, metrics) in rx {
         add_to_metric_vectors(metrics, hostname_port, detail_snapshot_time, &mut stored_values, &mut stored_countsum, &mut stored_countsumrows);
     }
     (stored_values, stored_countsum, stored_countsumrows)
@@ -185,9 +203,10 @@ pub fn read_metrics_into_vectors(
 pub fn perform_metrics_snapshot(
     hostname_port_vec: &Vec<&str>,
     snapshot_number: i32,
-    yb_stats_directory: &PathBuf
+    yb_stats_directory: &PathBuf,
+    parallel: &u32
 ) {
-    let (stored_values, stored_countsum, stored_countsumrows) = read_metrics_into_vectors(hostname_port_vec);
+    let (stored_values, stored_countsum, stored_countsumrows) = read_metrics_into_vectors(&hostname_port_vec, &parallel);
 
     let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
     let values_file = &current_snapshot_directory.join("values");
@@ -1155,13 +1174,14 @@ pub fn print_diff_metrics(value_diff: &BTreeMap<(String, String, String, String)
 }
 
 pub fn get_metrics_into_diff_first_snapshot(
-    hostname_port_vec: &Vec<&str>
+    hostname_port_vec: &Vec<&str>,
+    parallel: &u32
 ) -> (
     BTreeMap<(String, String, String, String), SnapshotDiffValues>,
     BTreeMap<(String, String, String, String), SnapshotDiffCountSum>,
     BTreeMap<(String, String, String, String), SnapshotDiffCountSumRows>
 ) {
-    let (stored_values, stored_countsum, stored_countsumrows) = read_metrics_into_vectors(&hostname_port_vec);
+    let (stored_values, stored_countsum, stored_countsumrows) = read_metrics_into_vectors(&hostname_port_vec, &parallel);
     let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps( stored_values, stored_countsum, stored_countsumrows);
     let (values_diff, countsum_diff, countsumrows_diff) = insert_first_snapshot_metrics(values_map, countsum_map, countsumrows_map);
     (values_diff, countsum_diff, countsumrows_diff)
@@ -1172,9 +1192,10 @@ pub fn get_metrics_into_diff_second_snapshot(
     values_diff: &mut BTreeMap<(String, String, String, String), SnapshotDiffValues>,
     countsum_diff: &mut BTreeMap<(String, String, String, String), SnapshotDiffCountSum>,
     countsumrows_diff: &mut BTreeMap<(String, String, String, String), SnapshotDiffCountSumRows>,
-    first_snapshot_time: &DateTime<Local>
+    first_snapshot_time: &DateTime<Local>,
+    parallel: &u32
 ) {
-    let (stored_values, stored_countsum, stored_countsumrows) = read_metrics_into_vectors(&hostname_port_vec);
+    let (stored_values, stored_countsum, stored_countsumrows) = read_metrics_into_vectors(&hostname_port_vec, &parallel);
     let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps( stored_values, stored_countsum, stored_countsumrows);
     insert_second_snapshot_metrics(values_map, values_diff, countsum_map, countsum_diff, countsumrows_map, countsumrows_diff, &first_snapshot_time);
 }

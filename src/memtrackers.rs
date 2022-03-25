@@ -6,6 +6,8 @@ use regex::Regex;
 use std::fs;
 use std::process;
 use serde_derive::{Serialize,Deserialize};
+use scoped_threadpool::Pool;
+use std::sync::mpsc::channel;
 
 #[derive(Debug)]
 pub struct MemTrackers {
@@ -63,14 +65,27 @@ fn parse_memtrackers(
 pub fn perform_memtrackers_snapshot(
     hostname_port_vec: &Vec<&str>,
     snapshot_number: i32,
-    yb_stats_directory: &PathBuf
+    yb_stats_directory: &PathBuf,
+    parallel: &u32
 ) {
+    let mut pool = Pool::new(*parallel);
+    let (tx, rx) = channel();
+    pool.scoped(|scope| {
+        for hostname_port in hostname_port_vec {
+            let tx = tx.clone();
+            scope.execute(move || {
+                let detail_snapshot_time = Local::now();
+                let memtrackers = read_memtrackers(&hostname_port);
+                tx.send( (hostname_port, detail_snapshot_time, memtrackers) ).expect("channel will be waiting in the pool");
+            });
+        }
+    });
+    drop(tx);
     let mut stored_memtrackers: Vec<StoredMemTrackers> = Vec::new();
-    for hostname_port in hostname_port_vec {
-        let detail_snapshot_time = Local::now();
-        let memtrackers = read_memtrackers( &hostname_port );
+    for (hostname_port, detail_snapshot_time, memtrackers) in rx {
         add_to_memtrackers_vector(memtrackers, hostname_port, detail_snapshot_time, &mut stored_memtrackers);
     }
+
     let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
     let memtrackers_file = &current_snapshot_directory.join("memtrackers");
     let file = fs::OpenOptions::new()

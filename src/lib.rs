@@ -146,6 +146,7 @@ fn create_new_snapshot_directory(
 pub fn perform_snapshot(
     hostname_port_vec: Vec<&str>,
     snapshot_comment: String,
+    parallel: u32
 ) -> i32 {
     let mut snapshots: Vec<Snapshot> = Vec::new();
 
@@ -155,13 +156,13 @@ pub fn perform_snapshot(
     let snapshot_number = read_snapshot_number(&yb_stats_directory, &mut snapshots);
     create_new_snapshot_directory(&yb_stats_directory, snapshot_number, snapshot_comment, &mut snapshots);
 
-    metrics::perform_metrics_snapshot(&hostname_port_vec, snapshot_number, &yb_stats_directory);
-    gflags::perform_gflags_snapshot(&hostname_port_vec, snapshot_number, &yb_stats_directory);
-    threads::perform_threads_snapshot(&hostname_port_vec, snapshot_number, &yb_stats_directory);
-    memtrackers::perform_memtrackers_snapshot(&hostname_port_vec, snapshot_number, &yb_stats_directory);
-    loglines::perform_loglines_snapshot(&hostname_port_vec, snapshot_number, &yb_stats_directory);
-    versions::perform_versions_snapshot(&hostname_port_vec, snapshot_number, &yb_stats_directory);
-    statements::perform_statements_snapshot(&hostname_port_vec, snapshot_number, &yb_stats_directory);
+    metrics::perform_metrics_snapshot(&hostname_port_vec, snapshot_number, &yb_stats_directory, &parallel);
+    gflags::perform_gflags_snapshot(&hostname_port_vec, snapshot_number, &yb_stats_directory, &parallel);
+    threads::perform_threads_snapshot(&hostname_port_vec, snapshot_number, &yb_stats_directory, &parallel);
+    memtrackers::perform_memtrackers_snapshot(&hostname_port_vec, snapshot_number, &yb_stats_directory, &parallel);
+    loglines::perform_loglines_snapshot(&hostname_port_vec, snapshot_number, &yb_stats_directory, &parallel);
+    versions::perform_versions_snapshot(&hostname_port_vec, snapshot_number, &yb_stats_directory, &parallel);
+    statements::perform_statements_snapshot(&hostname_port_vec, snapshot_number, &yb_stats_directory, &parallel);
 
     snapshot_number
 }

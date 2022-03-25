@@ -5,6 +5,8 @@ use regex::Regex;
 use std::fs;
 use std::process;
 use serde_derive::{Serialize,Deserialize};
+use scoped_threadpool::Pool;
+use std::sync::mpsc::channel;
 
 #[derive(Debug)]
 pub struct GFlag {
@@ -37,14 +39,27 @@ pub fn read_gflags( hostname: &str) -> Vec<GFlag> {
 pub fn perform_gflags_snapshot(
     hostname_port_vec: &Vec<&str>,
     snapshot_number: i32,
-    yb_stats_directory: &PathBuf
+    yb_stats_directory: &PathBuf,
+    parallel: &u32
 ) {
+    let mut pool = Pool::new(*parallel);
+    let (tx, rx) = channel();
+    pool.scoped(|scope| {
+        for hostname_port in hostname_port_vec {
+            let tx = tx.clone();
+            scope.execute(move || {
+                let detail_snapshot_time = Local::now();
+                let gflags = read_gflags(&hostname_port);
+                tx.send( (hostname_port, detail_snapshot_time, gflags)).expect("channel will be waiting in the pool");
+            });
+        }
+    });
+    drop(tx);
     let mut stored_gflags: Vec<StoredGFlags> = Vec::new();
-    for hostname_port in hostname_port_vec {
-        let detail_snapshot_time = Local::now();
-        let gflags = read_gflags(&hostname_port);
+    for (hostname_port, detail_snapshot_time, gflags) in rx {
         add_to_gflags_vector(gflags, hostname_port, detail_snapshot_time, &mut stored_gflags);
     }
+
     let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
     let gflags_file = &current_snapshot_directory.join("gflags");
     let file = fs::OpenOptions::new()

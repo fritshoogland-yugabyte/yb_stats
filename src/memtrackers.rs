@@ -1,14 +1,13 @@
 use chrono::{DateTime, Local};
 use port_scanner::scan_port_addr;
-use table_extract;
 use std::path::PathBuf;
 use regex::Regex;
 use std::fs;
 use std::process;
 use serde_derive::{Serialize,Deserialize};
-//use scoped_threadpool::Pool;
 use rayon;
 use std::sync::mpsc::channel;
+use scraper::{ElementRef, Html, Selector};
 
 #[derive(Debug)]
 pub struct MemTrackers {
@@ -48,6 +47,28 @@ fn parse_memtrackers(
     http_data: String
 ) -> Vec<MemTrackers> {
     let mut memtrackers: Vec<MemTrackers> = Vec::new();
+    if let Some(table) = find_table(&http_data) {
+        let (headers, rows) = table;
+        let try_find_header = |target| headers.iter().position(|h| h == target);
+        let id_pos = try_find_header("Id");
+        let current_consumption_pos = try_find_header("Current Consumption");
+        let peak_consumption_pos = try_find_header("Peak Consumption");
+        let limit_pos = try_find_header("Limit");
+        let take_or_missing = |row: &mut [String], pos: Option<usize>| match pos.and_then(|pos| row.get_mut(pos)) {
+            Some(value) => std::mem::take(value),
+            None => "<Missing>".to_string(),
+        };
+        for mut row in rows {
+            memtrackers.push(MemTrackers {
+                id: take_or_missing(&mut row, id_pos),
+                current_consumption: take_or_missing(&mut row, current_consumption_pos),
+                peak_consumption: take_or_missing(&mut row, peak_consumption_pos),
+                limit: take_or_missing(&mut row, limit_pos),
+            });
+        }
+    }
+    memtrackers
+    /*
     if let Some ( table ) = table_extract::Table::find_first(&http_data) {
         for row in &table {
             memtrackers.push(MemTrackers {
@@ -59,7 +80,23 @@ fn parse_memtrackers(
             });
         }
     }
-    memtrackers
+     */
+}
+
+fn find_table(http_data: &str) -> Option<(Vec<String>, Vec<Vec<String>>)> {
+    let css = |selector| Selector::parse(selector).unwrap();
+    let get_cells = |row: ElementRef, selector| {
+        row.select(&css(selector))
+            .map(|cell| cell.inner_html().trim().to_string())
+            .collect()
+    };
+    let html = Html::parse_fragment(http_data);
+    let table = html.select(&css("table")).next()?;
+    let tr = css("tr");
+    let mut rows = table.select(&tr);
+    let headers = get_cells(rows.next()?, "th");
+    let rows: Vec<_> = rows.map(|row| get_cells(row, "td")).collect();
+    Some((headers, rows))
 }
 
 #[allow(dead_code)]

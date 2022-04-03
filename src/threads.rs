@@ -1,6 +1,5 @@
 use chrono::{DateTime, Local};
 use port_scanner::scan_port_addr;
-use table_extract;
 use std::path::PathBuf;
 use std::fs;
 use std::process;
@@ -8,6 +7,7 @@ use serde_derive::{Serialize,Deserialize};
 use regex::Regex;
 use rayon;
 use std::sync::mpsc::channel;
+use scraper::{ElementRef, Html, Selector};
 
 #[derive(Debug)]
 pub struct Threads {
@@ -91,25 +91,71 @@ fn parse_threads(
     http_data: String
 ) -> Vec<Threads> {
     let mut threads: Vec<Threads> = Vec::new();
-    if let Some ( table ) = table_extract::Table::find_first(&http_data) {
-        let empty_stack_from_table = String::from("^-^");
-        for row in &table {
-            let stack_from_table = if row.as_slice().len() == 5 {
-                &row.as_slice()[4]
-            } else {
-                &empty_stack_from_table
+    let function_regex = Regex::new(r"@\s+0x[[:xdigit:]]+\s+(\S+)\n").unwrap();
+    if let Some(table) = find_table(&http_data) {
+        let (headers, rows) = table;
+
+        let try_find_header = |target| headers.iter().position(|h| h == target);
+        // mind "Thread name": name doesn't start with a capital, unlike all other headings
+        let thread_name_pos = try_find_header("Thread name");
+        let cumul_user_cpus_pos = try_find_header("Cumulative User CPU(s)");
+        let cumul_kernel_cpus_pos = try_find_header("Cumulative Kernel CPU(s)");
+        let cumul_iowaits_pos = try_find_header("Cumulative IO-wait(s)");
+
+        let take_or_missing =
+            |row: &mut [String], pos: Option<usize>| match pos.and_then(|pos| row.get_mut(pos)) {
+                Some(value) => std::mem::take(value),
+                None => "<Missing>".to_string(),
             };
+
+        let mut stack_from_table = String::from("Initial value: this should not be visible");
+        for mut row in rows {
+            stack_from_table = if row.len() == 5 {
+                std::mem::take(&mut row[4])
+            } else {
+            //   empty_stack_from_table.to_string()
+                stack_from_table.to_string()
+            };
+            let mut st = Vec::new();
+            for c in function_regex.captures_iter(&stack_from_table) {
+                st.push(c[1].to_string().clone());
+            };
+            st.reverse();
+            let mut final_stack = String::from("");
+            for function in &st {
+                final_stack.push_str(&function );
+                final_stack.push_str(";");
+            }
+            final_stack.pop();
             threads.push(Threads {
-                thread_name: row.get("Thread name").unwrap_or("<Missing>").to_string(),
-                cumulative_user_cpu_s: row.get("Cumulative User CPU(s)").unwrap_or("<Missing>").to_string(),
-                cumulative_kernel_cpu_s: row.get("Cumulative Kernel CPU(s)").unwrap_or("<Missing>").to_string(),
-                cumulative_iowait_cpu_s: row.get("Cumulative IO-wait(s)").unwrap_or("<Missing>").to_string(),
-                stack: stack_from_table.to_string()
+                thread_name: take_or_missing(&mut row, thread_name_pos),
+                cumulative_user_cpu_s: take_or_missing(&mut row, cumul_user_cpus_pos),
+                cumulative_kernel_cpu_s: take_or_missing(&mut row, cumul_kernel_cpus_pos),
+                cumulative_iowait_cpu_s: take_or_missing(&mut row, cumul_iowaits_pos),
+                //stack: stack_from_table.clone(),
+                stack: final_stack,
             });
         }
     }
     threads
 }
+
+fn find_table(http_data: &str) -> Option<(Vec<String>, Vec<Vec<String>>)> {
+    let css = |selector| Selector::parse(selector).unwrap();
+    let get_cells = |row: ElementRef, selector| {
+        row.select(&css(selector))
+            .map(|cell| cell.inner_html().trim().to_string())
+            .collect()
+    };
+    let html = Html::parse_fragment(http_data);
+    let table = html.select(&css("table")).next()?;
+    let tr = css("tr");
+    let mut rows = table.select(&tr);
+    let headers = get_cells(rows.next()?, "th");
+    let rows: Vec<_> = rows.map(|row| get_cells(row, "td")).collect();
+    Some((headers, rows))
+}
+
 #[allow(dead_code)]
 pub fn print_threads_data(
     snapshot_number: &String,
@@ -313,6 +359,12 @@ server uuid 4ce571a18f8c4a9a8b35246222d12025 local time 2022-03-16 12:33:37.6344
         // this results in 33 Threads
         assert_eq!(result.len(), 33);
         // and the thread name is Master_reactorx-6127
+        // these are all the fields, for completeness sake
         assert_eq!(result[0].thread_name, "Master_reactorx-6127");
+        assert_eq!(result[0].cumulative_user_cpu_s, "2.960s");
+        assert_eq!(result[0].cumulative_kernel_cpu_s, "0.000s");
+        assert_eq!(result[0].cumulative_iowait_cpu_s, "0.000s");
+        //assert_eq!(result[0].stack, "<pre>    @     0x7f035af7a9f2  __GI_epoll_wait\n    @     0x7f035db7fbf7  epoll_poll\n    @     0x7f035db7ac5d  ev_run\n    @     0x7f035e02f07b  yb::rpc::Reactor::RunThread()\n    @     0x7f035de5f1d4  yb::Thread::SuperviseThread()\n    @     0x7f035b83e693  start_thread\n    @     0x7f035af7a41c  __clone\n\nTotal number of threads: 1</pre>");
+        assert_eq!(result[0].stack, "__clone;start_thread;yb::Thread::SuperviseThread();yb::rpc::Reactor::RunThread();ev_run;epoll_poll;__GI_epoll_wait");
     }
 }

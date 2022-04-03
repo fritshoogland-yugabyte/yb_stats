@@ -54,7 +54,7 @@ pub struct SnapshotDiffStatements {
     pub second_rows: i64,
 }
 
-fn read_statements( hostname: &str) -> Statement {
+pub fn read_statements( hostname: &str) -> Statement {
     if ! scan_port_addr( hostname ) {
         println!("Warning: hostname:port {} cannot be reached, skipping", hostname.to_string());
         return parse_statements(String::from(""))

@@ -155,7 +155,7 @@ pub struct SnapshotDiffCountSumRows {
     pub second_snapshot_rows: u64,
 }
 
-fn read_metrics( hostname: &str) -> Vec<Metrics> {
+pub fn read_metrics( hostname: &str) -> Vec<Metrics> {
     if ! scan_port_addr(hostname) {
         println!("Warning! hostname:port {} cannot be reached, skipping", hostname.to_string());
         return parse_metrics(String::from(""))

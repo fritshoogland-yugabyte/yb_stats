@@ -6,17 +6,16 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-structopt = "0.3.25"
+structopt = "0.3.26"
 port_scanner = "0.1.5"
-serde = "1.0.132"
-serde_json = "1.0.73"
-serde_derive = "1.0.132"
-reqwest = { version = "0.11.8", features = ["blocking"] }
+serde = "1.0.136"
+serde_json = "1.0.79"
+serde_derive = "1.0.136"
+reqwest = { version = "0.11.10", features = ["blocking"] }
 itertools = "0.10.3"
-regex = "1"
+regex = "1.5.5"
 substring = "1.4.5"
 csv = "1.1.6"
 chrono = { version = "0.4.19", features = ["serde"] }
 table-extract = "0.2.2"
 rayon = "1.5.1"
-#scoped_threadpool = "0.1.9"

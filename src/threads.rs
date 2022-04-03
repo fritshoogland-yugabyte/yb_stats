@@ -49,7 +49,6 @@ pub fn perform_threads_snapshot(
             });
         }
     });
-    //drop(tx);
     let mut stored_threads: Vec<StoredThreads> = Vec::new();
     for (hostname_port, detail_snapshot_time, threads) in rx {
         add_to_threads_vector(threads, hostname_port, detail_snapshot_time, &mut stored_threads);

@@ -52,7 +52,7 @@ fn parse_memtrackers(
         let try_find_header = |target| headers.iter().position(|h| h == target);
         let id_pos = try_find_header("Id");
         let current_consumption_pos = try_find_header("Current Consumption");
-        let peak_consumption_pos = try_find_header("Peak Consumption");
+        let peak_consumption_pos = try_find_header("Peak consumption");
         let limit_pos = try_find_header("Limit");
         let take_or_missing = |row: &mut [String], pos: Option<usize>| match pos.and_then(|pos| row.get_mut(pos)) {
             Some(value) => std::mem::take(value),

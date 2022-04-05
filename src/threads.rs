@@ -113,9 +113,10 @@ fn parse_threads(
             stack_from_table = if row.len() == 5 {
                 std::mem::take(&mut row[4])
             } else {
-            //   empty_stack_from_table.to_string()
                 stack_from_table.to_string()
             };
+            let stack_from_table = stack_from_table.replace("&lt;", "<");
+            let stack_from_table = stack_from_table.replace("&gt;", ">");
             let mut st = Vec::new();
             for c in function_regex.captures_iter(&stack_from_table) {
                 st.push(c[1].to_string().clone());

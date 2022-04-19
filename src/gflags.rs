@@ -23,12 +23,15 @@ pub struct StoredGFlags {
 }
 
 #[allow(dead_code)]
-pub fn read_gflags( hostname: &str) -> Vec<GFlag> {
-    if ! scan_port_addr( hostname ) {
-        println!("Warning: hostname:port {} cannot be reached, skipping", hostname.to_string());
+pub fn read_gflags(
+    host: &str,
+    port: &str,
+) -> Vec<GFlag> {
+    if ! scan_port_addr( format!("{}:{}", host, port)) {
+        println!("Warning: hostname:port {}:{} cannot be reached, skipping", host, port);
         return Vec::new();
     }
-    if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}/varz?raw", hostname.to_string())) {
+    if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}:{}/varz?raw", host, port)) {
         parse_gflags(data_from_http.text().unwrap())
     } else {
         parse_gflags(String::from(""))
@@ -37,7 +40,8 @@ pub fn read_gflags( hostname: &str) -> Vec<GFlag> {
 
 #[allow(dead_code)]
 pub fn perform_gflags_snapshot(
-    hostname_port_vec: &Vec<&str>,
+    hosts: &Vec<&str>,
+    ports: &Vec<&str>,
     snapshot_number: i32,
     yb_stats_directory: &PathBuf,
     parallel: usize
@@ -45,18 +49,19 @@ pub fn perform_gflags_snapshot(
     let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
     let (tx, rx) = channel();
     pool.scope(move |s| {
-        for hostname_port in hostname_port_vec {
-            let tx = tx.clone();
-            s.spawn(move |_| {
-                let detail_snapshot_time = Local::now();
-                let gflags = read_gflags(&hostname_port);
-                tx.send( (hostname_port, detail_snapshot_time, gflags)).expect("channel will be waiting in the pool");
-            });
-        }
+        for host in hosts {
+            for port in ports {
+                let tx = tx.clone();
+                s.spawn(move |_| {
+                    let detail_snapshot_time = Local::now();
+                    let gflags = read_gflags(&host, &port);
+                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, gflags)).expect("error sending data via tx");
+                });
+            }}
     });
     let mut stored_gflags: Vec<StoredGFlags> = Vec::new();
     for (hostname_port, detail_snapshot_time, gflags) in rx {
-        add_to_gflags_vector(gflags, hostname_port, detail_snapshot_time, &mut stored_gflags);
+        add_to_gflags_vector(gflags, &hostname_port, detail_snapshot_time, &mut stored_gflags);
     }
 
     let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());

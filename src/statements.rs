@@ -54,12 +54,15 @@ pub struct SnapshotDiffStatements {
     pub second_rows: i64,
 }
 
-pub fn read_statements( hostname: &str) -> Statement {
-    if ! scan_port_addr( hostname ) {
-        println!("Warning: hostname:port {} cannot be reached, skipping", hostname.to_string());
+pub fn read_statements(
+    host: &str,
+    port: &str,
+) -> Statement {
+    if ! scan_port_addr( format!("{}:{}", host, port) ) {
+        println!("Warning: hostname:port {}:{} cannot be reached, skipping", host, port);
         return parse_statements(String::from(""))
     }
-    if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}/statements", hostname.to_string())) {
+    if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}:{}/statements", host, port)) {
         parse_statements(data_from_http.text().unwrap())
     } else {
         parse_statements(String::from(""))
@@ -67,25 +70,28 @@ pub fn read_statements( hostname: &str) -> Statement {
 }
 
 pub fn read_statements_into_vector(
-    hostname_port_vec: &Vec<&str>,
+    hosts: &Vec<&str>,
+    ports: &Vec<&str>,
     parallel: usize
 ) -> Vec<StoredStatements>
 {
     let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
     let (tx, rx) = channel();
     pool.scope(move |s| {
-        for hostname_port in hostname_port_vec {
-            let tx = tx.clone();
-            s.spawn(move |_| {
-                let detail_snapshot_time = Local::now();
-                let statements = read_statements(&hostname_port);
-                tx.send((hostname_port, detail_snapshot_time, statements)).expect("channel will be waiting in the pool");
-            });
+        for host in hosts {
+            for port in ports {
+                let tx = tx.clone();
+                s.spawn(move |_| {
+                    let detail_snapshot_time = Local::now();
+                    let statements = read_statements(&host, &port);
+                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, statements)).expect("error sending data via tx");
+                });
+            }
         }
     });
     let mut stored_statements: Vec<StoredStatements> = Vec::new();
     for (hostname_port, detail_snapshot_time, statements) in rx {
-        add_to_statements_vector(statements, hostname_port, detail_snapshot_time, &mut stored_statements);
+        add_to_statements_vector(statements, &hostname_port, detail_snapshot_time, &mut stored_statements);
     }
     stored_statements
 }
@@ -99,12 +105,13 @@ fn parse_statements( statements_data: String ) -> Statement {
 
 #[allow(dead_code)]
 pub fn perform_statements_snapshot(
-    hostname_port_vec: &Vec<&str>,
+    hosts: &Vec<&str>,
+    ports: &Vec<&str>,
     snapshot_number: i32,
     yb_stats_directory: &PathBuf,
     parallel: usize
 ) {
-   let stored_statements = read_statements_into_vector(hostname_port_vec, parallel);
+   let stored_statements = read_statements_into_vector(hosts, ports, parallel);
 
     let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
     let statements_file = &current_snapshot_directory.join("statements");
@@ -267,22 +274,24 @@ pub fn print_statements_diff_for_snapshots(
 
 #[allow(dead_code)]
 pub fn get_statements_into_diff_first_snapshot(
-    hostname_port_vec: &Vec<&str>,
+    hosts: &Vec<&str>,
+    ports: &Vec<&str>,
     parallel: usize
 ) -> BTreeMap<(String, String), SnapshotDiffStatements> {
-    let stored_statements = read_statements_into_vector(&hostname_port_vec, parallel);
+    let stored_statements = read_statements_into_vector(&hosts, &ports, parallel);
     let statements_diff = insert_first_snapshot_statements(stored_statements);
     statements_diff
 }
 
 #[allow(dead_code)]
 pub fn get_statements_into_diff_second_snapshot(
-    hostname_port_vec: &Vec<&str>,
+    hosts: &Vec<&str>,
+    ports: &Vec<&str>,
     statements_diff: &mut BTreeMap<(String, String), SnapshotDiffStatements>,
     first_snapshot_time: &DateTime<Local>,
     parallel: usize
 ) {
-    let stored_statements = read_statements_into_vector(&hostname_port_vec, parallel);
+    let stored_statements = read_statements_into_vector(&hosts, &ports, parallel);
     insert_second_snapshot_statements(stored_statements, statements_diff, &first_snapshot_time);
 }
 

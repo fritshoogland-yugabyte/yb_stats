@@ -31,7 +31,8 @@ pub struct StoredThreads {
 
 #[allow(dead_code)]
 pub fn perform_threads_snapshot(
-    hostname_port_vec: &Vec<&str>,
+    hosts: &Vec<&str>,
+    ports: &Vec<&str>,
     snapshot_number: i32,
     yb_stats_directory: &PathBuf,
     parallel: usize
@@ -40,18 +41,20 @@ pub fn perform_threads_snapshot(
     let (tx, rx) = channel();
 
     pool.scope(move |s| {
-        for hostname_port in hostname_port_vec {
-            let tx = tx.clone();
-            s.spawn(move |_| {
-                let detail_snapshot_time = Local::now();
-                let threads = read_threads(&hostname_port);
-                tx.send( (hostname_port, detail_snapshot_time, threads )).expect("channel will be waiting in the pool");
-            });
+        for host in hosts {
+            for port in ports {
+                let tx = tx.clone();
+                s.spawn(move |_| {
+                    let detail_snapshot_time = Local::now();
+                    let threads = read_threads(&host, &port);
+                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, threads)).expect("error sending data via tx");
+                });
+            }
         }
     });
     let mut stored_threads: Vec<StoredThreads> = Vec::new();
     for (hostname_port, detail_snapshot_time, threads) in rx {
-        add_to_threads_vector(threads, hostname_port, detail_snapshot_time, &mut stored_threads);
+        add_to_threads_vector(threads, &hostname_port, detail_snapshot_time, &mut stored_threads);
     }
 
     let current_snapshot_directory = &yb_stats_directory.join( &snapshot_number.to_string());
@@ -73,13 +76,15 @@ pub fn perform_threads_snapshot(
 
 #[allow(dead_code)]
 pub fn read_threads(
-    hostname: &str
+    host: &str,
+    port: &str,
 ) -> Vec<Threads> {
-    if ! scan_port_addr( hostname ) {
-        println!("Warning: hostname:port {} cannot be reached, skipping", hostname.to_string());
+    if ! scan_port_addr( format!("{}:{}", host, port) ) {
+        println!("Warning: hostname:port {}:{} cannot be reached, skipping", host, port);
         return Vec::new();
     }
-    if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}/threadz?group=all", hostname.to_string())) {
+    //if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}/threadz?group=all", hostname.to_string())) {
+    if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}:{}/threadz?group=all", host, port)) {
         parse_threads(data_from_http.text().unwrap())
     } else {
         parse_threads(String::from(""))

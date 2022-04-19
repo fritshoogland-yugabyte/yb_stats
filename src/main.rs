@@ -32,9 +32,17 @@ use yb_stats::statements::{print_diff_statements, print_statements_diff_for_snap
 
 #[derive(Debug, StructOpt)]
 struct Opts {
+    /*
     /// all metric endpoints to be used, a metric endpoint is a hostname or ip address with colon and port number, comma separated.
     #[structopt(short, long, default_value = "192.168.66.80:7000,192.168.66.81:7000,192.168.66.82:7000")]
     metric_sources: String,
+     */
+    /// hostnames (comma separated)
+    #[structopt(short, long, default_value = "192.168.66.80,192.168.66.81,192.168.66.82")]
+    hosts: String,
+    /// port numbers (comma separated)
+    #[structopt(short, long, default_value = "7000,9000,12000,13000")]
+    ports: String,
     /// regex to filter statistic names
     #[structopt(short, long)]
     stat_name_match: Option<String>,
@@ -92,7 +100,9 @@ fn main() {
 
     // create variables based on StructOpt values
     let options = Opts::from_args();
-    let hostname_port_vec: Vec<&str> = options.metric_sources.split(",").collect();
+    //let hostname_port_vec: Vec<&str> = options.metric_sources.split(",").collect();
+    let hosts: Vec<&str> = options.hosts.split(",").collect();
+    let ports: Vec<&str> = options.ports.split(",").collect();
     let snapshot: bool = options.snapshot as bool;
     let gauges_enable: bool = options.gauges_enable as bool;
     let details_enable: bool = options.details_enable as bool;
@@ -121,7 +131,8 @@ fn main() {
 
     if snapshot {
 
-        let snapshot_number: i32 = perform_snapshot(hostname_port_vec, snapshot_comment, parallel);
+        //let snapshot_number: i32 = perform_snapshot(hostname_port_vec, snapshot_comment, parallel);
+        let snapshot_number: i32 = perform_snapshot(hosts, ports, snapshot_comment, parallel);
         println!("snapshot number {}", snapshot_number);
         process::exit(0);
 
@@ -163,16 +174,16 @@ fn main() {
     } else {
 
         let first_snapshot_time = Local::now();
-        let (mut values_diff, mut countsum_diff, mut countsumrows_diff) = get_metrics_into_diff_first_snapshot(&hostname_port_vec, parallel);
-        let mut statements_diff = get_statements_into_diff_first_snapshot(&hostname_port_vec, parallel);
+        let (mut values_diff, mut countsum_diff, mut countsumrows_diff) = get_metrics_into_diff_first_snapshot(&hosts, &ports, parallel);
+        let mut statements_diff = get_statements_into_diff_first_snapshot(&hosts, &ports, parallel);
 
         println!("Begin metrics snapshot created, press enter to create end snapshot for difference calculation.");
         let mut input = String::new();
         stdin().read_line(&mut input).ok().expect("failed");
 
         let second_snapshot_time = Local::now();
-        get_metrics_into_diff_second_snapshot(&hostname_port_vec, &mut values_diff, &mut countsum_diff, &mut countsumrows_diff, &first_snapshot_time, parallel);
-        get_statements_into_diff_second_snapshot(&hostname_port_vec, &mut statements_diff, &first_snapshot_time, parallel);
+        get_metrics_into_diff_second_snapshot(&hosts, &ports, &mut values_diff, &mut countsum_diff, &mut countsumrows_diff, &first_snapshot_time, parallel);
+        get_statements_into_diff_second_snapshot(&hosts, &ports, &mut statements_diff, &first_snapshot_time, parallel);
 
         println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time-first_snapshot_time).num_milliseconds() as f64/1000 as f64);
         print_diff_metrics(&values_diff, &countsum_diff, &countsumrows_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);

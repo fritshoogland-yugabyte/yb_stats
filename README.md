@@ -28,21 +28,22 @@ For `--print-log` specific, another flag can be used to filter the log rows:
 
 
 # Usage
-For data gathering, all the endpoints need to be specified, so the tool knows where to look for data. This is done using the `-m` or `--metric-sources` switch, and uses a comma-separated list of hostname:port combinations. This is an example of that:
+For data gathering, all the hostnames or ip addresses of the yugabyte master and tserver servers need to be specified using the `-h` or `--hosts` switch, for example:
 ```
-fritshoogland@MacBook-Pro yb_stats % ./target/release/yb_stats -m 192.168.66.80:7000,192.168.66.81:7000,192.168.66.82:7000,192.168.66.80:9000,192.168.66.81:9000,192.168.66.82:9000,192.168.66.80:13000,192.168.66.81:13000,192.168.66.82:13000
+./target/release/yb_stats -h 192.168.66.80,192.168.66.81,192.168.66.82
 ```
-If you want to include YCQL statistics, add:
+yb_stats will collect statistics from the ports 7000, 9000, 12000 and 13000 by default. If this list needs to be changed, you can specify the required ports list using the `-p` or `--ports` switch, for example:
 ```
-192.168.66.80:12000,192.168.66.81:12000,192.168.66.82:12000
+./target/release/yb_stats -p 9000,13001
 ```
-And likewise with port 11000 for YEDIS.
-(obviously change the ip address to your situation, and the number of hosts)
+The hosts and ports list will be stored in a file called `.env` in the current working directory. 
+The `.env` file is used by yb_stats to set the hosts and ports list. 
+This means that after initially specifying the hosts and ports, it doesn't need to by specified again.
 
 ## Online performance data display
 For online performance data display (metric and statements data only), simply do not provide any further switch:
 ```
-fritshoogland@MacBook-Pro yb_stats % ./target/release/yb_stats -m 192.168.66.80:7000,192.168.66.81:7000,192.168.66.82:7000,192.168.66.80:9000,192.168.66.81:9000,192.168.66.82:9000,192.168.66.80:13000,192.168.66.81:13000,192.168.66.82:13000
+./target/release/yb_stats
 ```
 This will capture the metric and statements endpoint data in memory, and then display:
 ```
@@ -55,7 +56,7 @@ This will display the difference of the counters only, and provide all table and
 ## Gathering a snapshot
 For gathering a snapshot (which collects all data), add the --snapshot switch. Optionally add a comment (useful for automated testing):
 ```
-fritshoogland@MacBook-Pro yb_stats % ./target/release/yb_stats -m 192.168.66.80:7000,192.168.66.81:7000,192.168.66.82:7000,192.168.66.80:9000,192.168.66.81:9000,192.168.66.82:9000,192.168.66.80:13000,192.168.66.81:13000,192.168.66.82:13000 --snapshot
+./target/release/yb_stats --snapshot
 snapshot number 0
 ```
 
@@ -87,7 +88,7 @@ By default, table and tablet statistics are summed per hostname-port combination
 ### Filters
 #### --hostname-match
 In a lot of cases, you might want to filter out data that is not needed for your analysis. A common filter is only filter the tserver and YSQL endpoints, and thus leaving out the masters:
-`--hostname-match '(9000|13000)`.  
+`--hostname-match '(9000|13000)'`.  
 Please mind this works for online performance data display, as well as looking at snapshot data, including showing version, memtrackers, log and threads data.
 #### --stat-name-match
 A very common case is to filter out some of the data that is displayed by its name. For example to filter out the statistics for the amount of bytes sent and received: `--stat-name-match tcp_bytes`.  
@@ -99,7 +100,7 @@ When `--details-enable` is used, a lot of extra lines are shown. In order to red
 
 ## value statistics
 ```
-fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:7000,192.168.66.80:9000,192.168.66.81:7000,192.168.66.81:9000,192.168.66.82:7000,192.168.66.82:9000
+./target/release/yb_stats
 Begin metrics snapshot created, press enter to create end snapshot for difference calculation.
 
 192.168.66.80:7000   server   cpu_utime                                                                           10 ms               3.210 /s
@@ -199,7 +200,7 @@ The optional next section are statement statistics. 'statement' statistics are u
 ## Investigate CPU usage
 Are the servers busy?
 ```
-fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:7000,192.168.66.80:9000,192.168.66.81:7000,192.168.66.81:9000,192.168.66.82:7000,192.168.66.82:9000 --stat-name-match '(cpu|context_switches)'
+./target/release/yb_stats --stat-name-match '(cpu|context_switches)'
 Begin metrics snapshot created, press enter to create end snapshot for difference calculation.
 
 192.168.66.80:7000   server   cpu_utime                                                                            8 ms               4.269/s
@@ -230,7 +231,7 @@ The above usage of around 14 (the average amount added of cpu_stime and cpu_utim
 ## Investigate memory usage
 How is memory used for a server?
 ```
-fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:7000,192.168.66.80:9000,192.168.66.81:7000,192.168.66.81:9000,192.168.66.82:7000,192.168.66.82:9000 --stat-name-match '(tcmalloc|generic|mem_tracker)' --gauges-enable
+./target/debug/yb_stats --stat-name-match '(tcmalloc|generic|mem_tracker)' --gauges-enable
 Begin metrics snapshot created, press enter to create end snapshot for difference calculation.
 
 192.168.66.80:7000   server   generic_current_allocated_bytes                                               17198984 bytes            +1856
@@ -261,7 +262,7 @@ The last line shows the first statistic for the next process.
 ## Investigate network usage
 How much network traffic is executed by the master and tablet servers?
 ```
-fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:7000,192.168.66.80:9000,192.168.66.81:7000,192.168.66.81:9000,192.168.66.82:7000,192.168.66.82:9000 --stat-name-match tcp
+./target/release/yb_stats --stat-name-match tcp
 Begin metrics snapshot created, press enter to create end snapshot for difference calculation.
 
 192.168.66.80:7000   server   tcp_bytes_received                                                                 424 bytes          336.241/s
@@ -282,7 +283,7 @@ This shows the amount of bytes sent and received per process over the time in th
 ## Investigate (WAL) logging
 What is happening for WAL logging?
 ```
-fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:7000,192.168.66.80:9000,192.168.66.81:7000,192.168.66.81:9000,192.168.66.82:7000,192.168.66.82:9000 --stat-name-match '^log'
+./target/release/yb_stats --stat-name-match '^log'
 Begin metrics snapshot created, press enter to create end snapshot for difference calculation.
 
 192.168.66.80:9000   tablet   log_bytes_logged                                                                   176 bytes           21.646/s
@@ -307,7 +308,7 @@ This shows statistics related to the YugabyteDB write ahead logging mechanism. P
 How many sst files does the server have? And what is the size (which means compressed), and the uncompressed size of these?
 Please mind a table can have zero sst files if all the data is in the memtable only and not flushed yet.
 ```
-fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:7000,192.168.66.80:9000,192.168.66.81:7000,192.168.66.81:9000,192.168.66.82:7000,192.168.66.82:9000 --stat-name-match sst_files --gauges-enable --hostname-match 9000
+./target/release/yb_stats --stat-name-match sst_files --gauges-enable --hostname-match 9000
 Begin metrics snapshot created, press enter to create end snapshot for difference calculation.
 
 192.168.66.80:9000   tablet   rocksdb_current_version_num_sst_files                                                8 files               +0
@@ -325,7 +326,7 @@ This is very fast and easy way to understand the amount and the sizes of the SST
 
 If you want to know more about a specific table(/tablet), you can use the `--details-enable` flag to show the statistics per table/tablet:
 ```
-fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:7000,192.168.66.80:9000,192.168.66.81:7000,192.168.66.81:9000,192.168.66.82:7000,192.168.66.82:9000 --stat-name-match sst_files --gauges-enable --details-enable  --hostname-match 9000
+./target/release/yb_stats --stat-name-match sst_files --gauges-enable --details-enable  --hostname-match 9000
 Begin metrics snapshot created, press enter to create end snapshot for difference calculation.
 
 192.168.66.80:9000   tablet   3ba5f729fb1f0e7 system_postgres sequences_data                 rocksdb_current_version_num_sst_files                                                1 files               +0
@@ -378,7 +379,7 @@ With `--details-enable` all table and tablet data is shown. This is my lab clust
 ## Investigate physical IO and latencies
 How much physical IO was performed, and how much did that take on average and overall?
 ```
-fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:7000,192.168.66.80:9000,192.168.66.81:7000,192.168.66.81:9000,192.168.66.82:7000,192.168.66.82:9000 --stat-name-match '(log_append_latency|log_sync_latency|rocksdb_sst_read_micros|rocksdb_write_raw_blocks)'
+./target/release/yb_stats --stat-name-match '(log_append_latency|log_sync_latency|rocksdb_sst_read_micros|rocksdb_write_raw_blocks)'
 Begin metrics snapshot created, press enter to create end snapshot for difference calculation.
 
 192.168.66.80:9000   table    log_append_latency                                                                 762          57.276/s avg.time: 36        tot:           28041 us

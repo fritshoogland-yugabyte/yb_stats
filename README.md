@@ -1,103 +1,118 @@
 # yb_stats
 
-This is a utility to extract the metrics for the master and tablet servers in a YugebyteDB cluster. 
-It uses the metric endpoints (not the prometheus-metrics endpoints, these do not contain all data, although for what is provided these do contain exactly the same data, but in prometheus format).
-The metric endpoints are available at the following places with default settings:
-- HOSTNAME:7000/metrics for the master server
-- HOSTNAME:9000/metrics for the tablet server
-- HOSTNAME:12000/metrics for the YCQL (cassandra API) server
-- HOSTNAME:13000/metrics for the YSQL (postgres API) server
-- HOSTNAME:13000/statements for the YSQL (postgres API) server
+This is a utility to extract runtime data for the master and tablet servers in a YugebyteDB cluster.   
 
-The main types of data are 'values', 'countsum' and 'countsumrows', 'statements' type statistics.
-- The 'values' type consists of a statistic name and a value. The value can be time, bytes, a number of occurences, etc. Also the value can be a counter or a gauge (absolute number).
-- The 'countsum' type consists of a statistic name and total_count (number of times the statistic is triggered), total_sum (total time in microseconds), which are both counters. The statistics also includes min, mean, max and several percentiles. These are absolute values (obviously). 
-- The 'countsumrows' type consists of a statistic name and count (the number of times the statistic is triggered), sum (total time in millisecons) and rows (amount of rows returned from the statistic topic). The statistics are counters.
-- The 'statements' type consists of the query, together with common pg_stat_statements timing information.
+Yb_stats gathers the following data:
+- metric (performance) data via the 'metric endpoints' (HOST:PORT/metrics). Most of this data is available via the prometheus endpoint as well (/prometheus-metrics).  
+- statements (YSQL only) via the statements endpoint (HOST:PORT/statements).
+- version via the versions endpoint (HOST:PORT/api/v1/version)
+- gflags (HOST:PORT/varz)
+- logging (HOST:PORT/logs). Caveat: only the last 1M of logs is available via this endpoint.
+- memtrackers (HOST:PORT/mem-trackers)
+- threads (HOST:PORT/threadz)
 
-The goal of yb_stats is to capture this information and show it or store it, to learn and help with performance investigations.
-Another goal is to make this a support package (hence the CSV format), which allows a client to capture all current available information and transport it to Yugabyte for review.
+The data gathering is performed in two main modes:
+- Online performance data display. This only displays the metric and statements, and does not store anything.
+- Read all data and save it into a snapshot.  
 
-There are a lot of statistics, and a cluster of machines means the statistics multiply by the number of nodes in the cluster.
-Therefore, the tools allows filtering data via regexes, to be ultimately flexible.
+Once snapshots exist, these can be investigated using:
+- `--snapshot-diff`: asks for begin and end snapshot number, and provides the difference for the metric counters.
+- `--print-version`: requires a single snapshot number as argument, and prints the versions that are gathered.
+- `--print-gflags`: requires a single snapshot number as argument, and prints the gflags that are gathered.
+- `--print-threads`: requires a single snapshot number as argument, and prints the thread information that is captured.
+- `--print-memtrackers`: requires a single snapshot number as argument, and prints the mem-trackers information that is captured.
+- `--print-log`: requires a single snapshot number as argument, and prints the loglines that are gathered.  
+For `--print-log` specific, another flag can be used to filter the log rows:
+- `--log-severity`: by default this filter is set to 'WEF' (warning, error, fail), and thus will not show the I (informal) lines.
+
+
 
 # Usage
+For data gathering, all the hostnames or ip addresses of the yugabyte master and tserver servers need to be specified using the `-h` or `--hosts` switch, for example:
 ```
-yb_stats 0.5.0
-
-USAGE:
-    yb_stats [FLAGS] [OPTIONS]
-
-FLAGS:
-    -d, --details-enable    boolean (set to enable) to report for each table or tablet individually
-    -g, --gauges-enable     boolean (set to enable) to add statistics that are not counters
-    -h, --help              Prints help information
-        --snapshot          boolean (set to enable) to perform a snapshot of the statistics, stored as CSV files in
-                            yb_stats.snapshots
-        --snapshot-diff     this lists the snapshots, and allows you to select a begin and end snapshot for a diff
-                            report
-    -V, --version           Prints version information
-
-OPTIONS:
-        --hostname-match <hostname-match>
-            regex to select hostnames or ports (so you can select master or tserver by port number) [default: .*]
-
-        --log-severity <log-severity>
-            log data severity to include: default: WEF, optional: I
-
-    -m, --metric-sources <metric-sources>
-            all metric endpoints to be used, a metric endpoint is a hostname or ip address with colon and port number,
-            comma separated [default: 192.168.66.80:7000,192.168.66.81:7000,192.168.66.82:7000]
-        --print-log <print-log>                    print log data for the given snapshot [default: -1]
-        --print-memtrackers <print-memtrackers>    print memtrackers data for the given snapshot [default: -1]
-        --snapshot-comment <snapshot-comment>
-            comment to be added with the snapshot, to make review or use more easy [default: ]
-
-    -s, --stat-name-match <stat-name-match>        regex to select specific statistic names [default: .*]
-    -t, --table-name-match <table-name-match>
-            regex to select specific table names (only sensible with --details-enable, default mode adds the statistics
-            for all tables) [default: .*]
+./target/release/yb_stats -h 192.168.66.80,192.168.66.81,192.168.66.82
 ```
-The most important switch is `-m` or `--metric-sources`, which allows you to specify a comma-separated list of hostname:port combinations. 
-Yes, this is quite a lot of work for even a modest cluster; to capture the master and tservers in my lab my setting is: `yb_stats -m 192.168.66.80:7000,192.168.66.80:9000,192.168.66.80:13000,192.168.66.81:7000,192.168.66.81:9000,192.168.66.81:13000,192.168.66.82:7000,192.168.66.82:9000,192.168.66.82:13000`. 
-The reason for doing it in this way is that there is no view/URL/endpoint in the cluster that can consistenly be used to query the ip addresses to be used as an administrator.
-One thing which might be a useful addition is to create a settings file that allows storing the hostnames, so you reuse that.
+yb_stats will collect statistics from the ports 7000, 9000, 12000 and 13000 by default. If this list needs to be changed, you can specify the required ports list using the `-p` or `--ports` switch, for example:
+```
+./target/release/yb_stats -p 9000,13001
+```
+The hosts and ports list will be stored in a file called `.env` in the current working directory. 
+The `.env` file is used by yb_stats to set the hosts and ports list. 
+This means that after initially specifying the hosts and ports, it doesn't need to by specified again.
 
-The yb_stats has five modes:
-- STDOUT mode (default): when invoked, it gathers data to take as the begin situation, and then displays `Begin metrics snapshot created, press enter to create end snapshot for difference calculation.`. If you press enter, yb_stats gathers data again, and shows any statistic that has changed since the begin situation.
-- Snapshot mode: when the `--snapshot` flag is specified, yb_stats gathers the data from the YugabyteDB cluster, reads the `yb_stats.snapshots/snapshot.index` file in the current directory, determines the highest snapshot number, increases it by one, and adds that to the file. If the file or directory doesn't exist, it tries to create it, and begins with snapshot number 0. It then creates a directory with the snapshot number in the `yb_stats.snapshots` directory, and writes the values and latencies statistics to files with that name.
-- Snapshot-diff mode: when the `--snapshot-diff` flag is specified, yb_stats reads the `yb_stats.snapshots/snapshot.index` file for available snapshots, and displays the snapshot information, and asks for a begin and an end snapshot. When these have been specified, a diff is run between these snapshots.
-- Memtrackers mode: when the `--print-memtrackers` flag is specified, yb_stats reads the `yb_stats.snapshots/snapshot.index` file for available snapshots, and displays the memtrackers snapshot data for the snapshot number given as the argument. Please mind the hostname (`--hostnane-match`) and stat-name (`--stat-name-match`) filters (see below) can be used for the hosts and the memtracker id (name). The default value is `-1`, which means not to print memtrackers data.
-- Loglines mode: when the `--print-log` flag is specified, yb_stats reads the `yb_stats.snapshots/snapshot.index` file for the available snapshots, and displays the loglines for the snapshot number given as argument. Please mind the hostname (`--hostname-match`) and log severity letter (`--log-severity`) filters can be used to include or exclude hosts and lines with a certain severity. Standard severity filter is `WEF`: (W)arning, (E)rror and (F)ailure. (I)nformal messages are not printed by default, but can be enabled. Please mind at current this is pretty simple, and just prints all loglines that it found, it does NOT filter lines to show only the log lines between the chosen snapshot and the snapshot before that.
+## Online performance data display
+For online performance data display (metric and statements data only), simply do not provide any further switch:
+```
+./target/release/yb_stats
+```
+This will capture the metric and statements endpoint data in memory, and then display:
+```
+Begin metrics snapshot created, press enter to create end snapshot for difference calculation.
+```
+Now perform any action that needs to be measured in YugabyteDB, and then press enter.
 
-Even modest changes do generate lots of statistic differences. Therefore, by default yb_stats does not specify statistics per table or tablet, but adds these together per server (per hostname:port combination). If you want to see the statistics per table and tablet, specify the `--details-enable` switch.
+This will display the difference of the counters only, and provide all table and tablet level statistics summed per host.
 
-By default, the gauge type statistics are not shown. However, there can be reasons you want to see them. This can be done using the `--gauges-enable` switch.
+## Gathering a snapshot
+For gathering a snapshot (which collects all data), add the --snapshot switch. Optionally add a comment (useful for automated testing):
+```
+./target/release/yb_stats --snapshot
+snapshot number 0
+```
 
-For investigations, you might be interested in a subset of the data. yb_stats always gathers all (non zero) statistics, but you might not want to see all the gathered data. Therefore, the output can be filtered using regexes on multiple levels:
-- hostname: `--hostname-match`: one practical example is to be able to select the masters or the tservers only by specifying '7000' or '9000' as a filter.
-- statisticname: `--stat-name-match`: if you know the names of one or more statistics, you can filter for their names.
-- tablename: `--table-name-match`: this only makes sense if you use `--details-enable` to have the table names be printed. If you did, this allows you to filter only for the tables you are interested in.
+## Using snapshot data
+Once snapshots are captured, they are stored in the current working directory in a directory called 'yb_stats.snapshots'. Inside this directory, there is a file 'snapshot.index', which is a CSV file which contains snapshot number, timestamp, comment.
+The snapshot data is stored in a directory with a number, which corresponds with the snapshot number. Inside the snapshot number directory, there are CSV files with all the data.
+- Because yb_stats works from the current working directory, it can be used for several projects simply by using it in another directory.
+- Because all the data is common UTF8 data, it can be zipped/tarred/etc. and sent to someone else for investigation.
+
+## Display switches and filters
+### Gauges
+By default, statistics which are defined as gauges are not shown. An example of such a statistic is absolute memory usage. To see gauge statistics, add the `--gauges-enable` switch.
+Gauges are shown different from counters:
+```
+192.168.66.80:7000   server   tcmalloc_current_total_thread_cache_bytes                                      4489808 bytes           +90080
+192.168.66.80:7000   server   tcmalloc_max_total_thread_cache_bytes                                         33554432 bytes               +0
+192.168.66.80:7000   server   tcmalloc_pageheap_free_bytes                                                   3268608 bytes          +647168
+192.168.66.80:7000   server   tcmalloc_pageheap_unmapped_bytes                                              33488896 bytes          -696320
+192.168.66.80:7000   server   tcp_bytes_received                                                                 424 bytes          388.991 /s
+192.168.66.80:7000   server   tcp_bytes_sent                                                                     170 bytes          155.963 /s
+```
+tcp_bytes_received and tcp_bytes_sent are counters, and therefore have an absolute amount, which is the difference of this statistic between the last and the first snapshot, and an average amount per second.  
+The tcmalloc statistics are gauges, and therefore it does not make sense to provide end measurement minus begin measurement. The first figure is the END measurement, and the second figure (with the plus or the minus sign) is the difference from the first measurement.  
+This switch works for online performance display, as well as displaying snapshot data.
+
+### Details
+By default, table and tablet statistics are summed per hostname-port combination to try to reduce output clutter as much as possible. However sometimes you want to see the data per table and tablet. This is done using the `--details-enable` switch.
+
+### Filters
+#### --hostname-match
+In a lot of cases, you might want to filter out data that is not needed for your analysis. A common filter is only filter the tserver and YSQL endpoints, and thus leaving out the masters:
+`--hostname-match '(9000|13000)'`.  
+Please mind this works for online performance data display, as well as looking at snapshot data, including showing version, memtrackers, log and threads data.
+#### --stat-name-match
+A very common case is to filter out some of the data that is displayed by its name. For example to filter out the statistics for the amount of bytes sent and received: `--stat-name-match tcp_bytes`.  
+The --stat-name-match switch can also be used to filter memtrackers (id). 
+#### --table-name-match
+When `--details-enable` is used, a lot of extra lines are shown. In order to reduce it, the `--table-name-match` switch can be used to filter on a table regex.
 
 # Output
 
 ## value statistics
 ```
-fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:7000,192.168.66.80:9000,192.168.66.81:7000,192.168.66.81:9000,192.168.66.82:7000,192.168.66.82:9000
+./target/release/yb_stats
 Begin metrics snapshot created, press enter to create end snapshot for difference calculation.
 
-192.168.66.80:7000   server   cpu_utime                                                                            6 ms               5.085/s
-192.168.66.80:7000   server   rpc_inbound_calls_created                                                            2 req              1.695/s
-192.168.66.80:7000   server   server_uptime_ms                                                                  1179 ms             999.153/s
-192.168.66.80:7000   server   service_request_bytes_yb_consensus_ConsensusService_UpdateConsensus                416 bytes          352.542/s
-192.168.66.80:7000   server   service_response_bytes_yb_consensus_ConsensusService_UpdateConsensus               170 bytes          144.068/s
-192.168.66.80:7000   server   tcp_bytes_received                                                                 424 bytes          359.322/s
-192.168.66.80:7000   server   tcp_bytes_sent                                                                     170 bytes          144.068/s
-192.168.66.80:7000   server   voluntary_context_switches                                                          70 csws            59.322/s
-192.168.66.80:9000   server   cpu_stime                                                                            2 ms               1.696/s
-192.168.66.80:9000   server   cpu_utime                                                                           17 ms              14.419/s
-192.168.66.80:9000   server   proxy_request_bytes_yb_consensus_ConsensusService_UpdateConsensus                 2520 bytes         2137.405/s
-192.168.66.80:9000   server   proxy_request_bytes_yb_master_MasterService_TSHeartbeat                            156 bytes          132.316/s
+192.168.66.80:7000   server   cpu_utime                                                                           10 ms               3.210 /s
+192.168.66.80:7000   server   involuntary_context_switches                                                         1 csws             0.321 /s
+192.168.66.80:7000   server   rpc_inbound_calls_created                                                            6 req              1.926 /s
+192.168.66.80:7000   server   server_uptime_ms                                                                  3114 ms             999.679 /s
+192.168.66.80:7000   server   service_request_bytes_yb_consensus_ConsensusService_UpdateConsensus               1248 bytes          400.642 /s
+192.168.66.80:7000   server   service_response_bytes_yb_consensus_ConsensusService_UpdateConsensus               510 bytes          163.724 /s
+192.168.66.80:7000   server   tcp_bytes_received                                                                1272 bytes          408.347 /s
+192.168.66.80:7000   server   tcp_bytes_sent                                                                     510 bytes          163.724 /s
+192.168.66.80:7000   server   threads_started                                                                      1 threads           0.321 /s
+192.168.66.80:7000   server   threads_started_thread_pool                                                          1 threads           0.321 /s
 ...snipped 
 ```
 These are 'value' statistics. 'value' statistics contain a statistic name and a value with the statistic.
@@ -105,46 +120,53 @@ These are 'value' statistics. 'value' statistics contain a statistic name and a 
 - The second column shows the metric type (cluster, server, table, tablet).
 - The third column shows the name of the statistic.
 - The fourth column shows the difference of the value in the statistic between the first and second snapshot.
-- The fifth column shows the difference of the value in the statistic between the first and second snapshot, divided by the time between the two snapshots.
+- The fifth column shows the unit of the measured number. Common units are bytes and ms (milliseconds), but others exist, such as req (requests) or csws (context switches). A '?' is shown if the statistic unit is currently unknown.
+- The sixth column shows the difference of the value in the statistic between the first and second snapshot, divided by the time between the two snapshots.
 The statistics are ordered by hostname-portnumber, metric type, id.
 
 ## countsum statistics
 The next section are countsum statistics. 'countsum' statistics contain a value for the count of occurences and a value for the sum of data that the statistic is collecting. This is mostly time (mostly in us, microseconds) but can also be something else (like bytes):
 ```
 ...snipped
-192.168.66.82:7000   server   handler_latency_yb_master_MasterService_TSHeartbeat                                  4           3.387/s avg.time: 187       tot:             749 us
-192.168.66.82:7000   server   rpc_incoming_queue_time                                                              4           3.387/s avg.time: 134       tot:             537 us
-192.168.66.82:9000   server   handler_latency_outbound_call_queue_time                                            16          13.571/s avg.time: 0         tot:               0 us
-192.168.66.82:9000   server   handler_latency_outbound_call_send_time                                             16          13.571/s avg.time: 0         tot:               0 us
-192.168.66.82:9000   server   handler_latency_outbound_call_time_to_response                                      16          13.571/s avg.time: 500       tot:            8000 us
-192.168.66.82:9000   server   handler_latency_yb_consensus_ConsensusService_UpdateConsensus                       12          10.178/s avg.time: 89        tot:            1072 us
-192.168.66.82:9000   server   rpc_incoming_queue_time                                                             12          10.178/s avg.time: 121       tot:            1459 us
+192.168.66.82:9000   server   dns_resolve_latency_during_init_proxy                                                1                  0.322 /s avg:         1 tot:               1 us
+192.168.66.82:9000   server   handler_latency_outbound_call_queue_time                                            69                 22.186 /s avg:         0 tot:               0 us
+192.168.66.82:9000   server   handler_latency_outbound_call_send_time                                             69                 22.186 /s avg:         0 tot:               0 us
+192.168.66.82:9000   server   handler_latency_outbound_call_time_to_response                                      69                 22.186 /s avg:       826 tot:           57000 us
+192.168.66.82:9000   server   handler_latency_yb_consensus_ConsensusService_UpdateConsensus                       71                 22.830 /s avg:       147 tot:           10497 us
+192.168.66.82:9000   server   rpc_incoming_queue_time                                                             71                 22.830 /s avg:       111 tot:            7916 us
+192.168.66.82:9000   table    log_append_latency                                                                  12                  3.859 /s avg:        20 tot:             248 us
+192.168.66.82:9000   table    log_entry_batches_per_group                                                         12                  3.859 /s avg:         1 tot:              12 req
+192.168.66.82:9000   table    log_group_commit_latency                                                            12                  3.859 /s avg:       505 tot:            6064 us
+192.168.66.82:9000   table    log_sync_latency                                                                    12                  3.859 /s avg:       470 tot:            5644 us
 ```
 - The first column is the hostname:port number endpoint specification.
 - The second column shows the metric type (cluster, server, table, tablet).
 - The third column shows the name of the statistic.
 - The fourth column shows the difference between the first and second snapshot for the total_count statistic, which counts the number of occurences of the statistic.
 - The fifth column shows the difference between the first and second snapshot for the total_count statistic, divided by the time between the two snapshots.
-- The sixth column show the difference between the first and second snapshot for the total_sum statistic, divided by the difference between the total_count statistics, to get the average amount of time per occasion of the statistic.
-- The seventh column shows the difference between the first and the second snapshot for the total_sum statistic to get the total amount of time measured by this statistic.
+- The eighth column shows the difference between the first and second snapshot for the total_sum statistic, divided by the difference between the total_count statistics, to get the average amount of time per occasion of the statistic.
+- The tenth column shows the difference between the first and the second snapshot for the total_sum statistic to get the total amount of time measured by this statistic.
+- The eleventh column shows the unit of the total_sum statistic.
 
 ## countsumrows statistics
 The optional next section are countsumrows statistics. 'countsumrows' statistics are unique to YSQL and contain: a value for the count of occurences, a sum about the data that the statistic is collecting, which is time (in ms, milliseconds), and rows, which are the number of rows that are processed by the topic about which the statistic is collecting information:
 ```
 ...snipped
-192.168.66.80:13000  handler_latency_yb_ysqlserver_SQLProcessor_CatalogCacheMisses                     3189 avg.time:               0 ms, avg.rows:            3280
-192.168.66.80:13000  handler_latency_yb_ysqlserver_SQLProcessor_InsertStmt                                2 avg.time:              54 ms, avg.rows:               2
-192.168.66.80:13000  handler_latency_yb_ysqlserver_SQLProcessor_OtherStmts                                8 avg.time:         2787939 ms, avg.rows:               0
-192.168.66.80:13000  handler_latency_yb_ysqlserver_SQLProcessor_SelectStmt                                4 avg.time:            7051 ms, avg.rows:               4
-192.168.66.80:13000  handler_latency_yb_ysqlserver_SQLProcessor_Single_Shard_Transactions                 8 avg.time:            3739 ms, avg.rows:               8
-192.168.66.80:13000  handler_latency_yb_ysqlserver_SQLProcessor_Transactions                             15 avg.time:          494247 ms, avg.rows:               8
-192.168.66.80:13000  handler_latency_yb_ysqlserver_SQLProcessor_UpdateStmt                                2 avg.time:             800 ms, avg.rows:               2
+192.168.66.80:13000  handler_latency_yb_ysqlserver_SQLProcessor_CatalogCacheMisses                       29 avg:           0.000 tot:           0.000 ms, avg:               1 tot:              29 rows
+192.168.66.80:13000  handler_latency_yb_ysqlserver_SQLProcessor_InsertStmt                                1 avg:           0.079 tot:           0.079 ms, avg:               1 tot:               1 rows
+192.168.66.80:13000  handler_latency_yb_ysqlserver_SQLProcessor_RollbackStmt                              1 avg:           0.008 tot:           0.008 ms, avg:               0 tot:               0 rows
+192.168.66.80:13000  handler_latency_yb_ysqlserver_SQLProcessor_SelectStmt                                1 avg:          13.539 tot:          13.539 ms, avg:               1 tot:               1 rows
+192.168.66.80:13000  handler_latency_yb_ysqlserver_SQLProcessor_SingleShardTransactions                   2 avg:           6.809 tot:          13.618 ms, avg:               1 tot:               2 rows
+192.168.66.80:13000  handler_latency_yb_ysqlserver_SQLProcessor_Single_Shard_Transactions                 2 avg:           6.809 tot:          13.618 ms, avg:               1 tot:               2 rows
 ```
 - The first column is the hostname:port number endpoint specification.
 - The second columns shows the statistic.
 - The third column shows the number of times the statistic was triggered.
-- The amount between avg.time: and ms is the sum value divided by the number of times the statistic was triggered.
-- The number after avg.rows: is the rows value divided by the number of times the statistic was triggered.  
+- The fifth column shows the average time per occasion.
+- The seventh column shows the total time for all occasions.
+- The eighth column shows the unit of the time, ms (milliseconds).
+- The tenth column shows the average number of rows per occasion.
+- The twelfth column shows the total amount of rows.
  
 CatalogCacheMisses
 - Please mind the CatalogCacheMisses statistic currently does not measure time (sum): this is an item on the todo list of development.
@@ -154,25 +176,31 @@ CatalogCacheMisses
 The optional next section are statement statistics. 'statement' statistics are unique to YSQL and are the externalisation of the pg_stat_statement statistics.
 ```
 ...snipped
-192.168.66.80:13000           1 avg.time:          21.452 ms avg.rows:          0 : create or replace procedure ybio.insert( p_rows bi
-192.168.66.80:13000           1 avg.time:          15.222 ms avg.rows:          0 : create or replace procedure ybio.remove ( p_config
-192.168.66.80:13000           1 avg.time:          18.475 ms avg.rows:          0 : create or replace procedure ybio.run( p_config_id
-192.168.66.80:13000           1 avg.time:          20.190 ms avg.rows:          0 : create or replace procedure ybio.setup ( p_config_
-192.168.66.80:13000           1 avg.time:          10.476 ms avg.rows:          0 : create schema ybio
-192.168.66.80:13000           1 avg.time:         453.551 ms avg.rows:          0 : create table ybio.config (  id 				    serial   p
-192.168.66.80:13000           1 avg.time:         180.096 ms avg.rows:          0 : create table ybio.results (  run_id
-192.168.66.80:13000           1 avg.time:           2.749 ms avg.rows:          0 : do $$declare  orafce_available int;  orafce_ins
+192.168.66.80:13000           1 avg:          42.422 tot:          42.422 ms avg:          0 tot:          0 rows: create or replace procedure ybio.insert(   p_conf
+192.168.66.80:13000           1 avg:          20.807 tot:          20.807 ms avg:          0 tot:          0 rows: create or replace procedure ybio.remove ( p_config
+192.168.66.80:13000           1 avg:          24.174 tot:          24.174 ms avg:          0 tot:          0 rows: create or replace procedure ybio.run( p_config_id
+192.168.66.80:13000           1 avg:          35.756 tot:          35.756 ms avg:          0 tot:          0 rows: create or replace procedure ybio.setup ( p_config_
+192.168.66.80:13000           1 avg:          17.684 tot:          17.684 ms avg:          0 tot:          0 rows: create schema ybio
+192.168.66.80:13000           1 avg:         632.546 tot:         632.546 ms avg:          0 tot:          0 rows: create table ybio.config (  id 				    serial   p
+192.168.66.80:13000           1 avg:        6339.403 tot:        6339.403 ms avg:          0 tot:          0 rows: create table ybio.results (  config_id
+192.168.66.80:13000           1 avg:         117.132 tot:         117.132 ms avg:          0 tot:          0 rows: create view ybio.results_overview asselect run_t
+192.168.66.80:13000           1 avg:          59.842 tot:          59.842 ms avg:          0 tot:          0 rows: do $$declare  orafce_available int;  orafce_ins
+192.168.66.80:13000           1 avg:        1267.262 tot:        1267.262 ms avg:          0 tot:          0 rows: drop schema if exists ybio cascade
 ```
 - The first column is the hostname:port endpoint specification.
 - The second column shows the number of calls for the query, which is calculated as the difference between the calls figure of the second snapshot and the first snapshot.
-- The number between the avg.time: and ms is the average query latency, calculated as the difference between the total_time figure of the second snapshot and the first snapshot, divided by the difference in calls from the second column. This value is in milliseconds (ms).
-- The number after avg.rows: is the average number of rows returned by the query, calculated as the difference between the rows figure of the second snapshot and the first snapshot, divided by the difference in calls from the second column.
+- The fourth column shows the average amount of time for the given statement, calculated as the second snapshot time minus the first snapshot time for this statement, divided by the number of calls.
+- The sixth column shows the total amount of time for the given statement.
+- The seventh column shows the unit of the time: ms (milliseconds).
+- The ninth column shows the average amount of rows for the given statement.
+- The eleventh column shows the total amount of rows for the given statement.
+- From the thirteenth column on the statement is shown.
 
 # Examples
 ## Investigate CPU usage
 Are the servers busy?
 ```
-fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:7000,192.168.66.80:9000,192.168.66.81:7000,192.168.66.81:9000,192.168.66.82:7000,192.168.66.82:9000 --stat-name-match '(cpu|context_switches)'
+./target/release/yb_stats --stat-name-match '(cpu|context_switches)'
 Begin metrics snapshot created, press enter to create end snapshot for difference calculation.
 
 192.168.66.80:7000   server   cpu_utime                                                                            8 ms               4.269/s
@@ -203,7 +231,7 @@ The above usage of around 14 (the average amount added of cpu_stime and cpu_utim
 ## Investigate memory usage
 How is memory used for a server?
 ```
-fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:7000,192.168.66.80:9000,192.168.66.81:7000,192.168.66.81:9000,192.168.66.82:7000,192.168.66.82:9000 --stat-name-match '(tcmalloc|generic|mem_tracker)' --gauges-enable
+./target/debug/yb_stats --stat-name-match '(tcmalloc|generic|mem_tracker)' --gauges-enable
 Begin metrics snapshot created, press enter to create end snapshot for difference calculation.
 
 192.168.66.80:7000   server   generic_current_allocated_bytes                                               17198984 bytes            +1856
@@ -234,7 +262,7 @@ The last line shows the first statistic for the next process.
 ## Investigate network usage
 How much network traffic is executed by the master and tablet servers?
 ```
-fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:7000,192.168.66.80:9000,192.168.66.81:7000,192.168.66.81:9000,192.168.66.82:7000,192.168.66.82:9000 --stat-name-match tcp
+./target/release/yb_stats --stat-name-match tcp
 Begin metrics snapshot created, press enter to create end snapshot for difference calculation.
 
 192.168.66.80:7000   server   tcp_bytes_received                                                                 424 bytes          336.241/s
@@ -255,7 +283,7 @@ This shows the amount of bytes sent and received per process over the time in th
 ## Investigate (WAL) logging
 What is happening for WAL logging?
 ```
-fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:7000,192.168.66.80:9000,192.168.66.81:7000,192.168.66.81:9000,192.168.66.82:7000,192.168.66.82:9000 --stat-name-match '^log'
+./target/release/yb_stats --stat-name-match '^log'
 Begin metrics snapshot created, press enter to create end snapshot for difference calculation.
 
 192.168.66.80:9000   tablet   log_bytes_logged                                                                   176 bytes           21.646/s
@@ -280,7 +308,7 @@ This shows statistics related to the YugabyteDB write ahead logging mechanism. P
 How many sst files does the server have? And what is the size (which means compressed), and the uncompressed size of these?
 Please mind a table can have zero sst files if all the data is in the memtable only and not flushed yet.
 ```
-fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:7000,192.168.66.80:9000,192.168.66.81:7000,192.168.66.81:9000,192.168.66.82:7000,192.168.66.82:9000 --stat-name-match sst_files --gauges-enable --hostname-match 9000
+./target/release/yb_stats --stat-name-match sst_files --gauges-enable --hostname-match 9000
 Begin metrics snapshot created, press enter to create end snapshot for difference calculation.
 
 192.168.66.80:9000   tablet   rocksdb_current_version_num_sst_files                                                8 files               +0
@@ -298,7 +326,7 @@ This is very fast and easy way to understand the amount and the sizes of the SST
 
 If you want to know more about a specific table(/tablet), you can use the `--details-enable` flag to show the statistics per table/tablet:
 ```
-fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:7000,192.168.66.80:9000,192.168.66.81:7000,192.168.66.81:9000,192.168.66.82:7000,192.168.66.82:9000 --stat-name-match sst_files --gauges-enable --details-enable  --hostname-match 9000
+./target/release/yb_stats --stat-name-match sst_files --gauges-enable --details-enable  --hostname-match 9000
 Begin metrics snapshot created, press enter to create end snapshot for difference calculation.
 
 192.168.66.80:9000   tablet   3ba5f729fb1f0e7 system_postgres sequences_data                 rocksdb_current_version_num_sst_files                                                1 files               +0
@@ -351,7 +379,7 @@ With `--details-enable` all table and tablet data is shown. This is my lab clust
 ## Investigate physical IO and latencies
 How much physical IO was performed, and how much did that take on average and overall?
 ```
-fritshoogland@MacBook-Pro-van-Frits yb_stats % target/debug/yb_stats -m 192.168.66.80:7000,192.168.66.80:9000,192.168.66.81:7000,192.168.66.81:9000,192.168.66.82:7000,192.168.66.82:9000 --stat-name-match '(log_append_latency|log_sync_latency|rocksdb_sst_read_micros|rocksdb_write_raw_blocks)'
+./target/release/yb_stats --stat-name-match '(log_append_latency|log_sync_latency|rocksdb_sst_read_micros|rocksdb_write_raw_blocks)'
 Begin metrics snapshot created, press enter to create end snapshot for difference calculation.
 
 192.168.66.80:9000   table    log_append_latency                                                                 762          57.276/s avg.time: 36        tot:           28041 us

@@ -5,6 +5,9 @@ use std::fs;
 use std::process;
 use regex::Regex;
 use serde_derive::{Serialize,Deserialize};
+//use scoped_threadpool::Pool;
+use rayon;
+use std::sync::mpsc::channel;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct VersionData {
@@ -35,12 +38,60 @@ pub struct StoredVersionData {
 }
 
 #[allow(dead_code)]
-pub fn read_version( hostname: &str) -> VersionData {
-    if ! scan_port_addr( hostname) {
-        println!("Warning hostname:port {} cannot be reached, skipping", hostname.to_string());
+pub fn perform_versions_snapshot(
+    hosts: &Vec<&str>,
+    ports: &Vec<&str>,
+    snapshot_number: i32,
+    yb_stats_directory: &PathBuf,
+    parallel: usize
+) {
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
+    let (tx, rx) = channel();
+
+    pool.scope(move |s| {
+        for host in hosts {
+            for port in ports {
+                let tx = tx.clone();
+                s.spawn(move |_| {
+                    let detail_snapshot_time = Local::now();
+                    let version = read_version(&host, &port);
+                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, version)).expect("error sending data via tx");
+                });
+            }
+        }
+    });
+    let mut stored_versions: Vec<StoredVersionData> = Vec::new();
+    for (hostname_port, detail_snapshot_time, version) in rx {
+        add_to_version_vector(version, &hostname_port, detail_snapshot_time, &mut stored_versions);
+    }
+
+    let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
+    let versions_file = &current_snapshot_directory.join("versions");
+    let file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(&versions_file)
+        .unwrap_or_else(|e| {
+            eprintln!("Fatal: error writing versions data in snapshot directory {}: {}", &versions_file.clone().into_os_string().into_string().unwrap(), e);
+            process::exit(1);
+        });
+    let mut writer = csv::Writer::from_writer(file);
+    for row in stored_versions {
+        writer.serialize(row).unwrap();
+    }
+    writer.flush().unwrap();
+}
+
+#[allow(dead_code)]
+pub fn read_version(
+    host: &str,
+    port: &str,
+) -> VersionData {
+    if ! scan_port_addr( format!("{}:{}", host, port)) {
+        println!("Warning hostname:port {}:{} cannot be reached, skipping", host, port);
         return parse_version(String::from(""))
     }
-    if let Ok(data_from_http) = reqwest::blocking::get( format!("http://{}/api/v1/version", hostname.to_string())) {
+    if let Ok(data_from_http) = reqwest::blocking::get( format!("http://{}:{}/api/v1/version", host, port)) {
         parse_version(data_from_http.text().unwrap())
     } else {
         parse_version(String::from(""))
@@ -64,6 +115,7 @@ fn read_version_snapshot(snapshot_number: &String, yb_stats_directory: &PathBuf 
     }
     stored_versions
 }
+
 
 #[allow(dead_code)]
 pub fn print_version_data(
@@ -101,19 +153,21 @@ pub fn add_to_version_vector(versiondata: VersionData,
                              snapshot_time: DateTime<Local>,
                              stored_versiondata: &mut Vec<StoredVersionData>
 ) {
-    stored_versiondata.push(StoredVersionData {
-        hostname_port: hostname.to_string(),
-        timestamp: snapshot_time,
-        git_hash: versiondata.git_hash.to_string(),
-        build_hostname: versiondata.build_hostname.to_string(),
-        build_timestamp: versiondata.build_timestamp.to_string(),
-        build_username: versiondata.build_username.to_string(),
-        build_clean_repo: versiondata.build_clean_repo.to_string(),
-        build_id: versiondata.build_id.to_string(),
-        build_type: versiondata.build_type.to_string(),
-        version_number: versiondata.version_number.to_string(),
-        build_number: versiondata.build_number.to_string(),
-    });
+    if versiondata.git_hash != "" {
+        stored_versiondata.push(StoredVersionData {
+            hostname_port: hostname.to_string(),
+            timestamp: snapshot_time,
+            git_hash: versiondata.git_hash.to_string(),
+            build_hostname: versiondata.build_hostname.to_string(),
+            build_timestamp: versiondata.build_timestamp.to_string(),
+            build_username: versiondata.build_username.to_string(),
+            build_clean_repo: versiondata.build_clean_repo.to_string(),
+            build_id: versiondata.build_id.to_string(),
+            build_type: versiondata.build_type.to_string(),
+            version_number: versiondata.version_number.to_string(),
+            build_number: versiondata.build_number.to_string(),
+        });
+    }
 }
 
 #[allow(dead_code)]

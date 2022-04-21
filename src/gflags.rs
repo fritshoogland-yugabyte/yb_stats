@@ -1,7 +1,12 @@
+use std::path::PathBuf;
 use chrono::{DateTime, Local};
 use port_scanner::scan_port_addr;
 use regex::Regex;
-
+use std::fs;
+use std::process;
+use serde_derive::{Serialize,Deserialize};
+use rayon;
+use std::sync::mpsc::channel;
 
 #[derive(Debug)]
 pub struct GFlag {
@@ -17,20 +22,66 @@ pub struct StoredGFlags {
     pub gflag_value: String,
 }
 
-
-pub fn read_gflags( hostname: &str) -> Vec<GFlag> {
-    if ! scan_port_addr( hostname ) {
-        println!("Warning: hostname:port {} cannot be reached, skipping", hostname.to_string());
-        return Vec::new(); //String::from(""); //Vec::new() //parse_statements(String::from(""))
+#[allow(dead_code)]
+pub fn read_gflags(
+    host: &str,
+    port: &str,
+) -> Vec<GFlag> {
+    if ! scan_port_addr( format!("{}:{}", host, port)) {
+        println!("Warning: hostname:port {}:{} cannot be reached, skipping", host, port);
+        return Vec::new();
     }
-    if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}/varz?raw", hostname.to_string())) {
+    if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}:{}/varz?raw", host, port)) {
         parse_gflags(data_from_http.text().unwrap())
     } else {
         parse_gflags(String::from(""))
     }
 }
 
+#[allow(dead_code)]
+pub fn perform_gflags_snapshot(
+    hosts: &Vec<&str>,
+    ports: &Vec<&str>,
+    snapshot_number: i32,
+    yb_stats_directory: &PathBuf,
+    parallel: usize
+) {
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
+    let (tx, rx) = channel();
+    pool.scope(move |s| {
+        for host in hosts {
+            for port in ports {
+                let tx = tx.clone();
+                s.spawn(move |_| {
+                    let detail_snapshot_time = Local::now();
+                    let gflags = read_gflags(&host, &port);
+                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, gflags)).expect("error sending data via tx");
+                });
+            }}
+    });
+    let mut stored_gflags: Vec<StoredGFlags> = Vec::new();
+    for (hostname_port, detail_snapshot_time, gflags) in rx {
+        add_to_gflags_vector(gflags, &hostname_port, detail_snapshot_time, &mut stored_gflags);
+    }
 
+    let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
+    let gflags_file = &current_snapshot_directory.join("gflags");
+    let file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(&gflags_file)
+        .unwrap_or_else(|e| {
+            eprintln!("Fatal: error writing gflags data in snapshot directory {}: {}", &gflags_file.clone().into_os_string().into_string().unwrap(), e);
+            process::exit(1);
+        });
+    let mut writer = csv::Writer::from_writer(file);
+    for row in stored_gflags {
+        writer.serialize(row).unwrap();
+    }
+    writer.flush().unwrap();
+}
+
+#[allow(dead_code)]
 pub fn add_to_gflags_vector(gflagdata: Vec<GFlag>,
                             hostname: &str,
                             snapshot_time: DateTime<Local>,
@@ -46,6 +97,7 @@ pub fn add_to_gflags_vector(gflagdata: Vec<GFlag>,
     }
 }
 
+#[allow(dead_code)]
 fn parse_gflags( gflags_data: String ) -> Vec<GFlag> {
     let mut gflags: Vec<GFlag> = Vec::new();
     let re = Regex::new( r"--([A-Za-z_0-9]*)=(.*)\n" ).unwrap();
@@ -53,6 +105,42 @@ fn parse_gflags( gflags_data: String ) -> Vec<GFlag> {
         gflags.push(GFlag { name: captures.get(1).unwrap().as_str().to_string(), value: captures.get(2).unwrap().as_str().to_string() });
     }
     gflags
+}
+
+fn read_gflags_snapshot(snapshot_number: &String, yb_stats_directory: &PathBuf) -> Vec<StoredGFlags> {
+    let mut stored_gflags: Vec<StoredGFlags> = Vec::new();
+    let gflags_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("gflags");
+    let file = fs::File::open(&gflags_file)
+        .unwrap_or_else(|e| {
+            eprintln!("Fatal: error reading file: {}: {}", &gflags_file.clone().into_os_string().into_string().unwrap(), e);
+            process::exit(1);
+        });
+    let mut reader = csv::Reader::from_reader(file);
+    for row in reader.deserialize() {
+        let data: StoredGFlags = row.unwrap();
+        let _ = &stored_gflags.push(data);
+    }
+    stored_gflags
+}
+
+pub fn print_gflags_data(
+    snapshot_number: &String,
+    yb_stats_directory: &PathBuf,
+    hostname_filter: &Regex
+) {
+    let stored_gflags: Vec<StoredGFlags> = read_gflags_snapshot(&snapshot_number, yb_stats_directory);
+    let mut previous_hostname_port = String::from("");
+    for row in stored_gflags {
+        if hostname_filter.is_match(&row.hostname_port) {
+            if row.hostname_port != previous_hostname_port {
+                println!("--------------------------------------------------------------------------------------------------------------------------------------");
+                println!("Host: {}, Snapshot number: {}, Snapshot time: {}", &row.hostname_port.to_string(), &snapshot_number, row.timestamp);
+                println!("--------------------------------------------------------------------------------------------------------------------------------------");
+                previous_hostname_port = row.hostname_port.to_string();
+            }
+            println!("{:80} {:30}", row.gflag_name, row.gflag_value)
+        }
+    }
 }
 
 #[cfg(test)]

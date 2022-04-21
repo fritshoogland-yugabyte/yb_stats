@@ -1,11 +1,13 @@
 use chrono::{DateTime, Local};
 use port_scanner::scan_port_addr;
-use table_extract;
 use std::path::PathBuf;
 use regex::Regex;
 use std::fs;
 use std::process;
 use serde_derive::{Serialize,Deserialize};
+use rayon;
+use std::sync::mpsc::channel;
+use scraper::{ElementRef, Html, Selector};
 
 #[derive(Debug)]
 pub struct MemTrackers {
@@ -27,13 +29,14 @@ pub struct StoredMemTrackers {
 
 #[allow(dead_code)]
 pub fn read_memtrackers(
-    hostname: &str
+    host: &str,
+    port: &str,
 ) -> Vec<MemTrackers> {
-    if ! scan_port_addr( hostname ) {
-        println!("Warning: hostname:port {} cannot be reached, skipping", hostname.to_string());
+    if ! scan_port_addr( format!("{}:{}", host, port)) {
+        println!("Warning: hostname:port {}:{} cannot be reached, skipping", host, port);
         return Vec::new();
     }
-    if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}/mem-trackers", hostname.to_string())) {
+    if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}:{}/mem-trackers", host, port)) {
         parse_memtrackers(data_from_http.text().unwrap())
     } else {
         parse_memtrackers(String::from(""))
@@ -45,6 +48,28 @@ fn parse_memtrackers(
     http_data: String
 ) -> Vec<MemTrackers> {
     let mut memtrackers: Vec<MemTrackers> = Vec::new();
+    if let Some(table) = find_table(&http_data) {
+        let (headers, rows) = table;
+        let try_find_header = |target| headers.iter().position(|h| h == target);
+        let id_pos = try_find_header("Id");
+        let current_consumption_pos = try_find_header("Current Consumption");
+        let peak_consumption_pos = try_find_header("Peak consumption");
+        let limit_pos = try_find_header("Limit");
+        let take_or_missing = |row: &mut [String], pos: Option<usize>| match pos.and_then(|pos| row.get_mut(pos)) {
+            Some(value) => std::mem::take(value),
+            None => "<Missing>".to_string(),
+        };
+        for mut row in rows {
+            memtrackers.push(MemTrackers {
+                id: take_or_missing(&mut row, id_pos),
+                current_consumption: take_or_missing(&mut row, current_consumption_pos),
+                peak_consumption: take_or_missing(&mut row, peak_consumption_pos),
+                limit: take_or_missing(&mut row, limit_pos),
+            });
+        }
+    }
+    memtrackers
+    /*
     if let Some ( table ) = table_extract::Table::find_first(&http_data) {
         for row in &table {
             memtrackers.push(MemTrackers {
@@ -56,8 +81,70 @@ fn parse_memtrackers(
             });
         }
     }
-    memtrackers
+     */
 }
+
+fn find_table(http_data: &str) -> Option<(Vec<String>, Vec<Vec<String>>)> {
+    let css = |selector| Selector::parse(selector).unwrap();
+    let get_cells = |row: ElementRef, selector| {
+        row.select(&css(selector))
+            .map(|cell| cell.inner_html().trim().to_string())
+            .collect()
+    };
+    let html = Html::parse_fragment(http_data);
+    let table = html.select(&css("table")).next()?;
+    let tr = css("tr");
+    let mut rows = table.select(&tr);
+    let headers = get_cells(rows.next()?, "th");
+    let rows: Vec<_> = rows.map(|row| get_cells(row, "td")).collect();
+    Some((headers, rows))
+}
+
+#[allow(dead_code)]
+pub fn perform_memtrackers_snapshot(
+    hosts: &Vec<&str>,
+    ports: &Vec<&str>,
+    snapshot_number: i32,
+    yb_stats_directory: &PathBuf,
+    parallel: usize
+) {
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
+    let (tx, rx) = channel();
+
+    pool.scope(move |s| {
+        for host in hosts {
+            for port in ports {
+                let tx = tx.clone();
+                s.spawn(move |_| {
+                    let detail_snapshot_time = Local::now();
+                    let memtrackers = read_memtrackers( &host, &port);
+                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, memtrackers)).expect("error sending data via tx");
+                });
+            }
+        }
+    });
+    let mut stored_memtrackers: Vec<StoredMemTrackers> = Vec::new();
+    for (hostname_port, detail_snapshot_time, memtrackers) in rx {
+        add_to_memtrackers_vector(memtrackers, &hostname_port, detail_snapshot_time, &mut stored_memtrackers);
+    }
+
+    let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
+    let memtrackers_file = &current_snapshot_directory.join("memtrackers");
+    let file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(&memtrackers_file)
+        .unwrap_or_else(|e| {
+            eprintln!("Fatal: error writing memtrackers data in snapshot directory {}: {}", &memtrackers_file.clone().into_os_string().into_string().unwrap(), e);
+            process::exit(1);
+        });
+    let mut writer = csv::Writer::from_writer(file);
+    for row in stored_memtrackers {
+        writer.serialize(row).unwrap();
+    }
+    writer.flush().unwrap();
+}
+
 
 #[allow(dead_code)]
 pub fn print_memtrackers_data(

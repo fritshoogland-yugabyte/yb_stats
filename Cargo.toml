@@ -19,3 +19,4 @@ csv = "1.1.6"
 chrono = { version = "0.4.19", features = ["serde"] }
 rayon = "1.5.1"
 scraper = "0.12.0"
+dotenv = "0.15.0"

@@ -2,8 +2,11 @@ use structopt::StructOpt;
 use std::process;
 use regex::Regex;
 use chrono::Local;
-use std::io::stdin;
+use std::io::{stdin, Write};
 use std::env;
+use dotenv::dotenv;
+use std::collections::HashMap;
+use std::fs;
 
 //mod yb_statsmetrics;
 use yb_stats::metrics::{print_metrics_diff_for_snapshots, print_diff_metrics, get_metrics_into_diff_first_snapshot, get_metrics_into_diff_second_snapshot};
@@ -30,18 +33,18 @@ use gflags::print_gflags_data;
 mod statements;
 use yb_stats::statements::{print_diff_statements, print_statements_diff_for_snapshots, get_statements_into_diff_first_snapshot, get_statements_into_diff_second_snapshot};
 
+const DEFAULT_HOSTNAMES: &str = "192.168.66.80,192.168.66.81,192.168.66.82";
+const DEFAULT_PORTS: &str = "7000,9000,12000,13000";
+const DEFAULT_PARALLEL: &str = "1";
+const WRITE_DOTENV: bool = true;
+
 #[derive(Debug, StructOpt)]
 struct Opts {
-    /*
-    /// all metric endpoints to be used, a metric endpoint is a hostname or ip address with colon and port number, comma separated.
-    #[structopt(short, long, default_value = "192.168.66.80:7000,192.168.66.81:7000,192.168.66.82:7000")]
-    metric_sources: String,
-     */
     /// hostnames (comma separated)
-    #[structopt(short, long, default_value = "192.168.66.80,192.168.66.81,192.168.66.82")]
+    #[structopt(short, long, default_value = DEFAULT_HOSTNAMES)]
     hosts: String,
     /// port numbers (comma separated)
-    #[structopt(short, long, default_value = "7000,9000,12000,13000")]
+    #[structopt(short, long, default_value = DEFAULT_PORTS)]
     ports: String,
     /// regex to filter statistic names
     #[structopt(short, long)]
@@ -85,8 +88,8 @@ struct Opts {
     /// log data severity to include: optional: I
     #[structopt(long, default_value = "WEF")]
     log_severity: String,
-    /// how much threads to use for fetching data
-    #[structopt(short, long, default_value = "1")]
+    /// how much threads to use in parallel for fetching data
+    #[structopt(long, default_value = DEFAULT_PARALLEL)]
     parallel: usize,
 }
 ///// begin snapshot number
@@ -97,12 +100,32 @@ struct Opts {
 //end: String,
 
 fn main() {
-
-    // create variables based on StructOpt values
+    let mut changed_options = HashMap::new();
+    dotenv().ok();
     let options = Opts::from_args();
-    //let hostname_port_vec: Vec<&str> = options.metric_sources.split(",").collect();
-    let hosts: Vec<&str> = options.hosts.split(",").collect();
-    let ports: Vec<&str> = options.ports.split(",").collect();
+
+    let hosts_string = if options.hosts == DEFAULT_HOSTNAMES {
+        match env::var("YBSTATS_HOSTS") {
+            Ok(var) => var,
+            Err(_e)        => DEFAULT_HOSTNAMES.to_string(),
+        }
+    } else {
+        changed_options.insert("YBSTATS_HOSTS", options.hosts.to_owned());
+        options.hosts
+    };
+    let hosts = hosts_string.split(",").collect();
+
+    let ports_string= if options.ports == DEFAULT_PORTS {
+        match env::var("YBSTATS_PORTS") {
+            Ok(var) => var,
+            Err(_e)        => DEFAULT_PORTS.to_string(),
+        }
+    } else {
+        changed_options.insert("YBSTATS_PORTS", options.ports.to_owned());
+        options.ports.split(",").collect()
+    };
+    let ports = ports_string.split(",").collect();
+
     let snapshot: bool = options.snapshot as bool;
     let gauges_enable: bool = options.gauges_enable as bool;
     let details_enable: bool = options.details_enable as bool;
@@ -189,5 +212,21 @@ fn main() {
         print_diff_metrics(&values_diff, &countsum_diff, &countsumrows_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
         print_diff_statements(&statements_diff, &hostname_filter);
 
+    }
+
+    if changed_options.len() > 0 && WRITE_DOTENV {
+            let mut file = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(".env")
+            .unwrap_or_else(| e | {
+                            eprintln!("error writing .env file into current working directory: {}", e);
+                            process::exit(1);
+                            });
+            for (key, value) in changed_options {
+                file.write(format!("{}={}\n", key, value).as_bytes()).unwrap();
+            }
+            file.flush().unwrap();
     }
 }

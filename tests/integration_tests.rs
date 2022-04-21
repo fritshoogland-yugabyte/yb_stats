@@ -51,7 +51,7 @@ fn get_hostname_yedis() -> String {
     hostname
 }
 fn get_port_yedis() -> String {
-    let port= match env::var("HOSTNAME_PORT") {
+    let port= match env::var("PORT_YEDIS") {
         Ok(value) => value,
         Err(e) => panic!("Error reading environment variable PORT_YEDIS: {:?}", e)
     };
@@ -261,7 +261,7 @@ fn parse_metrics_ysql() {
     // YSQL will produce countsumrows rows, but no value or countsum rows
     assert!(stored_values.len() == 0);
     assert!(stored_countsum.len() == 0);
-    assert!(stored_countsumrows.len() > 0);
+    assert!(stored_countsumrows.len() == 0);
 }
 #[test]
 fn parse_metrics_ycql() {

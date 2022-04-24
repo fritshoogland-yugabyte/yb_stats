@@ -16,6 +16,7 @@ pub mod loglines;
 pub mod versions;
 pub mod statements;
 pub mod metrics;
+pub mod node_exporter;
 
 use chrono::{DateTime, Local};
 use std::process;
@@ -164,6 +165,7 @@ pub fn perform_snapshot(
     loglines::perform_loglines_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
     versions::perform_versions_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
     statements::perform_statements_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
+    node_exporter::perform_nodeexporter_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
 
     snapshot_number
 }

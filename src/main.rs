@@ -30,11 +30,15 @@ mod threads;
 use threads::print_threads_data;
 mod gflags;
 use gflags::print_gflags_data;
+use yb_stats::node_exporter::{get_nodeexporter_into_diff_first_snapshot, get_nodeexpoter_into_diff_second_snapshot, print_diff_nodeexporter, print_nodeexporter_diff_for_snapshots};
+
 mod statements;
 use yb_stats::statements::{print_diff_statements, print_statements_diff_for_snapshots, get_statements_into_diff_first_snapshot, get_statements_into_diff_second_snapshot};
+//mod node_exporter;
+//use node_exporter::{}
 
 const DEFAULT_HOSTNAMES: &str = "192.168.66.80,192.168.66.81,192.168.66.82";
-const DEFAULT_PORTS: &str = "7000,9000,12000,13000";
+const DEFAULT_PORTS: &str = "7000,9000,12000,13000,9300";
 const DEFAULT_PARALLEL: &str = "1";
 const WRITE_DOTENV: bool = true;
 
@@ -173,6 +177,7 @@ fn main() {
 
         print_metrics_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
         print_statements_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter);
+        print_nodeexporter_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter, &stat_name_filter, &gauges_enable);
 
     } else if options.print_memtrackers.is_some() {
 
@@ -199,6 +204,7 @@ fn main() {
         let first_snapshot_time = Local::now();
         let (mut values_diff, mut countsum_diff, mut countsumrows_diff) = get_metrics_into_diff_first_snapshot(&hosts, &ports, parallel);
         let mut statements_diff = get_statements_into_diff_first_snapshot(&hosts, &ports, parallel);
+        let mut node_exporter_diff = get_nodeexporter_into_diff_first_snapshot(&hosts, &ports, parallel);
 
         println!("Begin metrics snapshot created, press enter to create end snapshot for difference calculation.");
         let mut input = String::new();
@@ -207,10 +213,12 @@ fn main() {
         let second_snapshot_time = Local::now();
         get_metrics_into_diff_second_snapshot(&hosts, &ports, &mut values_diff, &mut countsum_diff, &mut countsumrows_diff, &first_snapshot_time, parallel);
         get_statements_into_diff_second_snapshot(&hosts, &ports, &mut statements_diff, &first_snapshot_time, parallel);
+        get_nodeexpoter_into_diff_second_snapshot(&hosts, &ports, &mut node_exporter_diff, &first_snapshot_time, parallel);
 
         println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time-first_snapshot_time).num_milliseconds() as f64/1000 as f64);
         print_diff_metrics(&values_diff, &countsum_diff, &countsumrows_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
         print_diff_statements(&statements_diff, &hostname_filter);
+        print_diff_nodeexporter(&node_exporter_diff, &hostname_filter, &stat_name_filter, &gauges_enable);
 
     }
 

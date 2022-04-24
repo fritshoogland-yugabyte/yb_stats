@@ -353,8 +353,8 @@ pub fn add_to_metric_vectors(data_parsed_from_json: Vec<Metrics>,
 
 fn parse_metrics( metrics_data: String ) -> Vec<Metrics> {
     serde_json::from_str(&metrics_data )
-        .unwrap_or_else(|e| {
-            println!("Warning: error parsing /metrics json data: {}", e);
+        .unwrap_or_else(|_e| {
+            //println!("Warning: error parsing /metrics json data for metrics: {}", e);
             return Vec::<Metrics>::new();
         })
 }

@@ -126,7 +126,7 @@ fn main() {
         }
     } else {
         changed_options.insert("YBSTATS_PORTS", options.ports.to_owned());
-        options.ports.split(",").collect()
+        options.ports
     };
     let ports = ports_string.split(",").collect();
 
@@ -158,7 +158,6 @@ fn main() {
 
     if snapshot {
 
-        //let snapshot_number: i32 = perform_snapshot(hostname_port_vec, snapshot_comment, parallel);
         let snapshot_number: i32 = perform_snapshot(hosts, ports, snapshot_comment, parallel);
         println!("snapshot number {}", snapshot_number);
         process::exit(0);

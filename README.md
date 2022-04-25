@@ -3,7 +3,8 @@
 This is a utility to extract runtime data for the master and tablet servers in a YugebyteDB cluster.   
 
 Yb_stats gathers the following data:
-- metric (performance) data via the 'metric endpoints' (HOST:PORT/metrics). Most of this data is available via the prometheus endpoint as well (/prometheus-metrics).  
+- Yugabyte metric (databasee scope performance) data via the 'metric endpoints' (HOST:PORT/metrics). Most of this data is available via the prometheus endpoint as well (/prometheus-metrics).  
+- Node exporter metric (operating system scope performance) data via the metric endpoint (HOST:PORT/metrics). This is a prometheus endpoint. 
 - statements (YSQL only) via the statements endpoint (HOST:PORT/statements).
 - version via the versions endpoint (HOST:PORT/api/v1/version)
 - gflags (HOST:PORT/varz)
@@ -11,12 +12,14 @@ Yb_stats gathers the following data:
 - memtrackers (HOST:PORT/mem-trackers)
 - threads (HOST:PORT/threadz)
 
-The data gathering is performed in two main modes:
-- Online performance data display. This only displays the metric and statements, and does not store anything.
+The data gathering can run in two distinct modes:
+- Online performance data display mode. This only displays the metric and statements, and does not store anything. This works by obtaining a memory snapshot when yb_stats is started, and then waits for enter to take a second snapshot and display the difference.
 - Read all data and save it into a snapshot.  
 
-Once snapshots exist, these can be investigated using:
-- `--snapshot-diff`: asks for begin and end snapshot number, and provides the difference for the metric counters.
+For both modes for displaying data, a number of options exist to filter, to add non-counter statistics and to increase the detail of the statistics (Yugabyte table and tablet statistics change from server scope to detail scope).
+
+In snapshot mode, no data is displayed, only the snapshot number. Once snapshots exist, these can be investigated using:
+- `--snapshot-diff`: asks for begin and end snapshot number, and provides the difference for the metric counters. This requires two snapshots, and shows the difference.
 - `--print-version`: requires a single snapshot number as argument, and prints the versions that are gathered.
 - `--print-gflags`: requires a single snapshot number as argument, and prints the gflags that are gathered.
 - `--print-threads`: requires a single snapshot number as argument, and prints the thread information that is captured.
@@ -24,8 +27,6 @@ Once snapshots exist, these can be investigated using:
 - `--print-log`: requires a single snapshot number as argument, and prints the loglines that are gathered.  
 For `--print-log` specific, another flag can be used to filter the log rows:
 - `--log-severity`: by default this filter is set to 'WEF' (warning, error, fail), and thus will not show the I (informal) lines.
-
-
 
 # Usage
 For data gathering, all the hostnames or ip addresses of the yugabyte master and tserver servers need to be specified using the `-h` or `--hosts` switch, for example:

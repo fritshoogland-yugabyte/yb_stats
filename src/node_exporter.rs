@@ -253,7 +253,7 @@ pub fn print_diff_nodeexporter(
             && stat_name_filter.is_match(nodeexporter_name)
             && nodeexporter_row.second_value - nodeexporter_row.first_value != 0.0 {
             if nodeexporter_row.node_exporter_type == "counter" {
-                println!("{:20} {:8} {:75} {:19.6} {:15.3} /s",
+                println!("{:20} {:8} {:73} {:19.6} {:15.3} /s",
                          hostname,
                          nodeexporter_row.node_exporter_type,
                          nodeexporter_name,
@@ -266,7 +266,7 @@ pub fn print_diff_nodeexporter(
             && stat_name_filter.is_match(&nodeexporter_name)
             && nodeexporter_row.node_exporter_type == "gauge"
             && *gauges_enable {
-            println!("{:20} {:8} {:75} {:19.6} {:+15}",
+            println!("{:20} {:8} {:73} {:19.6} {:+15}",
                      hostname,
                      nodeexporter_row.node_exporter_type,
                      nodeexporter_name,

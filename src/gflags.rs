@@ -28,10 +28,10 @@ pub fn read_gflags(
     port: &str,
 ) -> Vec<GFlag> {
     if ! scan_port_addr( format!("{}:{}", host, port)) {
-        println!("Warning: hostname:port {}:{} cannot be reached, skipping", host, port);
+        println!("Warning: hostname:port {}:{} cannot be reached, skipping (gflags)",host ,port);
         return Vec::new();
     }
-    if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}:{}/varz?raw", host, port)) {
+    if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}:{}/varz?raw",host ,port)) {
         parse_gflags(data_from_http.text().unwrap())
     } else {
         parse_gflags(String::from(""))
@@ -55,7 +55,7 @@ pub fn perform_gflags_snapshot(
                 s.spawn(move |_| {
                     let detail_snapshot_time = Local::now();
                     let gflags = read_gflags(&host, &port);
-                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, gflags)).expect("error sending data via tx");
+                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, gflags)).expect("error sending data via tx (gflags)");
                 });
             }}
     });

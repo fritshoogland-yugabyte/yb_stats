@@ -394,7 +394,7 @@ Begin metrics snapshot created, press enter to create end snapshot for differenc
 192.168.66.82:9000   table    rocksdb_sst_read_micros                                                           7502         510.201/s avg.time: 62        tot:          468070 us
 ```
 This shows the physical IO statistics:
-- log_append_latency: the number of and time spent adding the changes to the WAL (via a buffer writev() call). (older versions perform two write calls per WAL entry: https://github.com/yugabyte/yugabyte-db/issues/11035)
+- log_append_latency: the number of and time spent adding the changes to the WAL (via a buffered writev() call). (older versions perform two write calls per WAL entry: https://github.com/yugabyte/yugabyte-db/issues/11035)
 - rocksdb_sst_read_micros: the number of and time spent reading (via a buffered pread64() call).
 - rocksdb_write_raw_blocks: the number of and time spent writing to SST files (via a buffered write() call).
 - log_sync_latency: this the number of and time spent in the function that performs fsync() of the WAL file. Mind the specific wording: not all calls to the function result in fsync() being called, which means that this statistic also measures running the function not performing the fsync() call, and thus will be much too positive, and not a valid average of time spent in the fsync() call. The total time is still a valid amount for tuning. See: https://github.com/yugabyte/yugabyte-db/issues/11039

@@ -94,7 +94,7 @@ struct Opts {
     log_severity: String,
     /// how much threads to use in parallel for fetching data
     #[structopt(long, default_value = DEFAULT_PARALLEL)]
-    parallel: usize,
+    parallel: String,
 }
 ///// begin snapshot number
 //#[structopt(short, long)]
@@ -130,11 +130,22 @@ fn main() {
     };
     let ports = ports_string.split(",").collect();
 
+    let parallel_string = if options.parallel == DEFAULT_PARALLEL {
+        match env::var("YBSTATS_PARALLEL") {
+            Ok(var) => var,
+            Err(_e) => DEFAULT_PARALLEL.to_string(),
+        }
+    } else {
+        changed_options.insert("YBSTATS_PARALLEL", options.parallel.to_owned());
+        options.parallel
+    };
+    let parallel: usize = parallel_string.parse().unwrap();
+
     let snapshot: bool = options.snapshot as bool;
     let gauges_enable: bool = options.gauges_enable as bool;
     let details_enable: bool = options.details_enable as bool;
     let snapshot_diff: bool = options.snapshot_diff as bool;
-    let parallel: usize = options.parallel;
+    //let parallel: usize = options.parallel;
     let log_severity: String = options.log_severity;
     let snapshot_comment = match options.snapshot_comment {
         Some(comment) => comment,
@@ -176,7 +187,7 @@ fn main() {
 
         print_metrics_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
         print_statements_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter);
-        print_nodeexporter_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter, &stat_name_filter, &gauges_enable);
+        print_nodeexporter_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter, &stat_name_filter, &gauges_enable, &details_enable);
 
     } else if options.print_memtrackers.is_some() {
 
@@ -217,7 +228,7 @@ fn main() {
         println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time-first_snapshot_time).num_milliseconds() as f64/1000 as f64);
         print_diff_metrics(&values_diff, &countsum_diff, &countsumrows_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
         print_diff_statements(&statements_diff, &hostname_filter);
-        print_diff_nodeexporter(&node_exporter_diff, &hostname_filter, &stat_name_filter, &gauges_enable);
+        print_diff_nodeexporter(&node_exporter_diff, &hostname_filter, &stat_name_filter, &gauges_enable, &details_enable);
 
     }
 

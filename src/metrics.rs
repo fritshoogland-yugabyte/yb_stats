@@ -160,7 +160,7 @@ pub fn read_metrics(
     port: &str,
 ) -> Vec<Metrics> {
     if ! scan_port_addr(format!("{}:{}", host, port)) {
-        println!("Warning! hostname:port {}:{} cannot be reached, skipping", host, port);
+        println!("Warning! hostname:port {}:{} cannot be reached, skipping (metrics)", host, port);
         return parse_metrics(String::from(""))
     };
     let data_from_http = reqwest::blocking::get(format!("http://{}:{}/metrics", host, port))
@@ -190,7 +190,7 @@ pub fn read_metrics_into_vectors(
                 s.spawn(move |_| {
                     let detail_snapshot_time = Local::now();
                     let metrics = read_metrics(&host, &port);
-                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, metrics)).expect("error sending data via tx");
+                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, metrics)).expect("error sending data via tx (metrics)");
                 });
             }
         }

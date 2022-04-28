@@ -15,6 +15,8 @@ use std::env;
 pub struct NodeExporterValues {
     pub node_exporter_name: String,
     pub node_exporter_type: String,
+    pub node_exporter_labels: String,
+    pub node_exporter_category: String,
     pub node_exporter_value: f64,
 
 }
@@ -23,11 +25,10 @@ pub struct NodeExporterValues {
 pub struct StoredNodeExporterValues {
     pub hostname_port: String,
     pub timestamp: DateTime<Local>,
-    // sample.metric + labels
     pub node_exporter_name: String,
-    // sample.value type : types Counter and Gauge
     pub node_exporter_type: String,
-    // sample.value
+    pub node_exporter_labels: String,
+    pub node_exporter_category: String,
     pub node_exporter_value: f64,
 }
 
@@ -36,6 +37,7 @@ pub struct SnapshotDiffNodeExporter {
     pub first_snapshot_time: DateTime<Local>,
     pub second_snapshot_time: DateTime<Local>,
     pub node_exporter_type: String,
+    pub category: String,
     pub first_value: f64,
     pub second_value: f64,
 }
@@ -45,7 +47,7 @@ pub fn read_node_exporter(
     port: &str,
 ) -> Vec<NodeExporterValues> {
     if ! scan_port_addr(format!("{}:{}", host, port)) {
-        println!("Warning! hostname:port {}:{} cannot be reached, skipping", host, port);
+        println!("Warning! hostname:port {}:{} cannot be reached, skipping (node_exporter)", host, port);
         return parse_node_exporter(String::from(""))
     };
     let data_from_http = reqwest::blocking::get(format!("http://{}:{}/metrics", host, port))
@@ -76,8 +78,10 @@ fn parse_node_exporter( node_exporter_data: String ) -> Vec<NodeExporterValues> 
             Value::Counter(val) => {
                 nodeexportervalues.push(
                     NodeExporterValues {
-                        node_exporter_name: format!("{}{}", sample.metric.to_string(), &label),
+                        node_exporter_name: sample.metric.to_string(),
                         node_exporter_type: "counter".to_string(),
+                        node_exporter_labels: label,
+                        node_exporter_category: "all".to_string(),
                         node_exporter_value: val,
                     }
                 )
@@ -85,8 +89,10 @@ fn parse_node_exporter( node_exporter_data: String ) -> Vec<NodeExporterValues> 
             Value::Gauge(val) => {
                 nodeexportervalues.push(
                     NodeExporterValues {
-                        node_exporter_name: format!("{}{}", sample.metric.to_string(), label),
+                        node_exporter_name: sample.metric.to_string(),
                         node_exporter_type: "gauge".to_string(),
+                        node_exporter_labels: label,
+                        node_exporter_category: "all".to_string(),
                         node_exporter_value: val,
                     }
                 )
@@ -96,6 +102,151 @@ fn parse_node_exporter( node_exporter_data: String ) -> Vec<NodeExporterValues> 
             Value::Untyped(_val) => {},
         }
     }
+    // post processing.
+    // process_cpu_seconds_total = node_exporter process
+    for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "process_cpu_seconds_total") {
+        record.node_exporter_category = "detail".to_string();
+    }
+    // promhttp_metric_handler_requests_total
+    for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "promhttp_metric_handler_requests_total") {
+        record.node_exporter_category = "detail".to_string();
+    }
+    // anything that starts with go_ are statistics about the node_exporter process
+    for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name.starts_with("go_") ) {
+        record.node_exporter_category = "detail".to_string();
+    }
+    // any record that contains a label that contains 'dm-' is a specification of a block device, and not the block device itself
+    for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_labels.contains("dm-") ) {
+        record.node_exporter_category = "detail".to_string();
+    }
+    // softnet: node_softnet_processed_total
+    for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_softnet_processed_total" ) {
+        record.node_exporter_category = "detail".to_string();
+    }
+    nodeexportervalues.push( NodeExporterValues {
+        node_exporter_name: "node_softnet_processed_total".to_string(),
+        node_exporter_type: "counter".to_string(),
+        node_exporter_labels: "".to_string(),
+        node_exporter_category: "summary".to_string(),
+        node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_processed_total").map(|x| x.node_exporter_value).sum(),
+    });
+    // softnet: node_softnet_dropped_total
+    for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_softnet_dropped_total" ) {
+        record.node_exporter_category = "detail".to_string();
+    }
+    nodeexportervalues.push( NodeExporterValues {
+        node_exporter_name: "node_softnet_dropped_total".to_string(),
+        node_exporter_type: "counter".to_string(),
+        node_exporter_labels: "".to_string(),
+        node_exporter_category: "summary".to_string(),
+        node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_dropped_total").map(|x| x.node_exporter_value).sum(),
+    });
+    // softnet: node_softnet_times_squeezed_total
+    for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_softnet_times_squeezed_total" ) {
+        record.node_exporter_category = "detail".to_string();
+    }
+    nodeexportervalues.push( NodeExporterValues {
+        node_exporter_name: "node_softnet_times_squeezed_total".to_string(),
+        node_exporter_type: "counter".to_string(),
+        node_exporter_labels: "".to_string(),
+        node_exporter_category: "summary".to_string(),
+        node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_times_squeezed_total").map(|x| x.node_exporter_value).sum(),
+    });
+    // schedstat: node_schedstat_waiting_seconds
+    for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_schedstat_waiting_seconds_total" ) {
+        record.node_exporter_category = "detail".to_string();
+    }
+    nodeexportervalues.push( NodeExporterValues {
+        node_exporter_name: "node_schedstat_waiting_seconds_total".to_string(),
+        node_exporter_type: "counter".to_string(),
+        node_exporter_labels: "".to_string(),
+        node_exporter_category: "summary".to_string(),
+        node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_waiting_seconds_total").map(|x| x.node_exporter_value).sum(),
+    });
+    // schedstat: node_schedstat_timeslices
+    for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_schedstat_timeslices_total" ) {
+        record.node_exporter_category = "detail".to_string();
+    }
+    nodeexportervalues.push( NodeExporterValues {
+        node_exporter_name: "node_schedstat_timeslices_total".to_string(),
+        node_exporter_type: "counter".to_string(),
+        node_exporter_labels: "".to_string(),
+        node_exporter_category: "summary".to_string(),
+        node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_timeslices_total").map(|x| x.node_exporter_value).sum(),
+    });
+    // schedstat: node_schedstat_running_seconds
+    for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_schedstat_running_seconds_total" ) {
+        record.node_exporter_category = "detail".to_string();
+    }
+    nodeexportervalues.push( NodeExporterValues {
+        node_exporter_name: "node_schedstat_running_seconds_total".to_string(),
+        node_exporter_type: "counter".to_string(),
+        node_exporter_labels: "".to_string(),
+        node_exporter_category: "summary".to_string(),
+        node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_running_seconds_total").map(|x| x.node_exporter_value).sum(),
+    });
+    // cpu_seconds_total:
+    for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_cpu_seconds_total" ) {
+        record.node_exporter_category = "detail".to_string();
+    }
+    // idle
+    nodeexportervalues.push( NodeExporterValues {
+        node_exporter_name: "node_cpu_seconds_total".to_string(),
+        node_exporter_type: "counter".to_string(),
+        node_exporter_labels: "_idle".to_string(),
+        node_exporter_category: "summary".to_string(),
+        node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("idle")).map(|x| x.node_exporter_value).sum(),
+    });
+    nodeexportervalues.push( NodeExporterValues {
+        node_exporter_name: "node_cpu_seconds_total".to_string(),
+        node_exporter_type: "counter".to_string(),
+        node_exporter_labels: "_irq".to_string(),
+        node_exporter_category: "summary".to_string(),
+        node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("_irq")).map(|x| x.node_exporter_value).sum(),
+    });
+    nodeexportervalues.push( NodeExporterValues {
+        node_exporter_name: "node_cpu_seconds_total".to_string(),
+        node_exporter_type: "counter".to_string(),
+        node_exporter_labels: "_softirq".to_string(),
+        node_exporter_category: "summary".to_string(),
+        node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("_softirq")).map(|x| x.node_exporter_value).sum(),
+    });
+    nodeexportervalues.push( NodeExporterValues {
+        node_exporter_name: "node_cpu_seconds_total".to_string(),
+        node_exporter_type: "counter".to_string(),
+        node_exporter_labels: "_system".to_string(),
+        node_exporter_category: "summary".to_string(),
+        node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("system")).map(|x| x.node_exporter_value).sum(),
+    });
+    nodeexportervalues.push( NodeExporterValues {
+        node_exporter_name: "node_cpu_seconds_total".to_string(),
+        node_exporter_type: "counter".to_string(),
+        node_exporter_labels: "_user".to_string(),
+        node_exporter_category: "summary".to_string(),
+        node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("user")).map(|x| x.node_exporter_value).sum(),
+    });
+    nodeexportervalues.push( NodeExporterValues {
+        node_exporter_name: "node_cpu_seconds_total".to_string(),
+        node_exporter_type: "counter".to_string(),
+        node_exporter_labels: "_iowait".to_string(),
+        node_exporter_category: "summary".to_string(),
+        node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("iowait")).map(|x| x.node_exporter_value).sum(),
+    });
+    nodeexportervalues.push( NodeExporterValues {
+        node_exporter_name: "node_cpu_seconds_total".to_string(),
+        node_exporter_type: "counter".to_string(),
+        node_exporter_labels: "_nice".to_string(),
+        node_exporter_category: "summary".to_string(),
+        node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("nice")).map(|x| x.node_exporter_value).sum(),
+    });
+    nodeexportervalues.push( NodeExporterValues {
+        node_exporter_name: "node_cpu_seconds_total".to_string(),
+        node_exporter_type: "counter".to_string(),
+        node_exporter_labels: "_steal".to_string(),
+        node_exporter_category: "summary".to_string(),
+        node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("steal")).map(|x| x.node_exporter_value).sum(),
+    });
+
     nodeexportervalues
 }
 
@@ -113,7 +264,7 @@ pub fn read_node_exporter_into_vectors(
                 s.spawn(move |_| {
                     let detail_snapshot_time = Local::now();
                     let node_exporter_values = read_node_exporter(&host, &port);
-                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, node_exporter_values)).expect("error sending data via tx");
+                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, node_exporter_values)).expect("error sending data via tx (node_exporter)");
                 });
             }
         }
@@ -139,6 +290,8 @@ pub fn add_to_node_exporter_vectors(
                     timestamp: detail_snapshot_time,
                     node_exporter_name: row.node_exporter_name.to_string(),
                     node_exporter_type: row.node_exporter_type.to_string(),
+                    node_exporter_labels: row.node_exporter_labels.to_string(),
+                    node_exporter_category: row.node_exporter_category.to_string(),
                     node_exporter_value: row.node_exporter_value,
                 }
             );
@@ -197,11 +350,12 @@ pub fn insert_first_snapshot_nodeexporter(
     let mut nodeexporter_diff: BTreeMap<(String, String), SnapshotDiffNodeExporter> = BTreeMap::new();
     for row in stored_nodeexporter {
         nodeexporter_diff.insert(
-            (row.hostname_port.to_string(), row.node_exporter_name.to_string()),
+            (row.hostname_port.to_string(), format!("{}{}", row.node_exporter_name.to_string(), row.node_exporter_labels.to_string())),
             SnapshotDiffNodeExporter {
                 first_snapshot_time: row.timestamp,
                 second_snapshot_time: row.timestamp,
                 node_exporter_type: row.node_exporter_type.to_string(),
+                category: row.node_exporter_category.to_string(),
                 first_value: row.node_exporter_value,
                 second_value: 0.0,
             }
@@ -216,23 +370,25 @@ pub fn insert_second_snapshot_nodeexporter(
     first_snapshot_time: &DateTime<Local>,
 ) {
     for row in stored_nodeexporter {
-        match nodeexporter_diff.get_mut( &(row.hostname_port.to_string(), row.node_exporter_name.to_string()) ) {
+        match nodeexporter_diff.get_mut( &(row.hostname_port.to_string(), format!("{}{}", row.node_exporter_name.to_string(), row.node_exporter_labels.to_string()) ) ) {
             Some( nodeexporter_diff_row ) => {
                *nodeexporter_diff_row = SnapshotDiffNodeExporter {
                    first_snapshot_time: nodeexporter_diff_row.first_snapshot_time,
                    second_snapshot_time: row.timestamp,
                    node_exporter_type: row.node_exporter_type.to_string(),
+                   category: row.node_exporter_category.to_string(),
                    first_value: nodeexporter_diff_row.first_value,
                    second_value: row.node_exporter_value
                }
             },
             None => {
                 nodeexporter_diff.insert(
-                    (row.hostname_port.to_string(), row.node_exporter_name.to_string()),
+                    (row.hostname_port.to_string(), format!("{}{}", row.node_exporter_name.to_string(), row.node_exporter_labels.to_string()) ),
                     SnapshotDiffNodeExporter {
                               first_snapshot_time: *first_snapshot_time,
                               second_snapshot_time: row.timestamp,
                               node_exporter_type: row.node_exporter_type.to_string(),
+                              category: row.node_exporter_category.to_string(),
                               first_value: 0.0,
                               second_value: row.node_exporter_value
                     }
@@ -247,20 +403,22 @@ pub fn print_diff_nodeexporter(
     hostname_filter: &Regex,
     stat_name_filter: &Regex,
     gauges_enable: &bool,
+    details_enable: &bool,
 ) {
     for ((hostname, nodeexporter_name), nodeexporter_row) in nodeexporter_diff {
         if hostname_filter.is_match(&hostname)
-            && stat_name_filter.is_match(nodeexporter_name)
-            && nodeexporter_row.second_value - nodeexporter_row.first_value != 0.0 {
-            if nodeexporter_row.node_exporter_type == "counter" {
-                println!("{:20} {:8} {:73} {:19.6} {:15.3} /s",
-                         hostname,
-                         nodeexporter_row.node_exporter_type,
-                         nodeexporter_name,
-                         nodeexporter_row.second_value - nodeexporter_row.first_value,
-                         (nodeexporter_row.second_value - nodeexporter_row.first_value) / (nodeexporter_row.second_snapshot_time - nodeexporter_row.first_snapshot_time).num_seconds() as f64,
-                );
-            }
+            && stat_name_filter.is_match(&nodeexporter_name)
+            && nodeexporter_row.second_value - nodeexporter_row.first_value != 0.0
+            && nodeexporter_row.node_exporter_type == "counter" {
+            if *details_enable && nodeexporter_row.category == "summary" { continue };
+            if ! *details_enable && nodeexporter_row.category == "detail" { continue };
+            println!("{:20} {:8} {:73} {:19.6} {:15.3} /s",
+                     hostname,
+                     nodeexporter_row.node_exporter_type,
+                     nodeexporter_name,
+                     nodeexporter_row.second_value - nodeexporter_row.first_value,
+                     (nodeexporter_row.second_value - nodeexporter_row.first_value) / (nodeexporter_row.second_snapshot_time - nodeexporter_row.first_snapshot_time).num_seconds() as f64,
+            );
         }
         if hostname_filter.is_match(&hostname)
             && stat_name_filter.is_match(&nodeexporter_name)
@@ -284,6 +442,7 @@ pub fn print_nodeexporter_diff_for_snapshots(
     hostname_filter: &Regex,
     stat_name_filter: &Regex,
     gauges_enable: &bool,
+    details_enable: &bool,
 ) {
     let current_directory = env::current_dir().unwrap();
     let yb_stats_directory = current_directory.join("yb_stats.snapshots");
@@ -293,7 +452,7 @@ pub fn print_nodeexporter_diff_for_snapshots(
     let stored_nodeexporter: Vec<StoredNodeExporterValues> = read_nodeexporter_snapshot(&end_snapshot, &yb_stats_directory);
     insert_second_snapshot_nodeexporter(stored_nodeexporter, &mut nodeexporter_diff, &begin_snapshot_timestamp);
 
-    print_diff_nodeexporter(&nodeexporter_diff, &hostname_filter, &stat_name_filter, &gauges_enable);
+    print_diff_nodeexporter(&nodeexporter_diff, &hostname_filter, &stat_name_filter, &gauges_enable, &details_enable);
 }
 
 pub fn get_nodeexporter_into_diff_first_snapshot(

@@ -33,7 +33,7 @@ pub fn read_loglines(
     port: &str,
 ) -> Vec<LogLine> {
     if ! scan_port_addr( format!("{}:{}", host, port)) {
-        println!("Warning: hostname:port {}:{} cannot be reached, skipping", host, port);
+        println!("Warning: hostname:port {}:{} cannot be reached, skipping (logs)", host, port);
         return Vec::new();
     }
     if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}:{}/logs?raw", host, port)) {
@@ -77,7 +77,7 @@ pub fn perform_loglines_snapshot(
                 let tx = tx.clone();
                 s.spawn(move |_| {
                     let loglines = read_loglines(&host, &port);
-                    tx.send((format!("{}:{}", host, port), loglines)).expect("error sending data via tx");
+                    tx.send((format!("{}:{}", host, port), loglines)).expect("error sending data via tx (logs)");
                 });
             }}
     });

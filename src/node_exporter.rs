@@ -103,16 +103,20 @@ fn parse_node_exporter( node_exporter_data: String ) -> Vec<NodeExporterValues> 
         }
     }
     // post processing.
-    // process_cpu_seconds_total = node_exporter process
-    for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "process_cpu_seconds_total") {
+    // anything that starts with process_ is node_exporter process
+    for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name.starts_with("process_") ) {
         record.node_exporter_category = "detail".to_string();
     }
-    // promhttp_metric_handler_requests_total
-    for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "promhttp_metric_handler_requests_total") {
+    // anything that start with promhttp_ is the node_exporter http server
+    for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name.starts_with("promhttp_") ) {
         record.node_exporter_category = "detail".to_string();
     }
     // anything that starts with go_ are statistics about the node_exporter process
     for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name.starts_with("go_") ) {
+        record.node_exporter_category = "detail".to_string();
+    }
+    // anything that starts with node_scrape_collector is about the node_exporter scraper
+    for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name.starts_with("node_scrape_collector_") ) {
         record.node_exporter_category = "detail".to_string();
     }
     // any record that contains a label that contains 'dm-' is a specification of a block device, and not the block device itself
@@ -424,6 +428,8 @@ pub fn print_diff_nodeexporter(
             && stat_name_filter.is_match(&nodeexporter_name)
             && nodeexporter_row.node_exporter_type == "gauge"
             && *gauges_enable {
+            if *details_enable && nodeexporter_row.category == "summary" { continue };
+            if ! *details_enable && nodeexporter_row.category == "detail" { continue };
             println!("{:20} {:8} {:73} {:19.6} {:+15}",
                      hostname,
                      nodeexporter_row.node_exporter_type,

@@ -111,7 +111,7 @@ fn main() {
     let hosts_string = if options.hosts == DEFAULT_HOSTNAMES {
         match env::var("YBSTATS_HOSTS") {
             Ok(var) => {
-                changed_options.insert("YBSTATS_HOSTS", options.hosts.to_owned());
+                changed_options.insert("YBSTATS_HOSTS", var.to_owned());
                 var
             },
             Err(_e)        => DEFAULT_HOSTNAMES.to_string(),
@@ -125,7 +125,7 @@ fn main() {
     let ports_string= if options.ports == DEFAULT_PORTS {
         match env::var("YBSTATS_PORTS") {
             Ok(var) => {
-                changed_options.insert("YBSTATS_PORTS", options.ports.to_owned());
+                changed_options.insert("YBSTATS_PORTS", var.to_owned());
                 var
             },
             Err(_e)        => DEFAULT_PORTS.to_string(),
@@ -139,7 +139,7 @@ fn main() {
     let parallel_string = if options.parallel == DEFAULT_PARALLEL {
         match env::var("YBSTATS_PARALLEL") {
             Ok(var) => {
-                changed_options.insert("YBSTATS_PARALLEL", options.parallel.to_owned());
+                changed_options.insert("YBSTATS_PARALLEL", var.to_owned());
                 var
             },
             Err(_e) => DEFAULT_PARALLEL.to_string(),

@@ -180,7 +180,6 @@ fn main() {
 
         let snapshot_number: i32 = perform_snapshot(hosts, ports, snapshot_comment, parallel);
         println!("snapshot number {}", snapshot_number);
-        process::exit(0);
 
     } else if snapshot_diff {
 

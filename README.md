@@ -3,14 +3,16 @@
 This is a utility to extract runtime data for the master and tablet servers in a YugebyteDB cluster.   
 
 Yb_stats gathers the following data:
+(Yugabyte specific)
 - Yugabyte metric (databasee scope performance) data via the 'metric endpoints' (HOST:PORT/metrics). Most of this data is available via the prometheus endpoint as well (/prometheus-metrics).  
-- Node exporter metric (operating system scope performance) data via the metric endpoint (HOST:PORT/metrics). This is a prometheus endpoint. 
 - statements (YSQL only) via the statements endpoint (HOST:PORT/statements).
 - version via the versions endpoint (HOST:PORT/api/v1/version)
 - gflags (HOST:PORT/varz)
 - logging (HOST:PORT/logs). Caveat: only the last 1M of logs is available via this endpoint.
 - memtrackers (HOST:PORT/mem-trackers)
 - threads (HOST:PORT/threadz)
+(Non-Yugabyte)
+- Node exporter metric (operating system scope performance) data via the metric endpoint (HOST:PORT/metrics). This is a prometheus endpoint.
 
 The data gathering can run in two distinct modes:
 - Online performance data display mode. This only displays the metric and statements, and does not store anything. This works by obtaining a memory snapshot when yb_stats is started, and then waits for enter to take a second snapshot and display the difference.
@@ -196,6 +198,34 @@ The optional next section are statement statistics. 'statement' statistics are u
 - The ninth column shows the average amount of rows for the given statement.
 - The eleventh column shows the total amount of rows for the given statement.
 - From the thirteenth column on the statement is shown.
+
+## node_exporter statistids
+When a node_exporter endpoint is found, it is parsed, and displayed or saved. This is how that looks like:
+```
+...snipped
+192.168.66.80:9300   counter  node_context_switches_total                                                       3821.000000         636.833 /s
+192.168.66.80:9300   counter  node_cpu_seconds_total_idle                                                         11.970000           1.995 /s
+192.168.66.80:9300   counter  node_cpu_seconds_total_irq                                                           0.040000           0.007 /s
+192.168.66.80:9300   counter  node_cpu_seconds_total_softirq                                                       0.010000           0.002 /s
+192.168.66.80:9300   counter  node_cpu_seconds_total_system                                                        0.040000           0.007 /s
+192.168.66.80:9300   counter  node_cpu_seconds_total_user                                                          0.040000           0.007 /s
+192.168.66.80:9300   counter  node_disk_io_time_seconds_total_sda                                                  0.004000           0.001 /s
+192.168.66.80:9300   counter  node_disk_io_time_weighted_seconds_total_sda                                         0.004000           0.001 /s
+192.168.66.80:9300   counter  node_disk_write_time_seconds_total_sda                                               0.003000           0.001 /s
+192.168.66.80:9300   counter  node_disk_writes_completed_total_sda                                                 3.000000           0.500 /s
+192.168.66.80:9300   counter  node_disk_written_bytes_total_sda                                                 1536.000000         256.000 /s
+```
+- The first column is the hostname:port endpoint specification.
+- The second column is the specifier for counter or gauge. By default, gauges are not displayed.
+- The third column is the node_exporter name, including labels.
+- The fourth column is the value difference as second measurement minus first measurement. The unit of the measurement is in the third column/node_exporter name.
+- The fifth column is the value difference divided by the time in the snapshot, to express the value difference as a per second value.
+
+In order to make the statistics as useful as possible, some additional actions have been performed on the node_exporter data:
+- All node_exporter exported data is preserved, so no data is gone.
+- By default, no 'detail' data is shown. 
+- Some data is marked as 'detail' because the data source are measurements about node_exporter itself, which means it's not directly useful for YugabyteDB or OS investigations.
+- Some data is grouped in order to make it easier to use (node_cpu_seconds, node_schedstat, node_softnet). The non-grouped data is available as detail data.
 
 # Examples
 ## Investigate CPU usage

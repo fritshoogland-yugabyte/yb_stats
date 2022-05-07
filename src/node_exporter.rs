@@ -100,9 +100,26 @@ fn parse_node_exporter( node_exporter_data: String ) -> Vec<NodeExporterValues> 
                         }
                     )
                 },
+                Value::Untyped(val) => {
+                    // it turns out summary type _sum and _count values are untyped values.
+                    // so I remove them here.
+                    if sample.metric.ends_with("_sum") || sample.metric.ends_with("_count") { continue };
+                    // untyped: not sure what it is.
+                    // I would say: probably a counter.
+                    nodeexportervalues.push(
+                        NodeExporterValues {
+                            node_exporter_name: sample.metric.to_string(),
+                            node_exporter_type: "counter".to_string(),
+                            node_exporter_labels: label,
+                            node_exporter_category: "all".to_string(),
+                            node_exporter_timestamp: sample.timestamp,
+                            node_exporter_value: val,
+
+                        }
+                    )
+                },
                 Value::Histogram(_val) => {},
                 Value::Summary(_val) => {},
-                Value::Untyped(_val) => {},
             }
         }
         // post processing.
@@ -127,146 +144,164 @@ fn parse_node_exporter( node_exporter_data: String ) -> Vec<NodeExporterValues> 
             record.node_exporter_category = "detail".to_string();
         }
         // softnet: node_softnet_processed_total
-        for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_softnet_processed_total") {
-            record.node_exporter_category = "detail".to_string();
+        if nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_processed_total").count() > 0 {
+            // make current records detail records
+            for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_softnet_processed_total") {
+                record.node_exporter_category = "detail".to_string();
+            }
+            // add a summary record
+            nodeexportervalues.push(NodeExporterValues {
+                node_exporter_name: "node_softnet_processed_total".to_string(),
+                node_exporter_type: "counter".to_string(),
+                node_exporter_labels: "".to_string(),
+                node_exporter_category: "summary".to_string(),
+                node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_processed_total").map(|x| x.node_exporter_timestamp).min().unwrap(),
+                node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_processed_total").map(|x| x.node_exporter_value).sum(),
+            });
         }
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_softnet_processed_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_processed_total").map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_processed_total").map(|x| x.node_exporter_value).sum(),
-        });
         // softnet: node_softnet_dropped_total
-        for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_softnet_dropped_total") {
-            record.node_exporter_category = "detail".to_string();
+        if nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_dropped_total").count() > 0 {
+            // make current records detail records
+            for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_softnet_dropped_total") {
+                record.node_exporter_category = "detail".to_string();
+            }
+            // add a summary record
+            nodeexportervalues.push(NodeExporterValues {
+                node_exporter_name: "node_softnet_dropped_total".to_string(),
+                node_exporter_type: "counter".to_string(),
+                node_exporter_labels: "".to_string(),
+                node_exporter_category: "summary".to_string(),
+                node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_dropped_total").map(|x| x.node_exporter_timestamp).min().unwrap(),
+                node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_dropped_total").map(|x| x.node_exporter_value).sum(),
+            });
         }
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_softnet_dropped_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_dropped_total").map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_dropped_total").map(|x| x.node_exporter_value).sum(),
-        });
         // softnet: node_softnet_times_squeezed_total
-        for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_softnet_times_squeezed_total") {
-            record.node_exporter_category = "detail".to_string();
+        if nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_times_squeezed_total").count() > 0 {
+            for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_softnet_times_squeezed_total") {
+                record.node_exporter_category = "detail".to_string();
+            }
+            nodeexportervalues.push(NodeExporterValues {
+                node_exporter_name: "node_softnet_times_squeezed_total".to_string(),
+                node_exporter_type: "counter".to_string(),
+                node_exporter_labels: "".to_string(),
+                node_exporter_category: "summary".to_string(),
+                node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_times_squeezed_total").map(|x| x.node_exporter_timestamp).min().unwrap(),
+                node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_times_squeezed_total").map(|x| x.node_exporter_value).sum(),
+            });
         }
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_softnet_times_squeezed_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_times_squeezed_total").map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_times_squeezed_total").map(|x| x.node_exporter_value).sum(),
-        });
         // schedstat: node_schedstat_waiting_seconds
-        for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_schedstat_waiting_seconds_total") {
-            record.node_exporter_category = "detail".to_string();
+        if nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_waiting_seconds_total").count() > 0 {
+            for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_schedstat_waiting_seconds_total") {
+                record.node_exporter_category = "detail".to_string();
+            }
+            nodeexportervalues.push(NodeExporterValues {
+                node_exporter_name: "node_schedstat_waiting_seconds_total".to_string(),
+                node_exporter_type: "counter".to_string(),
+                node_exporter_labels: "".to_string(),
+                node_exporter_category: "summary".to_string(),
+                node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_waiting_seconds_total").map(|x| x.node_exporter_timestamp).min().unwrap(),
+                node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_waiting_seconds_total").map(|x| x.node_exporter_value).sum(),
+            });
         }
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_schedstat_waiting_seconds_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_waiting_seconds_total").map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_waiting_seconds_total").map(|x| x.node_exporter_value).sum(),
-        });
         // schedstat: node_schedstat_timeslices
-        for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_schedstat_timeslices_total") {
-            record.node_exporter_category = "detail".to_string();
+        if nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_timeslices_total").count() > 0 {
+            for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_schedstat_timeslices_total") {
+                record.node_exporter_category = "detail".to_string();
+            }
+            nodeexportervalues.push(NodeExporterValues {
+                node_exporter_name: "node_schedstat_timeslices_total".to_string(),
+                node_exporter_type: "counter".to_string(),
+                node_exporter_labels: "".to_string(),
+                node_exporter_category: "summary".to_string(),
+                node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_timeslices_total").map(|x| x.node_exporter_timestamp).min().unwrap(),
+                node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_timeslices_total").map(|x| x.node_exporter_value).sum(),
+            });
         }
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_schedstat_timeslices_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_timeslices_total").map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_timeslices_total").map(|x| x.node_exporter_value).sum(),
-        });
         // schedstat: node_schedstat_running_seconds
-        for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_schedstat_running_seconds_total") {
-            record.node_exporter_category = "detail".to_string();
+        if nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_running_seconds_total").count() > 0 {
+            for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_schedstat_running_seconds_total") {
+                record.node_exporter_category = "detail".to_string();
+            }
+            nodeexportervalues.push(NodeExporterValues {
+                node_exporter_name: "node_schedstat_running_seconds_total".to_string(),
+                node_exporter_type: "counter".to_string(),
+                node_exporter_labels: "".to_string(),
+                node_exporter_category: "summary".to_string(),
+                node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_running_seconds_total").map(|x| x.node_exporter_timestamp).min().unwrap(),
+                node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_running_seconds_total").map(|x| x.node_exporter_value).sum(),
+            });
         }
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_schedstat_running_seconds_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_running_seconds_total").map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_running_seconds_total").map(|x| x.node_exporter_value).sum(),
-        });
         // cpu_seconds_total:
-        for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_cpu_seconds_total") {
-            record.node_exporter_category = "detail".to_string();
+        if nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").count() > 0 {
+            for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_cpu_seconds_total") {
+                record.node_exporter_category = "detail".to_string();
+            }
+            // idle
+            nodeexportervalues.push(NodeExporterValues {
+                node_exporter_name: "node_cpu_seconds_total".to_string(),
+                node_exporter_type: "counter".to_string(),
+                node_exporter_labels: "_idle".to_string(),
+                node_exporter_category: "summary".to_string(),
+                node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("idle")).map(|x| x.node_exporter_timestamp).min().unwrap(),
+                node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("idle")).map(|x| x.node_exporter_value).sum(),
+            });
+            nodeexportervalues.push(NodeExporterValues {
+                node_exporter_name: "node_cpu_seconds_total".to_string(),
+                node_exporter_type: "counter".to_string(),
+                node_exporter_labels: "_irq".to_string(),
+                node_exporter_category: "summary".to_string(),
+                node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("_irq")).map(|x| x.node_exporter_timestamp).min().unwrap(),
+                node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("_irq")).map(|x| x.node_exporter_value).sum(),
+            });
+            nodeexportervalues.push(NodeExporterValues {
+                node_exporter_name: "node_cpu_seconds_total".to_string(),
+                node_exporter_type: "counter".to_string(),
+                node_exporter_labels: "_softirq".to_string(),
+                node_exporter_category: "summary".to_string(),
+                node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("_softirq")).map(|x| x.node_exporter_timestamp).min().unwrap(),
+                node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("_softirq")).map(|x| x.node_exporter_value).sum(),
+            });
+            nodeexportervalues.push(NodeExporterValues {
+                node_exporter_name: "node_cpu_seconds_total".to_string(),
+                node_exporter_type: "counter".to_string(),
+                node_exporter_labels: "_system".to_string(),
+                node_exporter_category: "summary".to_string(),
+                node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("system")).map(|x| x.node_exporter_timestamp).min().unwrap(),
+                node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("system")).map(|x| x.node_exporter_value).sum(),
+            });
+            nodeexportervalues.push(NodeExporterValues {
+                node_exporter_name: "node_cpu_seconds_total".to_string(),
+                node_exporter_type: "counter".to_string(),
+                node_exporter_labels: "_user".to_string(),
+                node_exporter_category: "summary".to_string(),
+                node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("user")).map(|x| x.node_exporter_timestamp).min().unwrap(),
+                node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("user")).map(|x| x.node_exporter_value).sum(),
+            });
+            nodeexportervalues.push(NodeExporterValues {
+                node_exporter_name: "node_cpu_seconds_total".to_string(),
+                node_exporter_type: "counter".to_string(),
+                node_exporter_labels: "_iowait".to_string(),
+                node_exporter_category: "summary".to_string(),
+                node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("iowait")).map(|x| x.node_exporter_timestamp).min().unwrap(),
+                node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("iowait")).map(|x| x.node_exporter_value).sum(),
+            });
+            nodeexportervalues.push(NodeExporterValues {
+                node_exporter_name: "node_cpu_seconds_total".to_string(),
+                node_exporter_type: "counter".to_string(),
+                node_exporter_labels: "_nice".to_string(),
+                node_exporter_category: "summary".to_string(),
+                node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("nice")).map(|x| x.node_exporter_timestamp).min().unwrap(),
+                node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("nice")).map(|x| x.node_exporter_value).sum(),
+            });
+            nodeexportervalues.push(NodeExporterValues {
+                node_exporter_name: "node_cpu_seconds_total".to_string(),
+                node_exporter_type: "counter".to_string(),
+                node_exporter_labels: "_steal".to_string(),
+                node_exporter_category: "summary".to_string(),
+                node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("steal")).map(|x| x.node_exporter_timestamp).min().unwrap(),
+                node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("steal")).map(|x| x.node_exporter_value).sum(),
+            });
         }
-        // idle
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_cpu_seconds_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "_idle".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("idle")).map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("idle")).map(|x| x.node_exporter_value).sum(),
-        });
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_cpu_seconds_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "_irq".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("_irq")).map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("_irq")).map(|x| x.node_exporter_value).sum(),
-        });
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_cpu_seconds_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "_softirq".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("_softirq")).map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("_softirq")).map(|x| x.node_exporter_value).sum(),
-        });
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_cpu_seconds_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "_system".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("system")).map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("system")).map(|x| x.node_exporter_value).sum(),
-        });
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_cpu_seconds_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "_user".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("user")).map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("user")).map(|x| x.node_exporter_value).sum(),
-        });
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_cpu_seconds_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "_iowait".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("iowait")).map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("iowait")).map(|x| x.node_exporter_value).sum(),
-        });
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_cpu_seconds_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "_nice".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("nice")).map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("nice")).map(|x| x.node_exporter_value).sum(),
-        });
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_cpu_seconds_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "_steal".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("steal")).map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("steal")).map(|x| x.node_exporter_value).sum(),
-        });
     }
     nodeexportervalues
 }
@@ -496,4 +531,121 @@ pub fn get_nodeexpoter_into_diff_second_snapshot(
 ) {
     let stored_node_exporter = read_node_exporter_into_vectors(&hosts, &ports, parallel);
     insert_second_snapshot_nodeexporter(stored_node_exporter, node_exporter_diff, &first_snapshot_time);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_non_node_exporter_data() {
+        let fake_http_data = r#"
+        [
+    {
+        "type": "tablet",
+        "id": "3788ca4fb2ab40e2883a6351e7eb3bb7",
+        "attributes": {
+            "table_name": "sequences_data",
+            "namespace_name": "system_postgres",
+            "table_id": "0000ffff00003000800000000000ffff"
+        },
+        "metrics": [
+            {
+                "name": "in_progress_ops",
+                "value": 0
+            },
+            {
+                "name": "log_reader_bytes_read",
+                "value": 0
+            },
+            {
+                "name": "truncate_operations_inflight",
+                "value": 0
+            },
+        "#.to_string();
+        let result = parse_node_exporter(fake_http_data);
+        assert_eq!(result.len(), 0);
+    }
+
+    #[test]
+    fn parse_node_exporter_data_gauge() {
+        let fake_http_data = r#"
+        # HELP go_memstats_gc_cpu_fraction The fraction of this program's available CPU time used by the GC since the program started.
+        # TYPE go_memstats_gc_cpu_fraction gauge
+        go_memstats_gc_cpu_fraction 2.4938682471175543e-06
+        "#.to_string();
+        let result = parse_node_exporter(fake_http_data);
+        assert_eq!(&result[0].node_exporter_name, "go_memstats_gc_cpu_fraction");
+        assert_eq!(result[0].node_exporter_value, 2.4938682471175543e-6);
+    }
+
+    #[test]
+    fn parse_node_exporter_data_counter() {
+        let fake_http_data = r#"
+        # HELP node_network_transmit_packets_total Network device statistic transmit_packets.
+        # TYPE node_network_transmit_packets_total counter
+        node_network_transmit_packets_total{device="eth0"} 680
+        node_network_transmit_packets_total{device="eth1"} 2716
+        node_network_transmit_packets_total{device="lo"} 7085
+        "#.to_string();
+        let result = parse_node_exporter(fake_http_data);
+        assert_eq!(&result[0].node_exporter_name, "node_network_transmit_packets_total");
+        assert_eq!(result[0].node_exporter_value, 680.0);
+    }
+
+    #[test]
+    fn parse_node_exporter_data_untyped() {
+        let fake_http_data = r#"
+        # HELP node_vmstat_pgfault /proc/vmstat information field pgfault.
+        # TYPE node_vmstat_pgfault untyped
+        node_vmstat_pgfault 718165
+        "#.to_string();
+        let result = parse_node_exporter(fake_http_data);
+        assert_eq!(&result[0].node_exporter_name, "node_vmstat_pgfault");
+        assert_eq!(result[0].node_exporter_value, 718165.0);
+    }
+
+    #[test]
+    fn parse_node_exporter_data_summary() {
+        let fake_http_data = r#"
+        # HELP go_gc_duration_seconds A summary of the pause duration of garbage collection cycles.
+        # TYPE go_gc_duration_seconds summary
+        go_gc_duration_seconds{quantile="0"} 1.2047e-05
+        go_gc_duration_seconds{quantile="0.25"} 2.7231e-05
+        go_gc_duration_seconds{quantile="0.5"} 4.0984e-05
+        go_gc_duration_seconds{quantile="0.75"} 5.9209e-05
+        go_gc_duration_seconds{quantile="1"} 0.000218416
+        go_gc_duration_seconds_sum 0.000609084
+        go_gc_duration_seconds_count 11
+        "#.to_string();
+        let result = parse_node_exporter(fake_http_data);
+        assert_eq!(result.len(), 0);
+    }
+
+    #[test]
+    fn parse_node_exporter_data_histogram() {
+        let fake_http_data = r#"
+# HELP request_duration Time for HTTP request.
+# TYPE request_duration histogram
+request_duration_bucket{le="0.005",} 0.0
+request_duration_bucket{le="0.01",} 0.0
+request_duration_bucket{le="0.025",} 0.0
+request_duration_bucket{le="0.05",} 0.0
+request_duration_bucket{le="0.075",} 0.0
+request_duration_bucket{le="0.1",} 0.0
+request_duration_bucket{le="0.25",} 0.0
+request_duration_bucket{le="0.5",} 0.0
+request_duration_bucket{le="0.75",} 0.0
+request_duration_bucket{le="1.0",} 0.0
+request_duration_bucket{le="2.5",} 0.0
+request_duration_bucket{le="5.0",} 1.0
+request_duration_bucket{le="7.5",} 1.0
+request_duration_bucket{le="10.0",} 3.0
+request_duration_bucket{le="+Inf",} 3.0
+request_duration_count 3.0
+request_duration_sum 22.978489699999997
+        "#.to_string();
+        let result = parse_node_exporter(fake_http_data);
+        assert_eq!(result.len(), 0);
+    }
 }

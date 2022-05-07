@@ -1,46 +1,61 @@
 # yb_stats
 
-This is a utility to extract runtime data for the master and tablet servers in a YugebyteDB cluster.   
+yb_stats is a utility to extract detailed runtime data data from a YugabyteDB cluster for performance and troubleshooting purposes.  
+It functions in two modes: 
+- ad-hoc mode: begin and end capturing of performance (metric) data for performance analysis, which does not store any data (called without the `--snapshot` switch).
+- snapshot mode: full capturing of all YugabyteDB cluster metadata and metrics for performance and troubleshooting analysis. The data is stored in CSV files in a directory in the current working directory.
 
-Yb_stats gathers the following data:
-- metric (performance) data via the 'metric endpoints' (HOST:PORT/metrics). Most of this data is available via the prometheus endpoint as well (/prometheus-metrics).  
-- statements (YSQL only) via the statements endpoint (HOST:PORT/statements).
-- version via the versions endpoint (HOST:PORT/api/v1/version)
-- gflags (HOST:PORT/varz)
-- logging (HOST:PORT/logs). Caveat: only the last 1M of logs is available via this endpoint.
-- memtrackers (HOST:PORT/mem-trackers)
-- threads (HOST:PORT/threadz)
+The function of the CSV snapshot is to create an overview of the current situation as completely as possible to be able to work based on factual information and rule out guessing.
 
-The data gathering is performed in two main modes:
-- Online performance data display. This only displays the metric and statements, and does not store anything.
-- Read all data and save it into a snapshot.  
+In ad-hoc mode the following data is gathered to show totals and the difference after pressing enter:
+- metrics (master and tserver /metrics data, YCQL /metrics data and YSQL /metrics data).
+- statements (YSQL /statements data).
+- node_exporter /metrics data (non-YugabyteDB data).
 
-Once snapshots exist, these can be investigated using:
-- `--snapshot-diff`: asks for begin and end snapshot number, and provides the difference for the metric counters.
+In snapshot mode (`--snapshot`) the following data is gathered and stored in a CSV snapshot:
+- metrics (master and tserver /metrics data, YCQL /metrics data and YSQL /metrics data).
+- statements (YSQL /statements data).
+- node_exporter /metrics data (non-YugabyteDB data).  
+ 
+Plus:
+- version via the versions endpoints (/api/v1/version)
+- gflags (/varz)
+- logging (/logs). Caveat: only the last 1M of logs is available via this endpoint.
+- memtrackers (/mem-trackers)
+- threads (/threadz)
+
+In order to conveniently view existing snapshots performance data, use the `--snapshot-diff` switch. In order to make using different snapshots more easy, use the `--snapshot-comment` switch when creating a snapshot.
+
+For both ad-hoc and snapshot modes for displaying data (`--snapshot-diff`), a number of options exist to filter, to add non-counter (gauge) statistics and to increase the detail of the statistics (by default YugabyteDB table and tablet statistics are summed by statistic name for the whole server in order to give a better overview, enabling detail level shows the statistics by actual source):
+- `--gauges-enable`: add gauges (absolute number statistics) to the overview.
+- `--details-enable`: split out statistics to their original metric source, instead of summarizing them for a server, or show data that is considered to be too detailed or not directly related (node_exporter).
+- `--hostname-match`: regex filter to include or exclude based on hostname.
+- `--stat-name-match`: regex filter to include or exclude based on the statistic name.
+- `--table-name-match`: regex filter to include or exclude based on the table name (for table and tablets data only).
+
+For snapshots, the additional gathered non-metric data can be viewed for a single snapshot using the following flags:
 - `--print-version`: requires a single snapshot number as argument, and prints the versions that are gathered.
 - `--print-gflags`: requires a single snapshot number as argument, and prints the gflags that are gathered.
 - `--print-threads`: requires a single snapshot number as argument, and prints the thread information that is captured.
 - `--print-memtrackers`: requires a single snapshot number as argument, and prints the mem-trackers information that is captured.
 - `--print-log`: requires a single snapshot number as argument, and prints the loglines that are gathered.  
 For `--print-log` specific, another flag can be used to filter the log rows:
-- `--log-severity`: by default this filter is set to 'WEF' (warning, error, fail), and thus will not show the I (informal) lines.
-
-
+- `--log-severity`: by default this filter is set to 'WEF' (Warning, Error, Fail), and thus will not show the I (Informal) lines.
 
 # Usage
-For data gathering, all the hostnames or ip addresses of the yugabyte master and tserver servers need to be specified using the `-h` or `--hosts` switch, for example:
-```
-./target/release/yb_stats -h 192.168.66.80,192.168.66.81,192.168.66.82
-```
-yb_stats will collect statistics from the ports 7000, 9000, 12000 and 13000 by default. If this list needs to be changed, you can specify the required ports list using the `-p` or `--ports` switch, for example:
-```
-./target/release/yb_stats -p 9000,13001
-```
-The hosts and ports list will be stored in a file called `.env` in the current working directory. 
-The `.env` file is used by yb_stats to set the hosts and ports list. 
-This means that after initially specifying the hosts and ports, it doesn't need to by specified again.
+For data gathering, yb_stats requires to be provded the hostnames or ip addresses, and the port numbers if these are non-default. Hostnames and ports are provided using separate switches: `--hosts` and `--ports`.
+Once hostnames or ports have been specified, these will be stored in the current working directory in a file called `.env`, which allows yb_stats to use the hostnames and ports without requiring to specify them again. 
 
-## Online performance data display
+This is how hostnames or ip addresses are specified:
+```
+./target/release/yb_stats --hosts 192.168.66.80,192.168.66.81,192.168.66.82
+```
+yb_stats will collect statistics from the ports 7000, 9000, 12000, 13000 and 9300 by default. If this list needs to be changed, you can specify the required ports list using the `-p` or `--ports` switch, for example:
+```
+./target/release/yb_stats --ports 9000,13001
+```
+
+## Online performance data display alias ad-hoc mode
 For online performance data display (metric and statements data only), simply do not provide any further switch:
 ```
 ./target/release/yb_stats
@@ -56,7 +71,7 @@ This will display the difference of the counters only, and provide all table and
 ## Gathering a snapshot
 For gathering a snapshot (which collects all data), add the --snapshot switch. Optionally add a comment (useful for automated testing):
 ```
-./target/release/yb_stats --snapshot
+./target/release/yb_stats --snapshot --snapshot-comment "this is the first snapshot"
 snapshot number 0
 ```
 
@@ -65,6 +80,7 @@ Once snapshots are captured, they are stored in the current working directory in
 The snapshot data is stored in a directory with a number, which corresponds with the snapshot number. Inside the snapshot number directory, there are CSV files with all the data.
 - Because yb_stats works from the current working directory, it can be used for several projects simply by using it in another directory.
 - Because all the data is common UTF8 data, it can be zipped/tarred/etc. and sent to someone else for investigation.
+- Using UTF8 CSV data should allow the data to be used on any platform and OS, and do not suffer from any cross platform or OS issues.
 
 ## Display switches and filters
 ### Gauges
@@ -78,16 +94,16 @@ Gauges are shown different from counters:
 192.168.66.80:7000   server   tcp_bytes_received                                                                 424 bytes          388.991 /s
 192.168.66.80:7000   server   tcp_bytes_sent                                                                     170 bytes          155.963 /s
 ```
-tcp_bytes_received and tcp_bytes_sent are counters, and therefore have an absolute amount, which is the difference of this statistic between the last and the first snapshot, and an average amount per second.  
-The tcmalloc statistics are gauges, and therefore it does not make sense to provide end measurement minus begin measurement. The first figure is the END measurement, and the second figure (with the plus or the minus sign) is the difference from the first measurement.  
-This switch works for online performance display, as well as displaying snapshot data.
+tcp_bytes_received and tcp_bytes_sent are counters, and therefore the amount in the fourth column is the difference between the second and the first snapshot value. The sixth column shows the amount of the difference divided by the total time between the two snapshots.  
+The tcmalloc statistics are gauges (absolute values, not counters), and therefore it does not make sense to show the difference between the end and begin snapshot value, the only sensible thing to show is the absolute value, which is the value of the second snapshot. 
+It also doesn't make sense to divide the amount over time, therefore the sixth column shows the difference from the second snapshot value with the first one.
 
 ### Details
 By default, table and tablet statistics are summed per hostname-port combination to try to reduce output clutter as much as possible. However sometimes you want to see the data per table and tablet. This is done using the `--details-enable` switch.
 
 ### Filters
 #### --hostname-match
-In a lot of cases, you might want to filter out data that is not needed for your analysis. A common filter is only filter the tserver and YSQL endpoints, and thus leaving out the masters:
+In a lot of cases, you might want to filter out data that is not needed for your analysis. A common filter is only filter the tserver and YSQL endpoints, and thus leaving out the master data:
 `--hostname-match '(9000|13000)'`.  
 Please mind this works for online performance data display, as well as looking at snapshot data, including showing version, memtrackers, log and threads data.
 #### --stat-name-match
@@ -195,6 +211,34 @@ The optional next section are statement statistics. 'statement' statistics are u
 - The ninth column shows the average amount of rows for the given statement.
 - The eleventh column shows the total amount of rows for the given statement.
 - From the thirteenth column on the statement is shown.
+
+## node_exporter statistics
+When a node_exporter endpoint is found, it is parsed, and displayed or saved. This is how that looks like:
+```
+...snipped
+192.168.66.80:9300   counter  node_context_switches_total                                                       3821.000000         636.833 /s
+192.168.66.80:9300   counter  node_cpu_seconds_total_idle                                                         11.970000           1.995 /s
+192.168.66.80:9300   counter  node_cpu_seconds_total_irq                                                           0.040000           0.007 /s
+192.168.66.80:9300   counter  node_cpu_seconds_total_softirq                                                       0.010000           0.002 /s
+192.168.66.80:9300   counter  node_cpu_seconds_total_system                                                        0.040000           0.007 /s
+192.168.66.80:9300   counter  node_cpu_seconds_total_user                                                          0.040000           0.007 /s
+192.168.66.80:9300   counter  node_disk_io_time_seconds_total_sda                                                  0.004000           0.001 /s
+192.168.66.80:9300   counter  node_disk_io_time_weighted_seconds_total_sda                                         0.004000           0.001 /s
+192.168.66.80:9300   counter  node_disk_write_time_seconds_total_sda                                               0.003000           0.001 /s
+192.168.66.80:9300   counter  node_disk_writes_completed_total_sda                                                 3.000000           0.500 /s
+192.168.66.80:9300   counter  node_disk_written_bytes_total_sda                                                 1536.000000         256.000 /s
+```
+- The first column is the hostname:port endpoint specification.
+- The second column is the specifier for counter or gauge. By default, gauges are not displayed.
+- The third column is the node_exporter name, including labels.
+- The fourth column is the value difference as second measurement minus first measurement. The unit of the measurement is in the third column/node_exporter name.
+- The fifth column is the value difference divided by the time in the snapshot, to express the value difference as a per second value.
+
+In order to make the statistics as useful as possible, some additional actions have been performed on the node_exporter data:
+- All node_exporter exported data is preserved, so no data is gone.
+- By default, no 'detail' data is shown. 
+- Some data is marked as 'detail' because the data source are measurements about node_exporter itself, which means it's not directly useful for YugabyteDB or OS investigations.
+- Some data is grouped in order to make it easier to use (node_cpu_seconds, node_schedstat, node_softnet). The non-grouped data is available as detail data.
 
 # Examples
 ## Investigate CPU usage
@@ -393,7 +437,7 @@ Begin metrics snapshot created, press enter to create end snapshot for differenc
 192.168.66.82:9000   table    rocksdb_sst_read_micros                                                           7502         510.201/s avg.time: 62        tot:          468070 us
 ```
 This shows the physical IO statistics:
-- log_append_latency: the number of and time spent adding the changes to the WAL (via a buffer writev() call). (older versions perform two write calls per WAL entry: https://github.com/yugabyte/yugabyte-db/issues/11035)
+- log_append_latency: the number of and time spent adding the changes to the WAL (via a buffered writev() call). (older versions perform two write calls per WAL entry: https://github.com/yugabyte/yugabyte-db/issues/11035)
 - rocksdb_sst_read_micros: the number of and time spent reading (via a buffered pread64() call).
 - rocksdb_write_raw_blocks: the number of and time spent writing to SST files (via a buffered write() call).
 - log_sync_latency: this the number of and time spent in the function that performs fsync() of the WAL file. Mind the specific wording: not all calls to the function result in fsync() being called, which means that this statistic also measures running the function not performing the fsync() call, and thus will be much too positive, and not a valid average of time spent in the fsync() call. The total time is still a valid amount for tuning. See: https://github.com/yugabyte/yugabyte-db/issues/11039

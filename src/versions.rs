@@ -55,7 +55,7 @@ pub fn perform_versions_snapshot(
                 s.spawn(move |_| {
                     let detail_snapshot_time = Local::now();
                     let version = read_version(&host, &port);
-                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, version)).expect("error sending data via tx");
+                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, version)).expect("error sending data via tx (versions)");
                 });
             }
         }
@@ -88,7 +88,7 @@ pub fn read_version(
     port: &str,
 ) -> VersionData {
     if ! scan_port_addr( format!("{}:{}", host, port)) {
-        println!("Warning hostname:port {}:{} cannot be reached, skipping", host, port);
+        println!("Warning hostname:port {}:{} cannot be reached, skipping (versions)", host, port);
         return parse_version(String::from(""))
     }
     if let Ok(data_from_http) = reqwest::blocking::get( format!("http://{}:{}/api/v1/version", host, port)) {

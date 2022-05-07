@@ -71,6 +71,20 @@ fn get_port_master() -> String {
     };
     port
 }
+fn get_hostname_node_exporter() -> String {
+    let hostname= match env::var("HOSTNAME_NODE_EXPORTER") {
+        Ok(value) => value,
+        Err(e) => panic!("Error reading environment variable HOSTNAME_NODE_EXPORTER: {:?}", e)
+    };
+    hostname
+}
+fn get_port_node_exporter() -> String {
+    let port= match env::var("PORT_NODE_EXPORTER") {
+        Ok(value) => value,
+        Err(e) => panic!("Error reading environment variable PORT_NODE_EXPORTER: {:?}", e)
+    };
+    port
+}
 
 use yb_stats::gflags::{StoredGFlags, read_gflags, add_to_gflags_vector};
 #[test]
@@ -296,4 +310,16 @@ fn parse_metrics_yedis() {
     assert!(stored_values.len() > 0);
     //assert!(stored_countsum.len() > 0);
     assert!(stored_countsumrows.len() == 0);
+}
+use yb_stats::node_exporter::{NodeExporterValues,StoredNodeExporterValues, read_node_exporter, add_to_node_exporter_vectors};
+#[test]
+fn parse_metrics_node_exporter() {
+    let mut stored_nodeexportervalues: Vec<StoredNodeExporterValues> = Vec::new();
+    let hostname = get_hostname_node_exporter();
+    let port = get_port_node_exporter();
+
+    let data_parsed_from_json = read_node_exporter(&hostname.as_str(), &port.as_str());
+    add_to_node_exporter_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(),  &mut stored_nodeexportervalues);
+    // a node exporter endpoint will generate entries in the stored_nodeexportervalues vector.
+    assert!(stored_nodeexportervalues.len() > 0);
 }

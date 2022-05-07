@@ -47,7 +47,7 @@ pub fn perform_threads_snapshot(
                 s.spawn(move |_| {
                     let detail_snapshot_time = Local::now();
                     let threads = read_threads(&host, &port);
-                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, threads)).expect("error sending data via tx");
+                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, threads)).expect("error sending data via tx (threads)");
                 });
             }
         }
@@ -80,7 +80,7 @@ pub fn read_threads(
     port: &str,
 ) -> Vec<Threads> {
     if ! scan_port_addr( format!("{}:{}", host, port) ) {
-        println!("Warning: hostname:port {}:{} cannot be reached, skipping", host, port);
+        println!("Warning: hostname:port {}:{} cannot be reached, skipping (threads)", host, port);
         return Vec::new();
     }
     //if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}/threadz?group=all", hostname.to_string())) {

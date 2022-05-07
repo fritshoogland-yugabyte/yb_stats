@@ -30,11 +30,15 @@ mod threads;
 use threads::print_threads_data;
 mod gflags;
 use gflags::print_gflags_data;
+use yb_stats::node_exporter::{get_nodeexporter_into_diff_first_snapshot, get_nodeexpoter_into_diff_second_snapshot, print_diff_nodeexporter, print_nodeexporter_diff_for_snapshots};
+
 mod statements;
 use yb_stats::statements::{print_diff_statements, print_statements_diff_for_snapshots, get_statements_into_diff_first_snapshot, get_statements_into_diff_second_snapshot};
+//mod node_exporter;
+//use node_exporter::{}
 
 const DEFAULT_HOSTNAMES: &str = "192.168.66.80,192.168.66.81,192.168.66.82";
-const DEFAULT_PORTS: &str = "7000,9000,12000,13000";
+const DEFAULT_PORTS: &str = "7000,9000,12000,13000,9300";
 const DEFAULT_PARALLEL: &str = "1";
 const WRITE_DOTENV: bool = true;
 
@@ -90,7 +94,7 @@ struct Opts {
     log_severity: String,
     /// how much threads to use in parallel for fetching data
     #[structopt(long, default_value = DEFAULT_PARALLEL)]
-    parallel: usize,
+    parallel: String,
 }
 ///// begin snapshot number
 //#[structopt(short, long)]
@@ -106,7 +110,10 @@ fn main() {
 
     let hosts_string = if options.hosts == DEFAULT_HOSTNAMES {
         match env::var("YBSTATS_HOSTS") {
-            Ok(var) => var,
+            Ok(var) => {
+                changed_options.insert("YBSTATS_HOSTS", var.to_owned());
+                var
+            },
             Err(_e)        => DEFAULT_HOSTNAMES.to_string(),
         }
     } else {
@@ -117,20 +124,37 @@ fn main() {
 
     let ports_string= if options.ports == DEFAULT_PORTS {
         match env::var("YBSTATS_PORTS") {
-            Ok(var) => var,
+            Ok(var) => {
+                changed_options.insert("YBSTATS_PORTS", var.to_owned());
+                var
+            },
             Err(_e)        => DEFAULT_PORTS.to_string(),
         }
     } else {
         changed_options.insert("YBSTATS_PORTS", options.ports.to_owned());
-        options.ports.split(",").collect()
+        options.ports
     };
     let ports = ports_string.split(",").collect();
+
+    let parallel_string = if options.parallel == DEFAULT_PARALLEL {
+        match env::var("YBSTATS_PARALLEL") {
+            Ok(var) => {
+                changed_options.insert("YBSTATS_PARALLEL", var.to_owned());
+                var
+            },
+            Err(_e) => DEFAULT_PARALLEL.to_string(),
+        }
+    } else {
+        changed_options.insert("YBSTATS_PARALLEL", options.parallel.to_owned());
+        options.parallel
+    };
+    let parallel: usize = parallel_string.parse().unwrap();
 
     let snapshot: bool = options.snapshot as bool;
     let gauges_enable: bool = options.gauges_enable as bool;
     let details_enable: bool = options.details_enable as bool;
     let snapshot_diff: bool = options.snapshot_diff as bool;
-    let parallel: usize = options.parallel;
+    //let parallel: usize = options.parallel;
     let log_severity: String = options.log_severity;
     let snapshot_comment = match options.snapshot_comment {
         Some(comment) => comment,
@@ -154,10 +178,8 @@ fn main() {
 
     if snapshot {
 
-        //let snapshot_number: i32 = perform_snapshot(hostname_port_vec, snapshot_comment, parallel);
         let snapshot_number: i32 = perform_snapshot(hosts, ports, snapshot_comment, parallel);
         println!("snapshot number {}", snapshot_number);
-        process::exit(0);
 
     } else if snapshot_diff {
 
@@ -173,6 +195,7 @@ fn main() {
 
         print_metrics_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
         print_statements_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter);
+        print_nodeexporter_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter, &stat_name_filter, &gauges_enable, &details_enable);
 
     } else if options.print_memtrackers.is_some() {
 
@@ -199,6 +222,7 @@ fn main() {
         let first_snapshot_time = Local::now();
         let (mut values_diff, mut countsum_diff, mut countsumrows_diff) = get_metrics_into_diff_first_snapshot(&hosts, &ports, parallel);
         let mut statements_diff = get_statements_into_diff_first_snapshot(&hosts, &ports, parallel);
+        let mut node_exporter_diff = get_nodeexporter_into_diff_first_snapshot(&hosts, &ports, parallel);
 
         println!("Begin metrics snapshot created, press enter to create end snapshot for difference calculation.");
         let mut input = String::new();
@@ -207,10 +231,12 @@ fn main() {
         let second_snapshot_time = Local::now();
         get_metrics_into_diff_second_snapshot(&hosts, &ports, &mut values_diff, &mut countsum_diff, &mut countsumrows_diff, &first_snapshot_time, parallel);
         get_statements_into_diff_second_snapshot(&hosts, &ports, &mut statements_diff, &first_snapshot_time, parallel);
+        get_nodeexpoter_into_diff_second_snapshot(&hosts, &ports, &mut node_exporter_diff, &first_snapshot_time, parallel);
 
         println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time-first_snapshot_time).num_milliseconds() as f64/1000 as f64);
         print_diff_metrics(&values_diff, &countsum_diff, &countsumrows_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
         print_diff_statements(&statements_diff, &hostname_filter);
+        print_diff_nodeexporter(&node_exporter_diff, &hostname_filter, &stat_name_filter, &gauges_enable, &details_enable);
 
     }
 

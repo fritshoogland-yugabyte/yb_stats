@@ -33,7 +33,7 @@ pub fn read_memtrackers(
     port: &str,
 ) -> Vec<MemTrackers> {
     if ! scan_port_addr( format!("{}:{}", host, port)) {
-        println!("Warning: hostname:port {}:{} cannot be reached, skipping", host, port);
+        println!("Warning: hostname:port {}:{} cannot be reached, skipping (memtrackers)", host, port);
         return Vec::new();
     }
     if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}:{}/mem-trackers", host, port)) {
@@ -118,7 +118,7 @@ pub fn perform_memtrackers_snapshot(
                 s.spawn(move |_| {
                     let detail_snapshot_time = Local::now();
                     let memtrackers = read_memtrackers( &host, &port);
-                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, memtrackers)).expect("error sending data via tx");
+                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, memtrackers)).expect("error sending data via tx (memtrackers)");
                 });
             }
         }

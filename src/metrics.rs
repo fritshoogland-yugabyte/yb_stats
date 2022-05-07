@@ -160,7 +160,7 @@ pub fn read_metrics(
     port: &str,
 ) -> Vec<Metrics> {
     if ! scan_port_addr(format!("{}:{}", host, port)) {
-        println!("Warning! hostname:port {}:{} cannot be reached, skipping", host, port);
+        println!("Warning! hostname:port {}:{} cannot be reached, skipping (metrics)", host, port);
         return parse_metrics(String::from(""))
     };
     let data_from_http = reqwest::blocking::get(format!("http://{}:{}/metrics", host, port))
@@ -190,7 +190,7 @@ pub fn read_metrics_into_vectors(
                 s.spawn(move |_| {
                     let detail_snapshot_time = Local::now();
                     let metrics = read_metrics(&host, &port);
-                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, metrics)).expect("error sending data via tx");
+                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, metrics)).expect("error sending data via tx (metrics)");
                 });
             }
         }
@@ -353,8 +353,8 @@ pub fn add_to_metric_vectors(data_parsed_from_json: Vec<Metrics>,
 
 fn parse_metrics( metrics_data: String ) -> Vec<Metrics> {
     serde_json::from_str(&metrics_data )
-        .unwrap_or_else(|e| {
-            println!("Warning: error parsing /metrics json data: {}", e);
+        .unwrap_or_else(|_e| {
+            //println!("Warning: error parsing /metrics json data for metrics: {}", e);
             return Vec::<Metrics>::new();
         })
 }

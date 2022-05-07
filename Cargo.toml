@@ -1,6 +1,6 @@
 [package]
 name = "yb_stats"
-version = "0.7.0"
+version = "0.8.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -20,3 +20,4 @@ chrono = { version = "0.4.19", features = ["serde"] }
 rayon = "1.5.1"
 scraper = "0.12.0"
 dotenv = "0.15.0"
+prometheus-parse = "0.2.2"

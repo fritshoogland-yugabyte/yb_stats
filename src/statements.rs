@@ -59,7 +59,7 @@ pub fn read_statements(
     port: &str,
 ) -> Statement {
     if ! scan_port_addr( format!("{}:{}", host, port) ) {
-        println!("Warning: hostname:port {}:{} cannot be reached, skipping", host, port);
+        println!("Warning: hostname:port {}:{} cannot be reached, skipping (statements)", host, port);
         return parse_statements(String::from(""))
     }
     if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}:{}/statements", host, port)) {
@@ -84,7 +84,7 @@ pub fn read_statements_into_vector(
                 s.spawn(move |_| {
                     let detail_snapshot_time = Local::now();
                     let statements = read_statements(&host, &port);
-                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, statements)).expect("error sending data via tx");
+                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, statements)).expect("error sending data via tx (statements)");
                 });
             }
         }

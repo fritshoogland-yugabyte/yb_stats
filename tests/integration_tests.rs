@@ -311,7 +311,7 @@ fn parse_metrics_yedis() {
     //assert!(stored_countsum.len() > 0);
     assert!(stored_countsumrows.len() == 0);
 }
-use yb_stats::node_exporter::{NodeExporterValues,StoredNodeExporterValues, read_node_exporter, add_to_node_exporter_vectors};
+use yb_stats::node_exporter::{StoredNodeExporterValues, read_node_exporter, add_to_node_exporter_vectors};
 #[test]
 fn parse_metrics_node_exporter() {
     let mut stored_nodeexportervalues: Vec<StoredNodeExporterValues> = Vec::new();

@@ -311,15 +311,19 @@ fn parse_metrics_yedis() {
     //assert!(stored_countsum.len() > 0);
     assert!(stored_countsumrows.len() == 0);
 }
-use yb_stats::node_exporter::{NodeExporterValues,StoredNodeExporterValues, read_node_exporter, add_to_node_exporter_vectors};
+use yb_stats::node_exporter::{StoredNodeExporterValues, read_node_exporter, add_to_node_exporter_vectors};
 #[test]
 fn parse_metrics_node_exporter() {
     let mut stored_nodeexportervalues: Vec<StoredNodeExporterValues> = Vec::new();
     let hostname = get_hostname_node_exporter();
+    if hostname == String::from("SKIP") {
+        // workaround for allowing integration tests where no node exporter is present.
+        return;
+    }
     let port = get_port_node_exporter();
 
     let data_parsed_from_json = read_node_exporter(&hostname.as_str(), &port.as_str());
-    add_to_node_exporter_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(),  &mut stored_nodeexportervalues);
+    add_to_node_exporter_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), &mut stored_nodeexportervalues);
     // a node exporter endpoint will generate entries in the stored_nodeexportervalues vector.
     assert!(stored_nodeexportervalues.len() > 0);
 }

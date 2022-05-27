@@ -381,7 +381,7 @@ fn build_metrics_values_btreemap(
 {
     let mut values_btreemap: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
     for row in stored_values {
-        if row.metric_type == "table" || row.metric_type == "tablet" {
+        if row.metric_type == "table" || row.metric_type == "tablet" || row.metric_type == "cdc" {
             match values_btreemap.get_mut(&(row.hostname_port.clone(), row.metric_type.clone(), row.metric_id.clone(), row.metric_name.clone())) {
                 Some(_value_row) => {
                     panic!("Error: (values_btreemap) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port.clone(), &row.metric_type.clone(), &row.metric_id.clone(), &row.metric_name.clone());
@@ -438,7 +438,7 @@ fn build_metrics_countsum_btreemap(
 {
     let mut countsum_btreemap: BTreeMap<(String, String, String, String), StoredCountSum> = BTreeMap::new();
     for row in stored_countsum {
-        if row.metric_type == "table" || row.metric_type == "tablet" {
+        if row.metric_type == "table" || row.metric_type == "tablet" || row.metric_type == "cdc" {
             match countsum_btreemap.get_mut(&(row.hostname_port.clone(), row.metric_type.clone(), row.metric_id.clone(), row.metric_name.clone())) {
                 Some(_countsum_row) => {
                     panic!("Error: (countsum_btreemap) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port.clone(), &row.metric_type.clone(), &row.metric_id.clone(), &row.metric_name.clone());
@@ -916,7 +916,7 @@ pub fn print_diff_metrics(value_diff: &BTreeMap<(String, String, String, String)
         let value_statistic_details_lookup = value_create_hashmap();
         let mut sum_value_diff: BTreeMap<(String, String, String, String), SnapshotDiffValues> = BTreeMap::new();
         for ((hostname_port, metric_type, _metric_id, metric_name), value_diff_row) in value_diff {
-            if metric_type == "table" || metric_type == "tablet" {
+            if metric_type == "table" || metric_type == "tablet" || metric_type == "cdc"{
                 // if a table and thus its tablets have been deleted between the first and second snapshot, the second_snapshot_value is 0.
                 // however, the first_snapshot_value is > 0, it means it can make the subtraction between the second and the first snapshot get negative, and a summary overview be incorrect.
                 // therefore we remove individual statistics where the second snapshot value is set to 0.
@@ -1037,7 +1037,7 @@ pub fn print_diff_metrics(value_diff: &BTreeMap<(String, String, String, String)
         let countsum_statistic_details_lookup = countsum_create_hashmap();
         let mut sum_countsum_diff: BTreeMap<(String, String, String, String), SnapshotDiffCountSum> = BTreeMap::new();
         for ((hostname_port, metric_type, _metric_id, metric_name), countsum_diff_row) in countsum_diff {
-            if metric_type == "table" || metric_type == "tablet" {
+            if metric_type == "table" || metric_type == "tablet" || metric_type == "cdc" {
                 if countsum_diff_row.second_snapshot_total_count > 0 {
                     match sum_countsum_diff.get_mut(&(hostname_port.to_string(), metric_type.to_string(), String::from("-"), metric_name.to_string())) {
                         Some(sum_countsum_diff_row) => {
@@ -1211,6 +1211,75 @@ pub fn get_metrics_into_diff_second_snapshot(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parse_cdc_metrics_value() {
+        let json = r#"
+[
+    {
+        "type": "cdc",
+        "id": ":face4edb05934e77b564857878cf5015:4457a26b28a64393ac626504aba5f571",
+        "attributes": {
+            "stream_id": "face4edb05934e77b564857878cf5015",
+            "table_name": "table0",
+            "namespace_name": "test",
+            "table_id": "c70ffbbe28f14e84b0559c405ae20197"
+        },
+        "metrics": [
+            {
+                "name": "async_replication_sent_lag_micros",
+                "value": 0
+            }
+        ]
+    }
+]"#.to_string();
+        let result = parse_metrics(json.clone());
+        assert_eq!(result[0].metrics_type,"cdc");
+        let statistic_value = match &result[0].metrics[0] {
+            NamedMetrics::MetricValue { name, value} => format!("{}, {}",name, value),
+            _ => String::from("")
+        };
+        assert_eq!(statistic_value, "async_replication_sent_lag_micros, 0");
+    }
+
+    #[test]
+    fn parse_cdc_metrics_countsum() {
+        let json = r#"
+[
+    {
+        "type": "cdc",
+        "id": ":face4edb05934e77b564857878cf5015:4457a26b28a64393ac626504aba5f571",
+        "attributes": {
+            "stream_id": "face4edb05934e77b564857878cf5015",
+            "table_name": "table0",
+            "namespace_name": "test",
+            "table_id": "c70ffbbe28f14e84b0559c405ae20197"
+        },
+        "metrics": [
+            {
+                "name": "rpc_payload_bytes_responded",
+                "total_count": 3333,
+                "min": 0,
+                "mean": 0.0,
+                "percentile_75": 0,
+                "percentile_95": 0,
+                "percentile_99": 0,
+                "percentile_99_9": 0,
+                "percentile_99_99": 0,
+                "max": 0,
+                "total_sum": 4444
+            }
+        ]
+    }
+]"#.to_string();
+        let result = parse_metrics(json.clone());
+        assert_eq!(result[0].metrics_type,"cdc");
+        let statistic_value = match &result[0].metrics[0] {
+            NamedMetrics::MetricCountSum { name, total_count, min: _, mean: _, percentile_75: _, percentile_95: _, percentile_99: _, percentile_99_9: _, percentile_99_99: _, max: _, total_sum} => format!("{}, {}, {}",name, total_count, total_sum),
+            _ => String::from("")
+        };
+        assert_eq!(statistic_value, "rpc_payload_bytes_responded, 3333, 4444");
+    }
 
     #[test]
     fn parse_tablet_metrics_value() {

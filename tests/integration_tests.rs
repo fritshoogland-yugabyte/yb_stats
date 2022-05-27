@@ -313,7 +313,7 @@ fn parse_metrics_yedis() {
 }
 use yb_stats::node_exporter::{StoredNodeExporterValues, read_node_exporter, add_to_node_exporter_vectors};
 #[test]
-fn parse_metrics_node_exporter() {
+fn parse_node_exporter() {
     let mut stored_nodeexportervalues: Vec<StoredNodeExporterValues> = Vec::new();
     let hostname = get_hostname_node_exporter();
     if hostname == String::from("SKIP") {

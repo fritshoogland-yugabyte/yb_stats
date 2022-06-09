@@ -28,6 +28,17 @@ pub struct Queries {
     pub rows: i64,
 }
 
+#[derive(Debug)]
+struct UniqueStatementData {
+    pub calls: i64,
+    pub total_time: f64,
+    pub min_time: f64,
+    pub max_time: f64,
+    pub mean_time: f64,
+    pub stddev_time: f64,
+    pub rows: i64,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct StoredStatements {
     pub hostname_port: String,
@@ -136,18 +147,45 @@ pub fn add_to_statements_vector(
     snapshot_time: DateTime<Local>,
     stored_statements: &mut Vec<StoredStatements>
 ) {
+    let mut unique_statement: BTreeMap<(String, DateTime<Local>, String), UniqueStatementData> = BTreeMap::new();
     for statement in statementdata.statements {
+        match unique_statement.get_mut(&(hostname.to_string().clone(), snapshot_time, statement.query.to_string())) {
+            Some(row) => {
+                *row = UniqueStatementData {
+                    calls: row.calls + statement.calls,
+                    total_time: row.total_time + statement.total_time,
+                    min_time: 0.,
+                    max_time: 0.,
+                    mean_time: 0.,
+                    stddev_time: 0.,
+                    rows: row.rows + statement.rows,
+                }
+            },
+            None => {
+                unique_statement.insert((hostname.to_string(), snapshot_time, statement.query.to_string()), UniqueStatementData {
+                    calls: statement.calls,
+                    total_time: statement.total_time,
+                    min_time: statement.min_time,
+                    max_time: statement.max_time,
+                    mean_time: statement.mean_time,
+                    stddev_time: statement.stddev_time,
+                    rows: statement.calls,
+                });
+            },
+        }
+    }
+    for ((sd_hostname, sd_snapshot_time, sd_query), sd_data) in unique_statement {
         stored_statements.push( StoredStatements {
-            hostname_port: hostname.to_string(),
-            timestamp: snapshot_time,
-            query: statement.query.to_string(),
-            calls: statement.calls,
-            total_time: statement.total_time,
-            min_time: statement.min_time,
-            max_time: statement.max_time,
-            mean_time: statement.mean_time,
-            stddev_time: statement.stddev_time,
-            rows: statement.rows
+            hostname_port: sd_hostname.to_string(),
+            timestamp: sd_snapshot_time,
+            query: sd_query.to_string(),
+            calls: sd_data.calls,
+            total_time: sd_data.total_time,
+            min_time: sd_data.min_time,
+            max_time: sd_data.max_time,
+            mean_time: sd_data.mean_time,
+            stddev_time: sd_data.stddev_time,
+            rows: sd_data.rows,
         });
     }
 }

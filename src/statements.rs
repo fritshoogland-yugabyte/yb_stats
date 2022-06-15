@@ -368,4 +368,53 @@ mod tests {
         let result = parse_statements(statements_json.clone());
         assert_eq!(result.statements.len(), 2);
     }
+    #[test]
+    fn parse_statements_multiple() {
+        // This is a very simple example of the statements json.
+        let statements_json = r#"{
+    "statements": [
+        {
+            "query": "select count(*) from ybio1.benchmark_table",
+            "calls": 1,
+            "total_time": 13.76067,
+            "min_time": 13.76067,
+            "max_time": 13.76067,
+            "mean_time": 13.76067,
+            "stddev_time": 0.0,
+            "rows": 1
+        },
+        {
+            "query": "select $1+$2",
+            "calls": 1,
+            "total_time": 0.006206000000000001,
+            "min_time": 0.006206000000000001,
+            "max_time": 0.006206000000000001,
+            "mean_time": 0.006206000000000001,
+            "stddev_time": 0.0,
+            "rows": 1
+        },
+        {
+            "query": "select count(*) from ybio1.benchmark_table",
+            "calls": 1,
+            "total_time": 13.76067,
+            "min_time": 13.76067,
+            "max_time": 13.76067,
+            "mean_time": 13.76067,
+            "stddev_time": 0.0,
+            "rows": 1
+        }
+    ]
+}"#.to_string();
+        let mut stored_statements: Vec<StoredStatements> = Vec::new();
+        let result = parse_statements(statements_json.clone());
+        add_to_statements_vector(result, "localhost", Local::now(), &mut stored_statements);
+        // with the new way of adding up all relevant statistics, we still should have 2 statements
+        assert_eq!(stored_statements.len(), 2);
+        // the first statement, being the select count(*) should have a total number of calls of 2
+        assert_eq!(stored_statements[1].query, "select count(*) from ybio1.benchmark_table");
+        // the call count should be 2
+        assert_eq!(stored_statements[1].calls, 2);
+        // the min_time should be 0., because these can be two totally different statements
+        assert_eq!(stored_statements[1].min_time, 0.);
+    }
 }

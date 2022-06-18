@@ -272,12 +272,13 @@ pub fn insert_second_snapshot_statements(
 pub fn print_diff_statements(
     statements_diff: &BTreeMap<(String, String), SnapshotDiffStatements>,
     hostname_filter: &Regex,
+    sql_length: usize,
 ) {
     for ((hostname, query), statements_row) in statements_diff {
         if hostname_filter.is_match(&hostname)
             && statements_row.second_calls - statements_row.first_calls != 0 {
-            let adaptive_length = if query.len() < 50 { query.len() } else { 50 };
-            println!("{:20} {:10} avg: {:15.3} tot: {:15.3} ms avg: {:10} tot: {:10} rows: {:50}",
+            let adaptive_length = if query.len() < sql_length { query.len() } else { sql_length };
+            println!("{:20} {:10} avg: {:15.3} tot: {:15.3} ms avg: {:10} tot: {:10} rows: {:0adaptive_length$}",
                      hostname,
                      statements_row.second_calls - statements_row.first_calls,
                      (statements_row.second_total_time - statements_row.first_total_time) / (statements_row.second_calls as f64 - statements_row.first_calls as f64),
@@ -296,6 +297,7 @@ pub fn print_statements_diff_for_snapshots(
     end_snapshot: &String,
     begin_snapshot_timestamp: &DateTime<Local>,
     hostname_filter: &Regex,
+    sql_length: usize,
 ) {
     let current_directory = env::current_dir().unwrap();
     let yb_stats_directory = current_directory.join("yb_stats.snapshots");
@@ -307,7 +309,7 @@ pub fn print_statements_diff_for_snapshots(
     let stored_statements: Vec<StoredStatements> = read_statements_snapshot(&end_snapshot, &yb_stats_directory);
     insert_second_snapshot_statements(stored_statements, &mut statements_diff, &begin_snapshot_timestamp);
 
-    print_diff_statements(&statements_diff, &hostname_filter);
+    print_diff_statements(&statements_diff, &hostname_filter, sql_length);
 }
 
 #[allow(dead_code)]

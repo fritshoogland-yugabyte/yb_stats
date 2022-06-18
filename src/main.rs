@@ -95,6 +95,12 @@ struct Opts {
     /// how much threads to use in parallel for fetching data
     #[structopt(long, default_value = DEFAULT_PARALLEL)]
     parallel: String,
+    /// disable gathering of thread stacks from /threadz
+    #[structopt(long)]
+    disable_threads: bool,
+    /// the length of the SQL text display
+    #[structopt(long, default_value = "80")]
+    sql_length: i32,
 }
 ///// begin snapshot number
 //#[structopt(short, long)]
@@ -154,6 +160,8 @@ fn main() {
     let gauges_enable: bool = options.gauges_enable as bool;
     let details_enable: bool = options.details_enable as bool;
     let snapshot_diff: bool = options.snapshot_diff as bool;
+    let disable_threads: bool = options.disable_threads as bool;
+    let sql_length: usize = options.sql_length as usize;
     //let parallel: usize = options.parallel;
     let log_severity: String = options.log_severity;
     let snapshot_comment = match options.snapshot_comment {
@@ -178,7 +186,7 @@ fn main() {
 
     if snapshot {
 
-        let snapshot_number: i32 = perform_snapshot(hosts, ports, snapshot_comment, parallel);
+        let snapshot_number: i32 = perform_snapshot(hosts, ports, snapshot_comment, parallel, disable_threads);
         println!("snapshot number {}", snapshot_number);
 
     } else if snapshot_diff {
@@ -194,7 +202,7 @@ fn main() {
         let (begin_snapshot, end_snapshot, begin_snapshot_row) = read_begin_end_snapshot_from_user(&snapshots);
 
         print_metrics_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
-        print_statements_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter);
+        print_statements_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter, sql_length);
         print_nodeexporter_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter, &stat_name_filter, &gauges_enable, &details_enable);
 
     } else if options.print_memtrackers.is_some() {
@@ -235,7 +243,7 @@ fn main() {
 
         println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time-first_snapshot_time).num_milliseconds() as f64/1000 as f64);
         print_diff_metrics(&values_diff, &countsum_diff, &countsumrows_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
-        print_diff_statements(&statements_diff, &hostname_filter);
+        print_diff_statements(&statements_diff, &hostname_filter, sql_length);
         print_diff_nodeexporter(&node_exporter_diff, &hostname_filter, &stat_name_filter, &gauges_enable, &details_enable);
 
     }

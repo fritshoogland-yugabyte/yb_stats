@@ -115,7 +115,7 @@ fn create_new_snapshot_directory(
     yb_stats_directory: &PathBuf,
     snapshot_number: i32,
     snapshot_comment: String,
-    snapshots: &mut Vec<Snapshot>
+    snapshots: &mut Vec<Snapshot>,
 ) {
     let snapshot_time = Local::now();
     let snapshot_index = &yb_stats_directory.join("snapshot.index");
@@ -148,7 +148,8 @@ pub fn perform_snapshot(
     hosts: Vec<&str>,
     ports: Vec<&str>,
     snapshot_comment: String,
-    parallel: usize
+    parallel: usize,
+    disable_threads: bool,
 ) -> i32 {
     let mut snapshots: Vec<Snapshot> = Vec::new();
 
@@ -160,7 +161,7 @@ pub fn perform_snapshot(
 
     metrics::perform_metrics_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
     gflags::perform_gflags_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
-    threads::perform_threads_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
+    if ! disable_threads { threads::perform_threads_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel) };
     memtrackers::perform_memtrackers_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
     loglines::perform_loglines_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
     versions::perform_versions_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);

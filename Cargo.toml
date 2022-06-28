@@ -21,3 +21,9 @@ rayon = "1.5.1"
 scraper = "0.12.0"
 dotenv = "0.15.0"
 prometheus-parse = "0.2.2"
+
+[package.metadata.generate-rpm]
+assets = [
+    { source = "target/release/yb_stats", dest = "/usr/local/bin/yb_stats", mode="0755" }
+]
+release = "1.el8"

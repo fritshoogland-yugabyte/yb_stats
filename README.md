@@ -50,8 +50,8 @@ Obtaining the threads overview can influence performance in certain specific cas
 You can exclude gathering threads data using the: `--disable-threads` switch.
 
 # Usage
-For data gathering, yb_stats requires to be provded the hostnames or ip addresses, and the port numbers if these are non-default. Hostnames and ports are provided using separate switches: `--hosts` and `--ports`.
-Once hostnames or ports have been specified, these will be stored in the current working directory in a file called `.env`, which allows yb_stats to use the hostnames and ports without requiring to specify them again. 
+For data gathering, yb_stats requires to be provded the hostnames or ip addresses, and the port numbers if these are non-default. 
+Hostnames and ports are provided using separate switches: `--hosts` and `--ports`.
 
 This is how hostnames or ip addresses are specified:
 ```

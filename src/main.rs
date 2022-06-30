@@ -45,19 +45,19 @@ const WRITE_DOTENV: bool = true;
 #[derive(Debug, StructOpt)]
 struct Opts {
     /// hostnames (comma separated)
-    #[structopt(short, long, default_value = DEFAULT_HOSTNAMES)]
+    #[structopt(short, long, value_name = "hostname,hostname", default_value = DEFAULT_HOSTNAMES)]
     hosts: String,
     /// port numbers (comma separated)
-    #[structopt(short, long, default_value = DEFAULT_PORTS)]
+    #[structopt(short, long, value_name = "port,port", default_value = DEFAULT_PORTS)]
     ports: String,
     /// regex to filter statistic names
-    #[structopt(short, long)]
+    #[structopt(short, long, value_name = "regex")]
     stat_name_match: Option<String>,
     /// regex to filter table names (requires --details-enable)
-    #[structopt(short, long)]
+    #[structopt(short, long, value_name = "regex")]
     table_name_match: Option<String>,
     /// regex to select hostnames or ports
-    #[structopt(long)]
+    #[structopt(long, value_name = "regex")]
     hostname_match: Option<String>,
     /// add statistics that are not counters
     #[structopt(short, long)]
@@ -69,37 +69,37 @@ struct Opts {
     #[structopt(long)]
     snapshot: bool,
     /// comment to be added with the snapshot
-    #[structopt(long)]
+    #[structopt(long, value_name = "\"comment\"")]
     snapshot_comment: Option<String>,
     /// this lists the snapshots, and allows you to select a begin and end snapshot for a diff report
     #[structopt(long)]
     snapshot_diff: bool,
     /// print memtrackers data for the given snapshot
-    #[structopt(long)]
+    #[structopt(long, value_name = "snapshot number")]
     print_memtrackers: Option<String>,
     /// print log data for the given snapshot
-    #[structopt(long)]
+    #[structopt(long, value_name = "snapshot number")]
     print_log: Option<String>,
     /// print version data for the given snapshot
-    #[structopt(long)]
+    #[structopt(long, value_name = "snapshot number")]
     print_version: Option<String>,
     /// print threads data for the given snapshot
-    #[structopt(long)]
+    #[structopt(long, value_name = "snapshot number")]
     print_threads: Option<String>,
     /// print gflags for the given snapshot
-    #[structopt(long)]
+    #[structopt(long, value_name = "snapshot number")]
     print_gflags: Option<String>,
     /// log data severity to include: optional: I
     #[structopt(long, default_value = "WEF")]
     log_severity: String,
     /// how much threads to use in parallel for fetching data
-    #[structopt(long, default_value = DEFAULT_PARALLEL)]
+    #[structopt(long, value_name = "nr", default_value = DEFAULT_PARALLEL)]
     parallel: String,
     /// disable gathering of thread stacks from /threadz
     #[structopt(long)]
     disable_threads: bool,
     /// the length of the SQL text display
-    #[structopt(long, default_value = "80")]
+    #[structopt(long, value_name = "nr", default_value = "80")]
     sql_length: i32,
 }
 ///// begin snapshot number

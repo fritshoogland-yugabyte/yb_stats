@@ -24,6 +24,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::env;
 use std::io::{stdin, stdout, Write};
+use log::*;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Snapshot {
@@ -151,12 +152,15 @@ pub fn perform_snapshot(
     parallel: usize,
     disable_threads: bool,
 ) -> i32 {
+    env_logger::init();
+
     let mut snapshots: Vec<Snapshot> = Vec::new();
 
     let current_directory = env::current_dir().unwrap();
     let yb_stats_directory = current_directory.join("yb_stats.snapshots");
 
     let snapshot_number = read_snapshot_number(&yb_stats_directory, &mut snapshots);
+    info!("using snapshot number: {}", snapshot_number);
     create_new_snapshot_directory(&yb_stats_directory, snapshot_number, snapshot_comment, &mut snapshots);
 
     metrics::perform_metrics_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);

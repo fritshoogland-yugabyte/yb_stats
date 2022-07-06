@@ -10,6 +10,7 @@ use std::env;
 use substring::Substring;
 use rayon;
 use std::sync::mpsc::channel;
+use log::*;
 
 //mod value_statistic_details;
 use crate::value_statistic_details::{ValueStatisticDetails, value_create_hashmap};
@@ -159,13 +160,14 @@ pub fn read_metrics(
     host: &str,
     port: &str,
 ) -> Vec<Metrics> {
+    //env_logger::init();
     if ! scan_port_addr(format!("{}:{}", host, port)) {
-        println!("Warning! hostname:port {}:{} cannot be reached, skipping (metrics)", host, port);
+        warn!("hostname: port {}:{} cannot be reached, skipping", host, port);
         return parse_metrics(String::from(""))
     };
     let data_from_http = reqwest::blocking::get(format!("http://{}:{}/metrics", host, port))
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error reading from URL: {}", e);
+            error!("Fatal: error reading from URL: {}", e);
             process::exit(1);
         })
         .text().unwrap();
@@ -175,7 +177,7 @@ pub fn read_metrics(
 pub fn read_metrics_into_vectors(
     hosts: &Vec<&str>,
     ports: &Vec<&str>,
-    parallel: usize
+    parallel: usize,
 ) -> (
     Vec<StoredValues>,
     Vec<StoredCountSum>,
@@ -210,8 +212,9 @@ pub fn perform_metrics_snapshot(
     ports: &Vec<&str>,
     snapshot_number: i32,
     yb_stats_directory: &PathBuf,
-    parallel: usize
+    parallel: usize,
 ) {
+    env_logger::init();
     let (stored_values, stored_countsum, stored_countsumrows) = read_metrics_into_vectors(&hosts, &ports, parallel);
 
     let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
@@ -221,7 +224,7 @@ pub fn perform_metrics_snapshot(
         .write(true)
         .open(&values_file)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error writing values data in snapshot directory {}: {}", &values_file.clone().into_os_string().into_string().unwrap(), e);
+            error!("Fatal: error writing values data in snapshot directory {}: {}", &values_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
     let mut writer = csv::Writer::from_writer(file);
@@ -236,7 +239,7 @@ pub fn perform_metrics_snapshot(
         .write(true)
         .open(&countsum_file)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error writing countsum data in snapshot directory {}: {}", &countsum_file.clone().into_os_string().into_string().unwrap(), e);
+            error!("Fatal: error writing countsum data in snapshot directory {}: {}", &countsum_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
     let mut writer = csv::Writer::from_writer(file);
@@ -251,7 +254,7 @@ pub fn perform_metrics_snapshot(
         .write(true)
         .open(&countsumrows_file)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error writing countsumrows data in snapshot directory {}: {}", &countsumrows_file.clone().into_os_string().into_string().unwrap(), e);
+            error!("Fatal: error writing countsumrows data in snapshot directory {}: {}", &countsumrows_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
     let mut writer = csv::Writer::from_writer(file);
@@ -261,12 +264,13 @@ pub fn perform_metrics_snapshot(
     writer.flush().unwrap();
 }
 
-pub fn add_to_metric_vectors(data_parsed_from_json: Vec<Metrics>,
-                             hostname: &str,
-                             detail_snapshot_time: DateTime<Local>,
-                             stored_values: &mut Vec<StoredValues>,
-                             stored_countsum: &mut Vec<StoredCountSum>,
-                             stored_countsumrows: &mut Vec<StoredCountSumRows>,
+pub fn add_to_metric_vectors(
+    data_parsed_from_json: Vec<Metrics>,
+    hostname: &str,
+    detail_snapshot_time: DateTime<Local>,
+    stored_values: &mut Vec<StoredValues>,
+    stored_countsum: &mut Vec<StoredCountSum>,
+    stored_countsumrows: &mut Vec<StoredCountSumRows>,
 ) {
     for metric in data_parsed_from_json {
         let metric_type = &metric.metrics_type;
@@ -289,6 +293,7 @@ pub fn add_to_metric_vectors(data_parsed_from_json: Vec<Metrics>,
                 }
             }
         };
+        trace!("metric_type: {}, metric_id: {}, metric_attribute_namespace_name: {}, metric_attribute_table_name: {}", metric_type, metric_id, metric_attribute_namespace_name, metric_attribute_table_name);
         for statistic in &metric.metrics {
             match statistic {
                 NamedMetrics::MetricValue { name, value } => {
@@ -353,8 +358,8 @@ pub fn add_to_metric_vectors(data_parsed_from_json: Vec<Metrics>,
 
 fn parse_metrics( metrics_data: String ) -> Vec<Metrics> {
     serde_json::from_str(&metrics_data )
-        .unwrap_or_else(|_e| {
-            //println!("Warning: error parsing /metrics json data for metrics: {}", e);
+        .unwrap_or_else(|e| {
+            warn!("error parsing /metrics json data for metrics: {}", e);
             return Vec::<Metrics>::new();
         })
 }
@@ -362,11 +367,11 @@ fn parse_metrics( metrics_data: String ) -> Vec<Metrics> {
 pub fn build_metrics_btreemaps(
     stored_values: Vec<StoredValues>,
     stored_countsum: Vec<StoredCountSum>,
-    stored_countsumrows: Vec<StoredCountSumRows>
+    stored_countsumrows: Vec<StoredCountSumRows>,
 ) -> (
     BTreeMap<(String, String, String, String), StoredValues>,
     BTreeMap<(String, String, String, String), StoredCountSum>,
-    BTreeMap<(String, String, String, String), StoredCountSumRows>
+    BTreeMap<(String, String, String, String), StoredCountSumRows>,
 ) {
     let values_btreemap: BTreeMap<(String, String, String, String), StoredValues> = build_metrics_values_btreemap(stored_values);
     let countsum_btreemap: BTreeMap<(String, String, String, String), StoredCountSum> = build_metrics_countsum_btreemap(stored_countsum);
@@ -541,13 +546,16 @@ fn build_metrics_countsumrows_btreemap(
     countsumrows_btreemap
 }
 
-pub fn read_values_snapshot( snapshot_number: &String, yb_stats_directory: &PathBuf ) -> Vec<StoredValues> {
-
+pub fn read_values_snapshot(
+    snapshot_number: &String,
+    yb_stats_directory: &PathBuf,
+) -> Vec<StoredValues>
+{
     let mut stored_values: Vec<StoredValues> = Vec::new();
     let values_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("values");
     let file = fs::File::open(&values_file)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error reading file: {}: {}", &values_file.clone().into_os_string().into_string().unwrap(), e);
+            error!("Fatal: error reading file: {}: {}", &values_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
     let mut reader = csv::Reader::from_reader(file);
@@ -558,13 +566,16 @@ pub fn read_values_snapshot( snapshot_number: &String, yb_stats_directory: &Path
     stored_values
 }
 
-pub fn read_countsum_snapshot( snapshot_number: &String, yb_stats_directory: &PathBuf ) -> Vec<StoredCountSum> {
-
+pub fn read_countsum_snapshot(
+    snapshot_number: &String,
+    yb_stats_directory: &PathBuf,
+) -> Vec<StoredCountSum>
+{
     let mut stored_countsum: Vec<StoredCountSum> = Vec::new();
     let countsum_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("countsum");
     let file = fs::File::open(&countsum_file)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error reading file: {}: {}", &countsum_file.clone().into_os_string().into_string().unwrap(), e);
+            error!("Fatal: error reading file: {}: {}", &countsum_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
     let mut reader = csv::Reader::from_reader(file);
@@ -575,13 +586,16 @@ pub fn read_countsum_snapshot( snapshot_number: &String, yb_stats_directory: &Pa
     stored_countsum
 }
 
-pub fn read_countsumrows_snapshot( snapshot_number: &String, yb_stats_directory: &PathBuf ) -> Vec<StoredCountSumRows> {
-
+pub fn read_countsumrows_snapshot(
+    snapshot_number: &String,
+    yb_stats_directory: &PathBuf,
+) -> Vec<StoredCountSumRows>
+{
     let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
     let countsumrows_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("countsumrows");
     let file = fs::File::open(&countsumrows_file)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error reading file: {}: {}", &countsumrows_file.clone().into_os_string().into_string().unwrap(), e);
+            error!("Fatal: error reading file: {}: {}", &countsumrows_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
     let mut reader = csv::Reader::from_reader(file);
@@ -595,11 +609,11 @@ pub fn read_countsumrows_snapshot( snapshot_number: &String, yb_stats_directory:
 pub fn insert_first_snapshot_metrics(
     values_map: BTreeMap<(String, String, String, String), StoredValues>,
     countsum_map: BTreeMap<(String, String, String, String), StoredCountSum>,
-    countsumrows_map: BTreeMap<(String, String, String, String), StoredCountSumRows>
+    countsumrows_map: BTreeMap<(String, String, String, String), StoredCountSumRows>,
 ) -> (
     BTreeMap<(String, String, String, String), SnapshotDiffValues>,
     BTreeMap<(String, String, String, String), SnapshotDiffCountSum>,
-    BTreeMap<(String, String, String, String), SnapshotDiffCountSumRows>
+    BTreeMap<(String, String, String, String), SnapshotDiffCountSumRows>,
 ) {
     let mut values_diff: BTreeMap<(String, String, String, String), SnapshotDiffValues> = BTreeMap::new();
     for ((hostname_port, metric_type, metric_id, metric_name), storedvalues) in values_map {
@@ -662,7 +676,7 @@ pub fn print_metrics_diff_for_snapshots(
     stat_name_filter: &Regex,
     table_name_filter: &Regex,
     details_enable: &bool,
-    gauges_enable: &bool
+    gauges_enable: &bool,
 ) {
     let current_directory = env::current_dir().unwrap();
     let yb_stats_directory = current_directory.join("yb_stats.snapshots");
@@ -689,7 +703,7 @@ pub fn insert_second_snapshot_metrics(
     countsum_diff: &mut BTreeMap<(String, String, String, String), SnapshotDiffCountSum>,
     countsumrows_map: BTreeMap<(String, String, String, String), StoredCountSumRows>,
     countsumrows_diff: &mut BTreeMap<(String, String, String, String), SnapshotDiffCountSumRows>,
-    first_snapshot_time: &DateTime<Local>
+    first_snapshot_time: &DateTime<Local>,
 ) {
     for ((hostname_port, metric_type, metric_id, metric_name), storedvalues) in values_map {
         match values_diff.get_mut(&(hostname_port.to_string(), metric_type.to_string(), metric_id.to_string(), metric_name.to_string())) {
@@ -793,15 +807,17 @@ pub fn insert_second_snapshot_metrics(
     }
 }
 
-pub fn print_diff_metrics(value_diff: &BTreeMap<(String, String, String, String), SnapshotDiffValues>,
-                  countsum_diff: &BTreeMap<(String, String, String, String), SnapshotDiffCountSum>,
-                  countsumrows_diff: &BTreeMap<(String, String, String, String), SnapshotDiffCountSumRows>,
-                  hostname_filter: &Regex,
-                  stat_name_filter: &Regex,
-                  table_name_filter: &Regex,
-                  details_enable: &bool,
-                  gauges_enable: &bool
-) {
+pub fn print_diff_metrics(
+    value_diff: &BTreeMap<(String, String, String, String), SnapshotDiffValues>,
+    countsum_diff: &BTreeMap<(String, String, String, String), SnapshotDiffCountSum>,
+    countsumrows_diff: &BTreeMap<(String, String, String, String), SnapshotDiffCountSumRows>,
+    hostname_filter: &Regex,
+    stat_name_filter: &Regex,
+    table_name_filter: &Regex,
+    details_enable: &bool,
+    gauges_enable: &bool,
+)
+{
     if *details_enable {
         // value_diff
         let value_statistic_details_lookup = value_create_hashmap();
@@ -1182,7 +1198,7 @@ pub fn print_diff_metrics(value_diff: &BTreeMap<(String, String, String, String)
 pub fn get_metrics_into_diff_first_snapshot(
     hosts: &Vec<&str>,
     ports: &Vec<&str>,
-    parallel: usize
+    parallel: usize,
 ) -> (
     BTreeMap<(String, String, String, String), SnapshotDiffValues>,
     BTreeMap<(String, String, String, String), SnapshotDiffCountSum>,
@@ -1201,7 +1217,7 @@ pub fn get_metrics_into_diff_second_snapshot(
     countsum_diff: &mut BTreeMap<(String, String, String, String), SnapshotDiffCountSum>,
     countsumrows_diff: &mut BTreeMap<(String, String, String, String), SnapshotDiffCountSumRows>,
     first_snapshot_time: &DateTime<Local>,
-    parallel: usize
+    parallel: usize,
 ) {
     let (stored_values, stored_countsum, stored_countsumrows) = read_metrics_into_vectors(&hosts, &ports, parallel);
     let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps( stored_values, stored_countsum, stored_countsumrows);

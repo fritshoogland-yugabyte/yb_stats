@@ -11,9 +11,9 @@ These are the dependencies for RPM/yum based distributions (validated with Cento
  
 Yum command for install:
 ```
-yum install -y git openssl-devel
+sudo yum install -y git openssl-devel gcc
 ```
-When on Mac OSX, there doesn't seem to any dependencies.
+When on Mac OSX, there doesn't seem to any dependencies, provided xcode is installed.
 
 ## install cargo
 The most common way to install cargo on OSX or Linux is:

@@ -10,6 +10,7 @@ use substring::Substring;
 use std::env;
 use rayon;
 use std::sync::mpsc::channel;
+use log::*;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Statement {
@@ -122,7 +123,8 @@ pub fn perform_statements_snapshot(
     yb_stats_directory: &PathBuf,
     parallel: usize
 ) {
-   let stored_statements = read_statements_into_vector(hosts, ports, parallel);
+    info!("perform_statements_snapshot");
+    let stored_statements = read_statements_into_vector(hosts, ports, parallel);
 
     let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
     let statements_file = &current_snapshot_directory.join("statements");
@@ -285,7 +287,8 @@ pub fn print_diff_statements(
                      statements_row.second_total_time - statements_row.first_total_time as f64,
                      (statements_row.second_rows - statements_row.first_rows) / (statements_row.second_calls - statements_row.first_calls),
                      statements_row.second_rows - statements_row.first_rows,
-                     query.substring(0, adaptive_length).replace("\n", "")
+                     query.substring(0, adaptive_length).escape_default()
+                     //query.substring(0, adaptive_length).replace("\n", "")
             );
         }
     }

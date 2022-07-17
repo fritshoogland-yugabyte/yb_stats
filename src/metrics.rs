@@ -160,10 +160,9 @@ pub fn read_metrics(
     host: &str,
     port: &str,
 ) -> Vec<Metrics> {
-    //env_logger::init();
     if ! scan_port_addr(format!("{}:{}", host, port)) {
         warn!("hostname: port {}:{} cannot be reached, skipping", host, port);
-        return parse_metrics(String::from(""))
+        return parse_metrics(String::from(""), "", "")
     };
     let data_from_http = reqwest::blocking::get(format!("http://{}:{}/metrics", host, port))
         .unwrap_or_else(|e| {
@@ -171,7 +170,7 @@ pub fn read_metrics(
             process::exit(1);
         })
         .text().unwrap();
-    parse_metrics(data_from_http)
+    parse_metrics(data_from_http, host, port)
 }
 
 pub fn read_metrics_into_vectors(
@@ -214,7 +213,7 @@ pub fn perform_metrics_snapshot(
     yb_stats_directory: &PathBuf,
     parallel: usize,
 ) {
-    env_logger::init();
+    info!("perform_metrics_snapshot");
     let (stored_values, stored_countsum, stored_countsumrows) = read_metrics_into_vectors(&hosts, &ports, parallel);
 
     let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
@@ -356,10 +355,10 @@ pub fn add_to_metric_vectors(
     }
 }
 
-fn parse_metrics( metrics_data: String ) -> Vec<Metrics> {
+fn parse_metrics( metrics_data: String, host: &str, port: &str ) -> Vec<Metrics> {
     serde_json::from_str(&metrics_data )
         .unwrap_or_else(|e| {
-            warn!("error parsing /metrics json data for metrics: {}", e);
+            info!("({}:{}) error parsing /metrics json data for metrics, error: {}", host, port, e);
             return Vec::<Metrics>::new();
         })
 }
@@ -1249,7 +1248,7 @@ mod tests {
         ]
     }
 ]"#.to_string();
-        let result = parse_metrics(json.clone());
+        let result = parse_metrics(json.clone(), "", "");
         assert_eq!(result[0].metrics_type,"cdc");
         let statistic_value = match &result[0].metrics[0] {
             NamedMetrics::MetricValue { name, value} => format!("{}, {}",name, value),
@@ -1288,7 +1287,7 @@ mod tests {
         ]
     }
 ]"#.to_string();
-        let result = parse_metrics(json.clone());
+        let result = parse_metrics(json.clone(), "", "");
         assert_eq!(result[0].metrics_type,"cdc");
         let statistic_value = match &result[0].metrics[0] {
             NamedMetrics::MetricCountSum { name, total_count, min: _, mean: _, percentile_75: _, percentile_95: _, percentile_99: _, percentile_99_9: _, percentile_99_99: _, max: _, total_sum} => format!("{}, {}, {}",name, total_count, total_sum),
@@ -1316,7 +1315,7 @@ mod tests {
         ]
     }
     ]"#.to_string();
-        let result = parse_metrics(json.clone());
+        let result = parse_metrics(json.clone(), "", "");
         assert_eq!(result[0].metrics_type,"tablet");
         let statistic_value = match &result[0].metrics[0] {
             NamedMetrics::MetricValue { name, value} => format!("{}, {}",name, value),
@@ -1353,7 +1352,7 @@ mod tests {
         ]
     }
     ]"#.to_string();
-        let result = parse_metrics(json.clone());
+        let result = parse_metrics(json.clone(), "", "");
         assert_eq!(result[0].metrics_type,"table");
         let statistic_value = match &result[0].metrics[0] {
             NamedMetrics::MetricCountSum { name, total_count, min: _, mean: _, percentile_75: _, percentile_95: _, percentile_99: _, percentile_99_9: _, percentile_99_99: _, max: _, total_sum} => format!("{}, {}, {}",name, total_count, total_sum),
@@ -1378,7 +1377,7 @@ mod tests {
         ]
     }
     ]"#.to_string();
-        let result = parse_metrics(json.clone());
+        let result = parse_metrics(json.clone(), "", "");
         assert_eq!(result[0].metrics_type,"server");
         let statistic_value = match &result[0].metrics[0] {
             NamedMetrics::MetricCountSumRows { name, count, sum, rows} => format!("{}, {}, {}, {}",name, count, sum, rows),
@@ -1406,7 +1405,7 @@ mod tests {
         ]
     }
     ]"#.to_string();
-        let result = parse_metrics(json.clone());
+        let result = parse_metrics(json.clone(), "", "");
         assert_eq!(result[0].metrics_type,"server");
         let statistic_value = match &result[0].metrics[0] {
             NamedMetrics::RejectedMetricValue { name, value} => format!("{}, {}",name, value),

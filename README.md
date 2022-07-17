@@ -458,4 +458,49 @@ This shows the physical IO statistics:
 # Install
 The simplest way to install `yb_stats` is to use an RPM release: https://github.com/fritshoogland-yugabyte/yb_stats/releases
 
+For example:
+```shell
+$ sudo yum install https://github.com/fritshoogland-yugabyte/yb_stats/releases/download/v0.8.1/yb_stats-0.8.1-1.el7.x86_64.rpm
+Loaded plugins: fastestmirror
+yb_stats-0.8.1-1.el7.x86_64.rpm                                                                                                                                                                                                                         | 3.5 MB  00:00:00
+Examining /var/tmp/yum-root-6FTGoA/yb_stats-0.8.1-1.el7.x86_64.rpm: yb_stats-0.8.1-1.el7.x86_64
+Marking /var/tmp/yum-root-6FTGoA/yb_stats-0.8.1-1.el7.x86_64.rpm to be installed
+Resolving Dependencies
+--> Running transaction check
+---> Package yb_stats.x86_64 0:0.8.1-1.el7 will be installed
+--> Finished Dependency Resolution
+
+Dependencies Resolved
+
+===============================================================================================================================================================================================================================================================================
+ Package                                                     Arch                                                      Version                                                           Repository                                                                       Size
+===============================================================================================================================================================================================================================================================================
+Installing:
+ yb_stats                                                    x86_64                                                    0.8.1-1.el7                                                       /yb_stats-0.8.1-1.el7.x86_64                                                    8.5 M
+
+Transaction Summary
+===============================================================================================================================================================================================================================================================================
+Install  1 Package
+
+Total size: 8.5 M
+Installed size: 8.5 M
+Is this ok [y/d/N]: y
+Downloading packages:
+Running transaction check
+Running transaction test
+Transaction test succeeded
+Running transaction
+  Verifying  : yb_stats-0.8.1-1.el7.x86_64                                                                                                                                                                                                                                 1/1
+
+Installed:
+  yb_stats.x86_64 0:0.8.1-1.el7
+
+Complete!
+```
+The above example shows how to use yum to install a release.  
+Please mind this requires root or a user with sudo rights to perform it.
+
+When yb_stats is installed via RPM, the `yb_stats` binary is placed in the `/usr/local/bin` directory, which by default is the path of a regular user.  
+This means `yb_stats` can be used without specifying a path.
+
 You can also build yb_stats yourself, see BUILD.md.

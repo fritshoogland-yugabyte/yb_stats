@@ -17,6 +17,7 @@ pub mod versions;
 pub mod statements;
 pub mod metrics;
 pub mod node_exporter;
+pub mod entities;
 
 use chrono::{DateTime, Local};
 use std::process;
@@ -40,7 +41,7 @@ pub fn read_snapshots_from_file( yb_stats_directory: &PathBuf ) -> Vec<Snapshot>
 
     let file = fs::File::open(&snapshot_index)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error opening file {}: {}", &snapshot_index.clone().into_os_string().into_string().unwrap(), e);
+            error!("Fatal: error opening file {}: {}", &snapshot_index.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
     let mut reader = csv::Reader::from_reader(file);
@@ -87,10 +88,11 @@ fn read_snapshot_number(
     yb_stats_directory: &PathBuf,
     snapshots: &mut Vec<Snapshot>
 ) -> i32 {
+    info!("read_snapshot_number");
     let mut snapshot_number: i32 = 0;
     fs::create_dir_all(&yb_stats_directory)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error creating directory {}: {}", &yb_stats_directory.clone().into_os_string().into_string().unwrap(), e);
+            error!("Fatal: error creating directory {}: {}", &yb_stats_directory.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
 
@@ -98,7 +100,7 @@ fn read_snapshot_number(
     if Path::new(&snapshot_index).exists() {
         let file = fs::File::open(&snapshot_index)
             .unwrap_or_else(|e| {
-                eprintln!("Fatal: error opening file {}: {}", &snapshot_index.clone().into_os_string().into_string().unwrap(), e);
+                error!("Fatal: error opening file {}: {}", &snapshot_index.clone().into_os_string().into_string().unwrap(), e);
                 process::exit(1);
             });
         let mut reader = csv::Reader::from_reader(file);
@@ -118,6 +120,7 @@ fn create_new_snapshot_directory(
     snapshot_comment: String,
     snapshots: &mut Vec<Snapshot>,
 ) {
+    info!("create_new_snapshot_directory");
     let snapshot_time = Local::now();
     let snapshot_index = &yb_stats_directory.join("snapshot.index");
     let current_snapshot: Snapshot = Snapshot { number: snapshot_number, timestamp: snapshot_time, comment: snapshot_comment };
@@ -128,7 +131,7 @@ fn create_new_snapshot_directory(
         .truncate(true)
         .open(&snapshot_index)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error writing {}: {}", &snapshot_index.clone().into_os_string().into_string().unwrap(), e);
+            error!("Fatal: error writing {}: {}", &snapshot_index.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
     let mut writer = csv::Writer::from_writer(file);
@@ -140,7 +143,7 @@ fn create_new_snapshot_directory(
     let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
     fs::create_dir_all(&current_snapshot_directory)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error creating directory {}: {}", &current_snapshot_directory.clone().into_os_string().into_string().unwrap(), e);
+            error!("Fatal: error creating directory {}: {}", &current_snapshot_directory.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
 }
@@ -152,8 +155,6 @@ pub fn perform_snapshot(
     parallel: usize,
     disable_threads: bool,
 ) -> i32 {
-    env_logger::init();
-
     let mut snapshots: Vec<Snapshot> = Vec::new();
 
     let current_directory = env::current_dir().unwrap();
@@ -171,6 +172,7 @@ pub fn perform_snapshot(
     versions::perform_versions_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
     statements::perform_statements_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
     node_exporter::perform_nodeexporter_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
+    entities::perform_entities_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
 
     snapshot_number
 }

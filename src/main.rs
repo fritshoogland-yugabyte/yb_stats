@@ -35,8 +35,9 @@ use yb_stats::node_exporter::{get_nodeexporter_into_diff_first_snapshot, get_nod
 
 mod statements;
 use yb_stats::statements::{print_diff_statements, print_statements_diff_for_snapshots, get_statements_into_diff_first_snapshot, get_statements_into_diff_second_snapshot};
-//mod node_exporter;
-//use node_exporter::{}
+
+mod entities;
+use entities::print_entities;
 
 const DEFAULT_HOSTNAMES: &str = "192.168.66.80,192.168.66.81,192.168.66.82";
 const DEFAULT_PORTS: &str = "7000,9000,12000,13000,9300";
@@ -66,6 +67,9 @@ struct Opts {
     /// report each table and tablet individually
     #[structopt(short, long)]
     details_enable: bool,
+    /// be as silent as possible, only errors are printed
+    #[structopt(long)]
+    silent: bool,
     /// perform a CSV (stored) snapshot
     #[structopt(long)]
     snapshot: bool,
@@ -81,6 +85,9 @@ struct Opts {
     /// print log data for the given snapshot
     #[structopt(long, value_name = "snapshot number")]
     print_log: Option<String>,
+    /// print entity data for the given snapshot
+    #[structopt(long, value_name = "snapshot number")]
+    print_entities: Option<String>,
     /// print version data for the given snapshot
     #[structopt(long, value_name = "snapshot number")]
     print_version: Option<String>,
@@ -119,17 +126,17 @@ fn main() {
     let hosts_string = if options.hosts == DEFAULT_HOSTNAMES {
         match env::var("YBSTATS_HOSTS") {
             Ok(var) => {
-                debug!("hosts not set: set via .env: YBSTATS_HOSTS: {}", var);
+                info!("hosts not set: set via .env: YBSTATS_HOSTS: {}", var);
                 changed_options.insert("YBSTATS_HOSTS", var.to_owned());
                 var
             },
             Err(_e)        => {
-                debug!("hosts not set: and not set via .env: using DEFAULT_HOSTNAMES: {}", DEFAULT_HOSTNAMES.to_string());
+                info!("hosts not set: and not set via .env: using DEFAULT_HOSTNAMES: {}", DEFAULT_HOSTNAMES.to_string());
                 DEFAULT_HOSTNAMES.to_string()
             },
         }
     } else {
-        debug!("hosts set: using: {}", options.hosts.clone());
+        info!("hosts set: using: {}", options.hosts.clone());
         changed_options.insert("YBSTATS_HOSTS", options.hosts.to_owned());
         options.hosts
     };
@@ -138,17 +145,17 @@ fn main() {
     let ports_string= if options.ports == DEFAULT_PORTS {
         match env::var("YBSTATS_PORTS") {
             Ok(var) => {
-                debug!("ports not set: set via .env: YBSTATS_PORTS: {}", var);
+                info!("ports not set: set via .env: YBSTATS_PORTS: {}", var);
                 changed_options.insert("YBSTATS_PORTS", var.to_owned());
                 var
             },
             Err(_e)        => {
-                debug!("ports not set: and not set via .env: using DEFAULT_PORTS: {}", DEFAULT_PORTS.to_string());
+                info!("ports not set: and not set via .env: using DEFAULT_PORTS: {}", DEFAULT_PORTS.to_string());
                 DEFAULT_PORTS.to_string()
             },
         }
     } else {
-        debug!("ports set: using: {}", options.ports.clone());
+        info!("ports set: using: {}", options.ports.clone());
         changed_options.insert("YBSTATS_PORTS", options.ports.to_owned());
         options.ports
     };
@@ -157,17 +164,17 @@ fn main() {
     let parallel_string = if options.parallel == DEFAULT_PARALLEL {
         match env::var("YBSTATS_PARALLEL") {
             Ok(var) => {
-                debug!("parallel not set: set via .env: YBSTATS_PARALLEL: {}", var);
+                info!("parallel not set: set via .env: YBSTATS_PARALLEL: {}", var);
                 changed_options.insert("YBSTATS_PARALLEL", var.to_owned());
                 var
             },
             Err(_e) => {
-                debug!("parallel not set: and not set via .env: using DEFAULT_PARALLEL: {}", DEFAULT_PARALLEL.to_string());
+                info!("parallel not set: and not set via .env: using DEFAULT_PARALLEL: {}", DEFAULT_PARALLEL.to_string());
                 DEFAULT_PARALLEL.to_string()
             },
         }
     } else {
-        debug!("parallel set: using: {}", options.parallel.clone());
+        info!("parallel set: using: {}", options.parallel.clone());
         changed_options.insert("YBSTATS_PARALLEL", options.parallel.to_owned());
         options.parallel
     };
@@ -178,6 +185,7 @@ fn main() {
     let details_enable: bool = options.details_enable as bool;
     let snapshot_diff: bool = options.snapshot_diff as bool;
     let disable_threads: bool = options.disable_threads as bool;
+    let silent: bool = options.silent as bool;
     let sql_length: usize = options.sql_length as usize;
     let log_severity: String = options.log_severity;
     let snapshot_comment = match options.snapshot_comment {
@@ -204,7 +212,9 @@ fn main() {
 
         info!("snapshot option");
         let snapshot_number: i32 = perform_snapshot(hosts, ports, snapshot_comment, parallel, disable_threads);
-        println!("snapshot number {}", snapshot_number);
+        if ! silent {
+            println!("snapshot number {}", snapshot_number);
+        }
 
     } else if snapshot_diff {
 
@@ -225,28 +235,27 @@ fn main() {
 
     } else if options.print_memtrackers.is_some() {
 
-        info!("print_memtrackers");
         print_memtrackers_data(&options.print_memtrackers.unwrap(), &yb_stats_directory, &hostname_filter, &stat_name_filter);
 
     } else if options.print_log.is_some() {
 
-        info!("print_log");
         print_loglines(&options.print_log.unwrap(), &yb_stats_directory, &hostname_filter, &log_severity);
 
     } else if options.print_version.is_some() {
 
-        info!("print_version");
         print_version_data(&options.print_version.unwrap(), &yb_stats_directory, &hostname_filter);
 
     } else if options.print_threads.is_some() {
 
-        info!("print_threads");
         print_threads_data(&options.print_threads.unwrap(), &yb_stats_directory, &hostname_filter);
 
     } else if options.print_gflags.is_some() {
 
-        info!("print_gflags");
         print_gflags_data(&options.print_gflags.unwrap(), &yb_stats_directory, &hostname_filter);
+
+    } else if options.print_entities.is_some() {
+
+        print_entities(&options.print_entities.unwrap(), &yb_stats_directory, &hostname_filter, &table_name_filter);
 
     } else {
 
@@ -273,19 +282,19 @@ fn main() {
     }
 
     if changed_options.len() > 0 && WRITE_DOTENV {
-            debug!("Writing .env file");
+            info!("Writing .env file");
             let mut file = fs::OpenOptions::new()
             .create(true)
             .write(true)
             .truncate(true)
             .open(".env")
             .unwrap_or_else(| e | {
-                            eprintln!("error writing .env file into current working directory: {}", e);
+                            error!("error writing .env file into current working directory: {}", e);
                             process::exit(1);
                             });
             for (key, value) in changed_options {
                 file.write(format!("{}={}\n", key, value).as_bytes()).unwrap();
-                debug!("{}={}", key, value);
+                info!("{}={}", key, value);
             }
             file.flush().unwrap();
     }

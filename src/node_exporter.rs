@@ -10,6 +10,7 @@ use std::sync::mpsc::channel;
 use std::fs;
 use regex::Regex;
 use std::env;
+use log::*;
 
 #[derive(Debug)]
 pub struct NodeExporterValues {
@@ -361,6 +362,7 @@ pub fn perform_nodeexporter_snapshot(
     yb_stats_directory: &PathBuf,
     parallel: usize,
 ) {
+    info!("perform_nodeexporter_snapshot");
     let stored_nodeexporter = read_node_exporter_into_vectors(hosts, ports, parallel);
 
     let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());

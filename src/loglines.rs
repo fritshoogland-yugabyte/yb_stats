@@ -7,6 +7,7 @@ use std::fs;
 use serde_derive::{Serialize,Deserialize};
 use rayon;
 use std::sync::mpsc::channel;
+use log::*;
 
 #[derive(Debug)]
 pub struct LogLine {
@@ -69,6 +70,7 @@ pub fn perform_loglines_snapshot(
     yb_stats_directory: &PathBuf,
     parallel: usize
 ) {
+    info!("perform_loglines_snapshot");
     let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
     let (tx, rx) = channel();
     pool.scope(move |s| {
@@ -110,7 +112,7 @@ pub fn print_loglines(
     hostname_filter: &Regex,
     log_severity: &String
 ) {
-
+    info!("print_log");
     let stored_loglines: Vec<StoredLogLines> = read_loglines_snapshot(&snapshot_number, yb_stats_directory);
     let mut previous_hostname_port = String::from("");
     for row in stored_loglines {

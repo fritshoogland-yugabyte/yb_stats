@@ -5,9 +5,9 @@ use std::fs;
 use std::process;
 use regex::Regex;
 use serde_derive::{Serialize,Deserialize};
-//use scoped_threadpool::Pool;
 use rayon;
 use std::sync::mpsc::channel;
+use log::*;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct VersionData {
@@ -45,6 +45,7 @@ pub fn perform_versions_snapshot(
     yb_stats_directory: &PathBuf,
     parallel: usize
 ) {
+    info!("perform_versions_snapshot");
     let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
     let (tx, rx) = channel();
 
@@ -123,7 +124,7 @@ pub fn print_version_data(
     yb_stats_directory: &PathBuf,
     hostname_filter: &Regex
 ) {
-
+    info!("print_version");
     let stored_versions: Vec<StoredVersionData> = read_version_snapshot(&snapshot_number, yb_stats_directory);
     println!("{:20} {:15} {:10} {:10} {:24} {:10}",
              "hostname_port",

@@ -85,6 +85,20 @@ fn get_port_node_exporter() -> String {
     };
     port
 }
+fn get_hostname_entities() -> String {
+    let hostname= match env::var("HOSTNAME_ENTITIES") {
+        Ok(value) => value,
+        Err(e) => panic!("Error reading environment variable HOSTNAME_ENTITIES: {:?}", e)
+    };
+    hostname
+}
+fn get_port_entities() -> String {
+    let port= match env::var("PORT_ENTITIES") {
+        Ok(value) => value,
+        Err(e) => panic!("Error reading environment variable PORT_ENTITIES: {:?}", e)
+    };
+    port
+}
 
 use yb_stats::gflags::{StoredGFlags, read_gflags, add_to_gflags_vector};
 #[test]
@@ -326,4 +340,20 @@ fn parse_node_exporter() {
     add_to_node_exporter_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), &mut stored_nodeexportervalues);
     // a node exporter endpoint will generate entries in the stored_nodeexportervalues vector.
     assert!(stored_nodeexportervalues.len() > 0);
+}
+use yb_stats::entities::{StoredTables, StoredTablets, StoredReplicas, read_entities, add_to_entity_vectors};
+#[test]
+fn parse_entities() {
+    let mut stored_tables: Vec<StoredTables> = Vec::new();
+    let mut stored_tablets: Vec<StoredTablets> = Vec::new();
+    let mut stored_replicas: Vec<StoredReplicas> = Vec::new();
+    let hostname = get_hostname_entities();
+    let port = get_port_entities();
+
+    let data_parsed_from_json = read_entities(&hostname.as_str(), &port.as_str());
+    add_to_entity_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now(), &mut stored_tables, &mut stored_tablets, &mut stored_replicas);
+    // a MASTER only will generate entities on each master (!)
+    assert!(stored_tables.len() > 0);
+    assert!(stored_tablets.len() > 0);
+    assert!(stored_replicas.len() > 0);
 }

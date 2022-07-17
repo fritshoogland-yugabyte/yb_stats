@@ -8,6 +8,7 @@ use serde_derive::{Serialize,Deserialize};
 use rayon;
 use std::sync::mpsc::channel;
 use scraper::{ElementRef, Html, Selector};
+use log::*;
 
 #[derive(Debug)]
 pub struct MemTrackers {
@@ -108,6 +109,7 @@ pub fn perform_memtrackers_snapshot(
     yb_stats_directory: &PathBuf,
     parallel: usize
 ) {
+    info!("perform_memtrackers_snapshot");
     let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
     let (tx, rx) = channel();
 
@@ -153,6 +155,7 @@ pub fn print_memtrackers_data(
     hostname_filter: &Regex,
     stat_name_filter: &Regex
 ) {
+    info!("print_memtrackers");
     let stored_memtrackers: Vec<StoredMemTrackers> = read_memtrackers_snapshot(&snapshot_number, yb_stats_directory);
     let mut previous_hostname_port = String::from("");
     for row in stored_memtrackers {

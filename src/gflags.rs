@@ -7,6 +7,7 @@ use std::process;
 use serde_derive::{Serialize,Deserialize};
 use rayon;
 use std::sync::mpsc::channel;
+use log::*;
 
 #[derive(Debug)]
 pub struct GFlag {
@@ -46,6 +47,7 @@ pub fn perform_gflags_snapshot(
     yb_stats_directory: &PathBuf,
     parallel: usize
 ) {
+    info!("perform_gflags_snapshot");
     let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
     let (tx, rx) = channel();
     pool.scope(move |s| {
@@ -128,6 +130,7 @@ pub fn print_gflags_data(
     yb_stats_directory: &PathBuf,
     hostname_filter: &Regex
 ) {
+    info!("print_gflags");
     let stored_gflags: Vec<StoredGFlags> = read_gflags_snapshot(&snapshot_number, yb_stats_directory);
     let mut previous_hostname_port = String::from("");
     for row in stored_gflags {

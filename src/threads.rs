@@ -8,6 +8,7 @@ use regex::Regex;
 use rayon;
 use std::sync::mpsc::channel;
 use scraper::{ElementRef, Html, Selector};
+use log::*;
 
 #[derive(Debug)]
 pub struct Threads {
@@ -37,6 +38,7 @@ pub fn perform_threads_snapshot(
     yb_stats_directory: &PathBuf,
     parallel: usize
 ) {
+    info!("perform_threads_snapshot");
     let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
     let (tx, rx) = channel();
 
@@ -168,6 +170,7 @@ pub fn print_threads_data(
     yb_stats_directory: &PathBuf,
     hostname_filter: &Regex
 ) {
+    info!("print_threads");
     let stored_threads: Vec<StoredThreads> = read_threads_snapshot(&snapshot_number, yb_stats_directory);
     let mut previous_hostname_port = String::from("");
     for row in stored_threads {

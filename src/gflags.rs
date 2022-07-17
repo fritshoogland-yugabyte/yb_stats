@@ -29,7 +29,7 @@ pub fn read_gflags(
     port: &str,
 ) -> Vec<GFlag> {
     if ! scan_port_addr( format!("{}:{}", host, port)) {
-        println!("Warning: hostname:port {}:{} cannot be reached, skipping (gflags)",host ,port);
+        warn!("hostname:port {}:{} cannot be reached, skipping (gflags)",host ,port);
         return Vec::new();
     }
     if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}:{}/varz?raw",host ,port)) {
@@ -73,7 +73,7 @@ pub fn perform_gflags_snapshot(
         .write(true)
         .open(&gflags_file)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error writing gflags data in snapshot directory {}: {}", &gflags_file.clone().into_os_string().into_string().unwrap(), e);
+            error!("Fatal: error writing gflags data in snapshot directory {}: {}", &gflags_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
     let mut writer = csv::Writer::from_writer(file);
@@ -114,7 +114,7 @@ fn read_gflags_snapshot(snapshot_number: &String, yb_stats_directory: &PathBuf) 
     let gflags_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("gflags");
     let file = fs::File::open(&gflags_file)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error reading file: {}: {}", &gflags_file.clone().into_os_string().into_string().unwrap(), e);
+            error!("Fatal: error reading file: {}: {}", &gflags_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
     let mut reader = csv::Reader::from_reader(file);

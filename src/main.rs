@@ -38,6 +38,8 @@ use yb_stats::statements::{print_diff_statements, print_statements_diff_for_snap
 
 mod entities;
 use entities::print_entities;
+mod masters;
+use masters::print_masters;
 
 const DEFAULT_HOSTNAMES: &str = "192.168.66.80,192.168.66.81,192.168.66.82";
 const DEFAULT_PORTS: &str = "7000,9000,12000,13000,9300";
@@ -88,6 +90,9 @@ struct Opts {
     /// print entity data for the given snapshot
     #[structopt(long, value_name = "snapshot number")]
     print_entities: Option<String>,
+    /// print master info for the given snapshot
+    #[structopt(long, value_name = "snapshot number")]
+    print_masters: Option<String>,
     /// print version data for the given snapshot
     #[structopt(long, value_name = "snapshot number")]
     print_version: Option<String>,
@@ -256,6 +261,10 @@ fn main() {
     } else if options.print_entities.is_some() {
 
         print_entities(&options.print_entities.unwrap(), &yb_stats_directory, &hostname_filter, &table_name_filter);
+
+    } else if options.print_masters.is_some() {
+
+        print_masters(&options.print_masters.unwrap(), &yb_stats_directory, &hostname_filter);
 
     } else {
 

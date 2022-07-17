@@ -18,6 +18,7 @@ pub mod statements;
 pub mod metrics;
 pub mod node_exporter;
 pub mod entities;
+pub mod masters;
 
 use chrono::{DateTime, Local};
 use std::process;
@@ -173,6 +174,7 @@ pub fn perform_snapshot(
     statements::perform_statements_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
     node_exporter::perform_nodeexporter_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
     entities::perform_entities_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
+    masters::perform_masters_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
 
     snapshot_number
 }

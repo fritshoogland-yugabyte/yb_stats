@@ -357,3 +357,20 @@ fn parse_entities() {
     assert!(stored_tablets.len() > 0);
     assert!(stored_replicas.len() > 0);
 }
+use yb_stats::masters::{StoredMasters, StoredRpcAddresses, StoredHttpAddresses, StoredMasterError, read_masters, add_to_master_vectors};
+#[test]
+fn parse_masters() {
+    let mut stored_masters: Vec<StoredMasters> = Vec::new();
+    let mut stored_rpc_addresses: Vec<StoredRpcAddresses> = Vec::new();
+    let mut stored_http_addresses: Vec<StoredHttpAddresses> = Vec::new();
+    let mut stored_master_errors: Vec<StoredMasterError> = Vec::new();
+    let hostname = get_hostname_master();
+    let port = get_port_master();
+
+    let data_parsed_from_json = read_masters(&hostname.as_str(), &port.as_str());
+    add_to_master_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now(), &mut stored_masters, &mut stored_rpc_addresses, &mut stored_http_addresses, &mut stored_master_errors);
+    // a MASTER only will generate entities on each master (!)
+    assert!(stored_masters.len() > 0);
+    assert!(stored_rpc_addresses.len() > 0);
+    assert!(stored_http_addresses.len() > 0);
+}

@@ -5,9 +5,9 @@ use std::fs;
 use std::process;
 use regex::Regex;
 use serde_derive::{Serialize,Deserialize};
-//use scoped_threadpool::Pool;
 use rayon;
 use std::sync::mpsc::channel;
+use log::*;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct VersionData {
@@ -45,6 +45,7 @@ pub fn perform_versions_snapshot(
     yb_stats_directory: &PathBuf,
     parallel: usize
 ) {
+    info!("perform_versions_snapshot");
     let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
     let (tx, rx) = channel();
 
@@ -88,7 +89,7 @@ pub fn read_version(
     port: &str,
 ) -> VersionData {
     if ! scan_port_addr( format!("{}:{}", host, port)) {
-        println!("Warning hostname:port {}:{} cannot be reached, skipping (versions)", host, port);
+        warn!("Warning hostname:port {}:{} cannot be reached, skipping (versions)", host, port);
         return parse_version(String::from(""))
     }
     if let Ok(data_from_http) = reqwest::blocking::get( format!("http://{}:{}/api/v1/version", host, port)) {
@@ -105,7 +106,7 @@ fn read_version_snapshot(snapshot_number: &String, yb_stats_directory: &PathBuf 
     let versions_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("versions");
     let file = fs::File::open(&versions_file)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error reading file: {}: {}", &versions_file.clone().into_os_string().into_string().unwrap(), e);
+            error!("Fatal: error reading file: {}: {}", &versions_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
     let mut reader = csv::Reader::from_reader(file);
@@ -123,7 +124,7 @@ pub fn print_version_data(
     yb_stats_directory: &PathBuf,
     hostname_filter: &Regex
 ) {
-
+    info!("print_version");
     let stored_versions: Vec<StoredVersionData> = read_version_snapshot(&snapshot_number, yb_stats_directory);
     println!("{:20} {:15} {:10} {:10} {:24} {:10}",
              "hostname_port",

@@ -3,9 +3,10 @@
 yb_stats is a utility to extract detailed runtime data data from a YugabyteDB cluster for performance and troubleshooting purposes.  
 It functions in two modes: 
 - ad-hoc mode: begin and end capturing of performance (metric) data for performance analysis, which does not store any data (called without the `--snapshot` switch).
-- snapshot mode: full capturing of all YugabyteDB cluster metadata and metrics for performance and troubleshooting analysis. The data is stored in CSV files in a directory in the current working directory.
+- snapshot mode (called with the `--snapshot` switch): full capturing of all YugabyteDB cluster metadata and metrics for performance and troubleshooting analysis. 
+The data obtained as part of the snapshot is stored in CSV files in the `yb_stats.snapshots` directory in the current working directory inside a directory with the snapshot number.
 
-The function of the CSV snapshot is to create an overview of the current situation as completely as possible to be able to work based on factual information and rule out guessing.
+The function of the CSV snapshots is to create an overview of the current situation as completely as possible to be able to work based on factual information and rule out guessing.
 
 In ad-hoc mode the following data is gathered to show totals and the difference after pressing enter:
 - metrics (master and tserver /metrics data, YCQL /metrics data and YSQL /metrics data).
@@ -24,7 +25,8 @@ Plus:
 - memtrackers (/mem-trackers)
 - threads (/threadz)
 
-In order to conveniently view existing snapshots performance data, use the `--snapshot-diff` switch. In order to make using different snapshots more easy, use the `--snapshot-comment` switch when creating a snapshot.
+In order to conveniently view the work executed based on the performance data captured in the snapshots, use the `--snapshot-diff` switch.
+In order to make using different snapshots more easy, use the `--snapshot-comment` switch when creating a snapshot.
 
 For both ad-hoc and snapshot modes for displaying data (`--snapshot-diff`), a number of options exist to filter, to add non-counter (gauge) statistics and to increase the detail of the statistics (by default YugabyteDB table and tablet statistics are summed by statistic name for the whole server in order to give a better overview, enabling detail level shows the statistics by actual source):
 - `--gauges-enable`: add gauges (absolute number statistics) to the overview.
@@ -42,9 +44,14 @@ For snapshots, the additional gathered non-metric data can be viewed for a singl
 For `--print-log` specific, another flag can be used to filter the log rows:
 - `--log-severity`: by default this filter is set to 'WEF' (Warning, Error, Fail), and thus will not show the I (Informal) lines.
 
+By default, length of the query text shown is limited to 80 characters. If you want more of the query text to be displayed, use the `--sql-length` switch and set it to greater length.
+
+Obtaining the threads overview can influence performance in certain specific cases, however is considered to be safe in normal cases.
+You can exclude gathering threads data using the: `--disable-threads` switch.
+
 # Usage
-For data gathering, yb_stats requires to be provded the hostnames or ip addresses, and the port numbers if these are non-default. Hostnames and ports are provided using separate switches: `--hosts` and `--ports`.
-Once hostnames or ports have been specified, these will be stored in the current working directory in a file called `.env`, which allows yb_stats to use the hostnames and ports without requiring to specify them again. 
+For data gathering, yb_stats requires to be provded the hostnames or ip addresses, and the port numbers if these are non-default. 
+Hostnames and ports are provided using separate switches: `--hosts` and `--ports`.
 
 This is how hostnames or ip addresses are specified:
 ```
@@ -54,6 +61,11 @@ yb_stats will collect statistics from the ports 7000, 9000, 12000, 13000 and 930
 ```
 ./target/release/yb_stats --ports 9000,13001
 ```
+
+## The .env file
+Whenever any of the `--hosts`, `--ports` or `--parallel` switch are set, the setting or settings will be written to a file called '.env' in the current working directory.
+yb_stats will try to find and read the '.env' file from the current working directory whenever it exists, and use the settings that it contains. 
+That means that the settings for hosts, ports and parallelism only need to be set once, and then are used without requiring them to be set.
 
 ## Online performance data display alias ad-hoc mode
 For online performance data display (metric and statements data only), simply do not provide any further switch:
@@ -443,18 +455,52 @@ This shows the physical IO statistics:
 - log_sync_latency: this the number of and time spent in the function that performs fsync() of the WAL file. Mind the specific wording: not all calls to the function result in fsync() being called, which means that this statistic also measures running the function not performing the fsync() call, and thus will be much too positive, and not a valid average of time spent in the fsync() call. The total time is still a valid amount for tuning. See: https://github.com/yugabyte/yugabyte-db/issues/11039
 
 
-# How to install
-Currently, this is only available as source code, not as executable.  
-However, it's easy to compile the tool:
+# Install
+The simplest way to install `yb_stats` is to use an RPM release: https://github.com/fritshoogland-yugabyte/yb_stats/releases
 
-1. Get rust: visit `https://www.rust-lang.org/tools/install`, and run the installation tool. (MacOS: just install; Linux/EL: yum install -y gcc openssl-devel)
-2. Clone this repository. (git clone https://github.com/fritshoogland-yugabyte/yb_stats.git)
-3. Build the executable:
-```
-cd yb_stats
-cargo build --release
-```
-The executable should be available in the target/release directory.
+For example:
+```shell
+$ sudo yum install https://github.com/fritshoogland-yugabyte/yb_stats/releases/download/v0.8.1/yb_stats-0.8.1-1.el7.x86_64.rpm
+Loaded plugins: fastestmirror
+yb_stats-0.8.1-1.el7.x86_64.rpm                                                                                                                                                                                                                         | 3.5 MB  00:00:00
+Examining /var/tmp/yum-root-6FTGoA/yb_stats-0.8.1-1.el7.x86_64.rpm: yb_stats-0.8.1-1.el7.x86_64
+Marking /var/tmp/yum-root-6FTGoA/yb_stats-0.8.1-1.el7.x86_64.rpm to be installed
+Resolving Dependencies
+--> Running transaction check
+---> Package yb_stats.x86_64 0:0.8.1-1.el7 will be installed
+--> Finished Dependency Resolution
 
-Warning: alpha version, built on OSX 12.1, tested on OSX and linux.
-Testing and feedback welcome!
+Dependencies Resolved
+
+===============================================================================================================================================================================================================================================================================
+ Package                                                     Arch                                                      Version                                                           Repository                                                                       Size
+===============================================================================================================================================================================================================================================================================
+Installing:
+ yb_stats                                                    x86_64                                                    0.8.1-1.el7                                                       /yb_stats-0.8.1-1.el7.x86_64                                                    8.5 M
+
+Transaction Summary
+===============================================================================================================================================================================================================================================================================
+Install  1 Package
+
+Total size: 8.5 M
+Installed size: 8.5 M
+Is this ok [y/d/N]: y
+Downloading packages:
+Running transaction check
+Running transaction test
+Transaction test succeeded
+Running transaction
+  Verifying  : yb_stats-0.8.1-1.el7.x86_64                                                                                                                                                                                                                                 1/1
+
+Installed:
+  yb_stats.x86_64 0:0.8.1-1.el7
+
+Complete!
+```
+The above example shows how to use yum to install a release.  
+Please mind this requires root or a user with sudo rights to perform it.
+
+When yb_stats is installed via RPM, the `yb_stats` binary is placed in the `/usr/local/bin` directory, which by default is the path of a regular user.  
+This means `yb_stats` can be used without specifying a path.
+
+You can also build yb_stats yourself, see BUILD.md.

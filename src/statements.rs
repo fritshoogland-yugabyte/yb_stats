@@ -10,6 +10,7 @@ use substring::Substring;
 use std::env;
 use rayon;
 use std::sync::mpsc::channel;
+use log::*;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Statement {
@@ -70,7 +71,7 @@ pub fn read_statements(
     port: &str,
 ) -> Statement {
     if ! scan_port_addr( format!("{}:{}", host, port) ) {
-        println!("Warning: hostname:port {}:{} cannot be reached, skipping (statements)", host, port);
+        warn!("Warning: hostname:port {}:{} cannot be reached, skipping (statements)", host, port);
         return parse_statements(String::from(""))
     }
     if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}:{}/statements", host, port)) {
@@ -122,7 +123,8 @@ pub fn perform_statements_snapshot(
     yb_stats_directory: &PathBuf,
     parallel: usize
 ) {
-   let stored_statements = read_statements_into_vector(hosts, ports, parallel);
+    info!("perform_statements_snapshot");
+    let stored_statements = read_statements_into_vector(hosts, ports, parallel);
 
     let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
     let statements_file = &current_snapshot_directory.join("statements");
@@ -131,7 +133,7 @@ pub fn perform_statements_snapshot(
         .write(true)
         .open(&statements_file)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error writing statements data in snapshot directory {}: {}", &statements_file.clone().into_os_string().into_string().unwrap(), e);
+            error!("Fatal: error writing statements data in snapshot directory {}: {}", &statements_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
     let mut writer = csv::Writer::from_writer(file);
@@ -200,7 +202,7 @@ pub fn read_statements_snapshot(
     let statements_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("statements");
     let file = fs::File::open(&statements_file)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error reading file: {}: {}", &statements_file.clone().into_os_string().into_string().unwrap(), e);
+            error!("Fatal: error reading file: {}: {}", &statements_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
     let mut reader = csv::Reader::from_reader(file);
@@ -285,7 +287,8 @@ pub fn print_diff_statements(
                      statements_row.second_total_time - statements_row.first_total_time as f64,
                      (statements_row.second_rows - statements_row.first_rows) / (statements_row.second_calls - statements_row.first_calls),
                      statements_row.second_rows - statements_row.first_rows,
-                     query.substring(0, adaptive_length).replace("\n", "")
+                     query.substring(0, adaptive_length).escape_default()
+                     //query.substring(0, adaptive_length).replace("\n", "")
             );
         }
     }

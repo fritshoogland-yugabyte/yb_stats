@@ -7,6 +7,7 @@ use std::fs;
 use serde_derive::{Serialize,Deserialize};
 use rayon;
 use std::sync::mpsc::channel;
+use log::*;
 
 #[derive(Debug)]
 pub struct LogLine {
@@ -33,7 +34,7 @@ pub fn read_loglines(
     port: &str,
 ) -> Vec<LogLine> {
     if ! scan_port_addr( format!("{}:{}", host, port)) {
-        println!("Warning: hostname:port {}:{} cannot be reached, skipping (logs)", host, port);
+        warn!("Warning: hostname:port {}:{} cannot be reached, skipping (logs)", host, port);
         return Vec::new();
     }
     if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}:{}/logs?raw", host, port)) {
@@ -50,7 +51,7 @@ fn read_loglines_snapshot(snapshot_number: &String, yb_stats_directory: &PathBuf
     let loglines_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("loglines");
     let file = fs::File::open(&loglines_file)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error reading file: {}: {}", &loglines_file.clone().into_os_string().into_string().unwrap(), e);
+            error!("Fatal: error reading file: {}: {}", &loglines_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
     let mut reader = csv::Reader::from_reader(file);
@@ -69,6 +70,7 @@ pub fn perform_loglines_snapshot(
     yb_stats_directory: &PathBuf,
     parallel: usize
 ) {
+    info!("perform_loglines_snapshot");
     let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
     let (tx, rx) = channel();
     pool.scope(move |s| {
@@ -93,7 +95,7 @@ pub fn perform_loglines_snapshot(
         .write(true)
         .open(&loglines_file)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error writing loglines data in snapshot directory {}: {}", &loglines_file.clone().into_os_string().into_string().unwrap(), e);
+            error!("Fatal: error writing loglines data in snapshot directory {}: {}", &loglines_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
     let mut writer = csv::Writer::from_writer(file);
@@ -110,7 +112,7 @@ pub fn print_loglines(
     hostname_filter: &Regex,
     log_severity: &String
 ) {
-
+    info!("print_log");
     let stored_loglines: Vec<StoredLogLines> = read_loglines_snapshot(&snapshot_number, yb_stats_directory);
     let mut previous_hostname_port = String::from("");
     for row in stored_loglines {

@@ -34,7 +34,7 @@ pub fn read_memtrackers(
     port: &str,
 ) -> Vec<MemTrackers> {
     if ! scan_port_addr( format!("{}:{}", host, port)) {
-        println!("Warning: hostname:port {}:{} cannot be reached, skipping (memtrackers)", host, port);
+        warn!("Warning: hostname:port {}:{} cannot be reached, skipping (memtrackers)", host, port);
         return Vec::new();
     }
     if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}:{}/mem-trackers", host, port)) {
@@ -137,7 +137,7 @@ pub fn perform_memtrackers_snapshot(
         .write(true)
         .open(&memtrackers_file)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error writing memtrackers data in snapshot directory {}: {}", &memtrackers_file.clone().into_os_string().into_string().unwrap(), e);
+            error!("Fatal: error writing memtrackers data in snapshot directory {}: {}", &memtrackers_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
     let mut writer = csv::Writer::from_writer(file);
@@ -188,7 +188,7 @@ fn read_memtrackers_snapshot(
     let memtrackers_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("memtrackers");
     let file = fs::File::open(&memtrackers_file)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error reading file: {}: {}", &memtrackers_file.clone().into_os_string().into_string().unwrap(), e);
+            error!("Fatal: error reading file: {}: {}", &memtrackers_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
     let mut reader = csv::Reader::from_reader(file);

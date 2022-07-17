@@ -66,7 +66,7 @@ pub fn perform_threads_snapshot(
         .write(true)
         .open(&threads_file)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error writing threads data in snapshots directory {}: {}", &threads_file.clone().into_os_string().into_string().unwrap(), e);
+            error!("Fatal: error writing threads data in snapshots directory {}: {}", &threads_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
     let mut writer = csv::Writer::from_writer(file);
@@ -82,7 +82,7 @@ pub fn read_threads(
     port: &str,
 ) -> Vec<Threads> {
     if ! scan_port_addr( format!("{}:{}", host, port) ) {
-        println!("Warning: hostname:port {}:{} cannot be reached, skipping (threads)", host, port);
+        warn!("Warning: hostname:port {}:{} cannot be reached, skipping (threads)", host, port);
         return Vec::new();
     }
     //if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}/threadz?group=all", hostname.to_string())) {

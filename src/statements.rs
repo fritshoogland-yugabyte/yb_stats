@@ -71,7 +71,7 @@ pub fn read_statements(
     port: &str,
 ) -> Statement {
     if ! scan_port_addr( format!("{}:{}", host, port) ) {
-        println!("Warning: hostname:port {}:{} cannot be reached, skipping (statements)", host, port);
+        warn!("Warning: hostname:port {}:{} cannot be reached, skipping (statements)", host, port);
         return parse_statements(String::from(""))
     }
     if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}:{}/statements", host, port)) {
@@ -133,7 +133,7 @@ pub fn perform_statements_snapshot(
         .write(true)
         .open(&statements_file)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error writing statements data in snapshot directory {}: {}", &statements_file.clone().into_os_string().into_string().unwrap(), e);
+            error!("Fatal: error writing statements data in snapshot directory {}: {}", &statements_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
     let mut writer = csv::Writer::from_writer(file);
@@ -202,7 +202,7 @@ pub fn read_statements_snapshot(
     let statements_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("statements");
     let file = fs::File::open(&statements_file)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error reading file: {}: {}", &statements_file.clone().into_os_string().into_string().unwrap(), e);
+            error!("Fatal: error reading file: {}: {}", &statements_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
     let mut reader = csv::Reader::from_reader(file);

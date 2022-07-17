@@ -48,12 +48,12 @@ pub fn read_node_exporter(
     port: &str,
 ) -> Vec<NodeExporterValues> {
     if ! scan_port_addr(format!("{}:{}", host, port)) {
-        println!("Warning! hostname:port {}:{} cannot be reached, skipping (node_exporter)", host, port);
+        warn!("Warning! hostname:port {}:{} cannot be reached, skipping (node_exporter)", host, port);
         return parse_node_exporter(String::from(""))
     };
     let data_from_http = reqwest::blocking::get(format!("http://{}:{}/metrics", host, port))
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error reading from URL: {}", e);
+            error!("Fatal: error reading from URL: {}", e);
             process::exit(1);
         })
         .text().unwrap();
@@ -372,7 +372,7 @@ pub fn perform_nodeexporter_snapshot(
         .write(true)
         .open(&nodeexporter_file)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error writing nodeexporter data in snapshot directory {}: {}", &nodeexporter_file.clone().into_os_string().into_string().unwrap(), e);
+            error!("Fatal: error writing nodeexporter data in snapshot directory {}: {}", &nodeexporter_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
     let mut writer = csv::Writer::from_writer(file);
@@ -390,7 +390,7 @@ pub fn read_nodeexporter_snapshot(
     let nodeexporter_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("nodeexporter");
     let file = fs::File::open(&nodeexporter_file)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error reading file: {}: {}", &nodeexporter_file.clone().into_os_string().into_string().unwrap(), e);
+            error!("Fatal: error reading file: {}: {}", &nodeexporter_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
     let mut reader = csv::Reader::from_reader(file);

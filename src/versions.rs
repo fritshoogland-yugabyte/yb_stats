@@ -89,7 +89,7 @@ pub fn read_version(
     port: &str,
 ) -> VersionData {
     if ! scan_port_addr( format!("{}:{}", host, port)) {
-        println!("Warning hostname:port {}:{} cannot be reached, skipping (versions)", host, port);
+        warn!("Warning hostname:port {}:{} cannot be reached, skipping (versions)", host, port);
         return parse_version(String::from(""))
     }
     if let Ok(data_from_http) = reqwest::blocking::get( format!("http://{}:{}/api/v1/version", host, port)) {
@@ -106,7 +106,7 @@ fn read_version_snapshot(snapshot_number: &String, yb_stats_directory: &PathBuf 
     let versions_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("versions");
     let file = fs::File::open(&versions_file)
         .unwrap_or_else(|e| {
-            eprintln!("Fatal: error reading file: {}: {}", &versions_file.clone().into_os_string().into_string().unwrap(), e);
+            error!("Fatal: error reading file: {}: {}", &versions_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
         });
     let mut reader = csv::Reader::from_reader(file);

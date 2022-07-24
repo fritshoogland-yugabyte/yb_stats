@@ -304,5 +304,5 @@ pub fn countsum_create_hashmap() -> HashMap<String, CountSumStatisticDetails> {
     countsum_statistic_details.insert(String::from("ycsql_queries_system_schema_views"), CountSumStatisticDetails { unit: String::from("microseconds"), unit_suffix: String::from("us"), divisor: 1000000, stat_type: String::from("counter") });
     countsum_statistic_details.insert(String::from("ycsql_queries_system_size_estimates"), CountSumStatisticDetails { unit: String::from("microseconds"), unit_suffix: String::from("us"), divisor: 1000000, stat_type: String::from("counter") });
 
-    return countsum_statistic_details;
+    countsum_statistic_details
 }

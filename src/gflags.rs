@@ -5,7 +5,7 @@ use regex::Regex;
 use std::fs;
 use std::process;
 use serde_derive::{Serialize,Deserialize};
-use rayon;
+//use rayon;
 use std::sync::mpsc::channel;
 use log::*;
 
@@ -40,6 +40,7 @@ pub fn read_gflags(
 }
 
 #[allow(dead_code)]
+#[allow(clippy::ptr_arg)]
 pub fn perform_gflags_snapshot(
     hosts: &Vec<&str>,
     ports: &Vec<&str>,
@@ -56,7 +57,7 @@ pub fn perform_gflags_snapshot(
                 let tx = tx.clone();
                 s.spawn(move |_| {
                     let detail_snapshot_time = Local::now();
-                    let gflags = read_gflags(&host, &port);
+                    let gflags = read_gflags(host, port);
                     tx.send((format!("{}:{}", host, port), detail_snapshot_time, gflags)).expect("error sending data via tx (gflags)");
                 });
             }}
@@ -109,9 +110,10 @@ fn parse_gflags( gflags_data: String ) -> Vec<GFlag> {
     gflags
 }
 
+#[allow(clippy::ptr_arg)]
 fn read_gflags_snapshot(snapshot_number: &String, yb_stats_directory: &PathBuf) -> Vec<StoredGFlags> {
     let mut stored_gflags: Vec<StoredGFlags> = Vec::new();
-    let gflags_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("gflags");
+    let gflags_file = &yb_stats_directory.join(snapshot_number).join("gflags");
     let file = fs::File::open(&gflags_file)
         .unwrap_or_else(|e| {
             error!("Fatal: error reading file: {}: {}", &gflags_file.clone().into_os_string().into_string().unwrap(), e);
@@ -131,7 +133,7 @@ pub fn print_gflags_data(
     hostname_filter: &Regex
 ) {
     info!("print_gflags");
-    let stored_gflags: Vec<StoredGFlags> = read_gflags_snapshot(&snapshot_number, yb_stats_directory);
+    let stored_gflags: Vec<StoredGFlags> = read_gflags_snapshot(snapshot_number, yb_stats_directory);
     let mut previous_hostname_port = String::from("");
     for row in stored_gflags {
         if hostname_filter.is_match(&row.hostname_port) {

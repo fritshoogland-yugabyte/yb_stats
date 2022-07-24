@@ -5,7 +5,7 @@ use regex::Regex;
 use std::fs;
 use std::process;
 use serde_derive::{Serialize,Deserialize};
-use rayon;
+//use rayon;
 use std::sync::mpsc::channel;
 use scraper::{ElementRef, Html, Selector};
 use log::*;
@@ -102,6 +102,7 @@ fn find_table(http_data: &str) -> Option<(Vec<String>, Vec<Vec<String>>)> {
 }
 
 #[allow(dead_code)]
+#[allow(clippy::ptr_arg)]
 pub fn perform_memtrackers_snapshot(
     hosts: &Vec<&str>,
     ports: &Vec<&str>,
@@ -119,7 +120,7 @@ pub fn perform_memtrackers_snapshot(
                 let tx = tx.clone();
                 s.spawn(move |_| {
                     let detail_snapshot_time = Local::now();
-                    let memtrackers = read_memtrackers( &host, &port);
+                    let memtrackers = read_memtrackers( host, port);
                     tx.send((format!("{}:{}", host, port), detail_snapshot_time, memtrackers)).expect("error sending data via tx (memtrackers)");
                 });
             }
@@ -156,7 +157,7 @@ pub fn print_memtrackers_data(
     stat_name_filter: &Regex
 ) {
     info!("print_memtrackers");
-    let stored_memtrackers: Vec<StoredMemTrackers> = read_memtrackers_snapshot(&snapshot_number, yb_stats_directory);
+    let stored_memtrackers: Vec<StoredMemTrackers> = read_memtrackers_snapshot(snapshot_number, yb_stats_directory);
     let mut previous_hostname_port = String::from("");
     for row in stored_memtrackers {
         if hostname_filter.is_match(&row.hostname_port)
@@ -180,12 +181,13 @@ pub fn print_memtrackers_data(
 }
 
 #[allow(dead_code)]
+#[allow(clippy::ptr_arg)]
 fn read_memtrackers_snapshot(
     snapshot_number: &String,
     yb_stats_directory: &PathBuf
 ) -> Vec<StoredMemTrackers> {
     let mut stored_memtrackers: Vec<StoredMemTrackers> = Vec::new();
-    let memtrackers_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("memtrackers");
+    let memtrackers_file = &yb_stats_directory.join(snapshot_number).join("memtrackers");
     let file = fs::File::open(&memtrackers_file)
         .unwrap_or_else(|e| {
             error!("Fatal: error reading file: {}: {}", &memtrackers_file.clone().into_os_string().into_string().unwrap(), e);

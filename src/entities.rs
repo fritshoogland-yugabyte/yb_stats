@@ -109,7 +109,7 @@ fn parse_entities( entities_data: String, host: &str, port: &str ) -> Entities {
     serde_json::from_str(&entities_data )
         .unwrap_or_else(|e| {
             info!("({}:{}) could not parse /dump-entities json data for entities, error: {}", host, port, e);
-            return Entities { keyspaces: Vec::<Keyspaces>::new(), tables: Vec::<Tables>::new(), tablets: Vec::<Tablets>::new() };
+            Entities { keyspaces: Vec::<Keyspaces>::new(), tables: Vec::<Tables>::new(), tablets: Vec::<Tablets>::new() }
         })
 }
 
@@ -131,7 +131,7 @@ fn read_entities_into_vectors(
                 let tx = tx.clone();
                 s.spawn(move |_| {
                     let detail_snapshot_time = Local::now();
-                    let entities = read_entities(&host, &port);
+                    let entities = read_entities(host, port);
                     tx.send((format!("{}:{}", host, port), detail_snapshot_time, entities)).expect("error sending data via tx (entities)");
                 });
             }
@@ -231,6 +231,7 @@ pub fn add_to_entity_vectors(
 }
 
 #[allow(dead_code)]
+#[allow(clippy::ptr_arg)]
 pub fn perform_entities_snapshot(
     hosts: &Vec<&str>,
     ports: &Vec<&str>,
@@ -239,7 +240,7 @@ pub fn perform_entities_snapshot(
     parallel: usize,
 ) {
     info!("perform_entities_snapshot");
-    let (stored_tables, stored_tablets, stored_replicas) = read_entities_into_vectors(&hosts, &ports, parallel);
+    let (stored_tables, stored_tablets, stored_replicas) = read_entities_into_vectors(hosts, ports, parallel);
 
     let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
     let tables_file = &current_snapshot_directory.join("tables");
@@ -288,13 +289,14 @@ pub fn perform_entities_snapshot(
     writer.flush().unwrap();
 }
 
+#[allow(clippy::ptr_arg)]
 pub fn read_tables_snapshot(
     snapshot_number: &String,
     yb_stats_directory: &PathBuf,
 ) -> Vec<StoredTables>
 {
     let mut stored_tables: Vec<StoredTables> = Vec::new();
-    let tables_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("tables");
+    let tables_file = &yb_stats_directory.join(snapshot_number).join("tables");
     let file = fs::File::open( &tables_file )
     .unwrap_or_else(|e| {
         error!("Fatal: error reading file: {}: {}", &tables_file.clone().into_os_string().into_string().unwrap(), e);
@@ -308,13 +310,14 @@ pub fn read_tables_snapshot(
     stored_tables
 }
 
+#[allow(clippy::ptr_arg)]
 pub fn read_tablets_snapshot(
     snapshot_number: &String,
     yb_stats_directory: &PathBuf,
 ) -> Vec<StoredTablets>
 {
     let mut stored_tablets: Vec<StoredTablets> = Vec::new();
-    let tablets_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("tablets");
+    let tablets_file = &yb_stats_directory.join(snapshot_number).join("tablets");
     let file = fs::File::open( &tablets_file )
     .unwrap_or_else(|e| {
         error!("Fatal: error reading file: {}: {}", &tablets_file.clone().into_os_string().into_string().unwrap(), e);
@@ -328,13 +331,14 @@ pub fn read_tablets_snapshot(
     stored_tablets
 }
 
+#[allow(clippy::ptr_arg)]
 pub fn read_replicas_snapshot(
     snapshot_number: &String,
     yb_stats_directory: &PathBuf,
 ) -> Vec<StoredReplicas>
 {
     let mut stored_replicas: Vec<StoredReplicas> = Vec::new();
-    let replicas_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("replicas");
+    let replicas_file = &yb_stats_directory.join(snapshot_number).join("replicas");
     let file = fs::File::open( &replicas_file )
     .unwrap_or_else(|e| {
         error!("Fatal: error reading file: {}: {}", &replicas_file.clone().into_os_string().into_string().unwrap(), e);
@@ -355,9 +359,9 @@ pub fn print_entities(
     table_name_filter: &Regex,
 ) {
     info!("print_entities");
-    let stored_tables: Vec<StoredTables>  = read_tables_snapshot(&snapshot_number, yb_stats_directory);
-    let stored_tablets: Vec<StoredTablets> = read_tablets_snapshot(&snapshot_number, yb_stats_directory);
-    let stored_replicas: Vec<StoredReplicas> = read_replicas_snapshot(&snapshot_number, yb_stats_directory);
+    let stored_tables: Vec<StoredTables>  = read_tables_snapshot(snapshot_number, yb_stats_directory);
+    let stored_tablets: Vec<StoredTablets> = read_tablets_snapshot(snapshot_number, yb_stats_directory);
+    let stored_replicas: Vec<StoredReplicas> = read_replicas_snapshot(snapshot_number, yb_stats_directory);
 
     let mut tables_btreemap: BTreeMap<(String, String, String, String, String), StoredTables> = BTreeMap::new();
     for row in stored_tables {

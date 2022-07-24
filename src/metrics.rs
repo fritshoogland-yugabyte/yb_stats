@@ -10,6 +10,7 @@ use std::env;
 use substring::Substring;
 use rayon;
 use std::sync::mpsc::channel;
+//use itertools::Itertools;
 use log::*;
 
 //mod value_statistic_details;
@@ -190,7 +191,7 @@ pub fn read_metrics_into_vectors(
                 let tx = tx.clone();
                 s.spawn(move |_| {
                     let detail_snapshot_time = Local::now();
-                    let metrics = read_metrics(&host, &port);
+                    let metrics = read_metrics(host, port);
                     tx.send((format!("{}:{}", host, port), detail_snapshot_time, metrics)).expect("error sending data via tx (metrics)");
                 });
             }
@@ -206,6 +207,7 @@ pub fn read_metrics_into_vectors(
 }
 
 #[allow(dead_code)]
+#[allow(clippy::ptr_arg)]
 pub fn perform_metrics_snapshot(
     hosts: &Vec<&str>,
     ports: &Vec<&str>,
@@ -214,7 +216,7 @@ pub fn perform_metrics_snapshot(
     parallel: usize,
 ) {
     info!("perform_metrics_snapshot");
-    let (stored_values, stored_countsum, stored_countsumrows) = read_metrics_into_vectors(&hosts, &ports, parallel);
+    let (stored_values, stored_countsum, stored_countsumrows) = read_metrics_into_vectors(hosts, ports, parallel);
 
     let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
     let values_file = &current_snapshot_directory.join("values");
@@ -359,7 +361,7 @@ fn parse_metrics( metrics_data: String, host: &str, port: &str ) -> Vec<Metrics>
     serde_json::from_str(&metrics_data )
         .unwrap_or_else(|e| {
             info!("({}:{}) error parsing /metrics json data for metrics, error: {}", host, port, e);
-            return Vec::<Metrics>::new();
+            Vec::<Metrics>::new()
         })
 }
 
@@ -388,7 +390,7 @@ fn build_metrics_values_btreemap(
         if row.metric_type == "table" || row.metric_type == "tablet" || row.metric_type == "cdc" {
             match values_btreemap.get_mut(&(row.hostname_port.clone(), row.metric_type.clone(), row.metric_id.clone(), row.metric_name.clone())) {
                 Some(_value_row) => {
-                    panic!("Error: (values_btreemap) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port.clone(), &row.metric_type.clone(), &row.metric_id.clone(), &row.metric_name.clone());
+                    panic!("Error: (values_btreemap) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port, &row.metric_type.clone(), &row.metric_id.clone(), &row.metric_name.clone());
                 },
                 None => {
                     values_btreemap.insert((
@@ -411,7 +413,7 @@ fn build_metrics_values_btreemap(
         } else {
             match values_btreemap.get_mut( &( row.hostname_port.clone(), row.metric_type.clone(), String::from("-"), row.metric_name.clone()) ) {
                 Some( _value_row ) => {
-                    panic!("Error: (values_btreemap) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port.clone(), &row.metric_type.clone(), String::from("-"), &row.metric_name.clone());
+                    panic!("Error: (values_btreemap) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port, &row.metric_type.clone(), String::from("-"), &row.metric_name);
                 },
                 None => {
                     values_btreemap.insert((
@@ -445,7 +447,7 @@ fn build_metrics_countsum_btreemap(
         if row.metric_type == "table" || row.metric_type == "tablet" || row.metric_type == "cdc" {
             match countsum_btreemap.get_mut(&(row.hostname_port.clone(), row.metric_type.clone(), row.metric_id.clone(), row.metric_name.clone())) {
                 Some(_countsum_row) => {
-                    panic!("Error: (countsum_btreemap) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port.clone(), &row.metric_type.clone(), &row.metric_id.clone(), &row.metric_name.clone());
+                    panic!("Error: (countsum_btreemap) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port, &row.metric_type, &row.metric_id, &row.metric_name);
                 },
                 None => {
                     countsum_btreemap.insert((
@@ -477,7 +479,7 @@ fn build_metrics_countsum_btreemap(
         } else {
             match countsum_btreemap.get_mut( &( row.hostname_port.clone(), row.metric_type.clone(), String::from("-"), row.metric_name.clone()) ) {
                 Some( _countsum_row ) => {
-                    panic!("Error: (countsum_btreemap) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port.clone(), &row.metric_type.clone(), &row.metric_id.clone(), &row.metric_name.clone());
+                    panic!("Error: (countsum_btreemap) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port, &row.metric_type, &row.metric_id, &row.metric_name);
                 },
                 None => {
                     countsum_btreemap.insert((
@@ -519,7 +521,7 @@ fn build_metrics_countsumrows_btreemap(
     for row in stored_countsumrows {
         match countsumrows_btreemap.get_mut( &( row.hostname_port.clone(), row.metric_type.clone(), row.metric_id.clone(), row.metric_name.clone())  ) {
             Some( _countsumrows_summary_row ) => {
-                panic!("Error: (countsumrows_btreemap) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port.clone(), &row.metric_type.clone(), &row.metric_id.clone(), &row.metric_name.clone());
+                panic!("Error: (countsumrows_btreemap) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port, &row.metric_type, &row.metric_id, &row.metric_name);
             },
             None => {
                 countsumrows_btreemap.insert( (
@@ -545,13 +547,14 @@ fn build_metrics_countsumrows_btreemap(
     countsumrows_btreemap
 }
 
+#[allow(clippy::ptr_arg)]
 pub fn read_values_snapshot(
     snapshot_number: &String,
     yb_stats_directory: &PathBuf,
 ) -> Vec<StoredValues>
 {
     let mut stored_values: Vec<StoredValues> = Vec::new();
-    let values_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("values");
+    let values_file = &yb_stats_directory.join(snapshot_number).join("values");
     let file = fs::File::open(&values_file)
         .unwrap_or_else(|e| {
             error!("Fatal: error reading file: {}: {}", &values_file.clone().into_os_string().into_string().unwrap(), e);
@@ -565,13 +568,14 @@ pub fn read_values_snapshot(
     stored_values
 }
 
+#[allow(clippy::ptr_arg)]
 pub fn read_countsum_snapshot(
     snapshot_number: &String,
     yb_stats_directory: &PathBuf,
 ) -> Vec<StoredCountSum>
 {
     let mut stored_countsum: Vec<StoredCountSum> = Vec::new();
-    let countsum_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("countsum");
+    let countsum_file = &yb_stats_directory.join(snapshot_number).join("countsum");
     let file = fs::File::open(&countsum_file)
         .unwrap_or_else(|e| {
             error!("Fatal: error reading file: {}: {}", &countsum_file.clone().into_os_string().into_string().unwrap(), e);
@@ -585,13 +589,14 @@ pub fn read_countsum_snapshot(
     stored_countsum
 }
 
+#[allow(clippy::ptr_arg)]
 pub fn read_countsumrows_snapshot(
     snapshot_number: &String,
     yb_stats_directory: &PathBuf,
 ) -> Vec<StoredCountSumRows>
 {
     let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
-    let countsumrows_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("countsumrows");
+    let countsumrows_file = &yb_stats_directory.join(snapshot_number).join("countsumrows");
     let file = fs::File::open(&countsumrows_file)
         .unwrap_or_else(|e| {
             error!("Fatal: error reading file: {}: {}", &countsumrows_file.clone().into_os_string().into_string().unwrap(), e);
@@ -680,19 +685,19 @@ pub fn print_metrics_diff_for_snapshots(
     let current_directory = env::current_dir().unwrap();
     let yb_stats_directory = current_directory.join("yb_stats.snapshots");
 
-    let stored_values: Vec<StoredValues> = read_values_snapshot(&begin_snapshot, &yb_stats_directory);
-    let stored_countsum: Vec<StoredCountSum> = read_countsum_snapshot(&begin_snapshot, &yb_stats_directory);
-    let stored_countsumrows: Vec<StoredCountSumRows> = read_countsumrows_snapshot(&begin_snapshot, &yb_stats_directory);
+    let stored_values: Vec<StoredValues> = read_values_snapshot(begin_snapshot, &yb_stats_directory);
+    let stored_countsum: Vec<StoredCountSum> = read_countsum_snapshot(begin_snapshot, &yb_stats_directory);
+    let stored_countsumrows: Vec<StoredCountSumRows> = read_countsumrows_snapshot(begin_snapshot, &yb_stats_directory);
     let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps(stored_values, stored_countsum, stored_countsumrows);
     let (mut values_diff, mut countsum_diff, mut countsumrows_diff) = insert_first_snapshot_metrics(values_map, countsum_map, countsumrows_map);
 
-    let stored_values: Vec<StoredValues> = read_values_snapshot(&end_snapshot, &yb_stats_directory);
-    let stored_countsum: Vec<StoredCountSum> = read_countsum_snapshot(&end_snapshot, &yb_stats_directory);
-    let stored_countsumrows: Vec<StoredCountSumRows> = read_countsumrows_snapshot(&end_snapshot, &yb_stats_directory);
+    let stored_values: Vec<StoredValues> = read_values_snapshot(end_snapshot, &yb_stats_directory);
+    let stored_countsum: Vec<StoredCountSum> = read_countsum_snapshot(end_snapshot, &yb_stats_directory);
+    let stored_countsumrows: Vec<StoredCountSumRows> = read_countsumrows_snapshot(end_snapshot, &yb_stats_directory);
     let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps(stored_values, stored_countsum, stored_countsumrows);
-    insert_second_snapshot_metrics(values_map, &mut values_diff, countsum_map, &mut countsum_diff, countsumrows_map, &mut countsumrows_diff, &begin_snapshot_timestamp);
+    insert_second_snapshot_metrics(values_map, &mut values_diff, countsum_map, &mut countsum_diff, countsumrows_map, &mut countsumrows_diff, begin_snapshot_timestamp);
 
-    print_diff_metrics(&values_diff, &countsum_diff, &countsumrows_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
+    print_diff_metrics(&values_diff, &countsum_diff, &countsumrows_diff, hostname_filter, stat_name_filter, table_name_filter, details_enable, gauges_enable);
 }
 
 pub fn insert_second_snapshot_metrics(
@@ -821,64 +826,63 @@ pub fn print_diff_metrics(
         // value_diff
         let value_statistic_details_lookup = value_create_hashmap();
         for ((hostname, metric_type, metric_id, metric_name), value_diff_row) in value_diff {
-            if value_diff_row.second_snapshot_value > 0 {
-                if hostname_filter.is_match(&hostname)
-                    && stat_name_filter.is_match(&metric_name)
-                    && table_name_filter.is_match(&value_diff_row.table_name) {
-                    let details = match value_statistic_details_lookup.get(&metric_name.to_string()) {
-                        Some(x) => { ValueStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), stat_type: x.stat_type.to_string() } },
-                        None => { ValueStatisticDetails { unit: String::from("?"), unit_suffix: String::from("?"), stat_type: String::from("?") } }
-                    };
-                    let adaptive_length = if metric_id.len() < 15 { 0 } else { metric_id.len() - 15 };
-                    if details.stat_type != "gauge"
-                        && value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value != 0 {
-                        if *details_enable {
-                            println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:6} {:>15.3} /s",
-                                     hostname,
-                                     metric_type,
-                                     metric_id.substring(adaptive_length, metric_id.len()),
-                                     value_diff_row.namespace,
-                                     value_diff_row.table_name,
-                                     metric_name,
-                                     value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value,
-                                     details.unit_suffix,
-                                     ((value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value) as f64 / (value_diff_row.second_snapshot_time - value_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64)
-                            );
-                        } else {
-                            println!("{:20} {:8} {:70} {:15} {:6} {:>15.3} /s",
-                                     hostname,
-                                     metric_type,
-                                     metric_name,
-                                     value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value,
-                                     details.unit_suffix,
-                                     ((value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value) as f64 / (value_diff_row.second_snapshot_time - value_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64)
-                            );
-                        }
+            if value_diff_row.second_snapshot_value > 0
+                && hostname_filter.is_match(hostname)
+                && stat_name_filter.is_match(metric_name)
+                && table_name_filter.is_match(&value_diff_row.table_name) {
+                let details = match value_statistic_details_lookup.get(metric_name) {
+                    Some(x) => { ValueStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), stat_type: x.stat_type.to_string() } },
+                    None => { ValueStatisticDetails { unit: String::from("?"), unit_suffix: String::from("?"), stat_type: String::from("?") } }
+                };
+                let adaptive_length = if metric_id.len() < 15 { 0 } else { metric_id.len() - 15 };
+                if details.stat_type != "gauge"
+                    && value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value != 0 {
+                    if *details_enable {
+                        println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:6} {:>15.3} /s",
+                                 hostname,
+                                 metric_type,
+                                 metric_id.substring(adaptive_length, metric_id.len()),
+                                 value_diff_row.namespace,
+                                 value_diff_row.table_name,
+                                 metric_name,
+                                 value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value,
+                                 details.unit_suffix,
+                                 ((value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value) as f64 / (value_diff_row.second_snapshot_time - value_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000_f64)
+                        );
+                    } else {
+                        println!("{:20} {:8} {:70} {:15} {:6} {:>15.3} /s",
+                                 hostname,
+                                 metric_type,
+                                 metric_name,
+                                 value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value,
+                                 details.unit_suffix,
+                                 ((value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value) as f64 / (value_diff_row.second_snapshot_time - value_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000_f64)
+                        );
                     }
-                    if details.stat_type == "gauge"
-                        && *gauges_enable {
-                        if *details_enable {
-                            println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:6} {:+15}",
-                                     hostname,
-                                     metric_type,
-                                     metric_id.substring(adaptive_length, metric_id.len()),
-                                     value_diff_row.namespace,
-                                     value_diff_row.table_name,
-                                     metric_name,
-                                     value_diff_row.second_snapshot_value,
-                                     details.unit_suffix,
-                                     value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value
-                            );
-                        } else {
-                            println!("{:20} {:8} {:70} {:15} {:6} {:+15}",
-                                     hostname,
-                                     metric_type,
-                                     metric_name,
-                                     value_diff_row.second_snapshot_value,
-                                     details.unit_suffix,
-                                     value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value
-                            );
-                        }
+                }
+                if details.stat_type == "gauge"
+                    && *gauges_enable {
+                    if *details_enable {
+                        println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15} {:6} {:+15}",
+                                 hostname,
+                                 metric_type,
+                                 metric_id.substring(adaptive_length, metric_id.len()),
+                                 value_diff_row.namespace,
+                                 value_diff_row.table_name,
+                                 metric_name,
+                                 value_diff_row.second_snapshot_value,
+                                 details.unit_suffix,
+                                 value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value
+                        );
+                    } else {
+                        println!("{:20} {:8} {:70} {:15} {:6} {:+15}",
+                                 hostname,
+                                 metric_type,
+                                 metric_name,
+                                 value_diff_row.second_snapshot_value,
+                                 details.unit_suffix,
+                                 value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value
+                        );
                     }
                 }
             }
@@ -886,42 +890,41 @@ pub fn print_diff_metrics(
         // countsum_diff
         let countsum_statistic_details_lookup = countsum_create_hashmap();
         for ((hostname, metric_type, metric_id, metric_name), countsum_diff_row) in countsum_diff {
-            if countsum_diff_row.second_snapshot_total_count > 0 {
-                if hostname_filter.is_match(&hostname)
-                    && stat_name_filter.is_match(&metric_name)
-                    && table_name_filter.is_match(&countsum_diff_row.table_name) {
-                    let details = match countsum_statistic_details_lookup.get(&metric_name.to_string()) {
-                        Some(x) => { CountSumStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), divisor: x.divisor, stat_type: x.stat_type.to_string() } },
-                        None => { CountSumStatisticDetails { unit: String::from("?"), unit_suffix: String::from("?"), divisor: 0, stat_type: String::from("?") } }
-                    };
-                    let adaptive_length = if metric_id.len() < 15 { 0 } else { metric_id.len() - 15 };
-                    if countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count != 0 {
-                        if *details_enable {
-                            println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15}        {:>15.3} /s avg: {:9.0} tot: {:>15.3} {:10}",
-                                     hostname,
-                                     metric_type,
-                                     metric_id.substring(adaptive_length, metric_id.len()),
-                                     countsum_diff_row.namespace,
-                                     countsum_diff_row.table_name,
-                                     metric_name,
-                                     countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count,
-                                     (countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count) as f64 / (countsum_diff_row.second_snapshot_time - countsum_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64,
-                                     ((countsum_diff_row.second_snapshot_total_sum - countsum_diff_row.first_snapshot_total_sum) / (countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count)) as f64,
-                                     countsum_diff_row.second_snapshot_total_sum - countsum_diff_row.first_snapshot_total_sum,
-                                     details.unit_suffix
-                            );
-                        } else {
-                            println!("{:20} {:8} {:70} {:15}        {:>15.3} /s avg: {:9.0} tot: {:>15.3} {:10}",
-                                     hostname,
-                                     metric_type,
-                                     metric_name,
-                                     countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count,
-                                     (countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count) as f64 / (countsum_diff_row.second_snapshot_time - countsum_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64,
-                                     ((countsum_diff_row.second_snapshot_total_sum - countsum_diff_row.first_snapshot_total_sum) / (countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count)) as f64,
-                                     countsum_diff_row.second_snapshot_total_sum - countsum_diff_row.first_snapshot_total_sum,
-                                     details.unit_suffix
-                            );
-                        }
+            if countsum_diff_row.second_snapshot_total_count > 0
+                && hostname_filter.is_match(hostname)
+                && stat_name_filter.is_match(metric_name)
+                && table_name_filter.is_match(&countsum_diff_row.table_name) {
+                let details = match countsum_statistic_details_lookup.get(metric_name) {
+                    Some(x) => { CountSumStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), divisor: x.divisor, stat_type: x.stat_type.to_string() } },
+                    None => { CountSumStatisticDetails { unit: String::from("?"), unit_suffix: String::from("?"), divisor: 0, stat_type: String::from("?") } }
+                };
+                let adaptive_length = if metric_id.len() < 15 { 0 } else { metric_id.len() - 15 };
+                if countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count != 0 {
+                    if *details_enable {
+                        println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15}        {:>15.3} /s avg: {:9.0} tot: {:>15.3} {:10}",
+                                 hostname,
+                                 metric_type,
+                                 metric_id.substring(adaptive_length, metric_id.len()),
+                                 countsum_diff_row.namespace,
+                                 countsum_diff_row.table_name,
+                                 metric_name,
+                                 countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count,
+                                 (countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count) as f64 / (countsum_diff_row.second_snapshot_time - countsum_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000_f64,
+                                 ((countsum_diff_row.second_snapshot_total_sum - countsum_diff_row.first_snapshot_total_sum) / (countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count)) as f64,
+                                 countsum_diff_row.second_snapshot_total_sum - countsum_diff_row.first_snapshot_total_sum,
+                                 details.unit_suffix
+                        );
+                    } else {
+                        println!("{:20} {:8} {:70} {:15}        {:>15.3} /s avg: {:9.0} tot: {:>15.3} {:10}",
+                                 hostname,
+                                 metric_type,
+                                 metric_name,
+                                 countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count,
+                                 (countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count) as f64 / (countsum_diff_row.second_snapshot_time - countsum_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000_f64,
+                                 ((countsum_diff_row.second_snapshot_total_sum - countsum_diff_row.first_snapshot_total_sum) / (countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count)) as f64,
+                                 countsum_diff_row.second_snapshot_total_sum - countsum_diff_row.first_snapshot_total_sum,
+                                 details.unit_suffix
+                        );
                     }
                 }
             }
@@ -1008,7 +1011,7 @@ pub fn print_diff_metrics(
                                  metric_name,
                                  value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value,
                                  details.unit_suffix,
-                                 ((value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value) as f64 / (value_diff_row.second_snapshot_time - value_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64)
+                                 ((value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value) as f64 / (value_diff_row.second_snapshot_time - value_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000_f64)
                         );
                     } else {
                         println!("{:20} {:8} {:70} {:15} {:6} {:>15.3} /s",
@@ -1017,7 +1020,7 @@ pub fn print_diff_metrics(
                                  metric_name,
                                  value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value,
                                  details.unit_suffix,
-                                 ((value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value) as f64 / (value_diff_row.second_snapshot_time - value_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64)
+                                 ((value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value) as f64 / (value_diff_row.second_snapshot_time - value_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000_f64)
                         );
                     }
                 }
@@ -1154,7 +1157,7 @@ pub fn print_diff_metrics(
                                  countsum_diff_row.table_name,
                                  metric_name,
                                  countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count,
-                                 (countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count) as f64 / (countsum_diff_row.second_snapshot_time - countsum_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64,
+                                 (countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count) as f64 / (countsum_diff_row.second_snapshot_time - countsum_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000_f64,
                                  ((countsum_diff_row.second_snapshot_total_sum - countsum_diff_row.first_snapshot_total_sum) / (countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count)) as f64,
                                  countsum_diff_row.second_snapshot_total_sum - countsum_diff_row.first_snapshot_total_sum,
                                  details.unit_suffix
@@ -1165,7 +1168,7 @@ pub fn print_diff_metrics(
                                  metric_type,
                                  metric_name,
                                  countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count,
-                                 (countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count) as f64 / (countsum_diff_row.second_snapshot_time - countsum_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000 as f64,
+                                 (countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count) as f64 / (countsum_diff_row.second_snapshot_time - countsum_diff_row.first_snapshot_time).num_milliseconds() as f64 * 1000_f64,
                                  ((countsum_diff_row.second_snapshot_total_sum - countsum_diff_row.first_snapshot_total_sum) / (countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count)) as f64,
                                  countsum_diff_row.second_snapshot_total_sum - countsum_diff_row.first_snapshot_total_sum,
                                  details.unit_suffix
@@ -1177,19 +1180,18 @@ pub fn print_diff_metrics(
     }
     // countsumrows_diff
     for ((hostname, _metric_type, _metric_id, metric_name), countsumrows_diff_row) in countsumrows_diff {
-        if hostname_filter.is_match( &hostname)
-            && stat_name_filter.is_match(&metric_name) {
-            if countsumrows_diff_row.second_snapshot_count - countsumrows_diff_row.first_snapshot_count != 0 {
-                println!("{:20} {:70} {:>15} avg: {:>15.3} tot: {:>15.3} ms, avg: {:>15} tot: {:>15} rows",
-                         hostname,
-                         metric_name,
-                         countsumrows_diff_row.second_snapshot_count - countsumrows_diff_row.first_snapshot_count,
-                         ((countsumrows_diff_row.second_snapshot_sum as f64 - countsumrows_diff_row.first_snapshot_sum as f64)/1000.0) / (countsumrows_diff_row.second_snapshot_count - countsumrows_diff_row.first_snapshot_count) as f64,
-                         (countsumrows_diff_row.second_snapshot_sum as f64 - countsumrows_diff_row.first_snapshot_sum as f64)/1000.0,
-                         (countsumrows_diff_row.second_snapshot_rows - countsumrows_diff_row.first_snapshot_rows) / (countsumrows_diff_row.second_snapshot_count - countsumrows_diff_row.first_snapshot_count),
-                         countsumrows_diff_row.second_snapshot_rows - countsumrows_diff_row.first_snapshot_rows
-                );
-            }
+        if hostname_filter.is_match(hostname)
+            && stat_name_filter.is_match(metric_name)
+            && countsumrows_diff_row.second_snapshot_count - countsumrows_diff_row.first_snapshot_count != 0 {
+            println!("{:20} {:70} {:>15} avg: {:>15.3} tot: {:>15.3} ms, avg: {:>15} tot: {:>15} rows",
+                     hostname,
+                     metric_name,
+                     countsumrows_diff_row.second_snapshot_count - countsumrows_diff_row.first_snapshot_count,
+                     ((countsumrows_diff_row.second_snapshot_sum as f64 - countsumrows_diff_row.first_snapshot_sum as f64) / 1000.0) / (countsumrows_diff_row.second_snapshot_count - countsumrows_diff_row.first_snapshot_count) as f64,
+                     (countsumrows_diff_row.second_snapshot_sum as f64 - countsumrows_diff_row.first_snapshot_sum as f64) / 1000.0,
+                     (countsumrows_diff_row.second_snapshot_rows - countsumrows_diff_row.first_snapshot_rows) / (countsumrows_diff_row.second_snapshot_count - countsumrows_diff_row.first_snapshot_count),
+                     countsumrows_diff_row.second_snapshot_rows - countsumrows_diff_row.first_snapshot_rows
+            );
         }
     }
 }
@@ -1203,7 +1205,7 @@ pub fn get_metrics_into_diff_first_snapshot(
     BTreeMap<(String, String, String, String), SnapshotDiffCountSum>,
     BTreeMap<(String, String, String, String), SnapshotDiffCountSumRows>
 ) {
-    let (stored_values, stored_countsum, stored_countsumrows) = read_metrics_into_vectors(&hosts, &ports, parallel);
+    let (stored_values, stored_countsum, stored_countsumrows) = read_metrics_into_vectors(hosts, ports, parallel);
     let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps( stored_values, stored_countsum, stored_countsumrows);
     let (values_diff, countsum_diff, countsumrows_diff) = insert_first_snapshot_metrics(values_map, countsum_map, countsumrows_map);
     (values_diff, countsum_diff, countsumrows_diff)
@@ -1218,9 +1220,9 @@ pub fn get_metrics_into_diff_second_snapshot(
     first_snapshot_time: &DateTime<Local>,
     parallel: usize,
 ) {
-    let (stored_values, stored_countsum, stored_countsumrows) = read_metrics_into_vectors(&hosts, &ports, parallel);
+    let (stored_values, stored_countsum, stored_countsumrows) = read_metrics_into_vectors(hosts, ports, parallel);
     let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps( stored_values, stored_countsum, stored_countsumrows);
-    insert_second_snapshot_metrics(values_map, values_diff, countsum_map, countsum_diff, countsumrows_map, countsumrows_diff, &first_snapshot_time);
+    insert_second_snapshot_metrics(values_map, values_diff, countsum_map, countsum_diff, countsumrows_map, countsumrows_diff, first_snapshot_time);
 }
 
 #[cfg(test)]

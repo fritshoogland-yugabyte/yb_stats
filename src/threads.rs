@@ -5,7 +5,7 @@ use std::fs;
 use std::process;
 use serde_derive::{Serialize,Deserialize};
 use regex::Regex;
-use rayon;
+//use rayon;
 use std::sync::mpsc::channel;
 use scraper::{ElementRef, Html, Selector};
 use log::*;
@@ -31,6 +31,7 @@ pub struct StoredThreads {
 }
 
 #[allow(dead_code)]
+#[allow(clippy::ptr_arg)]
 pub fn perform_threads_snapshot(
     hosts: &Vec<&str>,
     ports: &Vec<&str>,
@@ -48,7 +49,7 @@ pub fn perform_threads_snapshot(
                 let tx = tx.clone();
                 s.spawn(move |_| {
                     let detail_snapshot_time = Local::now();
-                    let threads = read_threads(&host, &port);
+                    let threads = read_threads(host, port);
                     tx.send((format!("{}:{}", host, port), detail_snapshot_time, threads)).expect("error sending data via tx (threads)");
                 });
             }
@@ -131,7 +132,8 @@ fn parse_threads(
             st.reverse();
             let mut final_stack = String::from("");
             for function in &st {
-                final_stack.push_str(&function );
+                final_stack.push_str(function );
+                #[allow(clippy::single_char_add_str)]
                 final_stack.push_str(";");
             }
             final_stack.pop();
@@ -171,7 +173,7 @@ pub fn print_threads_data(
     hostname_filter: &Regex
 ) {
     info!("print_threads");
-    let stored_threads: Vec<StoredThreads> = read_threads_snapshot(&snapshot_number, yb_stats_directory);
+    let stored_threads: Vec<StoredThreads> = read_threads_snapshot(snapshot_number, yb_stats_directory);
     let mut previous_hostname_port = String::from("");
     for row in stored_threads {
         if hostname_filter.is_match(&row.hostname_port) {
@@ -189,18 +191,19 @@ pub fn print_threads_data(
                 println!("--------------------------------------------------------------------------------------------------------------------------------------");
                 previous_hostname_port = row.hostname_port.to_string();
             };
-            println!("{:20} {:30} {:>20} {:>20} {:>20} {:50}", row.hostname_port, row.thread_name, row.cumulative_user_cpu_s, row.cumulative_kernel_cpu_s, row.cumulative_iowait_cpu_s, row.stack.replace("\n", ""));
+            println!("{:20} {:30} {:>20} {:>20} {:>20} {:50}", row.hostname_port, row.thread_name, row.cumulative_user_cpu_s, row.cumulative_kernel_cpu_s, row.cumulative_iowait_cpu_s, row.stack.replace('\n', ""));
         }
     }
 }
 
 #[allow(dead_code)]
+#[allow(clippy::ptr_arg)]
 fn read_threads_snapshot(
     snapshot_number: &String,
     yb_stats_directory: &PathBuf
 ) -> Vec<StoredThreads> {
     let mut stored_threads: Vec<StoredThreads> = Vec::new();
-    let threads_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("threads");
+    let threads_file = &yb_stats_directory.join(snapshot_number).join("threads");
     let file = fs::File::open(&threads_file)
         .unwrap_or_else(|e| {
             eprintln!("Fatal: error reading file: {}: {}", &threads_file.clone().into_os_string().into_string().unwrap(), e);

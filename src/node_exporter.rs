@@ -61,16 +61,18 @@ pub fn read_node_exporter(
 }
 
 fn parse_node_exporter( node_exporter_data: String ) -> Vec<NodeExporterValues> {
-    let lines: Vec<_> = node_exporter_data.lines().map(|s| Ok(s.to_owned())).collect();
-    let node_exporter_rows = prometheus_parse::Scrape::parse(lines.into_iter()).unwrap();
+    //let lines: Vec<_> = node_exporter_data.lines().map(|s| Ok(s.to_owned())).collect();
+    //let node_exporter_rows = prometheus_parse::Scrape::parse(lines.into_iter()).unwrap();
+    let node_exporter_rows = prometheus_parse::Scrape::parse(node_exporter_data.lines().map(|s| Ok(s.to_owned()))).unwrap();
+
     let mut nodeexportervalues = Vec::new();
 
-    if node_exporter_rows.samples.len() > 0 {
+    if !node_exporter_rows.samples.is_empty() {
         for sample in node_exporter_rows.samples {
             let mut label_temp = sample.labels.values().cloned().collect::<Vec<String>>();
             label_temp.sort();
             let mut label = label_temp.join("_");
-            label = if label.len() > 0 {
+            label = if !label.is_empty() {
                 format!("_{}", label)
             } else {
                 label
@@ -320,7 +322,7 @@ pub fn read_node_exporter_into_vectors(
                 let tx = tx.clone();
                 s.spawn(move |_| {
                     let detail_snapshot_time = Local::now();
-                    let node_exporter_values = read_node_exporter(&host, &port);
+                    let node_exporter_values = read_node_exporter(host, port);
                     tx.send((format!("{}:{}", host, port), detail_snapshot_time, node_exporter_values)).expect("error sending data via tx (node_exporter)");
                 });
             }
@@ -355,6 +357,7 @@ pub fn add_to_node_exporter_vectors(
     }
 }
 
+#[allow(clippy::ptr_arg)]
 pub fn perform_nodeexporter_snapshot(
     hosts: &Vec<&str>,
     ports: &Vec<&str>,
@@ -382,12 +385,13 @@ pub fn perform_nodeexporter_snapshot(
     writer.flush().unwrap();
 }
 
+#[allow(clippy::ptr_arg)]
 pub fn read_nodeexporter_snapshot(
     snapshot_number: &String,
     yb_stats_directory: &PathBuf,
 ) -> Vec<StoredNodeExporterValues> {
     let mut stored_nodeexporter: Vec<StoredNodeExporterValues> = Vec::new();
-    let nodeexporter_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("nodeexporter");
+    let nodeexporter_file = &yb_stats_directory.join(snapshot_number).join("nodeexporter");
     let file = fs::File::open(&nodeexporter_file)
         .unwrap_or_else(|e| {
             error!("Fatal: error reading file: {}: {}", &nodeexporter_file.clone().into_os_string().into_string().unwrap(), e);
@@ -407,7 +411,7 @@ pub fn insert_first_snapshot_nodeexporter(
     let mut nodeexporter_diff: BTreeMap<(String, String), SnapshotDiffNodeExporter> = BTreeMap::new();
     for row in stored_nodeexporter {
         nodeexporter_diff.insert(
-            (row.hostname_port.to_string(), format!("{}{}", row.node_exporter_name.to_string(), row.node_exporter_labels.to_string())),
+            (row.hostname_port.to_string(), format!("{}{}", row.node_exporter_name, row.node_exporter_labels)),
             SnapshotDiffNodeExporter {
                 first_snapshot_time: row.timestamp,
                 second_snapshot_time: row.timestamp,
@@ -427,7 +431,7 @@ pub fn insert_second_snapshot_nodeexporter(
     first_snapshot_time: &DateTime<Local>,
 ) {
     for row in stored_nodeexporter {
-        match nodeexporter_diff.get_mut( &(row.hostname_port.to_string(), format!("{}{}", row.node_exporter_name.to_string(), row.node_exporter_labels.to_string()) ) ) {
+        match nodeexporter_diff.get_mut( &(row.hostname_port.to_string(), format!("{}{}", row.node_exporter_name, row.node_exporter_labels) ) ) {
             Some( nodeexporter_diff_row ) => {
                *nodeexporter_diff_row = SnapshotDiffNodeExporter {
                    first_snapshot_time: nodeexporter_diff_row.first_snapshot_time,
@@ -440,7 +444,7 @@ pub fn insert_second_snapshot_nodeexporter(
             },
             None => {
                 nodeexporter_diff.insert(
-                    (row.hostname_port.to_string(), format!("{}{}", row.node_exporter_name.to_string(), row.node_exporter_labels.to_string()) ),
+                    (row.hostname_port.to_string(), format!("{}{}", row.node_exporter_name, row.node_exporter_labels) ),
                     SnapshotDiffNodeExporter {
                               first_snapshot_time: *first_snapshot_time,
                               second_snapshot_time: row.timestamp,
@@ -463,8 +467,8 @@ pub fn print_diff_nodeexporter(
     details_enable: &bool,
 ) {
     for ((hostname, nodeexporter_name), nodeexporter_row) in nodeexporter_diff {
-        if hostname_filter.is_match(&hostname)
-            && stat_name_filter.is_match(&nodeexporter_name)
+        if hostname_filter.is_match(hostname)
+            && stat_name_filter.is_match(nodeexporter_name)
             && nodeexporter_row.second_value - nodeexporter_row.first_value != 0.0
             && nodeexporter_row.node_exporter_type == "counter" {
             if *details_enable && nodeexporter_row.category == "summary" { continue };
@@ -477,8 +481,8 @@ pub fn print_diff_nodeexporter(
                      (nodeexporter_row.second_value - nodeexporter_row.first_value) / (nodeexporter_row.second_snapshot_time - nodeexporter_row.first_snapshot_time).num_seconds() as f64,
             );
         }
-        if hostname_filter.is_match(&hostname)
-            && stat_name_filter.is_match(&nodeexporter_name)
+        if hostname_filter.is_match(hostname)
+            && stat_name_filter.is_match(nodeexporter_name)
             && nodeexporter_row.node_exporter_type == "gauge"
             && *gauges_enable {
             if *details_enable && nodeexporter_row.category == "summary" { continue };
@@ -506,12 +510,12 @@ pub fn print_nodeexporter_diff_for_snapshots(
     let current_directory = env::current_dir().unwrap();
     let yb_stats_directory = current_directory.join("yb_stats.snapshots");
 
-    let stored_nodeexporter: Vec<StoredNodeExporterValues> = read_nodeexporter_snapshot(&begin_snapshot, &yb_stats_directory);
+    let stored_nodeexporter: Vec<StoredNodeExporterValues> = read_nodeexporter_snapshot(begin_snapshot, &yb_stats_directory);
     let mut nodeexporter_diff = insert_first_snapshot_nodeexporter(stored_nodeexporter);
-    let stored_nodeexporter: Vec<StoredNodeExporterValues> = read_nodeexporter_snapshot(&end_snapshot, &yb_stats_directory);
-    insert_second_snapshot_nodeexporter(stored_nodeexporter, &mut nodeexporter_diff, &begin_snapshot_timestamp);
+    let stored_nodeexporter: Vec<StoredNodeExporterValues> = read_nodeexporter_snapshot(end_snapshot, &yb_stats_directory);
+    insert_second_snapshot_nodeexporter(stored_nodeexporter, &mut nodeexporter_diff, begin_snapshot_timestamp);
 
-    print_diff_nodeexporter(&nodeexporter_diff, &hostname_filter, &stat_name_filter, &gauges_enable, &details_enable);
+    print_diff_nodeexporter(&nodeexporter_diff, hostname_filter, stat_name_filter, gauges_enable, details_enable);
 }
 
 pub fn get_nodeexporter_into_diff_first_snapshot(
@@ -519,9 +523,8 @@ pub fn get_nodeexporter_into_diff_first_snapshot(
     ports: &Vec<&str>,
     parallel: usize,
 ) -> BTreeMap<(String, String), SnapshotDiffNodeExporter> {
-    let stored_node_exporter = read_node_exporter_into_vectors(&hosts, &ports, parallel);
-    let node_exporter_diff = insert_first_snapshot_nodeexporter(stored_node_exporter);
-    node_exporter_diff
+    let stored_node_exporter = read_node_exporter_into_vectors(hosts, ports, parallel);
+    insert_first_snapshot_nodeexporter(stored_node_exporter)
 }
 
 pub fn get_nodeexpoter_into_diff_second_snapshot(
@@ -531,8 +534,8 @@ pub fn get_nodeexpoter_into_diff_second_snapshot(
     first_snapshot_time: &DateTime<Local>,
     parallel: usize,
 ) {
-    let stored_node_exporter = read_node_exporter_into_vectors(&hosts, &ports, parallel);
-    insert_second_snapshot_nodeexporter(stored_node_exporter, node_exporter_diff, &first_snapshot_time);
+    let stored_node_exporter = read_node_exporter_into_vectors(hosts, ports, parallel);
+    insert_second_snapshot_nodeexporter(stored_node_exporter, node_exporter_diff, first_snapshot_time);
 }
 
 #[cfg(test)]

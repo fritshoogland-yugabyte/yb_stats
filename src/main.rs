@@ -141,11 +141,11 @@ fn main() {
             },
         }
     } else {
-        info!("hosts set: using: {}", options.hosts.clone());
+        info!("hosts set: using: {}", options.hosts);
         changed_options.insert("YBSTATS_HOSTS", options.hosts.to_owned());
         options.hosts
     };
-    let hosts = hosts_string.split(",").collect();
+    let hosts = hosts_string.split(',').collect();
 
     let ports_string= if options.ports == DEFAULT_PORTS {
         match env::var("YBSTATS_PORTS") {
@@ -160,11 +160,11 @@ fn main() {
             },
         }
     } else {
-        info!("ports set: using: {}", options.ports.clone());
+        info!("ports set: using: {}", options.ports);
         changed_options.insert("YBSTATS_PORTS", options.ports.to_owned());
         options.ports
     };
-    let ports = ports_string.split(",").collect();
+    let ports = ports_string.split(',').collect();
 
     let parallel_string = if options.parallel == DEFAULT_PARALLEL {
         match env::var("YBSTATS_PARALLEL") {
@@ -179,7 +179,7 @@ fn main() {
             },
         }
     } else {
-        info!("parallel set: using: {}", options.parallel.clone());
+        info!("parallel set: using: {}", options.parallel);
         changed_options.insert("YBSTATS_PARALLEL", options.parallel.to_owned());
         options.parallel
     };
@@ -198,15 +198,15 @@ fn main() {
         None => String::from("")
     };
     let stat_name_filter = match options.stat_name_match {
-        Some(stat_name_match) => Regex::new( &stat_name_match.as_str() ).unwrap(),
+        Some(stat_name_match) => Regex::new( stat_name_match.as_str() ).unwrap(),
         None => Regex::new( ".*" ).unwrap()
     };
     let hostname_filter = match options.hostname_match {
-        Some(hostname_match) => Regex::new( &hostname_match.as_str() ).unwrap(),
+        Some(hostname_match) => Regex::new( hostname_match.as_str() ).unwrap(),
         None => Regex::new( ".*" ).unwrap()
     };
     let table_name_filter = match options.table_name_match {
-        Some(table_name_match) => Regex::new( &table_name_match.as_str() ).unwrap(),
+        Some(table_name_match) => Regex::new( table_name_match.as_str() ).unwrap(),
         None => Regex::new( ".*" ).unwrap()
     };
 
@@ -276,21 +276,21 @@ fn main() {
 
         println!("Begin metrics snapshot created, press enter to create end snapshot for difference calculation.");
         let mut input = String::new();
-        stdin().read_line(&mut input).ok().expect("failed");
+        stdin().read_line(&mut input).expect("failed");
 
         let second_snapshot_time = Local::now();
         get_metrics_into_diff_second_snapshot(&hosts, &ports, &mut values_diff, &mut countsum_diff, &mut countsumrows_diff, &first_snapshot_time, parallel);
         get_statements_into_diff_second_snapshot(&hosts, &ports, &mut statements_diff, &first_snapshot_time, parallel);
         get_nodeexpoter_into_diff_second_snapshot(&hosts, &ports, &mut node_exporter_diff, &first_snapshot_time, parallel);
 
-        println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time-first_snapshot_time).num_milliseconds() as f64/1000 as f64);
+        println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time-first_snapshot_time).num_milliseconds() as f64/1000_f64);
         print_diff_metrics(&values_diff, &countsum_diff, &countsumrows_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
         print_diff_statements(&statements_diff, &hostname_filter, sql_length);
         print_diff_nodeexporter(&node_exporter_diff, &hostname_filter, &stat_name_filter, &gauges_enable, &details_enable);
 
     }
 
-    if changed_options.len() > 0 && WRITE_DOTENV {
+    if !changed_options.is_empty() && WRITE_DOTENV {
             info!("Writing .env file");
             let mut file = fs::OpenOptions::new()
             .create(true)
@@ -302,7 +302,7 @@ fn main() {
                             process::exit(1);
                             });
             for (key, value) in changed_options {
-                file.write(format!("{}={}\n", key, value).as_bytes()).unwrap();
+                file.write_all(format!("{}={}\n", key, value).as_bytes()).unwrap();
                 info!("{}={}", key, value);
             }
             file.flush().unwrap();

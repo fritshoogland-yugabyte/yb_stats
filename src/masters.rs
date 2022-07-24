@@ -143,7 +143,7 @@ fn parse_masters(
     serde_json::from_str(&masters_data )
         .unwrap_or_else(|e| {
             info!("({}:{}) could not parse /api/v1/masters json data for masters, error: {}", host, port, e);
-            return AllMasters { masters: Vec::<Masters>::new() };
+            AllMasters { masters: Vec::<Masters>::new() }
         })
 }
 
@@ -166,7 +166,7 @@ fn read_masters_into_vectors(
                 let tx = tx.clone();
                 s.spawn(move |_| {
                     let detail_snapshot_time = Local::now();
-                    let masters = read_masters(&host, &port);
+                    let masters = read_masters(host, port);
                     tx.send((format!("{}:{}", host, port), detail_snapshot_time, masters)).expect("error sending data via tx (masters)");
                 });
             }
@@ -214,8 +214,8 @@ pub fn add_to_master_vectors(
             registration_cloud_placement_cloud: placement_cloud.to_string(),
             registration_cloud_placement_region: placement_region.to_string(),
             registration_cloud_placement_zone: placement_zone.to_string(),
-            registration_placement_uuid: master.registration.placement_uuid.unwrap_or("Unset".to_string()).to_string(),
-            role: master.role.unwrap_or("Unknown".to_string()).to_string(),
+            registration_placement_uuid: master.registration.placement_uuid.unwrap_or_else(|| "Unset".to_string()).to_string(),
+            role: master.role.unwrap_or_else(|| "Unknown".to_string()).to_string(),
         });
         match master.error {
             Some(error) => {
@@ -260,6 +260,7 @@ pub fn add_to_master_vectors(
 }
 
 #[allow(dead_code)]
+#[allow(clippy::ptr_arg)]
 pub fn perform_masters_snapshot(
     hosts: &Vec<&str>,
     ports: &Vec<&str>,
@@ -269,7 +270,7 @@ pub fn perform_masters_snapshot(
 ) {
     info!("perform_masters_snapshot");
 
-    let (stored_masters, stored_rpcaddresses, stored_httpaddresses, stored_mastererrors) = read_masters_into_vectors(&hosts, &ports, parallel);
+    let (stored_masters, stored_rpcaddresses, stored_httpaddresses, stored_mastererrors) = read_masters_into_vectors(hosts, ports, parallel);
 
     let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
     let masters_file = &current_snapshot_directory.join("masters");
@@ -334,13 +335,14 @@ pub fn perform_masters_snapshot(
 
 }
 
+#[allow(clippy::ptr_arg)]
 pub fn read_masters_snapshot(
     snapshot_number: &String,
     yb_stats_directory: &PathBuf,
 ) -> Vec<StoredMasters>
 {
     let mut stored_masters: Vec<StoredMasters> = Vec::new();
-    let masters_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("masters");
+    let masters_file = &yb_stats_directory.join(snapshot_number).join("masters");
     let file = fs::File::open( &masters_file )
     .unwrap_or_else(|e| {
         error!("Fatal: error reading file: {}: {}", &masters_file.clone().into_os_string().into_string().unwrap(), e);
@@ -354,13 +356,14 @@ pub fn read_masters_snapshot(
     stored_masters
 }
 
+#[allow(clippy::ptr_arg)]
 pub fn read_master_rpc_addresses_snapshot(
     snapshot_number: &String,
     yb_stats_directory: &PathBuf,
 ) -> Vec<StoredRpcAddresses>
 {
     let mut stored_master_rpc_addresses: Vec<StoredRpcAddresses> = Vec::new();
-    let master_rpc_addresses_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("master_rpc_addresses");
+    let master_rpc_addresses_file = &yb_stats_directory.join(snapshot_number).join("master_rpc_addresses");
     let file = fs::File::open( &master_rpc_addresses_file )
     .unwrap_or_else(|e| {
         error!("Fatal: error reading file: {}: {}", &master_rpc_addresses_file.clone().into_os_string().into_string().unwrap(), e);
@@ -374,13 +377,14 @@ pub fn read_master_rpc_addresses_snapshot(
     stored_master_rpc_addresses
 }
 
+#[allow(clippy::ptr_arg)]
 pub fn read_master_http_addresses_snapshot(
     snapshot_number: &String,
     yb_stats_directory: &PathBuf,
 ) -> Vec<StoredHttpAddresses>
 {
     let mut stored_master_http_addresses: Vec<StoredHttpAddresses> = Vec::new();
-    let master_http_addresses_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("master_http_addresses");
+    let master_http_addresses_file = &yb_stats_directory.join(snapshot_number).join("master_http_addresses");
     let file = fs::File::open( &master_http_addresses_file )
     .unwrap_or_else(|e| {
         error!("Fatal: error reading file: {}: {}", &master_http_addresses_file.clone().into_os_string().into_string().unwrap(), e);
@@ -394,13 +398,14 @@ pub fn read_master_http_addresses_snapshot(
     stored_master_http_addresses
 }
 
+#[allow(clippy::ptr_arg)]
 pub fn read_master_errors_snapshot(
     snapshot_number: &String,
     yb_stats_directory: &PathBuf,
 ) -> Vec<StoredMasterError>
 {
     let mut stored_master_errors: Vec<StoredMasterError> = Vec::new();
-    let master_errors_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("master_errors");
+    let master_errors_file = &yb_stats_directory.join(snapshot_number).join("master_errors");
     let file = fs::File::open( &master_errors_file )
         .unwrap_or_else(|e| {
             error!("Fatal: error reading file: {}: {}", &master_errors_file.clone().into_os_string().into_string().unwrap(), e);
@@ -420,10 +425,10 @@ pub fn print_masters(
     hostname_filter: &Regex,
 ) {
     info!("print_masters");
-    let stored_masters: Vec<StoredMasters>  = read_masters_snapshot(&snapshot_number, yb_stats_directory);
-    let stored_master_rpc_addresses: Vec<StoredRpcAddresses> = read_master_rpc_addresses_snapshot(&snapshot_number, yb_stats_directory);
-    let stored_master_http_addresses: Vec<StoredHttpAddresses> = read_master_http_addresses_snapshot(&snapshot_number, yb_stats_directory);
-    let stored_master_errors: Vec<StoredMasterError> = read_master_errors_snapshot(&snapshot_number, yb_stats_directory);
+    let stored_masters: Vec<StoredMasters>  = read_masters_snapshot(snapshot_number, yb_stats_directory);
+    let stored_master_rpc_addresses: Vec<StoredRpcAddresses> = read_master_rpc_addresses_snapshot(snapshot_number, yb_stats_directory);
+    let stored_master_http_addresses: Vec<StoredHttpAddresses> = read_master_http_addresses_snapshot(snapshot_number, yb_stats_directory);
+    let stored_master_errors: Vec<StoredMasterError> = read_master_errors_snapshot(snapshot_number, yb_stats_directory);
 
     let mut masters_btreemap: BTreeMap<(String, String), StoredMasters> = BTreeMap::new();
     for row in stored_masters {

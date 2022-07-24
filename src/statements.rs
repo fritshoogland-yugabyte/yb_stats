@@ -8,7 +8,6 @@ use std::collections::BTreeMap;
 use regex::Regex;
 use substring::Substring;
 use std::env;
-use rayon;
 use std::sync::mpsc::channel;
 use log::*;
 
@@ -95,7 +94,7 @@ pub fn read_statements_into_vector(
                 let tx = tx.clone();
                 s.spawn(move |_| {
                     let detail_snapshot_time = Local::now();
-                    let statements = read_statements(&host, &port);
+                    let statements = read_statements(host, port);
                     tx.send((format!("{}:{}", host, port), detail_snapshot_time, statements)).expect("error sending data via tx (statements)");
                 });
             }
@@ -111,11 +110,12 @@ pub fn read_statements_into_vector(
 fn parse_statements( statements_data: String ) -> Statement {
     serde_json::from_str( &statements_data )
         .unwrap_or_else(|_e| {
-            return Statement { statements: Vec::<Queries>::new() };
+            Statement { statements: Vec::<Queries>::new() }
         })
 }
 
 #[allow(dead_code)]
+#[allow(clippy::ptr_arg)]
 pub fn perform_statements_snapshot(
     hosts: &Vec<&str>,
     ports: &Vec<&str>,
@@ -193,13 +193,14 @@ pub fn add_to_statements_vector(
 }
 
 #[allow(dead_code)]
+#[allow(clippy::ptr_arg)]
 pub fn read_statements_snapshot(
     snapshot_number: &String,
     yb_stats_directory: &PathBuf
 ) -> Vec<StoredStatements> {
 
     let mut stored_statements: Vec<StoredStatements> = Vec::new();
-    let statements_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("statements");
+    let statements_file = &yb_stats_directory.join(snapshot_number).join("statements");
     let file = fs::File::open(&statements_file)
         .unwrap_or_else(|e| {
             error!("Fatal: error reading file: {}: {}", &statements_file.clone().into_os_string().into_string().unwrap(), e);
@@ -277,7 +278,7 @@ pub fn print_diff_statements(
     sql_length: usize,
 ) {
     for ((hostname, query), statements_row) in statements_diff {
-        if hostname_filter.is_match(&hostname)
+        if hostname_filter.is_match(hostname)
             && statements_row.second_calls - statements_row.first_calls != 0 {
             let adaptive_length = if query.len() < sql_length { query.len() } else { sql_length };
             println!("{:20} {:10} avg: {:15.3} tot: {:15.3} ms avg: {:10} tot: {:10} rows: {:0adaptive_length$}",
@@ -306,13 +307,13 @@ pub fn print_statements_diff_for_snapshots(
     let yb_stats_directory = current_directory.join("yb_stats.snapshots");
 
     // read begin_snapshot statements and load into statements_diff
-    let stored_statements: Vec<StoredStatements> = read_statements_snapshot(&begin_snapshot, &yb_stats_directory);
+    let stored_statements: Vec<StoredStatements> = read_statements_snapshot(begin_snapshot, &yb_stats_directory);
     let mut statements_diff = insert_first_snapshot_statements(stored_statements);
     // read end_snapshot statements and load into statements_diff
-    let stored_statements: Vec<StoredStatements> = read_statements_snapshot(&end_snapshot, &yb_stats_directory);
-    insert_second_snapshot_statements(stored_statements, &mut statements_diff, &begin_snapshot_timestamp);
+    let stored_statements: Vec<StoredStatements> = read_statements_snapshot(end_snapshot, &yb_stats_directory);
+    insert_second_snapshot_statements(stored_statements, &mut statements_diff, begin_snapshot_timestamp);
 
-    print_diff_statements(&statements_diff, &hostname_filter, sql_length);
+    print_diff_statements(&statements_diff, hostname_filter, sql_length);
 }
 
 #[allow(dead_code)]
@@ -321,9 +322,8 @@ pub fn get_statements_into_diff_first_snapshot(
     ports: &Vec<&str>,
     parallel: usize
 ) -> BTreeMap<(String, String), SnapshotDiffStatements> {
-    let stored_statements = read_statements_into_vector(&hosts, &ports, parallel);
-    let statements_diff = insert_first_snapshot_statements(stored_statements);
-    statements_diff
+    let stored_statements = read_statements_into_vector(hosts, ports, parallel);
+    insert_first_snapshot_statements(stored_statements)
 }
 
 #[allow(dead_code)]
@@ -334,8 +334,8 @@ pub fn get_statements_into_diff_second_snapshot(
     first_snapshot_time: &DateTime<Local>,
     parallel: usize
 ) {
-    let stored_statements = read_statements_into_vector(&hosts, &ports, parallel);
-    insert_second_snapshot_statements(stored_statements, statements_diff, &first_snapshot_time);
+    let stored_statements = read_statements_into_vector(hosts, ports, parallel);
+    insert_second_snapshot_statements(stored_statements, statements_diff, first_snapshot_time);
 }
 
 

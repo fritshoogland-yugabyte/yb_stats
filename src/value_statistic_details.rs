@@ -928,5 +928,5 @@ pub fn value_create_hashmap() -> HashMap<String, ValueStatisticDetails> {
     value_statistic_details.insert( String::from("voluntary_context_switches"), ValueStatisticDetails { unit: String::from("context switches"), unit_suffix: String::from("csws"), stat_type: String::from("counter") } );
     value_statistic_details.insert( String::from("write_operations_inflight"), ValueStatisticDetails { unit: String::from("operations"), unit_suffix: String::from("ops"), stat_type: String::from("gauge") } );
 
-    return value_statistic_details;
+    value_statistic_details
 }

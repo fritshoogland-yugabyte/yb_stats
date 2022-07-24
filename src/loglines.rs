@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use regex::{Regex,Captures};
 use std::fs;
 use serde_derive::{Serialize,Deserialize};
-use rayon;
+//use rayon;
 use std::sync::mpsc::channel;
 use log::*;
 
@@ -45,10 +45,11 @@ pub fn read_loglines(
 }
 
 #[allow(dead_code)]
-fn read_loglines_snapshot(snapshot_number: &String, yb_stats_directory: &PathBuf ) -> Vec<StoredLogLines> {
+#[allow(clippy::ptr_arg)]
+fn read_loglines_snapshot(snapshot_number: &String, yb_stats_directory: &&PathBuf ) -> Vec<StoredLogLines> {
 
     let mut stored_loglines: Vec<StoredLogLines> = Vec::new();
-    let loglines_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("loglines");
+    let loglines_file = &yb_stats_directory.join(snapshot_number).join("loglines");
     let file = fs::File::open(&loglines_file)
         .unwrap_or_else(|e| {
             error!("Fatal: error reading file: {}: {}", &loglines_file.clone().into_os_string().into_string().unwrap(), e);
@@ -63,6 +64,7 @@ fn read_loglines_snapshot(snapshot_number: &String, yb_stats_directory: &PathBuf
 }
 
 #[allow(dead_code)]
+#[allow(clippy::ptr_arg)]
 pub fn perform_loglines_snapshot(
     hosts: &Vec<&str>,
     ports: &Vec<&str>,
@@ -78,7 +80,7 @@ pub fn perform_loglines_snapshot(
             for port in ports {
                 let tx = tx.clone();
                 s.spawn(move |_| {
-                    let loglines = read_loglines(&host, &port);
+                    let loglines = read_loglines(host, port);
                     tx.send((format!("{}:{}", host, port), loglines)).expect("error sending data via tx (logs)");
                 });
             }}
@@ -107,13 +109,13 @@ pub fn perform_loglines_snapshot(
 
 #[allow(dead_code)]
 pub fn print_loglines(
-    snapshot_number: &String,
+    snapshot_number: &str,
     yb_stats_directory: &PathBuf,
     hostname_filter: &Regex,
-    log_severity: &String
+    log_severity: &str
 ) {
     info!("print_log");
-    let stored_loglines: Vec<StoredLogLines> = read_loglines_snapshot(&snapshot_number, yb_stats_directory);
+    let stored_loglines: Vec<StoredLogLines> = read_loglines_snapshot(&snapshot_number.to_string(), &yb_stats_directory);
     let mut previous_hostname_port = String::from("");
     for row in stored_loglines {
         if hostname_filter.is_match(&row.hostname_port)

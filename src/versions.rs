@@ -5,7 +5,7 @@ use std::fs;
 use std::process;
 use regex::Regex;
 use serde_derive::{Serialize,Deserialize};
-use rayon;
+//use rayon;
 use std::sync::mpsc::channel;
 use log::*;
 
@@ -38,6 +38,7 @@ pub struct StoredVersionData {
 }
 
 #[allow(dead_code)]
+#[allow(clippy::ptr_arg)]
 pub fn perform_versions_snapshot(
     hosts: &Vec<&str>,
     ports: &Vec<&str>,
@@ -55,7 +56,7 @@ pub fn perform_versions_snapshot(
                 let tx = tx.clone();
                 s.spawn(move |_| {
                     let detail_snapshot_time = Local::now();
-                    let version = read_version(&host, &port);
+                    let version = read_version(host, port);
                     tx.send((format!("{}:{}", host, port), detail_snapshot_time, version)).expect("error sending data via tx (versions)");
                 });
             }
@@ -100,10 +101,14 @@ pub fn read_version(
 }
 
 #[allow(dead_code)]
-fn read_version_snapshot(snapshot_number: &String, yb_stats_directory: &PathBuf ) -> Vec<StoredVersionData> {
+#[allow(clippy::ptr_arg)]
+fn read_version_snapshot(
+    snapshot_number: &String,
+    yb_stats_directory: &PathBuf
+) -> Vec<StoredVersionData> {
 
     let mut stored_versions: Vec<StoredVersionData> = Vec::new();
-    let versions_file = &yb_stats_directory.join(&snapshot_number.to_string()).join("versions");
+    let versions_file = &yb_stats_directory.join(snapshot_number).join("versions");
     let file = fs::File::open(&versions_file)
         .unwrap_or_else(|e| {
             error!("Fatal: error reading file: {}: {}", &versions_file.clone().into_os_string().into_string().unwrap(), e);
@@ -125,7 +130,7 @@ pub fn print_version_data(
     hostname_filter: &Regex
 ) {
     info!("print_version");
-    let stored_versions: Vec<StoredVersionData> = read_version_snapshot(&snapshot_number, yb_stats_directory);
+    let stored_versions: Vec<StoredVersionData> = read_version_snapshot(snapshot_number, yb_stats_directory);
     println!("{:20} {:15} {:10} {:10} {:24} {:10}",
              "hostname_port",
              "version_number",
@@ -154,7 +159,7 @@ pub fn add_to_version_vector(versiondata: VersionData,
                              snapshot_time: DateTime<Local>,
                              stored_versiondata: &mut Vec<StoredVersionData>
 ) {
-    if versiondata.git_hash != "" {
+    if !versiondata.git_hash.is_empty() {
         stored_versiondata.push(StoredVersionData {
             hostname_port: hostname.to_string(),
             timestamp: snapshot_time,
@@ -166,7 +171,7 @@ pub fn add_to_version_vector(versiondata: VersionData,
             build_id: versiondata.build_id.to_string(),
             build_type: versiondata.build_type.to_string(),
             version_number: versiondata.version_number.to_string(),
-            build_number: versiondata.build_number.to_string(),
+            build_number: versiondata.build_number,
         });
     }
 }
@@ -175,7 +180,7 @@ pub fn add_to_version_vector(versiondata: VersionData,
 fn parse_version( version_data: String ) -> VersionData {
     serde_json::from_str( &version_data )
         .unwrap_or_else(|_e| {
-            return VersionData { git_hash: "".to_string(), build_hostname: "".to_string(), build_timestamp: "".to_string(), build_username: "".to_string(), build_clean_repo: true, build_id: "".to_string(), build_type: "".to_string(), version_number: "".to_string(), build_number: "".to_string() };
+            VersionData { git_hash: "".to_string(), build_hostname: "".to_string(), build_timestamp: "".to_string(), build_username: "".to_string(), build_clean_repo: true, build_id: "".to_string(), build_type: "".to_string(), version_number: "".to_string(), build_number: "".to_string() }
         })
 }
 

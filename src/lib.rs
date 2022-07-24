@@ -35,6 +35,7 @@ pub struct Snapshot {
     pub comment: String,
 }
 
+#[allow(clippy::ptr_arg)]
 pub fn read_snapshots_from_file( yb_stats_directory: &PathBuf ) -> Vec<Snapshot> {
 
     let mut snapshots: Vec<Snapshot> = Vec::new();
@@ -53,7 +54,7 @@ pub fn read_snapshots_from_file( yb_stats_directory: &PathBuf ) -> Vec<Snapshot>
     snapshots
 }
 
-pub fn read_begin_end_snapshot_from_user( snapshots: &Vec<Snapshot> ) -> (String, String, Snapshot) {
+pub fn read_begin_end_snapshot_from_user( snapshots: &[Snapshot] ) -> (String, String, Snapshot) {
 
     let mut begin_snapshot = String::new();
     print!("Enter begin snapshot: ");
@@ -115,6 +116,7 @@ fn read_snapshot_number(
     snapshot_number
 }
 
+#[allow(clippy::ptr_arg)]
 fn create_new_snapshot_directory(
     yb_stats_directory: &PathBuf,
     snapshot_number: i32,

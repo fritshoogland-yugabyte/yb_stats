@@ -173,7 +173,7 @@ fn parse_loglines( logs_data: String ) -> Vec<LogLine> {
             message: captures[5].to_string()
         }
     };
-    // Find first log line.  Any non-regular-log-line data at the bginning of
+    // Find first log line.  Any non-regular-log-line data at the beginning of
     // the logs is discarded.  `remaining` covers all the logs following the
     // first regular log line.
     let mut logline;

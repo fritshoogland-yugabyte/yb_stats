@@ -825,15 +825,16 @@ pub fn print_diff_metrics(
     if *details_enable {
         // value_diff
         let value_statistic_details_lookup = value_create_hashmap();
+        let non_existent_value = ValueStatisticDetails { unit: String::from("?"), unit_suffix: String::from("?"), stat_type: String::from("?") };
         for ((hostname, metric_type, metric_id, metric_name), value_diff_row) in value_diff {
             if value_diff_row.second_snapshot_value > 0
                 && hostname_filter.is_match(hostname)
                 && stat_name_filter.is_match(metric_name)
                 && table_name_filter.is_match(&value_diff_row.table_name) {
-                let details = match value_statistic_details_lookup.get(metric_name) {
-                    Some(x) => { ValueStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), stat_type: x.stat_type.to_string() } },
-                    None => { ValueStatisticDetails { unit: String::from("?"), unit_suffix: String::from("?"), stat_type: String::from("?") } }
-                };
+                let details = value_statistic_details_lookup.get(metric_name).unwrap_or_else(|| {
+                    info!("The metric {} is not in value_create_hashmap!", metric_name);
+                    &non_existent_value
+                });
                 let adaptive_length = if metric_id.len() < 15 { 0 } else { metric_id.len() - 15 };
                 if details.stat_type != "gauge"
                     && value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value != 0 {
@@ -889,15 +890,22 @@ pub fn print_diff_metrics(
         }
         // countsum_diff
         let countsum_statistic_details_lookup = countsum_create_hashmap();
+        let non_existent_countsum = CountSumStatisticDetails { unit: String::from("?"), unit_suffix: String::from("?"), divisor: 1, stat_type: String::from("?") };
         for ((hostname, metric_type, metric_id, metric_name), countsum_diff_row) in countsum_diff {
             if countsum_diff_row.second_snapshot_total_count > 0
                 && hostname_filter.is_match(hostname)
                 && stat_name_filter.is_match(metric_name)
                 && table_name_filter.is_match(&countsum_diff_row.table_name) {
+                let details = countsum_statistic_details_lookup.get(metric_name).unwrap_or_else(|| {
+                    info!("The metric {} is not in countsum_create_hashmap!", metric_name);
+                    &non_existent_countsum
+                });
+                /*
                 let details = match countsum_statistic_details_lookup.get(metric_name) {
                     Some(x) => { CountSumStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), divisor: x.divisor, stat_type: x.stat_type.to_string() } },
                     None => { CountSumStatisticDetails { unit: String::from("?"), unit_suffix: String::from("?"), divisor: 0, stat_type: String::from("?") } }
                 };
+                 */
                 let adaptive_length = if metric_id.len() < 15 { 0 } else { metric_id.len() - 15 };
                 if countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count != 0 {
                     if *details_enable {
@@ -932,6 +940,7 @@ pub fn print_diff_metrics(
     } else {
         // value_diff
         let value_statistic_details_lookup = value_create_hashmap();
+        let non_existent_value = ValueStatisticDetails { unit: String::from("?"), unit_suffix: String::from("?"), stat_type: String::from("?") };
         let mut sum_value_diff: BTreeMap<(String, String, String, String), SnapshotDiffValues> = BTreeMap::new();
         for ((hostname_port, metric_type, _metric_id, metric_name), value_diff_row) in value_diff {
             if metric_type == "table" || metric_type == "tablet" || metric_type == "cdc"{
@@ -994,10 +1003,10 @@ pub fn print_diff_metrics(
             if hostname_filter.is_match(&hostname)
                 && stat_name_filter.is_match(&metric_name)
                 && table_name_filter.is_match(&value_diff_row.table_name) {
-                let details = match value_statistic_details_lookup.get(&metric_name.to_string()) {
-                    Some(x) => { ValueStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), stat_type: x.stat_type.to_string() } },
-                    None => { ValueStatisticDetails { unit: String::from("?"), unit_suffix: String::from("?"), stat_type: String::from("?") } }
-                };
+                let details = value_statistic_details_lookup.get(&metric_name).unwrap_or_else(|| {
+                    info!("The metric {} is not in value_create_hashmap!", &metric_name);
+                    &non_existent_value
+                });
                 let adaptive_length = if metric_id.len() < 15 { 0 } else { metric_id.len() - 15 };
                 if details.stat_type != "gauge"
                     && value_diff_row.second_snapshot_value - value_diff_row.first_snapshot_value != 0 {
@@ -1053,6 +1062,7 @@ pub fn print_diff_metrics(
         }
         // countsum_diff
         let countsum_statistic_details_lookup = countsum_create_hashmap();
+        let non_existent_countsum = CountSumStatisticDetails { unit: String::from("?"), unit_suffix: String::from("?"), divisor: 1, stat_type: String::from("?") };
         let mut sum_countsum_diff: BTreeMap<(String, String, String, String), SnapshotDiffCountSum> = BTreeMap::new();
         for ((hostname_port, metric_type, _metric_id, metric_name), countsum_diff_row) in countsum_diff {
             if metric_type == "table" || metric_type == "tablet" || metric_type == "cdc" {
@@ -1142,10 +1152,16 @@ pub fn print_diff_metrics(
             if hostname_filter.is_match(&hostname)
                 && stat_name_filter.is_match(&metric_name)
                 && table_name_filter.is_match(&countsum_diff_row.table_name) {
+                let details = countsum_statistic_details_lookup.get(&metric_name).unwrap_or_else(|| {
+                    info!("The metric {} is not in countsum_create_hashmap!", &metric_name);
+                    &non_existent_countsum
+                });
+                /*
                 let details = match countsum_statistic_details_lookup.get(&metric_name.to_string()) {
                     Some(x) => { CountSumStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), divisor: x.divisor, stat_type: x.stat_type.to_string() } },
                     None => { CountSumStatisticDetails { unit: String::from("?"), unit_suffix: String::from("?"), divisor: 0, stat_type: String::from("?") } }
                 };
+                 */
                 let adaptive_length = if metric_id.len() < 15 { 0 } else { metric_id.len() - 15 };
                 if countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count != 0 {
                     if *details_enable {

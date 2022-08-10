@@ -256,7 +256,7 @@ fn main() {
 
     } else if options.print_gflags.is_some() {
 
-        print_gflags_data(&options.print_gflags.unwrap(), &yb_stats_directory, &hostname_filter);
+        print_gflags_data(&options.print_gflags.unwrap(), &yb_stats_directory, &hostname_filter, &stat_name_filter);
 
     } else if options.print_entities.is_some() {
 

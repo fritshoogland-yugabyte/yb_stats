@@ -130,13 +130,15 @@ fn read_gflags_snapshot(snapshot_number: &String, yb_stats_directory: &PathBuf) 
 pub fn print_gflags_data(
     snapshot_number: &String,
     yb_stats_directory: &PathBuf,
-    hostname_filter: &Regex
+    hostname_filter: &Regex,
+    stat_name_filter: &Regex,
 ) {
     info!("print_gflags");
     let stored_gflags: Vec<StoredGFlags> = read_gflags_snapshot(snapshot_number, yb_stats_directory);
     let mut previous_hostname_port = String::from("");
     for row in stored_gflags {
-        if hostname_filter.is_match(&row.hostname_port) {
+        if hostname_filter.is_match(&row.hostname_port) &&
+            stat_name_filter.is_match( &row.gflag_name) {
             if row.hostname_port != previous_hostname_port {
                 println!("--------------------------------------------------------------------------------------------------------------------------------------");
                 println!("Host: {}, Snapshot number: {}, Snapshot time: {}", &row.hostname_port.to_string(), &snapshot_number, row.timestamp);

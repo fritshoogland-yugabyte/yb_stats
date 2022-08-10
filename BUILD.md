@@ -47,7 +47,7 @@ cargo install cargo-generate-rpm
 ```
 cargo build --release
 ```
-2. Strip debugs symbols:
+2. Strip debug symbols:
 ```
 strip -s target/release/yb_stats
 ```

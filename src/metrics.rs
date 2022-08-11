@@ -42,9 +42,13 @@ pub enum NamedMetrics {
         name: String,
         value: i64,
     },
-    RejectedMetricValue {
+    RejectedU64MetricValue {
         name: String,
         value: u64,
+    },
+    RejectedBooleanMetricValue {
+        name: String,
+        value: bool,
     },
     MetricCountSum {
         name: String,
@@ -350,8 +354,14 @@ pub fn add_to_metric_vectors(
                         })
                     }
                 }
-                // this is to to soak up invalid/rejected values
-                NamedMetrics::RejectedMetricValue { name: _, value: _ } => {}
+                // This is to to soak up invalid/rejected values.
+                // See the explanation with the unit tests below.
+                NamedMetrics::RejectedU64MetricValue { name, value } => {
+                    warn!("Value rejected because of inconsistent data type: metric value = u64 instead of i64: {}, {}", name, value);
+                }
+                NamedMetrics::RejectedBooleanMetricValue { name, value} => {
+                    warn!("Value rejected because of inconsistent data type: metric value = boolean instead of i64: {}, {}", name, value);
+                }
             }
         }
     }
@@ -1405,30 +1415,61 @@ mod tests {
     }
 
     #[test]
-    fn parse_tablet_metrics_rejectedmetricvalue() {
+    fn parse_tablet_metrics_rejectedu64metricvalue() {
         // Funny, when I checked with version 2.11.2.0-b89 I could not find the value that only fitted in an unsigned 64 bit integer.
         // Still let's check for it.
         // The id is yb.cqlserver, because that is where I found this value.
         // The value 18446744073709551615 is too big for a signed 64 bit integer (limit = 2^63-1), this value is 2^64-1.
-        let json = r#"[
+        let json = r#"
+[
     {
         "type": "server",
         "id": "yb.cqlserver",
         "attributes": {},
-        "metrics": [
+        "metrics":
+        [
             {
                 "name": "madeup_value",
                 "value": 18446744073709551615
             }
         ]
     }
-    ]"#.to_string();
+]"#.to_string();
         let result = parse_metrics(json.clone(), "", "");
         assert_eq!(result[0].metrics_type,"server");
         let statistic_value = match &result[0].metrics[0] {
-            NamedMetrics::RejectedMetricValue { name, value} => format!("{}, {}",name, value),
+            NamedMetrics::RejectedU64MetricValue { name, value} => format!("{}, {}", name, value),
             _ => String::from("Not RejectedMetricValue")
         };
         assert_eq!(statistic_value, "madeup_value, 18446744073709551615");
     }
+
+    #[test]
+    fn parse_tablet_metrics_rejectedbooleanmetricvalue() {
+        // Version 2.15.2.0-b83 a value appeared that is boolean instead of a number.
+        // For now, I will just ditch the value, and request for it to be handled as all the other booleans, which are by the values of 0 and 1.
+        let json = r#"
+[
+   {
+        "type": "cluster",
+        "id": "yb.cluster",
+        "attributes": {},
+        "metrics":
+        [
+            {
+                "name": "is_load_balancing_enabled",
+                "value": false
+            }
+        ]
+   }
+]"#.to_string();
+        let result = parse_metrics(json.clone(), "", "");
+        assert_eq!(result[0].metrics_type,"cluster");
+        let statistic_value = match &result[0].metrics[0] {
+            NamedMetrics::RejectedBooleanMetricValue { name, value } => format!("{}, {}", name, value),
+            _ => String::from("Not RejectedMetricValue")
+        };
+        assert_eq!(statistic_value, "is_load_balancing_enabled, false");
+    }
+
 }

@@ -31,6 +31,8 @@ mod threads;
 use threads::print_threads_data;
 mod gflags;
 use gflags::print_gflags_data;
+mod rpcs;
+use rpcs::print_rpcs;
 use yb_stats::node_exporter::{get_nodeexporter_into_diff_first_snapshot, get_nodeexpoter_into_diff_second_snapshot, print_diff_nodeexporter, print_nodeexporter_diff_for_snapshots};
 
 mod statements;
@@ -96,6 +98,9 @@ struct Opts {
     /// print version data for the given snapshot
     #[structopt(long, value_name = "snapshot number")]
     print_version: Option<String>,
+    /// print rpcs for the given snapshot
+    #[structopt(long, value_name = "snapshot number")]
+    print_rpcs: Option<String>,
     /// print threads data for the given snapshot
     #[structopt(long, value_name = "snapshot number")]
     print_threads: Option<String>,
@@ -265,6 +270,10 @@ fn main() {
     } else if options.print_masters.is_some() {
 
         print_masters(&options.print_masters.unwrap(), &yb_stats_directory, &hostname_filter);
+
+    } else if options.print_rpcs.is_some() {
+
+        print_rpcs(&options.print_rpcs.unwrap(), &yb_stats_directory, &hostname_filter, &details_enable);
 
     } else {
 

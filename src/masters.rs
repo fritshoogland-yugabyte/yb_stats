@@ -138,7 +138,7 @@ pub fn read_masters(
 fn parse_masters(
     masters_data: String,
     host: &str,
-    port: &str
+    port: &str,
 ) -> AllMasters {
     serde_json::from_str(&masters_data )
         .unwrap_or_else(|e| {

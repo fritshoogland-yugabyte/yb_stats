@@ -15,7 +15,7 @@ impl CountSumStatisticDetails {
         Self {
             unit: unit.to_string(),
             unit_suffix: suffix,
-            divisor: divisor,
+            divisor,
             stat_type: stat_type.to_string(),
         }
     }
@@ -30,7 +30,7 @@ impl Suffixes {
     fn new(suffix: &str, divisor: i64) -> Self {
         Self {
             suffix: suffix.to_owned(),
-            divisor: divisor,
+            divisor,
         }
     }
 }

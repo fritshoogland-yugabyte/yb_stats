@@ -19,7 +19,8 @@ pub mod metrics;
 pub mod node_exporter;
 pub mod entities;
 pub mod masters;
-//pub mod rpcs;
+pub mod rpcs;
+pub mod pprof;
 
 use chrono::{DateTime, Local};
 use std::process;
@@ -178,7 +179,8 @@ pub fn perform_snapshot(
     node_exporter::perform_nodeexporter_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
     entities::perform_entities_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
     masters::perform_masters_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
-    //rpcs::perform_rpcs_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
+    rpcs::perform_rpcs_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
+    pprof::perform_pprof_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
 
     snapshot_number
 }

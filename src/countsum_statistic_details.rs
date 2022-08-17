@@ -129,6 +129,7 @@ pub fn countsum_create_hashmap() -> HashMap<String, CountSumStatisticDetails> {
     countsum_statistic_details.insert(String::from("handler_latency_yb_master_MasterDdl_CreateTable"), CountSumStatisticDetails::new("microseconds","counter"));
     countsum_statistic_details.insert(String::from("handler_latency_yb_master_MasterDdl_CreateNamespace"), CountSumStatisticDetails::new("microseconds","counter"));
     countsum_statistic_details.insert(String::from("handler_latency_yb_master_MasterDdl_DeleteTable"), CountSumStatisticDetails::new("microseconds","counter"));
+    countsum_statistic_details.insert(String::from("handler_latency_yb_master_MasterDdl_GetNamespaceInfo"), CountSumStatisticDetails::new("microseconds","counter"));
     countsum_statistic_details.insert(String::from("handler_latency_yb_master_MasterDdl_GetTableSchema"), CountSumStatisticDetails::new("microseconds","counter"));
     countsum_statistic_details.insert(String::from("handler_latency_yb_master_MasterDdl_IsCreateTableDone"), CountSumStatisticDetails::new("microseconds","counter"));
     countsum_statistic_details.insert(String::from("handler_latency_yb_master_MasterDdl_IsDeleteTableDone"), CountSumStatisticDetails::new("microseconds","counter"));

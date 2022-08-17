@@ -35,12 +35,16 @@ For both ad-hoc and snapshot modes for displaying data (`--snapshot-diff`), a nu
 - `--stat-name-match`: regex filter to include or exclude based on the statistic name.
 - `--table-name-match`: regex filter to include or exclude based on the table name (for table and tablets data only).
 
-For snapshots, the additional gathered non-metric data can be viewed for a single snapshot using the following flags:
-- `--print-version`: requires a single snapshot number as argument, and prints the versions that are gathered.
-- `--print-gflags`: requires a single snapshot number as argument, and prints the gflags that are gathered.
-- `--print-threads`: requires a single snapshot number as argument, and prints the thread information that is captured.
-- `--print-memtrackers`: requires a single snapshot number as argument, and prints the mem-trackers information that is captured.
-- `--print-log`: requires a single snapshot number as argument, and prints the loglines that are gathered.  
+For snapshots, the additional gathered non-metric data can be viewed for a single snapshot using the following flags. 
+Additional optional helper flags are indicated between brackets:
+- `--print-version`: requires a single snapshot number as argument, and prints the versions that are gathered. (hostname-match)
+- `--print-gflags`: requires a single snapshot number as argument, and prints the gflags that are gathered. (hostname-match, stat-name-match for gflag name)
+- `--print-threads`: requires a single snapshot number as argument, and prints the thread information that is captured. 
+- `--print-memtrackers`: requires a single snapshot number as argument, and prints the mem-trackers information that is captured. (hostname-match, stat-name-match for id/memory area name)
+- `--print-masters`: requires a single snapshot number as argument, and prints the masters information from all masters that is captured. (hostname-match)
+- `--print-entities`: requires a single snapshot number as argument, and print the entities (table and tablet information) that is captured. (hostname-match, table-name-match)
+- `--print-rpcs`: requires a single snapshot number as argument, and prints the rpcs that is captured. (hostname-match, details-enable)
+- `--print-log`: requires a single snapshot number as argument, and prints the loglines that are gathered. (hostname-match)  
 For `--print-log` specific, another flag can be used to filter the log rows:
 - `--log-severity`: by default this filter is set to 'WEF' (Warning, Error, Fail), and thus will not show the I (Informal) lines.
 

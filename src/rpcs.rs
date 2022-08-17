@@ -16,9 +16,12 @@ pub enum AllConnections {
     Connections {
         connections: Vec<Connection>,
     },
-    // InAndOutboundConnections are used by: YCQL, YEDIS, tablet server and master.
-    // YCQL and YEDIS can have zero connections, which then use Empty, below.
-    // YCQL and YEDIS also only have inbound_connections, which is why outbound_connections is set to Optional.
+    /*
+     * InAndOutboundConnections are used by: YCQL, YEDIS, tablet server and master.
+     * YCQL and YEDIS can have zero connections, which then use Empty, see below.
+     * YCQL and YEDIS also only have inbound_connections, which is why outbound_connections is set to Optional.
+     * Please mind that YEDIS is not verified at this moment!
+     */
     InAndOutboundConnections {
             inbound_connections: Vec<InboundConnection>,
             outbound_connections: Option<Vec<OutboundConnection>>,
@@ -178,11 +181,13 @@ pub struct StoredHeaders {
     pub serial_nr: u32
 }
 
+type AllStoredRpcs = (Vec<StoredYsqlRpc>, Vec<StoredInboundRpc>, Vec<StoredOutboundRpc>, Vec<StoredCqlDetails>, Vec<StoredHeaders>);
+
 fn read_rpcs_into_vectors(
     hosts: &Vec<&str>,
     ports: &Vec<&str>,
     parallel: usize,
-) -> (Vec<StoredYsqlRpc>, Vec<StoredInboundRpc>, Vec<StoredOutboundRpc>, Vec<StoredCqlDetails>, Vec<StoredHeaders>) {
+) -> AllStoredRpcs {
     let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
     let (tx, rx) = channel();
     pool.scope(move |s| {
@@ -210,7 +215,7 @@ fn read_rpcs_into_vectors(
     (stored_ysqlrpc, stored_inboundrpc, stored_outboundrpc, stored_cqldetails, stored_header)
 }
 
-fn read_rpcs(
+pub fn read_rpcs(
     host: &str,
     port: &str,
 ) -> AllConnections
@@ -275,7 +280,6 @@ pub fn add_to_rpcs_vectors(
             }
         },
         InAndOutboundConnections { inbound_connections, outbound_connections } => {
-            //let mut serial_number: u32 = 0;
             for (serial_number, inboundrpc) in (0_u32..).zip(inbound_connections.into_iter()) {
                 debug!("add_to_rpcs_vectors inboundrpc {:?}", inboundrpc);
                 stored_inboundrpc.push(StoredInboundRpc {
@@ -330,9 +334,7 @@ pub fn add_to_rpcs_vectors(
                         None => {},
                     }
                 }
-                //serial_number+=1;
             };
-            //let mut serial_number: u32 = 0;
 
             for (serial_number, outboundrpc) in (0_u32..).zip(outbound_connections.unwrap_or_default().into_iter()) {
                 debug!("add_to_rpcs_vectors outboundrpc {:?}", outboundrpc);
@@ -364,7 +366,6 @@ pub fn add_to_rpcs_vectors(
                         None => {},
                     }
                 }
-                //serial_number+=1;
             }
         },
         _ => {}
@@ -795,7 +796,7 @@ mod tests {
         assert_eq!(stored_inboundrpc[0].remote_ip,"127.0.0.1:35518");
         assert_eq!(stored_inboundrpc[0].state,"OPEN");
         assert_eq!(stored_inboundrpc[0].processed_call_count,20);
-        assert_eq!(stored_inboundrpc[0].keyspace,"cr");
+        assert_eq!(stored_cqldetails[0].keyspace,"cr");
         assert_eq!(stored_cqldetails[0].cql_details_type,"QUERY");
         assert_eq!(stored_cqldetails[0].sql_string,"select avg(permit), avg(permit_recheck), avg( handgun), avg( long_gun), avg( other), avg( multiple), avg( admin), avg( prepawn_handgun), avg( prepawn_long_gun), avg( prepawn_other), avg( redemption_handgun), avg( redemption_long_gun), avg( redemption_other), avg( returned_handgun), avg( returned_long_gun), avg( returned_other), avg( rentals_handgun), avg( rentals_long_gun), avg( private_sale_handgun), avg( private_sale_long_gun), avg( private_sale_other), avg( return_to_seller_handgun), avg( return_to_seller_long_gun), avg( return_to_seller_other), avg( totals) from fa_bg_checks;");
     }
@@ -942,7 +943,7 @@ mod tests {
         assert_eq!(stored_inboundrpc[0].remote_ip,"127.0.0.1:35692");
         assert_eq!(stored_inboundrpc[0].state,"OPEN");
         assert_eq!(stored_inboundrpc[0].processed_call_count,135);
-        assert_eq!(stored_inboundrpc[0].keyspace,"cr");
+        assert_eq!(stored_cqldetails[0].keyspace,"cr");
         assert_eq!(stored_cqldetails[0].cql_details_type,"BATCH");
         assert_eq!(stored_cqldetails[0].sql_id,"344cf13216c84b621b82d4c212f04b0a");
         assert_eq!(stored_cqldetails[0].sql_string,"INSERT INTO cr.fa_bg_checks (year_month, state, permit, permit_recheck, handgun, long_gun, other, multiple, admin, prepawn_handgun, prepawn_long_gun, prepawn_other, redemption_handgun, redemption_long_gun, redemption_other, returned_handgun, returned_long_gun, returned_other, rentals_handgun, rentals_long_gun, private_sale_handgun, private_sale_long_gun, private_sale_other, return_to_seller_handgun, return_to_seller_long_gun, return_to_seller_other, totals) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");

@@ -1,6 +1,14 @@
 use chrono::Local;
 use std::env;
 
+/*
+ * The yb_stats integration tests file.
+ * The integration tests work in the following way:
+ * For each integration test, a hostname and port environment variable is set.
+ * Using the hostname and port variable, the integration test can pick up the designated hostname and port, and perform the intended action.
+ *
+ * This allows to point different tests to different hosts and ports, depending on how you want to test.
+ */
 fn get_hostname_tserver() -> String {
     let hostname = match env::var("HOSTNAME_TSERVER") {
         Ok(value) => value,
@@ -96,6 +104,21 @@ fn get_port_entities() -> String {
     let port= match env::var("PORT_ENTITIES") {
         Ok(value) => value,
         Err(e) => panic!("Error reading environment variable PORT_ENTITIES: {:?}", e)
+    };
+    port
+}
+
+fn get_hostname_pprof() -> String {
+    let hostname= match env::var("HOSTNAME_PPROF") {
+        Ok(value) => value,
+        Err(e) => panic!("Error reading environment variable HOSTNAME_PPROF: {:?}", e)
+    };
+    hostname
+}
+fn get_port_pprof() -> String {
+    let port= match env::var("PORT_PPROF") {
+        Ok(value) => value,
+        Err(e) => panic!("Error reading environment variable PORT_PPROF: {:?}", e)
     };
     port
 }
@@ -373,4 +396,66 @@ fn parse_masters() {
     assert!(stored_masters.len() > 0);
     assert!(stored_rpc_addresses.len() > 0);
     assert!(stored_http_addresses.len() > 0);
+}
+use yb_stats::rpcs::{StoredYsqlRpc, StoredInboundRpc, StoredOutboundRpc, StoredCqlDetails, StoredHeaders, read_rpcs, add_to_rpcs_vectors};
+#[test]
+fn parse_rpcs_tserver() {
+    let mut stored_ysqlrpc: Vec<StoredYsqlRpc> = Vec::new();
+    let mut stored_inboundrpc: Vec<StoredInboundRpc> = Vec::new();
+    let mut stored_outboundrpc: Vec<StoredOutboundRpc> = Vec::new();
+    let mut stored_cqldetails: Vec<StoredCqlDetails> = Vec::new();
+    let mut stored_header: Vec<StoredHeaders> = Vec::new();
+    let hostname = get_hostname_tserver();
+    let port = get_port_tserver();
+    let data_parsed_from_json = read_rpcs( &hostname.as_str(), &port.as_str());
+    add_to_rpcs_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now(), &mut stored_ysqlrpc, &mut stored_inboundrpc, &mut stored_outboundrpc, &mut stored_cqldetails, &mut stored_header);
+    // a tserver / port 9000 does not have YSQL rpcs, port 13000 has.
+    assert!(stored_ysqlrpc.len() == 0);
+    // a tserver will have inbound RPCs, even RF=1 / 1 tserver.
+    assert!(stored_inboundrpc.len() > 0);
+    // a tserver will have outbound RPCs, even RF=1 / 1 tserver.
+    assert!(stored_outboundrpc.len() > 0);
+}
+#[test]
+fn parse_rpcs_master() {
+    let mut stored_ysqlrpc: Vec<StoredYsqlRpc> = Vec::new();
+    let mut stored_inboundrpc: Vec<StoredInboundRpc> = Vec::new();
+    let mut stored_outboundrpc: Vec<StoredOutboundRpc> = Vec::new();
+    let mut stored_cqldetails: Vec<StoredCqlDetails> = Vec::new();
+    let mut stored_header: Vec<StoredHeaders> = Vec::new();
+    let hostname = get_hostname_master();
+    let port = get_port_master();
+    let data_parsed_from_json = read_rpcs( &hostname.as_str(), &port.as_str());
+    add_to_rpcs_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now(), &mut stored_ysqlrpc, &mut stored_inboundrpc, &mut stored_outboundrpc, &mut stored_cqldetails, &mut stored_header);
+    // a master / port 7000 does not have YSQL rpcs, port 13000 has.
+    assert!(stored_ysqlrpc.len() == 0);
+    // a master will have inbound RPCs, even RF=1 / 1 tserver.
+    assert!(stored_inboundrpc.len() > 0);
+}
+#[test]
+fn parse_rpcs_ysql() {
+    let mut stored_ysqlrpc: Vec<StoredYsqlRpc> = Vec::new();
+    let mut stored_inboundrpc: Vec<StoredInboundRpc> = Vec::new();
+    let mut stored_outboundrpc: Vec<StoredOutboundRpc> = Vec::new();
+    let mut stored_cqldetails: Vec<StoredCqlDetails> = Vec::new();
+    let mut stored_header: Vec<StoredHeaders> = Vec::new();
+    let hostname = get_hostname_ysql();
+    let port = get_port_ysql();
+    let data_parsed_from_json = read_rpcs( &hostname.as_str(), &port.as_str());
+    add_to_rpcs_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now(), &mut stored_ysqlrpc, &mut stored_inboundrpc, &mut stored_outboundrpc, &mut stored_cqldetails, &mut stored_header);
+    // ysql does have a single RPC connection by default after startup, which is the checkpointer process
+    assert!(stored_ysqlrpc.len() > 0);
+    // ysql does not have inbound RPCs
+    assert!(stored_inboundrpc.len() == 0);
+    // ysql does not have outbound RPCs
+    assert!(stored_outboundrpc.len() == 0);
+}
+use yb_stats::pprof::read_pprof;
+#[test]
+fn parse_pprof_growth() {
+    // currently, the pprof "parsing" is not much parsing.
+    // What currently is done, is that the hostname:port/pprof/growth output is stored in a file in the snapshot directory named <hostname>:<port>_pprof_growth.
+    let hostname = get_hostname_pprof();
+    let port = get_port_pprof();
+    read_pprof(&hostname, &port);
 }

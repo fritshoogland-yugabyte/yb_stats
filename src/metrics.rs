@@ -10,13 +10,11 @@ use std::env;
 use substring::Substring;
 use rayon;
 use std::sync::mpsc::channel;
-//use itertools::Itertools;
 use log::*;
 
-//mod value_statistic_details;
 use crate::value_statistic_details::{ValueStatisticDetails, value_create_hashmap};
-//mod countsum_statistic_details;
 use crate::countsum_statistic_details::{CountSumStatisticDetails, countsum_create_hashmap};
+//use crate::Snapshot;
 
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -160,6 +158,13 @@ pub struct SnapshotDiffCountSumRows {
     pub second_snapshot_sum: u64,
     pub second_snapshot_rows: u64,
 }
+
+type BTreeMapStoredValues = BTreeMap<(String, String, String, String), StoredValues>;
+type BTreeMapSnapshotDiffValues = BTreeMap<(String, String, String, String), SnapshotDiffValues>;
+type BTreeMapStoredCountSum = BTreeMap<(String, String, String, String), StoredCountSum>;
+type BTreeMapSnapshotDiffCountSum = BTreeMap<(String, String, String, String), SnapshotDiffCountSum>;
+type BTreeMapStoredCountSumRows = BTreeMap<(String, String, String, String), StoredCountSumRows>;
+type BTreeMapSnapshotDiffCountSumRows = BTreeMap<(String, String, String, String), SnapshotDiffCountSumRows>;
 
 pub fn read_metrics(
     host: &str,
@@ -380,22 +385,23 @@ pub fn build_metrics_btreemaps(
     stored_countsum: Vec<StoredCountSum>,
     stored_countsumrows: Vec<StoredCountSumRows>,
 ) -> (
-    BTreeMap<(String, String, String, String), StoredValues>,
-    BTreeMap<(String, String, String, String), StoredCountSum>,
-    BTreeMap<(String, String, String, String), StoredCountSumRows>,
+    BTreeMapStoredValues,
+    BTreeMapStoredCountSum,
+    BTreeMapStoredCountSumRows,
 ) {
-    let values_btreemap: BTreeMap<(String, String, String, String), StoredValues> = build_metrics_values_btreemap(stored_values);
-    let countsum_btreemap: BTreeMap<(String, String, String, String), StoredCountSum> = build_metrics_countsum_btreemap(stored_countsum);
-    let countsumrows_btreemap: BTreeMap<(String, String, String, String), StoredCountSumRows> = build_metrics_countsumrows_btreemap(stored_countsumrows);
+    //let values_btreemap: BTreeMap<(String, String, String, String), StoredValues> = build_metrics_values_btreemap(stored_values);
+    let values_btreemap: BTreeMapStoredValues = build_metrics_values_btreemap(stored_values);
+    let countsum_btreemap: BTreeMapStoredCountSum = build_metrics_countsum_btreemap(stored_countsum);
+    let countsumrows_btreemap: BTreeMapStoredCountSumRows = build_metrics_countsumrows_btreemap(stored_countsumrows);
 
     (values_btreemap, countsum_btreemap, countsumrows_btreemap)
 }
 
 fn build_metrics_values_btreemap(
     stored_values: Vec<StoredValues>
-) -> BTreeMap<(String, String, String, String), StoredValues>
+) -> BTreeMapStoredValues
 {
-    let mut values_btreemap: BTreeMap<(String, String, String, String), StoredValues> = BTreeMap::new();
+    let mut values_btreemap: BTreeMapStoredValues = BTreeMap::new();
     for row in stored_values {
         if row.metric_type == "table" || row.metric_type == "tablet" || row.metric_type == "cdc" {
             match values_btreemap.get_mut(&(row.hostname_port.clone(), row.metric_type.clone(), row.metric_id.clone(), row.metric_name.clone())) {
@@ -450,9 +456,9 @@ fn build_metrics_values_btreemap(
 
 fn build_metrics_countsum_btreemap(
     stored_countsum: Vec<StoredCountSum>
-) -> BTreeMap<(String, String, String, String), StoredCountSum>
+) -> BTreeMapStoredCountSum
 {
-    let mut countsum_btreemap: BTreeMap<(String, String, String, String), StoredCountSum> = BTreeMap::new();
+    let mut countsum_btreemap: BTreeMapStoredCountSum = BTreeMap::new();
     for row in stored_countsum {
         if row.metric_type == "table" || row.metric_type == "tablet" || row.metric_type == "cdc" {
             match countsum_btreemap.get_mut(&(row.hostname_port.clone(), row.metric_type.clone(), row.metric_id.clone(), row.metric_name.clone())) {
@@ -525,9 +531,9 @@ fn build_metrics_countsum_btreemap(
 
 fn build_metrics_countsumrows_btreemap(
     stored_countsumrows: Vec<StoredCountSumRows>
-) -> BTreeMap<(String, String, String, String), StoredCountSumRows>
+) -> BTreeMapStoredCountSumRows
 {
-    let mut countsumrows_btreemap: BTreeMap<(String, String, String, String), StoredCountSumRows> = BTreeMap::new();
+    let mut countsumrows_btreemap: BTreeMapStoredCountSumRows = BTreeMap::new();
     for row in stored_countsumrows {
         match countsumrows_btreemap.get_mut( &( row.hostname_port.clone(), row.metric_type.clone(), row.metric_id.clone(), row.metric_name.clone())  ) {
             Some( _countsumrows_summary_row ) => {
@@ -621,15 +627,15 @@ pub fn read_countsumrows_snapshot(
 }
 
 pub fn insert_first_snapshot_metrics(
-    values_map: BTreeMap<(String, String, String, String), StoredValues>,
-    countsum_map: BTreeMap<(String, String, String, String), StoredCountSum>,
-    countsumrows_map: BTreeMap<(String, String, String, String), StoredCountSumRows>,
+    values_map: BTreeMapStoredValues,
+    countsum_map: BTreeMapStoredCountSum,
+    countsumrows_map: BTreeMapStoredCountSumRows,
 ) -> (
-    BTreeMap<(String, String, String, String), SnapshotDiffValues>,
-    BTreeMap<(String, String, String, String), SnapshotDiffCountSum>,
-    BTreeMap<(String, String, String, String), SnapshotDiffCountSumRows>,
+    BTreeMapSnapshotDiffValues,
+    BTreeMapSnapshotDiffCountSum,
+    BTreeMapSnapshotDiffCountSumRows,
 ) {
-    let mut values_diff: BTreeMap<(String, String, String, String), SnapshotDiffValues> = BTreeMap::new();
+    let mut values_diff: BTreeMapSnapshotDiffValues = BTreeMap::new();
     for ((hostname_port, metric_type, metric_id, metric_name), storedvalues) in values_map {
         values_diff.insert((hostname_port.to_string(), metric_type.to_string(), metric_id.to_string(), metric_name.to_string()), SnapshotDiffValues {
             table_name: storedvalues.attribute_table_name.to_string(),
@@ -641,7 +647,7 @@ pub fn insert_first_snapshot_metrics(
         });
     };
 
-    let mut countsum_diff: BTreeMap<(String, String, String, String), SnapshotDiffCountSum> = BTreeMap::new();
+    let mut countsum_diff: BTreeMapSnapshotDiffCountSum = BTreeMap::new();
     for ((hostname_port, metric_type, metric_id, metric_name), storedcountsum) in countsum_map {
         countsum_diff.insert( (hostname_port.to_string(), metric_type.to_string(), metric_id.to_string(), metric_name.to_string()), SnapshotDiffCountSum {
             table_name: storedcountsum.attribute_table_name.to_string(),
@@ -663,7 +669,7 @@ pub fn insert_first_snapshot_metrics(
         });
     }
 
-    let mut countsumrows_diff: BTreeMap<(String, String, String, String), SnapshotDiffCountSumRows> = BTreeMap::new();
+    let mut countsumrows_diff: BTreeMapSnapshotDiffCountSumRows = BTreeMap::new();
     for ((hostname_port, metric_type, metric_id, metric_name), storedcountsumrows) in countsumrows_map {
         countsumrows_diff.insert( (hostname_port.to_string(), metric_type.to_string(), metric_id.to_string(), metric_name.to_string()), SnapshotDiffCountSumRows {
             table_name: storedcountsumrows.attribute_table_name.to_string(),
@@ -711,12 +717,12 @@ pub fn print_metrics_diff_for_snapshots(
 }
 
 pub fn insert_second_snapshot_metrics(
-    values_map: BTreeMap<(String, String, String, String), StoredValues>,
-    values_diff: &mut BTreeMap<(String, String, String, String), SnapshotDiffValues>,
-    countsum_map: BTreeMap<(String, String, String, String), StoredCountSum>,
-    countsum_diff: &mut BTreeMap<(String, String, String, String), SnapshotDiffCountSum>,
-    countsumrows_map: BTreeMap<(String, String, String, String), StoredCountSumRows>,
-    countsumrows_diff: &mut BTreeMap<(String, String, String, String), SnapshotDiffCountSumRows>,
+    values_map: BTreeMapStoredValues,
+    values_diff: &mut BTreeMapSnapshotDiffValues,
+    countsum_map: BTreeMapStoredCountSum,
+    countsum_diff: &mut BTreeMapSnapshotDiffCountSum,
+    countsumrows_map: BTreeMapStoredCountSumRows,
+    countsumrows_diff: &mut BTreeMapSnapshotDiffCountSumRows,
     first_snapshot_time: &DateTime<Local>,
 ) {
     for ((hostname_port, metric_type, metric_id, metric_name), storedvalues) in values_map {
@@ -822,9 +828,9 @@ pub fn insert_second_snapshot_metrics(
 }
 
 pub fn print_diff_metrics(
-    value_diff: &BTreeMap<(String, String, String, String), SnapshotDiffValues>,
-    countsum_diff: &BTreeMap<(String, String, String, String), SnapshotDiffCountSum>,
-    countsumrows_diff: &BTreeMap<(String, String, String, String), SnapshotDiffCountSumRows>,
+    value_diff: &BTreeMapSnapshotDiffValues,
+    countsum_diff: &BTreeMapSnapshotDiffCountSum,
+    countsumrows_diff: &BTreeMapSnapshotDiffCountSumRows,
     hostname_filter: &Regex,
     stat_name_filter: &Regex,
     table_name_filter: &Regex,
@@ -910,12 +916,6 @@ pub fn print_diff_metrics(
                     info!("The metric {} is not in countsum_create_hashmap!", metric_name);
                     &non_existent_countsum
                 });
-                /*
-                let details = match countsum_statistic_details_lookup.get(metric_name) {
-                    Some(x) => { CountSumStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), divisor: x.divisor, stat_type: x.stat_type.to_string() } },
-                    None => { CountSumStatisticDetails { unit: String::from("?"), unit_suffix: String::from("?"), divisor: 0, stat_type: String::from("?") } }
-                };
-                 */
                 let adaptive_length = if metric_id.len() < 15 { 0 } else { metric_id.len() - 15 };
                 if countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count != 0 {
                     if *details_enable {
@@ -954,9 +954,11 @@ pub fn print_diff_metrics(
         let mut sum_value_diff: BTreeMap<(String, String, String, String), SnapshotDiffValues> = BTreeMap::new();
         for ((hostname_port, metric_type, _metric_id, metric_name), value_diff_row) in value_diff {
             if metric_type == "table" || metric_type == "tablet" || metric_type == "cdc"{
-                // if a table and thus its tablets have been deleted between the first and second snapshot, the second_snapshot_value is 0.
-                // however, the first_snapshot_value is > 0, it means it can make the subtraction between the second and the first snapshot get negative, and a summary overview be incorrect.
-                // therefore we remove individual statistics where the second snapshot value is set to 0.
+                /*
+                 * If a table and thus its tablets have been deleted between the first and second snapshot, the second_snapshot_value is 0.
+                 * However, the first_snapshot_value is > 0, it means it can make the subtraction between the second and the first snapshot get negative, and a summary overview be incorrect.
+                 * Therefore we remove individual statistics where the second snapshot value is set to 0.
+                 */
                 if value_diff_row.second_snapshot_value > 0 {
                     match sum_value_diff.get_mut(&(hostname_port.to_string(), metric_type.to_string(), String::from("-"), metric_name.to_string())) {
                         Some(sum_value_diff_row) => {
@@ -1166,12 +1168,6 @@ pub fn print_diff_metrics(
                     info!("The metric {} is not in countsum_create_hashmap!", &metric_name);
                     &non_existent_countsum
                 });
-                /*
-                let details = match countsum_statistic_details_lookup.get(&metric_name.to_string()) {
-                    Some(x) => { CountSumStatisticDetails { unit: x.unit.to_string(), unit_suffix: x.unit_suffix.to_string(), divisor: x.divisor, stat_type: x.stat_type.to_string() } },
-                    None => { CountSumStatisticDetails { unit: String::from("?"), unit_suffix: String::from("?"), divisor: 0, stat_type: String::from("?") } }
-                };
-                 */
                 let adaptive_length = if metric_id.len() < 15 { 0 } else { metric_id.len() - 15 };
                 if countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count != 0 {
                     if *details_enable {
@@ -1227,9 +1223,9 @@ pub fn get_metrics_into_diff_first_snapshot(
     ports: &Vec<&str>,
     parallel: usize,
 ) -> (
-    BTreeMap<(String, String, String, String), SnapshotDiffValues>,
-    BTreeMap<(String, String, String, String), SnapshotDiffCountSum>,
-    BTreeMap<(String, String, String, String), SnapshotDiffCountSumRows>
+    BTreeMapSnapshotDiffValues,
+    BTreeMapSnapshotDiffCountSum,
+    BTreeMapSnapshotDiffCountSumRows,
 ) {
     let (stored_values, stored_countsum, stored_countsumrows) = read_metrics_into_vectors(hosts, ports, parallel);
     let (values_map, countsum_map, countsumrows_map) = build_metrics_btreemaps( stored_values, stored_countsum, stored_countsumrows);
@@ -1240,9 +1236,9 @@ pub fn get_metrics_into_diff_first_snapshot(
 pub fn get_metrics_into_diff_second_snapshot(
     hosts: &Vec<&str>,
     ports: &Vec<&str>,
-    values_diff: &mut BTreeMap<(String, String, String, String), SnapshotDiffValues>,
-    countsum_diff: &mut BTreeMap<(String, String, String, String), SnapshotDiffCountSum>,
-    countsumrows_diff: &mut BTreeMap<(String, String, String, String), SnapshotDiffCountSumRows>,
+    values_diff: &mut BTreeMapSnapshotDiffValues,
+    countsum_diff: &mut BTreeMapSnapshotDiffCountSum,
+    countsumrows_diff: &mut BTreeMapSnapshotDiffCountSumRows,
     first_snapshot_time: &DateTime<Local>,
     parallel: usize,
 ) {

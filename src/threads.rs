@@ -367,7 +367,7 @@ Total number of threads: 4</pre></td></tr>
 </table><div class='yb-bottom-spacer'></div></div>
 <footer class='footer'><div class='yb-footer container text-muted'><pre class='message'><i class="fa-lg fa fa-gift" aria-hidden="true"></i> Congratulations on installing YugabyteDB. We'd like to welcome you to the community with a free t-shirt and pack of stickers! Please claim your reward here: <a href='https://www.yugabyte.com/community-rewards/'>https://www.yugabyte.com/community-rewards/</a></pre><pre>version 2.13.0.0 build 42 revision cd3c1a4bb1cca183be824851f8158ebbffd1d3d8 build_type RELEASE built at 06 Mar 2022 03:13:49 UTC
 server uuid 4ce571a18f8c4a9a8b35246222d12025 local time 2022-03-16 12:33:37.634419</pre></div></footer></body></html>"#.to_string();
-        let result = parse_threads(threads.clone());
+        let result = parse_threads(threads);
         // this results in 33 Threads
         assert_eq!(result.len(), 33);
         // and the thread name is Master_reactorx-6127

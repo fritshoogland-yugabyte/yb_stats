@@ -131,10 +131,10 @@ fn parse_gflags_master() {
     let hostname= get_hostname_master();
     let port = get_port_master();
 
-    let gflags = read_gflags(&hostname.as_str(), &port.as_str());
+    let gflags = read_gflags(hostname.as_str(), port.as_str());
     add_to_gflags_vector(gflags, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_gflags);
     // the master must have gflags
-    assert!(stored_gflags.len() > 0);
+    assert!(!stored_gflags.is_empty());
 }
 #[test]
 fn parse_gflags_tserver() {
@@ -143,10 +143,10 @@ fn parse_gflags_tserver() {
     let hostname = get_hostname_tserver();
     let port = get_port_tserver();
 
-    let gflags = read_gflags(&hostname.as_str(), &port.as_str());
+    let gflags = read_gflags(hostname.as_str(), port.as_str());
     add_to_gflags_vector(gflags, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_gflags);
     // the tserver must have gflags
-    assert!(stored_gflags.len() > 0);
+    assert!(!stored_gflags.is_empty());
 }
 
 use yb_stats::memtrackers::{MemTrackers, StoredMemTrackers, read_memtrackers, add_to_memtrackers_vector};
@@ -157,10 +157,10 @@ fn parse_memtrackers_master() {
     let hostname = get_hostname_master();
     let port = get_port_master();
 
-    let memtrackers: Vec<MemTrackers> = read_memtrackers(&hostname.as_str(), &port.as_str());
+    let memtrackers: Vec<MemTrackers> = read_memtrackers(hostname.as_str(), port.as_str());
     add_to_memtrackers_vector(memtrackers, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_memtrackers);
     // memtrackers must return some rows
-    assert!(stored_memtrackers.len() > 0);
+    assert!(!stored_memtrackers.is_empty());
 }
 #[test]
 fn parse_memtrackers_tserver() {
@@ -169,10 +169,10 @@ fn parse_memtrackers_tserver() {
     let hostname= get_hostname_tserver();
     let port = get_port_tserver();
 
-    let memtrackers: Vec<MemTrackers> = read_memtrackers(&hostname.as_str(), &port.as_str());
+    let memtrackers: Vec<MemTrackers> = read_memtrackers(hostname.as_str(), port.as_str());
     add_to_memtrackers_vector(memtrackers, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_memtrackers);
     // memtrackers must return some rows
-    assert!(stored_memtrackers.len() > 0);
+    assert!(!stored_memtrackers.is_empty());
 }
 
 use yb_stats::loglines::{StoredLogLines, read_loglines, add_to_loglines_vector};
@@ -182,10 +182,10 @@ fn parse_loglines_master() {
     let hostname= get_hostname_master();
     let port = get_port_master();
 
-    let loglines = read_loglines(&hostname.as_str(), &port.as_str());
+    let loglines = read_loglines(hostname.as_str(), port.as_str());
     add_to_loglines_vector(loglines, format!("{}:{}", hostname, port).as_str(), &mut stored_loglines);
     // it's likely there will be logging
-    assert!(stored_loglines.len() > 0);
+    assert!(!stored_loglines.is_empty());
 }
 #[test]
 fn parse_loglines_tserver() {
@@ -193,10 +193,10 @@ fn parse_loglines_tserver() {
     let hostname= get_hostname_tserver();
     let port = get_port_tserver();
 
-    let loglines = read_loglines(&hostname.as_str(), &port.as_str());
+    let loglines = read_loglines(hostname.as_str(), port.as_str());
     add_to_loglines_vector(loglines, format!("{}:{}", hostname, port).as_str(), &mut stored_loglines);
     // it's likely there will be logging
-    assert!(stored_loglines.len() > 0);
+    assert!(!stored_loglines.is_empty());
 }
 
 use yb_stats::versions::{StoredVersionData, read_version, add_to_version_vector};
@@ -207,7 +207,7 @@ fn parse_versiondata_master() {
     let hostname = get_hostname_master();
     let port = get_port_master();
 
-    let data_parsed_from_json = read_version(&hostname.as_str(), &port.as_str());
+    let data_parsed_from_json = read_version(hostname.as_str(), port.as_str());
     add_to_version_vector(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_versiondata);
     // each daemon should return one row.
     assert!(stored_versiondata.len() == 1);
@@ -219,7 +219,7 @@ fn parse_versiondata_tserver() {
     let hostname = get_hostname_tserver();
     let port = get_port_tserver();
 
-    let data_parsed_from_json = read_version(&hostname.as_str(), &port.as_str());
+    let data_parsed_from_json = read_version(hostname.as_str(), port.as_str());
     add_to_version_vector(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_versiondata);
     // each daemon should return one row.
     assert!(stored_versiondata.len() == 1);
@@ -233,7 +233,7 @@ fn parse_threadsdata_master() {
     let hostname = get_hostname_master();
     let port = get_port_master();
 
-    let data_parsed_from_json = read_threads(&hostname.as_str(), &port.as_str());
+    let data_parsed_from_json = read_threads(hostname.as_str(), port.as_str());
     add_to_threads_vector(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_threadsdata);
     // each daemon should return one row.
     assert!(stored_threadsdata.len() > 1);
@@ -245,7 +245,7 @@ fn parse_threadsdata_tserver() {
     let hostname = get_hostname_tserver();
     let port = get_port_tserver();
 
-    let data_parsed_from_json = read_threads(&hostname.as_str(), &port.as_str());
+    let data_parsed_from_json = read_threads(hostname.as_str(), port.as_str());
     add_to_threads_vector(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_threadsdata);
     // each daemon should return one row.
     assert!(stored_threadsdata.len() > 1);
@@ -259,7 +259,7 @@ fn parse_statements_ysql() {
     let hostname = get_hostname_ysql();
     let port = get_port_ysql();
 
-    let data_parsed_from_json = read_statements(&hostname.as_str(), &port.as_str());
+    let data_parsed_from_json = read_statements(hostname.as_str(), port.as_str());
     add_to_statements_vector(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_statements);
     // likely in a test scenario, there are no SQL commands executed, and thus no rows are returned.
     // to make sure this test works in both the scenario of no statements, and with statements, perform no assertion.
@@ -275,12 +275,12 @@ fn parse_metrics_master() {
     let hostname = get_hostname_master();
     let port = get_port_master();
 
-    let data_parsed_from_json = read_metrics(&hostname.as_str(), &port.as_str());
+    let data_parsed_from_json = read_metrics(hostname.as_str(), port.as_str());
     add_to_metric_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_values, &mut stored_countsum, &mut stored_countsumrows);
     // a master will produce values and countsum rows, but no countsumrows rows, because that belongs to YSQL.
-    assert!(stored_values.len() > 0);
-    assert!(stored_countsum.len() > 0);
-    assert!(stored_countsumrows.len() == 0);
+    assert!(!stored_values.is_empty());
+    assert!(!stored_countsum.is_empty());
+    assert!(stored_countsumrows.is_empty());
 }
 #[test]
 fn parse_metrics_tserver() {
@@ -291,12 +291,12 @@ fn parse_metrics_tserver() {
     let hostname = get_hostname_tserver();
     let port = get_port_tserver();
 
-    let data_parsed_from_json = read_metrics(&hostname.as_str(), &port.as_str());
+    let data_parsed_from_json = read_metrics(hostname.as_str(), port.as_str());
     add_to_metric_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_values, &mut stored_countsum, &mut stored_countsumrows);
     // a master will produce values and countsum rows, but no countsumrows rows, because that belongs to YSQL.
-    assert!(stored_values.len() > 0);
-    assert!(stored_countsum.len() > 0);
-    assert!(stored_countsumrows.len() == 0);
+    assert!(!stored_values.is_empty());
+    assert!(!stored_countsum.is_empty());
+    assert!(stored_countsumrows.is_empty());
 }
 #[test]
 fn parse_metrics_ysql() {
@@ -307,12 +307,12 @@ fn parse_metrics_ysql() {
     let hostname = get_hostname_ysql();
     let port = get_port_ysql();
 
-    let data_parsed_from_json = read_metrics(&hostname.as_str(), &port.as_str());
+    let data_parsed_from_json = read_metrics(hostname.as_str(), port.as_str());
     add_to_metric_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_values, &mut stored_countsum, &mut stored_countsumrows);
     // YSQL will produce countsumrows rows, but no value or countsum rows
-    assert!(stored_values.len() == 0);
-    assert!(stored_countsum.len() == 0);
-    assert!(stored_countsumrows.len() == 0);
+    assert!(stored_values.is_empty());
+    assert!(stored_countsum.is_empty());
+    assert!(stored_countsumrows.is_empty());
 }
 #[test]
 fn parse_metrics_ycql() {
@@ -323,13 +323,13 @@ fn parse_metrics_ycql() {
     let hostname = get_hostname_ycql();
     let port = get_port_ycql();
 
-    let data_parsed_from_json = read_metrics(&hostname.as_str(), &port.as_str());
+    let data_parsed_from_json = read_metrics(hostname.as_str(), port.as_str());
     add_to_metric_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_values, &mut stored_countsum, &mut stored_countsumrows);
     // YCQL will produce values and countsum rows, but no countsumrows rows, because that belongs to YSQL.
     // countsum rows are filtered on count == 0, which is true if it wasn't used. therefore, we do not check on countsum statistics. likely, YCQL wasn't used prior to the test.
-    assert!(stored_values.len() > 0);
+    assert!(!stored_values.is_empty());
     //assert!(stored_countsum.len() > 0);
-    assert!(stored_countsumrows.len() == 0);
+    assert!(stored_countsumrows.is_empty());
 }
 #[test]
 fn parse_metrics_yedis() {
@@ -340,29 +340,28 @@ fn parse_metrics_yedis() {
     let hostname = get_hostname_yedis();
     let port = get_port_yedis();
 
-    let data_parsed_from_json = read_metrics(&hostname.as_str(), &port.as_str());
+    let data_parsed_from_json = read_metrics(hostname.as_str(), port.as_str());
     add_to_metric_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_values, &mut stored_countsum, &mut stored_countsumrows);
     // YEDIS will produce values and countsum rows, but no countsumrows rows, because that belongs to YSQL.
     // countsum rows are filtered on count == 0, which is true when it wasn't used. therefore, we do not check on countsum statistics. likely, YEDIS wasn't used prior to the test.
-    assert!(stored_values.len() > 0);
-    //assert!(stored_countsum.len() > 0);
-    assert!(stored_countsumrows.len() == 0);
+    assert!(!stored_values.is_empty());
+    assert!(stored_countsumrows.is_empty());
 }
 use yb_stats::node_exporter::{StoredNodeExporterValues, read_node_exporter, add_to_node_exporter_vectors};
 #[test]
 fn parse_node_exporter() {
     let mut stored_nodeexportervalues: Vec<StoredNodeExporterValues> = Vec::new();
     let hostname = get_hostname_node_exporter();
-    if hostname == String::from("SKIP") {
+    if hostname == *"SKIP" {
         // workaround for allowing integration tests where no node exporter is present.
         return;
     }
     let port = get_port_node_exporter();
 
-    let data_parsed_from_json = read_node_exporter(&hostname.as_str(), &port.as_str());
+    let data_parsed_from_json = read_node_exporter(hostname.as_str(), port.as_str());
     add_to_node_exporter_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), &mut stored_nodeexportervalues);
     // a node exporter endpoint will generate entries in the stored_nodeexportervalues vector.
-    assert!(stored_nodeexportervalues.len() > 0);
+    assert!(!stored_nodeexportervalues.is_empty());
 }
 use yb_stats::entities::{StoredTables, StoredTablets, StoredReplicas, read_entities, add_to_entity_vectors};
 #[test]
@@ -373,12 +372,12 @@ fn parse_entities() {
     let hostname = get_hostname_entities();
     let port = get_port_entities();
 
-    let data_parsed_from_json = read_entities(&hostname.as_str(), &port.as_str());
+    let data_parsed_from_json = read_entities(hostname.as_str(), port.as_str());
     add_to_entity_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now(), &mut stored_tables, &mut stored_tablets, &mut stored_replicas);
     // a MASTER only will generate entities on each master (!)
-    assert!(stored_tables.len() > 0);
-    assert!(stored_tablets.len() > 0);
-    assert!(stored_replicas.len() > 0);
+    assert!(!stored_tables.is_empty());
+    assert!(!stored_tablets.is_empty());
+    assert!(!stored_replicas.is_empty());
 }
 use yb_stats::masters::{StoredMasters, StoredRpcAddresses, StoredHttpAddresses, StoredMasterError, read_masters, add_to_master_vectors};
 #[test]
@@ -390,12 +389,12 @@ fn parse_masters() {
     let hostname = get_hostname_master();
     let port = get_port_master();
 
-    let data_parsed_from_json = read_masters(&hostname.as_str(), &port.as_str());
+    let data_parsed_from_json = read_masters(hostname.as_str(), port.as_str());
     add_to_master_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now(), &mut stored_masters, &mut stored_rpc_addresses, &mut stored_http_addresses, &mut stored_master_errors);
     // a MASTER only will generate entities on each master (!)
-    assert!(stored_masters.len() > 0);
-    assert!(stored_rpc_addresses.len() > 0);
-    assert!(stored_http_addresses.len() > 0);
+    assert!(!stored_masters.is_empty());
+    assert!(!stored_rpc_addresses.is_empty());
+    assert!(!stored_http_addresses.is_empty());
 }
 use yb_stats::rpcs::{StoredYsqlRpc, StoredInboundRpc, StoredOutboundRpc, StoredCqlDetails, StoredHeaders, read_rpcs, add_to_rpcs_vectors};
 #[test]
@@ -407,14 +406,14 @@ fn parse_rpcs_tserver() {
     let mut stored_header: Vec<StoredHeaders> = Vec::new();
     let hostname = get_hostname_tserver();
     let port = get_port_tserver();
-    let data_parsed_from_json = read_rpcs( &hostname.as_str(), &port.as_str());
+    let data_parsed_from_json = read_rpcs( hostname.as_str(), port.as_str());
     add_to_rpcs_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now(), &mut stored_ysqlrpc, &mut stored_inboundrpc, &mut stored_outboundrpc, &mut stored_cqldetails, &mut stored_header);
     // a tserver / port 9000 does not have YSQL rpcs, port 13000 has.
-    assert!(stored_ysqlrpc.len() == 0);
+    assert!(stored_ysqlrpc.is_empty());
     // a tserver will have inbound RPCs, even RF=1 / 1 tserver.
-    assert!(stored_inboundrpc.len() > 0);
+    assert!(!stored_inboundrpc.is_empty());
     // a tserver will have outbound RPCs, even RF=1 / 1 tserver.
-    assert!(stored_outboundrpc.len() > 0);
+    assert!(!stored_outboundrpc.is_empty());
 }
 #[test]
 fn parse_rpcs_master() {
@@ -425,12 +424,12 @@ fn parse_rpcs_master() {
     let mut stored_header: Vec<StoredHeaders> = Vec::new();
     let hostname = get_hostname_master();
     let port = get_port_master();
-    let data_parsed_from_json = read_rpcs( &hostname.as_str(), &port.as_str());
+    let data_parsed_from_json = read_rpcs( hostname.as_str(), port.as_str());
     add_to_rpcs_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now(), &mut stored_ysqlrpc, &mut stored_inboundrpc, &mut stored_outboundrpc, &mut stored_cqldetails, &mut stored_header);
     // a master / port 7000 does not have YSQL rpcs, port 13000 has.
-    assert!(stored_ysqlrpc.len() == 0);
+    assert!(stored_ysqlrpc.is_empty());
     // a master will have inbound RPCs, even RF=1 / 1 tserver.
-    assert!(stored_inboundrpc.len() > 0);
+    assert!(!stored_inboundrpc.is_empty());
 }
 #[test]
 fn parse_rpcs_ysql() {
@@ -441,14 +440,14 @@ fn parse_rpcs_ysql() {
     let mut stored_header: Vec<StoredHeaders> = Vec::new();
     let hostname = get_hostname_ysql();
     let port = get_port_ysql();
-    let data_parsed_from_json = read_rpcs( &hostname.as_str(), &port.as_str());
+    let data_parsed_from_json = read_rpcs( hostname.as_str(), port.as_str());
     add_to_rpcs_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now(), &mut stored_ysqlrpc, &mut stored_inboundrpc, &mut stored_outboundrpc, &mut stored_cqldetails, &mut stored_header);
     // ysql does have a single RPC connection by default after startup, which is the checkpointer process
-    assert!(stored_ysqlrpc.len() > 0);
+    assert!(!stored_ysqlrpc.is_empty());
     // ysql does not have inbound RPCs
-    assert!(stored_inboundrpc.len() == 0);
+    assert!(stored_inboundrpc.is_empty());
     // ysql does not have outbound RPCs
-    assert!(stored_outboundrpc.len() == 0);
+    assert!(stored_outboundrpc.is_empty());
 }
 use yb_stats::pprof::read_pprof;
 #[test]

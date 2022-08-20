@@ -215,7 +215,7 @@ mod tests {
     fn parse_regular_logline() {
         // This is a regular log line.
         let logline = "I0217 10:19:56.834905  31987 docdb_rocksdb_util.cc:416] FLAGS_rocksdb_base_background_compactions was not set, automatically configuring 1 base background compactions.\n".to_string();
-        let result = parse_loglines(logline.clone());
+        let result = parse_loglines(logline);
         assert_eq!(result[0].message,"FLAGS_rocksdb_base_background_compactions was not set, automatically configuring 1 base background compactions.");
     }
 
@@ -241,7 +241,7 @@ mod tests {
     @     0x7fa354089720  yb::tablet::OperationDriver::ApplyTask()
     @     0x7fa354089e8e  yb::tablet::OperationDriver::ReplicationFinished()
     @     0x7fa353cb3ae7  yb::consensus::ReplicaState::NotifyReplicationFinishedUnlocked()"#.to_string();
-        let result = parse_loglines(logline.clone());
+        let result = parse_loglines(logline);
         // this is the old assertion when the following lines of a multiline logoine were not joined:
         //assert_eq!(result[0].message,"UpdateReplica running for 1.000s in thread 7814:");
         // this is the new line with the new code that adds the lines of a multiline message:
@@ -265,7 +265,7 @@ mod tests {
     ulimit: stack size 8192(unlimited) kb
     ulimit: cpu time unlimited(unlimited) secs
     ulimit: max user processes 12000(12000)"#.to_string();
-        let result = parse_loglines(logline.clone());
+        let result = parse_loglines(logline);
         // this is the old assertion when the following lines of a multiline logline were not joined:
         //assert_eq!(result[0].message,"ulimit cur(max)...");
         // this is the new line with the new code that adds the lines of a multiline message:
@@ -280,7 +280,7 @@ mod tests {
         let logline = r#"W0221 17:18:06.190536  7924 process_context.cc:185] SQL Error: Type Not Found. Could not find user defined type
 create table test (id int primary key, f1 tdxt);
                                           ^^^^"#.to_string();
-        let result = parse_loglines(logline.clone());
+        let result = parse_loglines(logline);
         //assert_eq!(result[0].message,"SQL Error: Type Not Found. Could not find user defined type");
         assert_eq!(result[0].message,"SQL Error: Type Not Found. Could not find user defined typecreate table test (id int primary key, f1 tdxt);\n                                          ^^^^");
     }
@@ -293,7 +293,7 @@ create table test (id int primary key, f1 tdxt);
         let logline = r#"W0221 17:18:28.396759  7925 process_context.cc:185] SQL Error: Invalid CQL Statement. Missing list of target columns
 insert into test values (1,'a');
                  ^^^^^^^^^^^^^^"#.to_string();
-        let result = parse_loglines(logline.clone());
+        let result = parse_loglines(logline);
         //assert_eq!(result[0].message,"SQL Error: Invalid CQL Statement. Missing list of target columns");
         assert_eq!(result[0].message,"SQL Error: Invalid CQL Statement. Missing list of target columnsinsert into test values (1,'a');\n                 ^^^^^^^^^^^^^^");
     }
@@ -306,7 +306,7 @@ insert into test values (1,'a');
         let logline = r#"I0227 17:18:28.714171  2510 fs_manager.cc:278] Opened local filesystem: /mnt/d0
 uuid: "05b8d17620eb4cd79eddaddb2fbcbb42"
 format_stamp: "Formatted at 2022-02-13 16:26:17 on yb-1.local""#.to_string();
-        let result = parse_loglines(logline.clone());
+        let result = parse_loglines(logline);
         //assert_eq!(result[0].message,"Opened local filesystem: /mnt/d0");
         assert_eq!(result[0].message,"Opened local filesystem: /mnt/d0uuid: \"05b8d17620eb4cd79eddaddb2fbcbb42\"\nformat_stamp: \"Formatted at 2022-02-13 16:26:17 on yb-1.local\"");
     }
@@ -372,7 +372,7 @@ flushed_frontier {
     max_value_level_ttl_expiration_time: 1
   }
 }"#.to_string();
-        let result = parse_loglines(logline.clone());
+        let result = parse_loglines(logline);
         //assert_eq!(result[0].message,"T b770079b94ad430493ba5f729fb1f0e7 P 05b8d17620eb4cd79eddaddb2fbcbb42 [R]: Writing version edit: log_number: 33");
         assert_eq!(result[0].message,"T b770079b94ad430493ba5f729fb1f0e7 P 05b8d17620eb4cd79eddaddb2fbcbb42 [R]: Writing version edit: log_number: 33new_files {\n  level: 0\n  number: 10\n  total_file_size: 66565\n  base_file_size: 66384\n  smallest {\n    key: \"Gg\\303I\\200\\000\\000\\000\\000\\0003\\341I\\200\\000\\000\\000\\000\\000B\\225!!J\\200#\\200\\001|E\\302\\264\\205v\\200J\\001\\004\\000\\000\\000\\000\\000\\004\"\n    seqno: 1125899906842625\n    user_values {\n      tag: 1\n      data: \"\\200\\001|E\\302\\274j0\\200J\"\n    }\n    user_frontier {\n      [type.googleapis.com/yb.docdb.ConsensusFrontierPB] {\n        op_id {\n          term: 1\n          index: 2\n        }\n        hybrid_time: 6737247907820138496\n        history_cutoff: 18446744073709551614\n        max_value_level_ttl_expiration_time: 18446744073709551614\n      }\n    }\n  }\n  largest {\n    key: \"G\\222oI\\200\\000\\000\\000\\000\\0003\\341I\\200\\000\\000\\000\\000\\000B{!!K\\203#\\200\\001|E\\302\\274j0\\200?\\213\\001\\003\\000\\000\\000\\000\\000\\004\"\n    seqno: 1125899906842632\n    user_values {\n      tag: 1\n      data: \"\\200\\001|EXN\\364\\273\\200?\\253\"\n    }\n    user_frontier {\n      [type.googleapis.com/yb.docdb.ConsensusFrontierPB] {\n        op_id {\n          term: 1\n          index: 4\n        }\n        hybrid_time: 6737255221467299840\n        history_cutoff: 18446744073709551614\n        max_value_level_ttl_expiration_time: 1\n      }\n    }\n  }\n}\nflushed_frontier {\n  [type.googleapis.com/yb.docdb.ConsensusFrontierPB] {\n    op_id {\n      term: 1\n      index: 4\n    }\n    hybrid_time: 6737255221467299840\n    history_cutoff: 18446744073709551614\n    max_value_level_ttl_expiration_time: 1\n  }\n}");
     }
@@ -393,7 +393,7 @@ properties: contain_counters: false is_transactional: true consistency_level: ST
         2:dirname[string NULLABLE NOT A PARTITION KEY]
 ]
 properties: contain_counters: false is_transactional: true consistency_level: STRONG use_mangled_column_name: false is_ysql_catalog_table: false retain_delete_markers: false version 1"#.to_string();
-        let result = parse_loglines(logline.clone());
+        let result = parse_loglines(logline);
         //assert_eq!(result[0].message,"T c6099b05976f49d9b782ccbe126f9b2d P 05b8d17620eb4cd79eddaddb2fbcbb42: Alter schema from Schema [");
         assert_eq!(result[0].message,"T c6099b05976f49d9b782ccbe126f9b2d P 05b8d17620eb4cd79eddaddb2fbcbb42: Alter schema from Schema [        0:ybrowid[binary NOT NULL PARTITION KEY],\n        1:dir[string NULLABLE NOT A PARTITION KEY],\n        2:dirname[string NULLABLE NOT A PARTITION KEY]\n]\nproperties: contain_counters: false is_transactional: true consistency_level: STRONG use_mangled_column_name: false is_ysql_catalog_table: false retain_delete_markers: false version 0 to Schema [\n        0:ybrowid[binary NOT NULL PARTITION KEY],\n        1:dir[string NULLABLE NOT A PARTITION KEY],\n        2:dirname[string NULLABLE NOT A PARTITION KEY]\n]\nproperties: contain_counters: false is_transactional: true consistency_level: STRONG use_mangled_column_name: false is_ysql_catalog_table: false retain_delete_markers: false version 1");
     }

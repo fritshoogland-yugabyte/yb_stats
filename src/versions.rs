@@ -202,7 +202,7 @@ mod tests {
     "version_number": "2.11.2.0",
     "build_number": "89"
 }"#.to_string();
-        let result = parse_version(version.clone());
+        let result = parse_version(version);
         assert_eq!(result.git_hash, "d142556567b5e1c83ea5c915ec7b9964492b2321");
     }
 }

@@ -12,7 +12,9 @@ use crate::rpcs::AllConnections::{Connections, InAndOutboundConnections};
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
 pub enum AllConnections {
-    // Connections is unique to YSQL
+    /*
+     * Connections is unique to YSQL
+     */
     Connections {
         connections: Vec<Connection>,
     },
@@ -26,8 +28,10 @@ pub enum AllConnections {
             inbound_connections: Vec<InboundConnection>,
             outbound_connections: Option<Vec<OutboundConnection>>,
     },
-    // An empty object ({}) is shown for YCQL and YEDIS if these have no connections.
-    // YSQL always has at least the checkpointer as an active connection.
+    /*
+     * An empty object ({}) is shown for YCQL and YEDIS if these have no connections.
+     * YSQL always has at least the checkpointer as an active connection.
+     */
     Empty {},
 }
 
@@ -665,7 +669,7 @@ mod tests {
     ]
 }
         "#.to_string();
-        let result = parse_rpcs(json.clone(), "", "");
+        let result = parse_rpcs(json, "", "");
         let mut stored_ysqlrpc: Vec<StoredYsqlRpc> = Vec::new();
         let mut stored_inboundrpc: Vec<StoredInboundRpc> = Vec::new();
         let mut stored_outboundrpc: Vec<StoredOutboundRpc> = Vec::new();
@@ -702,7 +706,7 @@ mod tests {
     ]
 }
         "#.to_string();
-        let result = parse_rpcs(json.clone(), "", "");
+        let result = parse_rpcs(json, "", "");
         let mut stored_ysqlrpc: Vec<StoredYsqlRpc> = Vec::new();
         let mut stored_inboundrpc: Vec<StoredInboundRpc> = Vec::new();
         let mut stored_outboundrpc: Vec<StoredOutboundRpc> = Vec::new();
@@ -737,7 +741,7 @@ mod tests {
     ]
 }
         "#.to_string();
-        let result = parse_rpcs(json.clone(), "", "");
+        let result = parse_rpcs(json, "", "");
         let mut stored_ysqlrpc: Vec<StoredYsqlRpc> = Vec::new();
         let mut stored_inboundrpc: Vec<StoredInboundRpc> = Vec::new();
         let mut stored_outboundrpc: Vec<StoredOutboundRpc> = Vec::new();
@@ -786,7 +790,7 @@ mod tests {
     ]
 }
         "#.to_string();
-        let result = parse_rpcs(json.clone(), "", "");
+        let result = parse_rpcs(json, "", "");
         let mut stored_ysqlrpc: Vec<StoredYsqlRpc> = Vec::new();
         let mut stored_inboundrpc: Vec<StoredInboundRpc> = Vec::new();
         let mut stored_outboundrpc: Vec<StoredOutboundRpc> = Vec::new();
@@ -801,11 +805,17 @@ mod tests {
         assert_eq!(stored_cqldetails[0].sql_string,"select avg(permit), avg(permit_recheck), avg( handgun), avg( long_gun), avg( other), avg( multiple), avg( admin), avg( prepawn_handgun), avg( prepawn_long_gun), avg( prepawn_other), avg( redemption_handgun), avg( redemption_long_gun), avg( redemption_other), avg( returned_handgun), avg( returned_long_gun), avg( returned_other), avg( rentals_handgun), avg( rentals_long_gun), avg( private_sale_handgun), avg( private_sale_long_gun), avg( private_sale_other), avg( return_to_seller_handgun), avg( return_to_seller_long_gun), avg( return_to_seller_other), avg( totals) from fa_bg_checks;");
     }
 
+    /*
+     * Please mind clippy remains on complaining about invisible characters despite  #[allow(clippy::invisible_characters)]
+     * I know there are invisible characters in the params, but this is an actual sample of the params.
+     */
     #[test]
+    #[allow(clippy::invisible_characters)]
     fn parse_inboundrpc_active_batch_query_ycql() {
         /*
          * This is how an active batch query via ycqlsh looks like.
          */
+        #[allow(clippy::invisible_characters)]
         let json = r#"
 {
     "inbound_connections": [
@@ -827,7 +837,8 @@ mod tests {
                             {
                                 "sql_id": "344cf13216c84b621b82d4c212f04b0a",
                                 "sql_string": "INSERT INTO cr.fa_bg_checks (year_month, state, permit, permit_recheck, handgun, long_gun, other, multiple, admin, prepawn_handgun, prepawn_long_gun, prepawn_other, redemption_handgun, redemption_long_gun, redemption_other, returned_handgun, returned_long_gun, returned_other, rentals_handgun, rentals_long_gun, private_sale_handgun, private_sale_long_gun, private_sale_other, return_to_seller_handgun, return_to_seller_long_gun, return_to_seller_other, totals) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                                "params": "[2008-06, Alabama, \u0000\u0000\u0000\u0000, n/a, \u0000\u0000\u001C,, \u0000\u0000\u001C\u001C, n/a, \u0000\u0000\u0001B, \u0000\u0000\u0000\u0000, \u0000\u0000\u0000\t, \u0000\u0000\u0000\u000B, n/a, \u0000\u0000\u0005\u000F, \u0000\u0000\u0005, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, \u0000\u0000D.]"
+                                "params": "[2008-06, Alabama, \u0000\u0000\u0000\u0000, n/a, \u0000\u0000\u001C,, \u0000\u0000\u001C\u001C, n/a, \u0000\u0000\u0001B, \u0000\u0000\u0000\u0000, \u0000\u0000\u0000\t, \u0000\u0000\u0000\u000B, n/a, \u0000\u0000\u0005\u000F, \u0000\u0000\u0005\u0081, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, \u0000\u0000D.]"
+
                             },
                             {
                                 "sql_id": "344cf13216c84b621b82d4c212f04b0a",
@@ -922,7 +933,8 @@ mod tests {
                             {
                                 "sql_id": "344cf13216c84b621b82d4c212f04b0a",
                                 "sql_string": "INSERT INTO cr.fa_bg_checks (year_month, state, permit, permit_recheck, handgun, long_gun, other, multiple, admin, prepawn_handgun, prepawn_long_gun, prepawn_other, redemption_handgun, redemption_long_gun, redemption_other, returned_handgun, returned_long_gun, returned_other, rentals_handgun, rentals_long_gun, private_sale_handgun, private_sale_long_gun, private_sale_other, return_to_seller_handgun, return_to_seller_long_gun, return_to_seller_other, totals) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                                "params": "[2008-06, Louisiana, \u0000\u0000\u0000\u0000, n/a, \u0000\u0000\u0019Í, \u0000\u0000\u0014L, n/a, \u0000\u0000\u0000Ú, \u0000\u0000\u0000\u0000, \u0000\u0000\u0000\u0005, \u0000\u0000\u0000\u0003, n/a, \u0000\u0000\u0002ƒ, \u0000\u0000\u0003@, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, \u0000\u00004¾]"
+                                "params": "[2008-06, Louisiana, \u0000\u0000\u0000\u0000, n/a, \u0000\u0000\u0019\u00cd, \u0000\u0000\u0014L, n/a, \u0000\u0000\u0000\u00da, \u0000\u0000\u0000\u0000, \u0000\u0000\u0000\u0005, \u0000\u0000\u0000\u0003, n/a, \u0000\u0000\u0002\u0192, \u0000\u0000\u0003@, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, \u0000\u00004\u00be]"
+
                             }
                         ]
                     }
@@ -932,8 +944,7 @@ mod tests {
     ]
 }
         "#.to_string();
-        let result = parse_rpcs(json.clone(), "", "");
-        //println!("{:?}", result);
+        let result = parse_rpcs(json, "", "");
         let mut stored_ysqlrpc: Vec<StoredYsqlRpc> = Vec::new();
         let mut stored_inboundrpc: Vec<StoredInboundRpc> = Vec::new();
         let mut stored_outboundrpc: Vec<StoredOutboundRpc> = Vec::new();
@@ -951,7 +962,7 @@ mod tests {
         assert_eq!(stored_cqldetails[0].cql_details_type,"BATCH");
         assert_eq!(stored_cqldetails[19].sql_id,"344cf13216c84b621b82d4c212f04b0a");
         assert_eq!(stored_cqldetails[19].sql_string,"INSERT INTO cr.fa_bg_checks (year_month, state, permit, permit_recheck, handgun, long_gun, other, multiple, admin, prepawn_handgun, prepawn_long_gun, prepawn_other, redemption_handgun, redemption_long_gun, redemption_other, returned_handgun, returned_long_gun, returned_other, rentals_handgun, rentals_long_gun, private_sale_handgun, private_sale_long_gun, private_sale_other, return_to_seller_handgun, return_to_seller_long_gun, return_to_seller_other, totals) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        assert_eq!(stored_cqldetails[19].params,"[2008-06, Louisiana, \0\0\0\0, n/a, \0\0\u{19}Í, \0\0\u{14}L, n/a, \0\0\0Ú, \0\0\0\0, \0\0\0\u{5}, \0\0\0\u{3}, n/a, \0\0\u{2}ƒ, \0\0\u{3}@, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, \0\04¾]");
+        assert_eq!(stored_cqldetails[19].params,"[2008-06, Louisiana, \0\0\0\0, n/a, \0\0\u{19}\u{00cd}, \0\0\u{14}L, n/a, \0\0\0\u{00da}, \0\0\0\0, \0\0\0\u{5}, \0\0\0\u{3}, n/a, \0\0\u{2}\u{0192}, \0\0\u{3}@, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, \0\04\u{00be}]");
     }
 
     #[test]
@@ -981,7 +992,7 @@ mod tests {
     ]
 }
         "#.to_string();
-        let result = parse_rpcs(json.clone(), "", "");
+        let result = parse_rpcs(json, "", "");
         let mut stored_ysqlrpc: Vec<StoredYsqlRpc> = Vec::new();
         let mut stored_inboundrpc: Vec<StoredInboundRpc> = Vec::new();
         let mut stored_outboundrpc: Vec<StoredOutboundRpc> = Vec::new();
@@ -1065,7 +1076,7 @@ mod tests {
     ]
 }
         "#.to_string();
-        let result = parse_rpcs(json.clone(), "", "");
+        let result = parse_rpcs(json, "", "");
         let mut stored_ysqlrpc: Vec<StoredYsqlRpc> = Vec::new();
         let mut stored_inboundrpc: Vec<StoredInboundRpc> = Vec::new();
         let mut stored_outboundrpc: Vec<StoredOutboundRpc> = Vec::new();

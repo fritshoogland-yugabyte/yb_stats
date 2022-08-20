@@ -370,7 +370,7 @@ mod tests {
         }
     ]
 }"#.to_string();
-        let result = parse_statements(statements_json.clone());
+        let result = parse_statements(statements_json);
         assert_eq!(result.statements.len(), 2);
     }
     #[test]
@@ -411,7 +411,7 @@ mod tests {
     ]
 }"#.to_string();
         let mut stored_statements: Vec<StoredStatements> = Vec::new();
-        let result = parse_statements(statements_json.clone());
+        let result = parse_statements(statements_json);
         add_to_statements_vector(result, "localhost", Local::now(), &mut stored_statements);
         // with the new way of adding up all relevant statistics, we still should have 2 statements
         assert_eq!(stored_statements.len(), 2);

@@ -841,7 +841,7 @@ pub fn print_diff_metrics(
                 && hostname_filter.is_match(hostname)
                 && stat_name_filter.is_match(metric_name)
                 && table_name_filter.is_match(&value_diff_row.table_name) {
-                let details = value_statistic_details_lookup.get(metric_name).unwrap_or_else(|| {
+                let details = value_statistic_details_lookup.get(metric_name.as_str()).unwrap_or_else(|| {
                     info!("The metric {} is not in value_create_hashmap!", metric_name);
                     &non_existent_value
                 });
@@ -906,7 +906,7 @@ pub fn print_diff_metrics(
                 && hostname_filter.is_match(hostname)
                 && stat_name_filter.is_match(metric_name)
                 && table_name_filter.is_match(&countsum_diff_row.table_name) {
-                let details = countsum_statistic_details_lookup.get(metric_name).unwrap_or_else(|| {
+                let details = countsum_statistic_details_lookup.get(metric_name.as_str()).unwrap_or_else(|| {
                     info!("The metric {} is not in countsum_create_hashmap!", metric_name);
                     &non_existent_countsum
                 });
@@ -1013,7 +1013,7 @@ pub fn print_diff_metrics(
             if hostname_filter.is_match(&hostname)
                 && stat_name_filter.is_match(&metric_name)
                 && table_name_filter.is_match(&value_diff_row.table_name) {
-                let details = value_statistic_details_lookup.get(&metric_name).unwrap_or_else(|| {
+                let details = value_statistic_details_lookup.get(&metric_name.as_str()).unwrap_or_else(|| {
                     info!("The metric {} is not in value_create_hashmap!", &metric_name);
                     &non_existent_value
                 });
@@ -1162,7 +1162,7 @@ pub fn print_diff_metrics(
             if hostname_filter.is_match(&hostname)
                 && stat_name_filter.is_match(&metric_name)
                 && table_name_filter.is_match(&countsum_diff_row.table_name) {
-                let details = countsum_statistic_details_lookup.get(&metric_name).unwrap_or_else(|| {
+                let details = countsum_statistic_details_lookup.get(&metric_name.as_str()).unwrap_or_else(|| {
                     info!("The metric {} is not in countsum_create_hashmap!", &metric_name);
                     &non_existent_countsum
                 });
@@ -1276,7 +1276,7 @@ mod tests {
         ]
     }
 ]"#.to_string();
-        let result = parse_metrics(json.clone(), "", "");
+        let result = parse_metrics(json, "", "");
         assert_eq!(result[0].metrics_type,"cdc");
         let statistic_value = match &result[0].metrics[0] {
             NamedMetrics::MetricValue { name, value} => format!("{}, {}",name, value),
@@ -1315,7 +1315,7 @@ mod tests {
         ]
     }
 ]"#.to_string();
-        let result = parse_metrics(json.clone(), "", "");
+        let result = parse_metrics(json, "", "");
         assert_eq!(result[0].metrics_type,"cdc");
         let statistic_value = match &result[0].metrics[0] {
             NamedMetrics::MetricCountSum { name, total_count, min: _, mean: _, percentile_75: _, percentile_95: _, percentile_99: _, percentile_99_9: _, percentile_99_99: _, max: _, total_sum} => format!("{}, {}, {}",name, total_count, total_sum),
@@ -1343,7 +1343,7 @@ mod tests {
         ]
     }
     ]"#.to_string();
-        let result = parse_metrics(json.clone(), "", "");
+        let result = parse_metrics(json, "", "");
         assert_eq!(result[0].metrics_type,"tablet");
         let statistic_value = match &result[0].metrics[0] {
             NamedMetrics::MetricValue { name, value} => format!("{}, {}",name, value),
@@ -1380,7 +1380,7 @@ mod tests {
         ]
     }
     ]"#.to_string();
-        let result = parse_metrics(json.clone(), "", "");
+        let result = parse_metrics(json, "", "");
         assert_eq!(result[0].metrics_type,"table");
         let statistic_value = match &result[0].metrics[0] {
             NamedMetrics::MetricCountSum { name, total_count, min: _, mean: _, percentile_75: _, percentile_95: _, percentile_99: _, percentile_99_9: _, percentile_99_99: _, max: _, total_sum} => format!("{}, {}, {}",name, total_count, total_sum),
@@ -1405,7 +1405,7 @@ mod tests {
         ]
     }
     ]"#.to_string();
-        let result = parse_metrics(json.clone(), "", "");
+        let result = parse_metrics(json, "", "");
         assert_eq!(result[0].metrics_type,"server");
         let statistic_value = match &result[0].metrics[0] {
             NamedMetrics::MetricCountSumRows { name, count, sum, rows} => format!("{}, {}, {}, {}",name, count, sum, rows),
@@ -1435,7 +1435,7 @@ mod tests {
         ]
     }
 ]"#.to_string();
-        let result = parse_metrics(json.clone(), "", "");
+        let result = parse_metrics(json, "", "");
         assert_eq!(result[0].metrics_type,"server");
         let statistic_value = match &result[0].metrics[0] {
             NamedMetrics::RejectedU64MetricValue { name, value} => format!("{}, {}", name, value),
@@ -1463,7 +1463,7 @@ mod tests {
         ]
    }
 ]"#.to_string();
-        let result = parse_metrics(json.clone(), "", "");
+        let result = parse_metrics(json, "", "");
         assert_eq!(result[0].metrics_type,"cluster");
         let statistic_value = match &result[0].metrics[0] {
             NamedMetrics::RejectedBooleanMetricValue { name, value } => format!("{}, {}", name, value),

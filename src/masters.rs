@@ -577,9 +577,9 @@ mod tests {
   ]
 }
         "#.to_string();
-        let result = parse_masters(json.clone(), "", "");
+        let result = parse_masters(json, "", "");
         //println!("{:#?}", result);
-        assert_eq!(result.masters[0].error.is_none(),true);
+        assert!(result.masters[0].error.is_none());
         /*
         assert_eq!(result.tables[0].table_name,"pg_user_mapping_user_server_index");
         assert_eq!(result.tablets[0].table_id,"sys.catalog.uuid");

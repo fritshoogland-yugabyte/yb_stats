@@ -1055,7 +1055,7 @@ mod tests {
 --symbolize_stacktrace=true
 --v=0
 --vmodule="#.to_string();
-        let result = parse_gflags(gflags.clone());
+        let result = parse_gflags(gflags);
         assert_eq!(result.len(), 897);
     }
 }

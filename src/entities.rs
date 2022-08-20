@@ -463,7 +463,7 @@ mod tests {
   ]
 }
         "#.to_string();
-        let result = parse_entities(json.clone(), "", "");
+        let result = parse_entities(json, "", "");
         assert_eq!(result.keyspaces[0].keyspace_type,"ycql");
         assert_eq!(result.tables[0].table_name,"pg_user_mapping_user_server_index");
         assert_eq!(result.tablets[0].table_id,"sys.catalog.uuid");

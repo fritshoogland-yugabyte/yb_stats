@@ -29,6 +29,7 @@ use std::path::{Path, PathBuf};
 use std::env;
 use std::io::{stdin, stdout, Write};
 use log::*;
+use std::sync::Arc;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Snapshot {
@@ -154,8 +155,8 @@ fn create_new_snapshot_directory(
 }
 
 pub fn perform_snapshot(
-    hosts: Vec<&str>,
-    ports: Vec<&str>,
+    hosts: Vec<&'static str>,
+    ports: Vec<&'static str>,
     snapshot_comment: String,
     parallel: usize,
     disable_threads: bool,
@@ -169,18 +170,111 @@ pub fn perform_snapshot(
     info!("using snapshot number: {}", snapshot_number);
     create_new_snapshot_directory(&yb_stats_directory, snapshot_number, snapshot_comment, &mut snapshots);
 
-    metrics::perform_metrics_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
-    gflags::perform_gflags_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
-    if ! disable_threads { threads::perform_threads_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel) };
-    memtrackers::perform_memtrackers_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
-    loglines::perform_loglines_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
-    versions::perform_versions_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
-    statements::perform_statements_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
-    node_exporter::perform_nodeexporter_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
-    entities::perform_entities_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
-    masters::perform_masters_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
-    rpcs::perform_rpcs_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
-    pprof::perform_pprof_snapshot(&hosts, &ports, snapshot_number, &yb_stats_directory, parallel);
+    /*
+     * Snapshot creation is done using a threadpool using rayon.
+     * Every different snapshot type is executing in its own thread.
+     * The maximum number of threads for each snapshot type is set by the user using the --parallel switch or via .env.
+     * The default value is 1 to be conservative.
+     *
+     * Inside the thread for the specific snapshot type, that thread also uses --parallel.
+     * The reason being that most of the work is sending and waiting for a remote server to respond.
+     * This might not be really intuitive, but it should not overallocate CPU very much.
+     *
+     * If it does: setting the .env file (!) to YB_PARALLEL=1 will make this be performed serially again.
+     */
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
+    pool.scope(|s| {
+        let arc_hosts = Arc::new(hosts);
+        let arc_ports = Arc::new(ports);
+        let arc_yb_stats_directory = Arc::new(yb_stats_directory);
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+        s.spawn(move |_| {
+            metrics::perform_metrics_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+        });
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+        s.spawn(move |_| {
+            gflags::perform_gflags_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+        });
+
+        if !disable_threads {
+            let arc_hosts_clone = arc_hosts.clone();
+            let arc_ports_clone = arc_ports.clone();
+            let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+            s.spawn(move |_| {
+                threads::perform_threads_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel)
+            });
+        };
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+        s.spawn(move |_| {
+            memtrackers::perform_memtrackers_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+        });
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+        s.spawn(move |_| {
+            loglines::perform_loglines_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+        });
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+        s.spawn(move |_| {
+            versions::perform_versions_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+        });
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+        s.spawn(move |_| {
+            statements::perform_statements_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+        });
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+        s.spawn(move |_| {
+            node_exporter::perform_nodeexporter_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+        });
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+        s.spawn(move |_| {
+            entities::perform_entities_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+        });
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+        s.spawn(move |_| {
+            masters::perform_masters_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+        });
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+        s.spawn(move |_| {
+            rpcs::perform_rpcs_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+        });
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory;
+        s.spawn(move |_| {
+            pprof::perform_pprof_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+        });
+
+    });
 
     snapshot_number
 }

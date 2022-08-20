@@ -332,7 +332,6 @@ pub fn perform_masters_snapshot(
         writer.serialize(row).unwrap();
     }
     writer.flush().unwrap();
-
 }
 
 #[allow(clippy::ptr_arg)]

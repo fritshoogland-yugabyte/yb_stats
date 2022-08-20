@@ -150,7 +150,8 @@ fn main() {
         changed_options.insert("YBSTATS_HOSTS", options.hosts.to_owned());
         options.hosts
     };
-    let hosts = hosts_string.split(',').collect();
+    let static_hosts: &'static str = Box::leak(hosts_string.into_boxed_str());
+    let hosts: Vec<&'static str> = static_hosts.split(',').collect();
 
     let ports_string= if options.ports == DEFAULT_PORTS {
         match env::var("YBSTATS_PORTS") {
@@ -169,7 +170,9 @@ fn main() {
         changed_options.insert("YBSTATS_PORTS", options.ports.to_owned());
         options.ports
     };
-    let ports = ports_string.split(',').collect();
+    //let ports = ports_string.split(',').collect();
+    let static_ports: &'static str = Box::leak(ports_string.into_boxed_str());
+    let ports: Vec<&'static str> = static_ports.split(',').collect();
 
     let parallel_string = if options.parallel == DEFAULT_PARALLEL {
         match env::var("YBSTATS_PARALLEL") {

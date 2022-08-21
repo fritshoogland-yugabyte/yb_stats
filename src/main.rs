@@ -43,19 +43,19 @@ use entities::print_entities;
 mod masters;
 use masters::print_masters;
 
-const DEFAULT_HOSTNAMES: &str = "192.168.66.80,192.168.66.81,192.168.66.82";
+const DEFAULT_HOSTS: &str = "192.168.66.80,192.168.66.81,192.168.66.82";
 const DEFAULT_PORTS: &str = "7000,9000,12000,13000,9300";
 const DEFAULT_PARALLEL: &str = "1";
 const WRITE_DOTENV: bool = true;
 
 #[derive(Debug, StructOpt)]
 struct Opts {
-    /// hostnames (comma separated)
-    #[structopt(short, long, value_name = "hostname,hostname", default_value = DEFAULT_HOSTNAMES)]
-    hosts: String,
-    /// port numbers (comma separated)
-    #[structopt(short, long, value_name = "port,port", default_value = DEFAULT_PORTS)]
-    ports: String,
+    /// hostnames (comma separated) default 192.168.66.80,192.168.66.81,192.168.66.82
+    #[structopt(short, long, value_name = "hostname,hostname")]
+    hosts: Option<String>,
+    /// port numbers (comma separated) default 7000,9000,12000,13000,9300
+    #[structopt(short, long, value_name = "port,port")]
+    ports: Option<String>,
     /// regex to filter statistic names
     #[structopt(short, long, value_name = "regex")]
     stat_name_match: Option<String>,
@@ -110,9 +110,9 @@ struct Opts {
     /// log data severity to include: optional: I
     #[structopt(long, default_value = "WEF")]
     log_severity: String,
-    /// how much threads to use in parallel for fetching data
-    #[structopt(long, value_name = "nr", default_value = DEFAULT_PARALLEL)]
-    parallel: String,
+    /// how much threads to use in parallel for fetching data (default 1)
+    #[structopt(long, value_name = "nr")]
+    parallel: Option<String>,
     /// disable gathering of thread stacks from /threadz
     #[structopt(long)]
     disable_threads: bool,
@@ -120,12 +120,6 @@ struct Opts {
     #[structopt(long, value_name = "nr", default_value = "80")]
     sql_length: i32,
 }
-///// begin snapshot number
-//#[structopt(short, long)]
-//begin: String,
-///// end snapshot number
-//#[structopt(short, long)]
-//end: String,
 
 fn main() {
     env_logger::init();
@@ -133,63 +127,83 @@ fn main() {
     dotenv().ok();
     let options = Opts::from_args();
 
-    let hosts_string = if options.hosts == DEFAULT_HOSTNAMES {
+    /*
+     * Hosts
+     * - if hosts is set, it's detected by is_some() and we take the set value, and set the changed_options HashMap for later write.
+     * - if hosts is not set, we can detect if it's set via .env by looking at YBSTATS_HOSTS.
+     *   - If YBSTATS_HOSTS is set, it's detected by Ok(), we set the changed_options HashMap for later write and return the set value.
+     *   - if YBSTATS_HOSTS is not set, it will trigger Err(), and DEFAULT_HOSTS is used.
+     */
+    let hosts_string = if options.hosts.is_some() {
+        info!("hosts argument set: using: {}", &options.hosts.as_ref().unwrap());
+        changed_options.insert("YBSTATS_HOSTS", options.hosts.as_ref().unwrap().to_string());
+        options.hosts.unwrap()
+    } else {
         match env::var("YBSTATS_HOSTS") {
-            Ok(var) => {
-                info!("hosts not set: set via .env: YBSTATS_HOSTS: {}", var);
-                changed_options.insert("YBSTATS_HOSTS", var.to_owned());
-                var
+            Ok(set_var) => {
+                info!("hosts not set: set via .env: YBSTATS_HOSTS: {}", set_var);
+                changed_options.insert("YBSTATS_HOSTS", set_var.to_owned());
+                set_var
             },
-            Err(_e)        => {
-                info!("hosts not set: and not set via .env: using DEFAULT_HOSTNAMES: {}", DEFAULT_HOSTNAMES.to_string());
-                DEFAULT_HOSTNAMES.to_string()
+            Err(_e) => {
+                info!("hosts not set: and not set via .env: using DEFAULT_HOSTS: {}", DEFAULT_HOSTS.to_string());
+                DEFAULT_HOSTS.to_string()
             },
         }
-    } else {
-        info!("hosts set: using: {}", options.hosts);
-        changed_options.insert("YBSTATS_HOSTS", options.hosts.to_owned());
-        options.hosts
     };
     let static_hosts: &'static str = Box::leak(hosts_string.into_boxed_str());
     let hosts: Vec<&'static str> = static_hosts.split(',').collect();
 
-    let ports_string= if options.ports == DEFAULT_PORTS {
+    /*
+     * Ports
+     * - if ports is set, it's detected by is_some() and we take the set value, and set the changed_options HashMap for later write.
+     * - if ports is not set, then we can detect if it's set via .env by looking at YBSTATS_PORTS.
+     *   - If YBSTATS_PORTS is set, it's detected by Ok(), we set the changed_options HashMap for later write and return the set value.
+     *   - if YBSTATS_PORTS is not set, it will trigger Err(), and DEFAULT_PORTS is used.
+     */
+    let ports_string = if options.ports.is_some() {
+        info!("ports argument set: using: {}", &options.ports.as_ref().unwrap());
+        changed_options.insert("YBSTATS_PORTS", options.ports.as_ref().unwrap().to_string());
+        options.ports.unwrap()
+    } else {
         match env::var("YBSTATS_PORTS") {
-            Ok(var) => {
-                info!("ports not set: set via .env: YBSTATS_PORTS: {}", var);
-                changed_options.insert("YBSTATS_PORTS", var.to_owned());
-                var
+            Ok(set_var) => {
+                info!("ports not set: set via .env: YBSTATS_PORTS: {}", set_var);
+                changed_options.insert("YBSTATS_PORTS", set_var.to_owned());
+                set_var
             },
-            Err(_e)        => {
+            Err(_e) => {
                 info!("ports not set: and not set via .env: using DEFAULT_PORTS: {}", DEFAULT_PORTS.to_string());
                 DEFAULT_PORTS.to_string()
             },
         }
-    } else {
-        info!("ports set: using: {}", options.ports);
-        changed_options.insert("YBSTATS_PORTS", options.ports.to_owned());
-        options.ports
     };
-    //let ports = ports_string.split(',').collect();
     let static_ports: &'static str = Box::leak(ports_string.into_boxed_str());
     let ports: Vec<&'static str> = static_ports.split(',').collect();
 
-    let parallel_string = if options.parallel == DEFAULT_PARALLEL {
+    /*
+     * Parallel
+     * - if parallel is set, it's detected by is_some() and we take the set value, and set the changed_options HashMap for later write.
+     * - if parallel is not set, then we can detect if it's set via .env by looking at YBSTATS_PARALLEL.
+     *   - If YBSTATS_PARALLEL is set, it's detected by Ok(), we set the changed_options HashMap for later write and return the set value.
+     *   - if YBSTATS_PARALLEL is not set, it will trigger Err(), and DEFAULT_PARALLEL is used.
+     */
+    let parallel_string = if options.parallel.is_some() {
+        info!("parallel argument set: using: {}", &options.parallel.as_ref().unwrap());
+        changed_options.insert("YBSTATS_PARALLEL", options.parallel.as_ref().unwrap().to_string());
+        options.parallel.unwrap()
+    } else {
         match env::var("YBSTATS_PARALLEL") {
-            Ok(var) => {
-                info!("parallel not set: set via .env: YBSTATS_PARALLEL: {}", var);
-                changed_options.insert("YBSTATS_PARALLEL", var.to_owned());
-                var
+            Ok(set_var) => {
+                info!("parallel not set: set via .env: YBSTATS_PARALLEL: {}", set_var);
+                changed_options.insert("YBSTATS_PARALLEL", set_var.to_owned());
+                set_var
             },
             Err(_e) => {
                 info!("parallel not set: and not set via .env: using DEFAULT_PARALLEL: {}", DEFAULT_PARALLEL.to_string());
                 DEFAULT_PARALLEL.to_string()
             },
         }
-    } else {
-        info!("parallel set: using: {}", options.parallel);
-        changed_options.insert("YBSTATS_PARALLEL", options.parallel.to_owned());
-        options.parallel
     };
     let parallel: usize = parallel_string.parse().unwrap();
 

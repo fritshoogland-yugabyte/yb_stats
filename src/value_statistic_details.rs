@@ -43,6 +43,7 @@ fn suffix_lookup_value(unit: &str) -> String {
         ("nr", "nr"),
         ("operations", "ops"),
         ("parsers", "parsers"),
+        ("processors", "procs"),
         ("properties", "props"),
         ("queries", "qry"),
         ("reads", "reads"),
@@ -87,6 +88,8 @@ pub fn value_create_hashmap() -> HashMap<&'static str, ValueStatisticDetails> {
     value_statistic_details.insert("cpu_utime", ValueStatisticDetails::new("milliseconds","counter"));
     value_statistic_details.insert("cql_parsers_alive", ValueStatisticDetails::new("parsers","gauge"));
     value_statistic_details.insert("cql_parsers_created", ValueStatisticDetails::new("parsers","counter"));
+    value_statistic_details.insert("cql_processors_alive", ValueStatisticDetails::new("processors","gauge"));
+    value_statistic_details.insert("cql_processors_created", ValueStatisticDetails::new("processors","counter"));
     value_statistic_details.insert("duration_ms_loading_entries_with_type_1", ValueStatisticDetails::new("milliseconds","counter"));
     value_statistic_details.insert("duration_ms_loading_entries_with_type_10", ValueStatisticDetails::new("milliseconds","counter"));
     value_statistic_details.insert("duration_ms_loading_entries_with_type_11", ValueStatisticDetails::new("milliseconds","counter"));
@@ -133,6 +136,7 @@ pub fn value_create_hashmap() -> HashMap<&'static str, ValueStatisticDetails> {
     value_statistic_details.insert("mem_tracker_Call_Outbound_RPC", ValueStatisticDetails::new("bytes","gauge"));
     value_statistic_details.insert("mem_tracker_Compressed_Read_Buffer", ValueStatisticDetails::new("bytes","gauge"));
     value_statistic_details.insert("mem_tracker_Compressed_Read_Buffer_Receive", ValueStatisticDetails::new("bytes","gauge"));
+    value_statistic_details.insert("mem_tracker_CQL_processors", ValueStatisticDetails::new("bytes","gauge"));
     value_statistic_details.insert("mem_tracker_Encrypted_Read_Buffer_Receive", ValueStatisticDetails::new("bytes","gauge"));
     value_statistic_details.insert("mem_tracker_IntentsDB", ValueStatisticDetails::new("bytes","gauge"));
     value_statistic_details.insert("mem_tracker_IntentsDB_MemTable", ValueStatisticDetails::new("bytes","gauge"));
@@ -996,6 +1000,7 @@ pub fn value_create_hashmap() -> HashMap<&'static str, ValueStatisticDetails> {
     value_statistic_details.insert("transaction_pool_prepared", ValueStatisticDetails::new("transactions","gauge"));
     value_statistic_details.insert("transactions_running", ValueStatisticDetails::new("transactions","gauge"));
     value_statistic_details.insert("truncate_operations_inflight", ValueStatisticDetails::new("operations","gauge"));
+    value_statistic_details.insert("ts_split_compaction_added", ValueStatisticDetails::new("requests","gauge"));
     value_statistic_details.insert("update_transaction_operations_inflight", ValueStatisticDetails::new("operations","gauge"));
     value_statistic_details.insert("voluntary_context_switches", ValueStatisticDetails::new("context switches","counter"));
     value_statistic_details.insert("write_operations_inflight", ValueStatisticDetails::new("operations","gauge"));

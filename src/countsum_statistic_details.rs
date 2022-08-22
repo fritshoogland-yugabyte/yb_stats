@@ -338,22 +338,22 @@ pub fn countsum_create_hashmap() -> HashMap<&'static str, CountSumStatisticDetai
     countsum_statistic_details.insert("ts_bootstrap_time", CountSumStatisticDetails::new("microseconds","counter"));
     countsum_statistic_details.insert("write_lock_latency", CountSumStatisticDetails::new("microseconds","counter"));
     countsum_statistic_details.insert("write_op_duration_client_propagated_consistency", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycsql_queries_system_auth_resource_role_permission_index", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycsql_queries_system_auth_role_permissions", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycsql_queries_system_auth_roles", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycsql_queries_system_local", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycsql_queries_system_partitions", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycsql_queries_system_peers", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycsql_queries_system_schema_aggregates", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycsql_queries_system_schema_columns", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycsql_queries_system_schema_functions", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycsql_queries_system_schema_indexes", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycsql_queries_system_schema_keyspaces", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycsql_queries_system_schema_tables", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycsql_queries_system_schema_triggers", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycsql_queries_system_schema_types", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycsql_queries_system_schema_views", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycsql_queries_system_size_estimates", CountSumStatisticDetails::new("microseconds","counter"));
+    countsum_statistic_details.insert("ycql_queries_system_auth_resource_role_permission_index", CountSumStatisticDetails::new("microseconds","counter"));
+    countsum_statistic_details.insert("ycql_queries_system_auth_role_permissions", CountSumStatisticDetails::new("microseconds","counter"));
+    countsum_statistic_details.insert("ycql_queries_system_auth_roles", CountSumStatisticDetails::new("microseconds","counter"));
+    countsum_statistic_details.insert("ycql_queries_system_local", CountSumStatisticDetails::new("microseconds","counter"));
+    countsum_statistic_details.insert("ycql_queries_system_partitions", CountSumStatisticDetails::new("microseconds","counter"));
+    countsum_statistic_details.insert("ycql_queries_system_peers", CountSumStatisticDetails::new("microseconds","counter"));
+    countsum_statistic_details.insert("ycql_queries_system_schema_aggregates", CountSumStatisticDetails::new("microseconds","counter"));
+    countsum_statistic_details.insert("ycql_queries_system_schema_columns", CountSumStatisticDetails::new("microseconds","counter"));
+    countsum_statistic_details.insert("ycql_queries_system_schema_functions", CountSumStatisticDetails::new("microseconds","counter"));
+    countsum_statistic_details.insert("ycql_queries_system_schema_indexes", CountSumStatisticDetails::new("microseconds","counter"));
+    countsum_statistic_details.insert("ycql_queries_system_schema_keyspaces", CountSumStatisticDetails::new("microseconds","counter"));
+    countsum_statistic_details.insert("ycql_queries_system_schema_tables", CountSumStatisticDetails::new("microseconds","counter"));
+    countsum_statistic_details.insert("ycql_queries_system_schema_triggers", CountSumStatisticDetails::new("microseconds","counter"));
+    countsum_statistic_details.insert("ycql_queries_system_schema_types", CountSumStatisticDetails::new("microseconds","counter"));
+    countsum_statistic_details.insert("ycql_queries_system_schema_views", CountSumStatisticDetails::new("microseconds","counter"));
+    countsum_statistic_details.insert("ycql_queries_system_size_estimates", CountSumStatisticDetails::new("microseconds","counter"));
 
     countsum_statistic_details
 }

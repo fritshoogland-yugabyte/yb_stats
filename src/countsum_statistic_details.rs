@@ -359,7 +359,7 @@ impl CountSumStatistics {
             ("requests", 1_i64),
         ]);
         match divisor.get(unit) {
-            Some(x) => x.clone(),
+            Some(x) => *x,
             None => {
                 info!("The divisor for {} does not exist, please add to divisor_lookup_countsum!", unit);
                 0_i64

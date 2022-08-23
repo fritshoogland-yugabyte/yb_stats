@@ -180,10 +180,13 @@ pub fn perform_snapshot(
      * The reason being that most of the work is sending and waiting for a remote server to respond.
      * This might not be really intuitive, but it should not overallocate CPU very much.
      *
-     * If it does: setting the .env file (!) to YB_PARALLEL=1 will make this be performed serially again.
+     * If it does: set parallel to 1 again using --parallel 1, which will also set it in .env.
+     *
+     *
+     * Using a threadpool
      */
-    let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
-    pool.scope(|s| {
+    let main_pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
+    main_pool.scope(|mps| {
         let arc_hosts = Arc::new(hosts);
         let arc_ports = Arc::new(ports);
         let arc_yb_stats_directory = Arc::new(yb_stats_directory);
@@ -191,14 +194,14 @@ pub fn perform_snapshot(
         let arc_hosts_clone = arc_hosts.clone();
         let arc_ports_clone = arc_ports.clone();
         let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-        s.spawn(move |_| {
+        mps.spawn(move |_| {
             metrics::perform_metrics_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
         });
 
         let arc_hosts_clone = arc_hosts.clone();
         let arc_ports_clone = arc_ports.clone();
         let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-        s.spawn(move |_| {
+        mps.spawn(move |_| {
             gflags::perform_gflags_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
         });
 
@@ -206,7 +209,7 @@ pub fn perform_snapshot(
             let arc_hosts_clone = arc_hosts.clone();
             let arc_ports_clone = arc_ports.clone();
             let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-            s.spawn(move |_| {
+            mps.spawn(move |_| {
                 threads::perform_threads_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel)
             });
         };
@@ -214,67 +217,139 @@ pub fn perform_snapshot(
         let arc_hosts_clone = arc_hosts.clone();
         let arc_ports_clone = arc_ports.clone();
         let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-        s.spawn(move |_| {
+        mps.spawn(move |_| {
             memtrackers::perform_memtrackers_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
         });
 
         let arc_hosts_clone = arc_hosts.clone();
         let arc_ports_clone = arc_ports.clone();
         let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-        s.spawn(move |_| {
+        mps.spawn(move |_| {
             loglines::perform_loglines_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
         });
 
         let arc_hosts_clone = arc_hosts.clone();
         let arc_ports_clone = arc_ports.clone();
         let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-        s.spawn(move |_| {
+        mps.spawn(move |_| {
             versions::perform_versions_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
         });
 
         let arc_hosts_clone = arc_hosts.clone();
         let arc_ports_clone = arc_ports.clone();
         let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-        s.spawn(move |_| {
+        mps.spawn(move |_| {
             statements::perform_statements_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
         });
 
         let arc_hosts_clone = arc_hosts.clone();
         let arc_ports_clone = arc_ports.clone();
         let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-        s.spawn(move |_| {
+        mps.spawn(move |_| {
             node_exporter::perform_nodeexporter_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
         });
 
         let arc_hosts_clone = arc_hosts.clone();
         let arc_ports_clone = arc_ports.clone();
         let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-        s.spawn(move |_| {
+        mps.spawn(move |_| {
             entities::perform_entities_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
         });
 
         let arc_hosts_clone = arc_hosts.clone();
         let arc_ports_clone = arc_ports.clone();
         let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-        s.spawn(move |_| {
+        mps.spawn(move |_| {
             masters::perform_masters_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
         });
 
         let arc_hosts_clone = arc_hosts.clone();
         let arc_ports_clone = arc_ports.clone();
         let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-        s.spawn(move |_| {
+        mps.spawn(move |_| {
             rpcs::perform_rpcs_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
         });
 
         let arc_hosts_clone = arc_hosts.clone();
         let arc_ports_clone = arc_ports.clone();
         let arc_yb_stats_directory_clone = arc_yb_stats_directory;
-        s.spawn(move |_| {
+        mps.spawn(move |_| {
             pprof::perform_pprof_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
         });
 
     });
+
+    /*
+     * No threadpool
+     * The rpcs function didn't seem to work reliably with threads, but it turned out to be a JSON parsing problem.
+     * probably this should be removed in the future.
+     *
+        let arc_hosts = Arc::new(hosts);
+        let arc_ports = Arc::new(ports);
+        let arc_yb_stats_directory = Arc::new(yb_stats_directory);
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+            metrics::perform_metrics_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+            gflags::perform_gflags_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+
+        if !disable_threads {
+            let arc_hosts_clone = arc_hosts.clone();
+            let arc_ports_clone = arc_ports.clone();
+            let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+                threads::perform_threads_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel)
+        };
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+            memtrackers::perform_memtrackers_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+            loglines::perform_loglines_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+            versions::perform_versions_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+            statements::perform_statements_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+            node_exporter::perform_nodeexporter_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+            entities::perform_entities_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+            masters::perform_masters_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+            rpcs::perform_rpcs_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory;
+            pprof::perform_pprof_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+     */
 
     snapshot_number
 }

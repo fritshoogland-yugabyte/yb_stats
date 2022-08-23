@@ -9,353 +9,363 @@ pub struct CountSumStatisticDetails {
     pub stat_type: String,
 }
 
-impl CountSumStatisticDetails {
-    fn new(unit: &str, stat_type: &str) -> Self {
-        let (suffix, divisor) = suffix_lookup_countsum(unit);
-        Self {
-            unit: unit.to_string(),
-            unit_suffix: suffix,
-            divisor,
-            stat_type: stat_type.to_string(),
+pub struct CountSumStatistics {
+    pub countsumstatisticsdetails: HashMap<String, CountSumStatisticDetails>
+}
+
+impl CountSumStatistics {
+    pub fn lookup(&self, argument: &str) -> &CountSumStatisticDetails {
+        match self.countsumstatisticsdetails.get(&argument.to_string()) {
+            Some(lookup) => lookup,
+            None => {
+                info!("The metric {} is not in CountSumStatistics!", argument);
+                Self::lookup(self, "?")
+            },
         }
     }
-}
-
-struct Suffixes {
-    suffix: String,
-    divisor: i64,
-}
-
-impl Suffixes {
-    fn new(suffix: &str, divisor: i64) -> Self {
-        Self {
-            suffix: suffix.to_owned(),
-            divisor,
+    pub fn create() -> CountSumStatistics {
+        let mut table = CountSumStatistics { countsumstatisticsdetails: HashMap::new() };
+        // special row for unknown values
+        table.insert("?", "?", "?");
+        table.insert("Create_Tablet_Attempt", "microseconds","counter");
+        table.insert("Create_Tablet_Task", "microseconds","counter");
+        table.insert("Delete_Tablet_Attempt", "microseconds","counter");
+        table.insert("Delete_Tablet_Task", "microseconds","counter");
+        table.insert("Flush_Tablets_Attempt", "microseconds","counter");
+        table.insert("Flush_Tablets_Task", "microseconds","counter");
+        table.insert("Hinted_Leader_Start_Election_Attempt", "microseconds","counter");
+        table.insert("Hinted_Leader_Start_Election_Task", "microseconds","counter");
+        table.insert("Stepdown_Leader_Attempt", "microseconds","counter");
+        table.insert("Stepdown_Leader_Task", "microseconds","counter");
+        table.insert("Truncate_Tablet_Attempt", "microseconds","counter");
+        table.insert("Truncate_Tablet_Task", "microseconds","counter");
+        table.insert("admin_triggered_compaction_pool_queue_time_us", "microseconds","counter");
+        table.insert("admin_triggered_compaction_pool_run_time_us", "microseconds","counter");
+        table.insert("dns_resolve_latency_during_init_proxy", "microseconds","counter");
+        table.insert("dns_resolve_latency_during_sys_catalog_setup", "microseconds","counter");
+        table.insert("dns_resolve_latency_during_update_raft_config", "microseconds","counter");
+        table.insert("handler_latency_outbound_call_queue_time", "microseconds","counter");
+        table.insert("handler_latency_outbound_call_send_time", "microseconds","counter");
+        table.insert("handler_latency_outbound_call_time_to_response", "microseconds","counter");
+        table.insert("handler_latency_outbound_transfer", "microseconds","counter");
+        table.insert("handler_latency_yb_cdc_CDCService_BootstrapProducer", "microseconds","counter");
+        table.insert("handler_latency_yb_cdc_CDCService_CreateCDCStream", "microseconds","counter");
+        table.insert("handler_latency_yb_cdc_CDCService_DeleteCDCStream", "microseconds","counter");
+        table.insert("handler_latency_yb_cdc_CDCService_GetChanges", "microseconds","counter");
+        table.insert("handler_latency_yb_cdc_CDCService_GetCheckPoint", "microseconds","counter");
+        table.insert("handler_latency_yb_cdc_CDCService_GetLatestEntryOpId", "microseconds","counter");
+        table.insert("handler_latency_yb_cdc_CDCService_ListTablets", "microseconds","counter");
+        table.insert("handler_latency_yb_cdc_CDCService_UpdateCdcReplicatedIndex", "microseconds","counter");
+        table.insert("handler_latency_yb_client_read_local", "microseconds","counter");
+        table.insert("handler_latency_yb_client_read_remote", "microseconds","counter");
+        table.insert("handler_latency_yb_client_time_to_send", "microseconds","counter");
+        table.insert("handler_latency_yb_client_write_local", "microseconds","counter");
+        table.insert("handler_latency_yb_client_write_remote", "microseconds","counter");
+        table.insert("handler_latency_yb_cqlserver_CQLServerService_Any", "microseconds","counter");
+        table.insert("handler_latency_yb_cqlserver_CQLServerService_ExecuteRequest", "microseconds","counter");
+        table.insert("handler_latency_yb_cqlserver_CQLServerService_GetProcessor", "microseconds","counter");
+        table.insert("handler_latency_yb_cqlserver_CQLServerService_ParseRequest", "microseconds","counter");
+        table.insert("handler_latency_yb_cqlserver_CQLServerService_ProcessRequest", "microseconds","counter");
+        table.insert("handler_latency_yb_cqlserver_CQLServerService_QueueResponse", "microseconds","counter");
+        table.insert("handler_latency_yb_consensus_ConsensusService_ChangeConfig", "microseconds","counter");
+        table.insert("handler_latency_yb_consensus_ConsensusService_GetConsensusState", "microseconds","counter");
+        table.insert("handler_latency_yb_consensus_ConsensusService_GetLastOpId", "microseconds","counter");
+        table.insert("handler_latency_yb_consensus_ConsensusService_GetNodeInstance", "microseconds","counter");
+        table.insert("handler_latency_yb_consensus_ConsensusService_LeaderElectionLost", "microseconds","counter");
+        table.insert("handler_latency_yb_consensus_ConsensusService_LeaderStepDown", "microseconds","counter");
+        table.insert("handler_latency_yb_consensus_ConsensusService_MultiRaftUpdateConsensus", "microseconds","counter");
+        table.insert("handler_latency_yb_consensus_ConsensusService_RequestConsensusVote", "microseconds","counter");
+        table.insert("handler_latency_yb_consensus_ConsensusService_RunLeaderElection", "microseconds","counter");
+        table.insert("handler_latency_yb_consensus_ConsensusService_StartRemoteBootstrap", "microseconds","counter");
+        table.insert("handler_latency_yb_consensus_ConsensusService_UpdateConsensus", "microseconds","counter");
+        table.insert("handler_latency_yb_cqlserver_SQLProcessor_AnalyzeRequest", "microseconds","counter");
+        table.insert("handler_latency_yb_cqlserver_SQLProcessor_ExecuteRequest", "microseconds","counter");
+        table.insert("handler_latency_yb_cqlserver_SQLProcessor_InsertStmt", "microseconds","counter");
+        table.insert("handler_latency_yb_cqlserver_SQLProcessor_NumFlushesToExecute", "operations","counter");
+        table.insert("handler_latency_yb_cqlserver_SQLProcessor_NumRetriesToExecute", "operations","counter");
+        table.insert("handler_latency_yb_cqlserver_SQLProcessor_NumRoundsToAnalyze", "operations","counter");
+        table.insert("handler_latency_yb_cqlserver_SQLProcessor_OtherStmts", "microseconds","counter");
+        table.insert("handler_latency_yb_cqlserver_SQLProcessor_ParseRequest", "microseconds","counter");
+        table.insert("handler_latency_yb_cqlserver_SQLProcessor_ResponseSize", "bytes","counter");
+        table.insert("handler_latency_yb_cqlserver_SQLProcessor_SelectStmt", "microseconds","counter");
+        table.insert("handler_latency_yb_cqlserver_SQLProcessor_UseStmt", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterClient_GetTableLocations", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterClient_GetTabletLocations", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterClient_GetTransactionStatusTablets", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterClient_ReservePgsqlOids", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterCluster_ListTabletServers", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterCluster_GetMasterRegistration", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterDdl_CreateTable", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterDdl_CreateNamespace", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterDdl_DeleteTable", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterDdl_GetNamespaceInfo", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterDdl_GetTableSchema", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterDdl_IsCreateTableDone", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterDdl_IsDeleteTableDone", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterDdl_IsTruncateTableDone", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterDdl_ListNamespaces", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterDdl_TruncateTable", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterEncryption_GetUniverseKeyRegistry", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterBackupService_CreateSnapshot", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterBackupService_CreateSnapshotSchedule", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterBackupService_DeleteSnapshot", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterBackupService_DeleteSnapshotSchedule", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterBackupService_ImportSnapshotMeta", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterBackupService_ListSnapshotRestorations", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterBackupService_ListSnapshotSchedules", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterBackupService_ListSnapshots", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterBackupService_RestoreSnapshot", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterHeartbeat_TSHeartbeat", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_AddUniverseKeys", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_AlterNamespace", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_AlterRole", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_AlterTable", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_AlterUniverseReplication", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_AreLeaderOnPreferredOnly", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_BackfillIndex", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_ChangeEncryptionInfo", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_ChangeLoadBalancerState", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_ChangeMasterClusterConfig", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_CreateCDCStream", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_CreateNamespace", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_CreateRole", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_CreateTable", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_CreateTablegroup", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_CreateTransactionStatusTable", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_CreateUDType", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_DdlLog", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_DeleteCDCStream", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_DeleteNamespace", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_DeleteNotServingTablet", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_DeleteRole", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_DeleteTable", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_DeleteTablegroup", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_DeleteUniverseReplication", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_DumpState", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_FlushTables", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_GetBackfillJobs", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_GetCDCStream", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_GetColocatedTabletSchema", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_GetLeaderBlacklistCompletion", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_GetLoadBalancerState", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_GetLoadMoveCompletion", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_GetMasterClusterConfig", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_GetMasterRegistration", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_GetNamespaceInfo", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_GetPermissions", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_GetTableLocations", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_GetTableSchema", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_GetTabletLocations", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_GetUDType", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_GetUniveerserReplication", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_GetUniverseKeyRegistration", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_GetYsqlCatalogConfig", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_GetYsqlCatalogConfig", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_GrantRevokePermission", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_GrantRevokeRole", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_HasUniverseKeyInMemory", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_IsAlterTableDone", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_IsCreateNamespaceDone", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_IsCreateTableDone", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_IsDeleteNamespaceDone", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_IsDeleteTableDone", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_IsEncryptionEnabled", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_IsFlushTablesDone", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_IsInitDbDone", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_IsLoadBalanced", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_IsLoadBalancerIdle", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_IsMasterLeaderServiceReady", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_IsSetupUniverseReplicationDone", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_IsTruncateTableDone", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_LaunchBackfillIndexForTable", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_ListCDCStreams", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_ListLiveTabletServers", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_ListMasterRaftPeers", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_ListMasters", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_ListNamespaces", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_ListTablegroups", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_ListTables", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_ListTabletServers", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_ListUDType", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_RedisConfigGet", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_RedisConfigSet", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_RemoveMasterUpdate", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_ReservePgsqlOids", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_SetPreferredZones", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_SetUniverseReplicationEnabled", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_SetupUniverseReplication", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_SplitTablet", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_TSHeartbeat", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_TruncateTable", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterService_UpdateCDCStream", "microseconds","counter");
+        table.insert("handler_latency_yb_server_GenericService_FlushCoverage", "microseconds","counter");
+        table.insert("handler_latency_yb_server_GenericService_GetFlag", "microseconds","counter");
+        table.insert("handler_latency_yb_server_GenericService_GetStatus", "microseconds","counter");
+        table.insert("handler_latency_yb_server_GenericService_Ping", "microseconds","counter");
+        table.insert("handler_latency_yb_server_GenericService_RefreshFlags", "microseconds","counter");
+        table.insert("handler_latency_yb_server_GenericService_ServerClock", "microseconds","counter");
+        table.insert("handler_latency_yb_server_GenericService_SetFlag", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_PgClientService_AlterDatabase", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_PgClientService_AlterTable", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_PgClientService_BackfillIndex", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_PgClientService_CreateDatabase", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_PgClientService_CreateSequencesDataTable", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_PgClientService_CreateTable", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_PgClientService_CreateTablegroup", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_PgClientService_DropDatabase", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_PgClientService_DropTable", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_PgClientService_DropTablegroup", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_PgClientService_FinishTransaction", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_PgClientService_GetCatalogMasterVersion", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_PgClientService_GetDatabaseInfo", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_PgClientService_Heartbeat", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_PgClientService_IsInitDbDone", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_PgClientService_ListLiveTabletServers", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_PgClientService_OpenTable", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_PgClientService_Perform", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_PgClientService_ReserveOids", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_PgClientService_TabletServerCount", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_PgClientService_TruncateTable", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_RemoteBootstrapService_BeginRemoteBootstrapSession", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_RemoteBootstrapService_CheckSessionActive", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_RemoteBootstrapService_EndRemoteBootstrapSession", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_RemoteBootstrapService_FetchData", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_RemoteBootstrapService_RemoveSession", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerAdminService_AddTableToTablet", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerAdminService_AlterSchema", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerAdminService_BackfillDone", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerAdminService_BackfillIndex", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerAdminService_CopartitionTable", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerAdminService_CountIntents", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerAdminService_CreateTablet", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerAdminService_DeleteTablet", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerAdminService_FlushTablets", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerAdminService_GetSafeTime", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerAdminService_RemoveTableFromTablet", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerAdminService_SplitTablet", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerAdminService_TabletSnapshotOp", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerAdminService_UpgradeYsql", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerForwardService_Read", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerForwardService_Write", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerService_AbortTransaction", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerService_Checksum", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerService_GetLogLocation", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerService_GetMasterAddresses", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerService_GetSharedData", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerService_GetSplitKey", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerService_GetTabletStatus", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerService_GetTransactionStatus", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerService_GetTransactionStatusAtParticipant", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerService_ImportData", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerService_IsTabletServerReady", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerService_ListTablets", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerService_ListTabletsForTabletServer", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerService_NoOp", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerService_Publish", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerService_Read", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerService_TakeTransaction", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerService_Truncate", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerService_UpdateTransaction", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerService_VerifyTableRowRange", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerService_Write", "microseconds","counter");
+        table.insert("log_append_latency", "microseconds","counter");
+        table.insert("log_bytes_logged", "bytes","counter");
+        table.insert("log_entry_batches_per_group", "requests","counter");
+        table.insert("log_gc_duration", "microseconds","counter");
+        table.insert("log_group_commit_latency", "microseconds","counter");
+        table.insert("log_reader_read_batch_latency", "microseconds","counter");
+        table.insert("log_roll_latency", "microseconds","counter");
+        table.insert("log_sync_latency", "microseconds","counter");
+        table.insert("log_wal_size", "bytes","counter");
+        table.insert("op_apply_queue_length", "tasks","counter");
+        table.insert("op_apply_queue_time", "microseconds","counter");
+        table.insert("op_apply_run_time", "microseconds","counter");
+        table.insert("op_read_queue_length", "tasks","counter");
+        table.insert("op_read_queue_run_time", "microseconds","counter");
+        table.insert("op_read_queue_time", "microseconds","counter");
+        table.insert("post_split_trigger_compaction_pool_queue_time_us", "microseconds","counter");
+        table.insert("post_split_trigger_compaction_pool_run_time_us", "microseconds","counter");
+        table.insert("ql_read_latency", "microseconds","counter");
+        table.insert("redis_read_latency", "microseconds","counter");
+        table.insert("rocksdb_bytes_per_multiget", "bytes","counter");
+        table.insert("rocksdb_bytes_per_read", "bytes","counter");
+        table.insert("rocksdb_bytes_per_write", "bytes","counter");
+        table.insert("rocksdb_compaction_times_micros", "microseconds","counter");
+        table.insert("rocksdb_db_get_micros", "microseconds","counter");
+        table.insert("rocksdb_db_multiget_micros", "microseconds","counter");
+        table.insert("rocksdb_db_seek_micros", "microseconds","counter");
+        table.insert("rocksdb_db_write_micros", "microseconds","counter");
+        table.insert("rocksdb_numfiles_in_singlecompaction", "files","counter");
+        table.insert("rocksdb_read_block_compaction_micros", "microseconds","counter");
+        table.insert("rocksdb_read_block_get_micros", "microseconds","counter");
+        table.insert("rocksdb_sst_read_micros", "microseconds","counter");
+        table.insert("rocksdb_wal_file_sync_micros", "microseconds","counter");
+        table.insert("rocksdb_write_raw_block_micros", "microseconds","counter");
+        table.insert("rpc_incoming_queue_time", "microseconds","counter");
+        table.insert("snapshot_read_inflight_wait_duration", "microseconds","counter");
+        table.insert("transaction_pool_cache", "microseconds","counter");
+        table.insert("ts_bootstrap_time", "microseconds","counter");
+        table.insert("write_lock_latency", "microseconds","counter");
+        table.insert("write_op_duration_client_propagated_consistency", "microseconds","counter");
+        table.insert("ycql_queries_system_auth_resource_role_permission_index", "microseconds","counter");
+        table.insert("ycql_queries_system_auth_role_permissions", "microseconds","counter");
+        table.insert("ycql_queries_system_auth_roles", "microseconds","counter");
+        table.insert("ycql_queries_system_local", "microseconds","counter");
+        table.insert("ycql_queries_system_partitions", "microseconds","counter");
+        table.insert("ycql_queries_system_peers", "microseconds","counter");
+        table.insert("ycql_queries_system_schema_aggregates", "microseconds","counter");
+        table.insert("ycql_queries_system_schema_columns", "microseconds","counter");
+        table.insert("ycql_queries_system_schema_functions", "microseconds","counter");
+        table.insert("ycql_queries_system_schema_indexes", "microseconds","counter");
+        table.insert("ycql_queries_system_schema_keyspaces", "microseconds","counter");
+        table.insert("ycql_queries_system_schema_tables", "microseconds","counter");
+        table.insert("ycql_queries_system_schema_triggers", "microseconds","counter");
+        table.insert("ycql_queries_system_schema_types", "microseconds","counter");
+        table.insert("ycql_queries_system_schema_views", "microseconds","counter");
+        table.insert("ycql_queries_system_size_estimates", "microseconds","counter");
+        table
+    }
+    fn insert(&mut self, name: &str, unit: &str, statistic_type: &str) {
+        self.countsumstatisticsdetails.insert( name.to_string(), 
+                                               CountSumStatisticDetails { unit: unit.to_string(), unit_suffix: Self::suffix_lookup_countsum(unit), divisor: Self::divisor_lookup_countsum(unit), stat_type: statistic_type.to_string() }
+        );
+    }
+    fn suffix_lookup_countsum(unit: &str) -> String {
+        let suffix = HashMap::from( [
+            ("?", "?"),
+            ("microseconds", "us"),
+            ("operations", "ops"),
+            ("bytes", "bytes"),
+            ("files", "files"),
+            ("tasks", "tasks"),
+            ("requests", "requests"),
+        ]);
+        match suffix.get(unit) {
+            Some(x) => x.to_string(),
+            None => {
+                info!("The suffix for {} does not exist, please add to suffix_lookup_countsum!", unit);
+                "?".to_string()
+            },
         }
     }
-}
-
-fn suffix_lookup_countsum(unit: &str) -> (String, i64) {
-    let suffix = HashMap::from([
-        ("microseconds", Suffixes::new("us", 1000000)),
-        ("operations", Suffixes::new("ops", 1)),
-        ("bytes", Suffixes::new("bytes", 1)),
-        ("files", Suffixes::new("files", 1)),
-        ("tasks", Suffixes::new("tasks", 1)),
-        ("requests", Suffixes::new("reqs", 1)),
-    ]);
-    match suffix.get(unit) {
-        Some(x) => {
-            (x.suffix.to_string(), x.divisor)
-        },
-        None => {
-            info!("The suffix for {} does not exist, please add to suffix_lookup_countsum!", unit);
-            ("?".to_string(), 1)
-        },
+    fn divisor_lookup_countsum(unit: &str) -> i64 {
+        let divisor = HashMap::from( [
+            ("?", 0_i64),
+            ("microseconds", 1000000_i64),
+            ("operations", 1_i64),
+            ("bytes", 1_i64),
+            ("files", 1_i64),
+            ("tasks", 1_i64),
+            ("requests", 1_i64),
+        ]);
+        match divisor.get(unit) {
+            Some(x) => x.clone(),
+            None => {
+                info!("The divisor for {} does not exist, please add to divisor_lookup_countsum!", unit);
+                0_i64
+            },
+        }
     }
-}
-
-pub fn countsum_create_hashmap() -> HashMap<&'static str, CountSumStatisticDetails> {
-    let mut countsum_statistic_details: HashMap<&str, CountSumStatisticDetails> = HashMap::new();
-
-    countsum_statistic_details.insert("Create_Tablet_Attempt", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("Create_Tablet_Task", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("Delete_Tablet_Attempt", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("Delete_Tablet_Task", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("Flush_Tablets_Attempt", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("Flush_Tablets_Task", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("Hinted_Leader_Start_Election_Attempt", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("Hinted_Leader_Start_Election_Task", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("Stepdown_Leader_Attempt", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("Stepdown_Leader_Task", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("Truncate_Tablet_Attempt", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("Truncate_Tablet_Task", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("admin_triggered_compaction_pool_queue_time_us", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("admin_triggered_compaction_pool_run_time_us", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("dns_resolve_latency_during_init_proxy", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("dns_resolve_latency_during_sys_catalog_setup", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("dns_resolve_latency_during_update_raft_config", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_outbound_call_queue_time", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_outbound_call_send_time", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_outbound_call_time_to_response", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_outbound_transfer", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_cdc_CDCService_BootstrapProducer", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_cdc_CDCService_CreateCDCStream", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_cdc_CDCService_DeleteCDCStream", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_cdc_CDCService_GetChanges", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_cdc_CDCService_GetCheckPoint", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_cdc_CDCService_GetLatestEntryOpId", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_cdc_CDCService_ListTablets", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_cdc_CDCService_UpdateCdcReplicatedIndex", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_client_read_local", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_client_read_remote", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_client_time_to_send", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_client_write_local", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_client_write_remote", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_cqlserver_CQLServerService_Any", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_cqlserver_CQLServerService_ExecuteRequest", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_cqlserver_CQLServerService_GetProcessor", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_cqlserver_CQLServerService_ParseRequest", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_cqlserver_CQLServerService_ProcessRequest", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_cqlserver_CQLServerService_QueueResponse", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_consensus_ConsensusService_ChangeConfig", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_consensus_ConsensusService_GetConsensusState", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_consensus_ConsensusService_GetLastOpId", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_consensus_ConsensusService_GetNodeInstance", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_consensus_ConsensusService_LeaderElectionLost", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_consensus_ConsensusService_LeaderStepDown", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_consensus_ConsensusService_MultiRaftUpdateConsensus", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_consensus_ConsensusService_RequestConsensusVote", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_consensus_ConsensusService_RunLeaderElection", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_consensus_ConsensusService_StartRemoteBootstrap", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_consensus_ConsensusService_UpdateConsensus", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_cqlserver_SQLProcessor_AnalyzeRequest", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_cqlserver_SQLProcessor_ExecuteRequest", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_cqlserver_SQLProcessor_InsertStmt", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_cqlserver_SQLProcessor_NumFlushesToExecute", CountSumStatisticDetails::new("operations","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_cqlserver_SQLProcessor_NumRetriesToExecute", CountSumStatisticDetails::new("operations","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_cqlserver_SQLProcessor_NumRoundsToAnalyze", CountSumStatisticDetails::new("operations","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_cqlserver_SQLProcessor_OtherStmts", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_cqlserver_SQLProcessor_ParseRequest", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_cqlserver_SQLProcessor_ResponseSize", CountSumStatisticDetails::new("bytes","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_cqlserver_SQLProcessor_SelectStmt", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_cqlserver_SQLProcessor_UseStmt", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterClient_GetTableLocations", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterClient_GetTabletLocations", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterClient_GetTransactionStatusTablets", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterClient_ReservePgsqlOids", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterCluster_ListTabletServers", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterCluster_GetMasterRegistration", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterDdl_CreateTable", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterDdl_CreateNamespace", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterDdl_DeleteTable", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterDdl_GetNamespaceInfo", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterDdl_GetTableSchema", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterDdl_IsCreateTableDone", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterDdl_IsDeleteTableDone", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterDdl_IsTruncateTableDone", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterDdl_ListNamespaces", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterDdl_TruncateTable", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterEncryption_GetUniverseKeyRegistry", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterBackupService_CreateSnapshot", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterBackupService_CreateSnapshotSchedule", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterBackupService_DeleteSnapshot", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterBackupService_DeleteSnapshotSchedule", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterBackupService_ImportSnapshotMeta", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterBackupService_ListSnapshotRestorations", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterBackupService_ListSnapshotSchedules", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterBackupService_ListSnapshots", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterBackupService_RestoreSnapshot", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterHeartbeat_TSHeartbeat", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_AddUniverseKeys", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_AlterNamespace", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_AlterRole", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_AlterTable", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_AlterUniverseReplication", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_AreLeaderOnPreferredOnly", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_BackfillIndex", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_ChangeEncryptionInfo", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_ChangeLoadBalancerState", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_ChangeMasterClusterConfig", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_CreateCDCStream", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_CreateNamespace", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_CreateRole", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_CreateTable", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_CreateTablegroup", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_CreateTransactionStatusTable", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_CreateUDType", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_DdlLog", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_DeleteCDCStream", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_DeleteNamespace", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_DeleteNotServingTablet", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_DeleteRole", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_DeleteTable", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_DeleteTablegroup", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_DeleteUniverseReplication", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_DumpState", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_FlushTables", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_GetBackfillJobs", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_GetCDCStream", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_GetColocatedTabletSchema", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_GetLeaderBlacklistCompletion", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_GetLoadBalancerState", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_GetLoadMoveCompletion", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_GetMasterClusterConfig", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_GetMasterRegistration", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_GetNamespaceInfo", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_GetPermissions", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_GetTableLocations", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_GetTableSchema", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_GetTabletLocations", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_GetUDType", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_GetUniveerserReplication", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_GetUniverseKeyRegistration", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_GetYsqlCatalogConfig", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_GetYsqlCatalogConfig", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_GrantRevokePermission", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_GrantRevokeRole", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_HasUniverseKeyInMemory", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_IsAlterTableDone", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_IsCreateNamespaceDone", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_IsCreateTableDone", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_IsDeleteNamespaceDone", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_IsDeleteTableDone", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_IsEncryptionEnabled", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_IsFlushTablesDone", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_IsInitDbDone", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_IsLoadBalanced", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_IsLoadBalancerIdle", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_IsMasterLeaderServiceReady", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_IsSetupUniverseReplicationDone", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_IsTruncateTableDone", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_LaunchBackfillIndexForTable", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_ListCDCStreams", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_ListLiveTabletServers", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_ListMasterRaftPeers", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_ListMasters", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_ListNamespaces", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_ListTablegroups", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_ListTables", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_ListTabletServers", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_ListUDType", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_RedisConfigGet", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_RedisConfigSet", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_RemoveMasterUpdate", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_ReservePgsqlOids", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_SetPreferredZones", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_SetUniverseReplicationEnabled", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_SetupUniverseReplication", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_SplitTablet", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_TSHeartbeat", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_TruncateTable", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_master_MasterService_UpdateCDCStream", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_server_GenericService_FlushCoverage", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_server_GenericService_GetFlag", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_server_GenericService_GetStatus", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_server_GenericService_Ping", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_server_GenericService_RefreshFlags", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_server_GenericService_ServerClock", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_server_GenericService_SetFlag", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_PgClientService_AlterDatabase", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_PgClientService_AlterTable", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_PgClientService_BackfillIndex", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_PgClientService_CreateDatabase", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_PgClientService_CreateSequencesDataTable", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_PgClientService_CreateTable", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_PgClientService_CreateTablegroup", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_PgClientService_DropDatabase", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_PgClientService_DropTable", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_PgClientService_DropTablegroup", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_PgClientService_FinishTransaction", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_PgClientService_GetCatalogMasterVersion", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_PgClientService_GetDatabaseInfo", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_PgClientService_Heartbeat", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_PgClientService_IsInitDbDone", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_PgClientService_ListLiveTabletServers", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_PgClientService_OpenTable", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_PgClientService_Perform", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_PgClientService_ReserveOids", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_PgClientService_TabletServerCount", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_PgClientService_TruncateTable", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_RemoteBootstrapService_BeginRemoteBootstrapSession", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_RemoteBootstrapService_CheckSessionActive", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_RemoteBootstrapService_EndRemoteBootstrapSession", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_RemoteBootstrapService_FetchData", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_RemoteBootstrapService_RemoveSession", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerAdminService_AddTableToTablet", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerAdminService_AlterSchema", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerAdminService_BackfillDone", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerAdminService_BackfillIndex", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerAdminService_CopartitionTable", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerAdminService_CountIntents", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerAdminService_CreateTablet", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerAdminService_DeleteTablet", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerAdminService_FlushTablets", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerAdminService_GetSafeTime", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerAdminService_RemoveTableFromTablet", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerAdminService_SplitTablet", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerAdminService_TabletSnapshotOp", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerAdminService_UpgradeYsql", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerForwardService_Read", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerForwardService_Write", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerService_AbortTransaction", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerService_Checksum", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerService_GetLogLocation", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerService_GetMasterAddresses", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerService_GetSharedData", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerService_GetSplitKey", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerService_GetTabletStatus", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerService_GetTransactionStatus", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerService_GetTransactionStatusAtParticipant", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerService_ImportData", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerService_IsTabletServerReady", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerService_ListTablets", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerService_ListTabletsForTabletServer", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerService_NoOp", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerService_Publish", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerService_Read", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerService_TakeTransaction", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerService_Truncate", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerService_UpdateTransaction", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerService_VerifyTableRowRange", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("handler_latency_yb_tserver_TabletServerService_Write", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("log_append_latency", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("log_bytes_logged", CountSumStatisticDetails::new("bytes","counter"));
-    countsum_statistic_details.insert("log_entry_batches_per_group", CountSumStatisticDetails::new("requests","counter"));
-    countsum_statistic_details.insert("log_gc_duration", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("log_group_commit_latency", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("log_reader_read_batch_latency", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("log_roll_latency", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("log_sync_latency", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("log_wal_size", CountSumStatisticDetails::new("bytes","counter"));
-    countsum_statistic_details.insert("op_apply_queue_length", CountSumStatisticDetails::new("tasks","counter"));
-    countsum_statistic_details.insert("op_apply_queue_time", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("op_apply_run_time", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("op_read_queue_length", CountSumStatisticDetails::new("tasks","counter"));
-    countsum_statistic_details.insert("op_read_queue_run_time", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("op_read_queue_time", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("post_split_trigger_compaction_pool_queue_time_us", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("post_split_trigger_compaction_pool_run_time_us", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ql_read_latency", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("redis_read_latency", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("rocksdb_bytes_per_multiget", CountSumStatisticDetails::new("bytes","counter"));
-    countsum_statistic_details.insert("rocksdb_bytes_per_read", CountSumStatisticDetails::new("bytes","counter"));
-    countsum_statistic_details.insert("rocksdb_bytes_per_write", CountSumStatisticDetails::new("bytes","counter"));
-    countsum_statistic_details.insert("rocksdb_compaction_times_micros", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("rocksdb_db_get_micros", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("rocksdb_db_multiget_micros", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("rocksdb_db_seek_micros", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("rocksdb_db_write_micros", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("rocksdb_numfiles_in_singlecompaction", CountSumStatisticDetails::new("files","counter"));
-    countsum_statistic_details.insert("rocksdb_read_block_compaction_micros", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("rocksdb_read_block_get_micros", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("rocksdb_sst_read_micros", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("rocksdb_wal_file_sync_micros", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("rocksdb_write_raw_block_micros", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("rpc_incoming_queue_time", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("snapshot_read_inflight_wait_duration", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("transaction_pool_cache", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ts_bootstrap_time", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("write_lock_latency", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("write_op_duration_client_propagated_consistency", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycql_queries_system_auth_resource_role_permission_index", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycql_queries_system_auth_role_permissions", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycql_queries_system_auth_roles", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycql_queries_system_local", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycql_queries_system_partitions", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycql_queries_system_peers", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycql_queries_system_schema_aggregates", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycql_queries_system_schema_columns", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycql_queries_system_schema_functions", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycql_queries_system_schema_indexes", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycql_queries_system_schema_keyspaces", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycql_queries_system_schema_tables", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycql_queries_system_schema_triggers", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycql_queries_system_schema_types", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycql_queries_system_schema_views", CountSumStatisticDetails::new("microseconds","counter"));
-    countsum_statistic_details.insert("ycql_queries_system_size_estimates", CountSumStatisticDetails::new("microseconds","counter"));
-
-    countsum_statistic_details
 }
 
 #[cfg(test)]
@@ -363,17 +373,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn lookup_countsum_statistic_details_simple_value() {
-        let countsum_statistic_details_lookup = countsum_create_hashmap();
-        let lookup = countsum_statistic_details_lookup.get("Create_Tablet_Attempt").unwrap();
+    fn lookup_countsum_statistic_existing_name() {
+        let countsum_statistics = CountSumStatistics::create();
+        let lookup = countsum_statistics.lookup("Create_Tablet_Attempt");
+        assert_eq!(lookup.unit, "microseconds");
         assert_eq!(lookup.unit_suffix, "us");
+        assert_eq!(lookup.divisor, 1000000);
+        assert_eq!(lookup.stat_type, "counter");
     }
     #[test]
-    fn lookup_nonexistent_countsum_statistic_details_simple_value() {
-        let countsum_statistic_details_lookup = countsum_create_hashmap();
-        let non_existent = CountSumStatisticDetails { unit: String::from("?"), unit_suffix: String::from("?"), divisor: 1, stat_type: String::from("?") };
-        let lookup = countsum_statistic_details_lookup.get("doesnotexist").unwrap_or(&non_existent);
+    fn lookup_countsum_statistic_non_existing_name() {
+        let countsum_statistics = CountSumStatistics::create();
+        let lookup = countsum_statistics.lookup("does not exist");
+        assert_eq!(lookup.unit, "?");
         assert_eq!(lookup.unit_suffix, "?");
+        assert_eq!(lookup.divisor, 0);
+        assert_eq!(lookup.stat_type, "?");
     }
 
 }

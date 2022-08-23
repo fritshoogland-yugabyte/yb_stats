@@ -57,7 +57,7 @@ pub struct Connection {
 pub struct InboundConnection {
     pub remote_ip: String,
     pub state: String,
-    pub processed_call_count: u32,
+    pub processed_call_count: Option<u32>,
     pub connection_details: Option<ConnectionDetails>,
     pub calls_in_flight: Option<Vec<CallsInFlight>>,
 }
@@ -98,7 +98,7 @@ pub struct CallDetails {
 pub struct OutboundConnection {
     pub remote_ip: String,
     pub state: String,
-    pub processed_call_count: u32,
+    pub processed_call_count: Option<u32>,
     pub sending_bytes: Option<u32>,
     pub calls_in_flight: Option<Vec<CallsInFlight>>,
 }
@@ -134,6 +134,32 @@ pub struct StoredYsqlRpc {
     pub process_running_for_ms: u32,
     pub transaction_running_for_ms: u32,
     pub query_running_for_ms: u32,
+}
+
+impl StoredYsqlRpc {
+    fn new(hostname_port: &str,
+           timestamp: DateTime<Local>,
+           connection: Connection,
+    ) -> Self {
+        Self {
+            hostname_port: hostname_port.to_string(),
+            timestamp,
+            process_start_time: connection.process_start_time.to_string(),
+            application_name: connection.application_name.to_string(),
+            backend_type: connection.backend_type.to_string(),
+            backend_status: connection.backend_status.to_string(),
+            db_oid: connection.db_oid.unwrap_or_default(),
+            db_name: connection.db_name.unwrap_or_default(),
+            host: connection.host.unwrap_or_default(),
+            port: connection.port.unwrap_or_default(),
+            query: connection.query.unwrap_or_default(),
+            query_start_time: connection.query_start_time.unwrap_or_default(),
+            transaction_start_time: connection.transaction_start_time.unwrap_or_default(),
+            process_running_for_ms: connection.process_running_for_ms.unwrap_or_default(),
+            transaction_running_for_ms: connection.transaction_running_for_ms.unwrap_or_default(),
+            query_running_for_ms: connection.query_running_for_ms.unwrap_or_default(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -201,7 +227,7 @@ fn read_rpcs_into_vectors(
                 s.spawn(move |_| {
                     let detail_snapshot_time = Local::now();
                     let rpcs = read_rpcs(host, port);
-                    debug!("allconnections: {:?}", &rpcs);
+                    debug!("allconnections: host: {}:{}, {:?}", host, port, &rpcs);
                     tx.send((format!("{}:{}", host, port), detail_snapshot_time, rpcs)).expect("error sending data via tx (rpcs)");
                 });
             }
@@ -213,7 +239,7 @@ fn read_rpcs_into_vectors(
     let mut stored_cqldetails: Vec<StoredCqlDetails> = Vec::new();
     let mut stored_header: Vec<StoredHeaders> = Vec::new();
     for (hostname_port, detail_snapshot_time, rpcs) in rx {
-        debug!("read_rpcs_into_vectors {:?}", rpcs);
+        trace!("read_rpcs_into_vectors host: {}, {:?}", &hostname_port, rpcs);
         add_to_rpcs_vectors(rpcs, &hostname_port, detail_snapshot_time, &mut stored_ysqlrpc, &mut stored_inboundrpc, &mut stored_outboundrpc, &mut stored_cqldetails, &mut stored_header);
     }
     (stored_ysqlrpc, stored_inboundrpc, stored_outboundrpc, stored_cqldetails, stored_header)
@@ -229,6 +255,7 @@ pub fn read_rpcs(
             .unwrap()
             .text()
             .unwrap();
+        debug!("host: {}:{} http_data: {}", host, port, &http_data);
         parse_rpcs(http_data, host, port)
     } else {
         warn!("hostname: port {}:{} cannot be reached, skipping", host, port);
@@ -262,36 +289,19 @@ pub fn add_to_rpcs_vectors(
     match allconnections {
         Connections { connections } => {
             for ysqlrpc in connections {
-                debug!("add_to_rpcs_vectors ysqlrpc {:?}", ysqlrpc);
-                stored_ysqlrpc.push(StoredYsqlRpc {
-                    hostname_port: hostname.to_string(),
-                    timestamp: detail_snapshot_time,
-                    process_start_time: ysqlrpc.process_start_time,
-                    application_name: ysqlrpc.application_name,
-                    backend_type: ysqlrpc.backend_type,
-                    backend_status: ysqlrpc.backend_status,
-                    db_oid: ysqlrpc.db_oid.unwrap_or_default(),
-                    db_name: ysqlrpc.db_name.unwrap_or_else(|| "".to_string()),
-                    host: ysqlrpc.host.unwrap_or_else(|| "".to_string()),
-                    port: ysqlrpc.port.unwrap_or_else(|| "".to_string()),
-                    query: ysqlrpc.query.unwrap_or_else(|| "".to_string()),
-                    query_start_time: ysqlrpc.query_start_time.unwrap_or_else(|| "".to_string()),
-                    transaction_start_time: ysqlrpc.transaction_start_time.unwrap_or_else(|| "".to_string()),
-                    process_running_for_ms: ysqlrpc.process_running_for_ms.unwrap_or_default(),
-                    transaction_running_for_ms: ysqlrpc.transaction_running_for_ms.unwrap_or_default(),
-                    query_running_for_ms: ysqlrpc.query_running_for_ms.unwrap_or_default(),
-                });
+                trace!("add_to_rpcs_vectors ysqlrpc {:?}", &ysqlrpc);
+                stored_ysqlrpc.push( StoredYsqlRpc::new( hostname, detail_snapshot_time, ysqlrpc) );
             }
         },
         InAndOutboundConnections { inbound_connections, outbound_connections } => {
             for (serial_number, inboundrpc) in (0_u32..).zip(inbound_connections.into_iter()) {
-                debug!("add_to_rpcs_vectors inboundrpc {:?}", inboundrpc);
+                trace!("add_to_rpcs_vectors inboundrpc, hostname: {}, {:?}", hostname, inboundrpc);
                 stored_inboundrpc.push(StoredInboundRpc {
                     hostname_port: hostname.to_string(),
                     timestamp: detail_snapshot_time,
                     remote_ip: inboundrpc.remote_ip.to_string(),
                     state: inboundrpc.state.to_string(),
-                    processed_call_count: inboundrpc.processed_call_count,
+                    processed_call_count: inboundrpc.processed_call_count.unwrap_or_default(),
                     serial_nr: serial_number,
                 });
                 let keyspace = match inboundrpc.connection_details.as_ref() {
@@ -341,13 +351,13 @@ pub fn add_to_rpcs_vectors(
             };
 
             for (serial_number, outboundrpc) in (0_u32..).zip(outbound_connections.unwrap_or_default().into_iter()) {
-                debug!("add_to_rpcs_vectors outboundrpc {:?}", outboundrpc);
+                trace!("add_to_rpcs_vectors outboundrpc, hostname: {}, {:?}", hostname, outboundrpc);
                 stored_outboundrpc.push(StoredOutboundRpc {
                     hostname_port: hostname.to_string(),
                     timestamp: detail_snapshot_time,
                     remote_ip: outboundrpc.remote_ip.to_string(),
                     state: outboundrpc.state.to_string(),
-                    processed_call_count: outboundrpc.processed_call_count,
+                    processed_call_count: outboundrpc.processed_call_count.unwrap_or_default(),
                     sending_bytes: outboundrpc.sending_bytes.unwrap_or_default(),
                     serial_nr: serial_number,
                 });
@@ -372,7 +382,10 @@ pub fn add_to_rpcs_vectors(
                 }
             }
         },
-        _ => {}
+        _ => {
+            info!("No match: {:?}", allconnections);
+            //panic!();
+        },
     }
 }
 
@@ -1011,6 +1024,37 @@ mod tests {
     }
 
     #[test]
+    fn parse_inboundrpc_only_simple_tabletserver() {
+        /*
+         * This is the simple, most usual form of inbound connections for tablet server and master.
+         * The entries can have a more verbose form when they are active.
+         */
+        let json = r#"
+{
+    "inbound_connections":
+    [
+        {
+            "remote_ip": "172.158.40.206:38776",
+            "state": "OPEN",
+            "processed_call_count": 314238
+        }
+    ]
+}
+        "#.to_string();
+        let result = parse_rpcs(json, "", "");
+        let mut stored_ysqlrpc: Vec<StoredYsqlRpc> = Vec::new();
+        let mut stored_inboundrpc: Vec<StoredInboundRpc> = Vec::new();
+        let mut stored_outboundrpc: Vec<StoredOutboundRpc> = Vec::new();
+        let mut stored_cqldetails: Vec<StoredCqlDetails> = Vec::new();
+        let mut stored_headers: Vec<StoredHeaders> = Vec::new();
+        add_to_rpcs_vectors(result, "", Local::now(), &mut stored_ysqlrpc, &mut stored_inboundrpc, &mut stored_outboundrpc, &mut stored_cqldetails, &mut stored_headers);
+        // inbound
+        assert_eq!(stored_inboundrpc[0].remote_ip, "172.158.40.206:38776");
+        assert_eq!(stored_inboundrpc[0].state, "OPEN");
+        assert_eq!(stored_inboundrpc[0].processed_call_count, 314238);
+    }
+
+    #[test]
     fn parse_inboundrpc_and_outboundrpc_advanced_tabletserver() {
         /*
          * This is the "advanced" form of inbound and outbound connections for tablet server and master.
@@ -1109,6 +1153,104 @@ mod tests {
         assert_eq!(stored_headers[2].timeout_millis,119991);
         assert_eq!(stored_headers[2].elapsed_millis,7);
         assert_eq!(stored_headers[2].state,"SENT");
-
     }
+
+    #[test]
+    fn parse_inboundrpc_and_outboundrpc_master_server() {
+        /*
+         * It turns out the master can have a different format with lesser JSON fields used.
+         * The below outbound_connections JSON document is an example of that.
+         */
+        let json = r#"
+{
+        "inbound_connections": [
+            {
+                "remote_ip": "192.168.66.80:53856",
+                "state": "OPEN",
+                "processed_call_count": 186
+            },
+            {
+                "remote_ip": "192.168.66.80:53858",
+                "state": "OPEN",
+                "processed_call_count": 186
+            },
+            {
+                "remote_ip": "192.168.66.80:53860",
+                "state": "OPEN",
+                "processed_call_count": 185
+            },
+            {
+                "remote_ip": "192.168.66.80:53864",
+                "state": "OPEN",
+                "processed_call_count": 184
+            },
+            {
+                "remote_ip": "192.168.66.80:53866",
+                "state": "OPEN",
+                "processed_call_count": 184
+            },
+            {
+                "remote_ip": "192.168.66.80:53868",
+                "state": "OPEN",
+                "processed_call_count": 184
+            },
+            {
+                "remote_ip": "192.168.66.80:53874",
+                "state": "OPEN",
+                "processed_call_count": 184
+            },
+            {
+                "remote_ip": "192.168.66.80:53876",
+                "state": "OPEN",
+                "processed_call_count": 184
+            },
+            {
+                "remote_ip": "192.168.66.82:33168",
+                "state": "OPEN",
+                "processed_call_count": 1
+            },
+            {
+                "remote_ip": "192.168.66.82:33170",
+                "state": "OPEN",
+                "processed_call_count": 1
+            }
+        ],
+        "outbound_connections": [
+            {
+                "remote_ip": "192.168.66.80:7100",
+                "state": "OPEN",
+                "calls_in_flight": [
+                    {
+                        "header": {
+                            "call_id": 7993,
+                            "remote_method": {
+                                "service_name": "yb.master.MasterService",
+                                "method_name": "GetMasterRegistration"
+                            },
+                            "timeout_millis": 1500
+                        },
+                        "elapsed_millis": 3,
+                        "state": "SENT"
+                    }
+                ],
+                "sending_bytes": 0
+            }
+        ]
+    }
+        "#.to_string();
+        let result = parse_rpcs(json, "", "");
+        let mut stored_ysqlrpc: Vec<StoredYsqlRpc> = Vec::new();
+        let mut stored_inboundrpc: Vec<StoredInboundRpc> = Vec::new();
+        let mut stored_outboundrpc: Vec<StoredOutboundRpc> = Vec::new();
+        let mut stored_cqldetails: Vec<StoredCqlDetails> = Vec::new();
+        let mut stored_headers: Vec<StoredHeaders> = Vec::new();
+        add_to_rpcs_vectors(result, "", Local::now(), &mut stored_ysqlrpc, &mut stored_inboundrpc, &mut stored_outboundrpc, &mut stored_cqldetails, &mut stored_headers);
+        // inbound
+        assert_eq!(stored_inboundrpc[0].remote_ip, "192.168.66.80:53856");
+        assert_eq!(stored_inboundrpc[0].state, "OPEN");
+        assert_eq!(stored_inboundrpc[0].processed_call_count, 186);
+        // outbound
+        assert_eq!(stored_outboundrpc[0].remote_ip, "192.168.66.80:7100");
+    }
+
 }

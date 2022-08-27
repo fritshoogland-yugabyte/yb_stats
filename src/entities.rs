@@ -61,14 +61,14 @@ pub struct StoredTables {
 }
 
 impl StoredTables {
-    fn new(hostname_port: &str, timestamp: DateTime<Local>, table_id: &str, table_name: &str, table_state: &str, keyspace_id: &str, keyspace_name: &str, keyspace_type: &str) -> Self {
+    fn new(hostname_port: &str, timestamp: DateTime<Local>, table: Tables, keyspace_name: &str, keyspace_type: &str) -> Self {
         Self {
             hostname_port: hostname_port.to_string(),
             timestamp,
-            table_id: table_id.to_string(),
-            table_name: table_name.to_string(),
-            table_state: table_state.to_string(),
-            keyspace_id: keyspace_id.to_string(),
+            table_id: table.table_id.to_string(),
+            table_name: table.table_name.to_string(),
+            table_state: table.state.to_string(),
+            keyspace_id: table.keyspace_id,
             keyspace_name: keyspace_name.to_string(),
             keyspace_type: keyspace_type.to_string(),
         }
@@ -86,14 +86,14 @@ pub struct StoredTablets {
 }
 
 impl StoredTablets {
-    fn new(hostname_port: &str, timestamp: DateTime<Local>, table_id: &str, tablet_id: &str, tablet_state: &str, leader: &str) -> Self {
+    fn new(hostname_port: &str, timestamp: DateTime<Local>, tablet: &Tablets) -> Self {
         Self {
             hostname_port: hostname_port.to_string(),
             timestamp,
-            table_id: table_id.to_string(),
-            tablet_id: tablet_id.to_string(),
-            tablet_state: tablet_state.to_string(),
-            leader: leader.to_string(),
+            table_id: tablet.table_id.to_string(),
+            tablet_id: tablet.tablet_id.to_string(),
+            tablet_state: tablet.state.to_string(),
+            leader: tablet.leader.as_ref().unwrap_or(&"-".to_string()).to_string(),
         }
     }
 }
@@ -109,14 +109,14 @@ pub struct StoredReplicas {
 }
 
 impl StoredReplicas {
-    fn new(hostname_port: &str, timestamp: DateTime<Local>, tablet_id: &str, replica_type: &str, server_uuid: &str, addr: &str) -> Self {
+    fn new(hostname_port: &str, timestamp: DateTime<Local>, tablet_id: &str, replica: Replicas) -> Self {
         Self {
             hostname_port: hostname_port.to_string(),
             timestamp,
             tablet_id: tablet_id.to_string(),
-            replica_type: replica_type.to_string(),
-            server_uuid: server_uuid.to_string(),
-            addr: addr.to_string()
+            replica_type: replica.replica_type.to_string(),
+            server_uuid: replica.server_uuid.to_string(),
+            addr: replica.addr
         }
     }
 }
@@ -231,15 +231,15 @@ pub fn add_to_entity_vectors(
                 "????"
             },
         };
-        stored_tables.push( StoredTables::new(hostname, detail_snapshot_time, &table.table_id, &table.table_name, &table.state, &table.keyspace_id, keyspace_name, keyspace_type));
+        stored_tables.push( StoredTables::new(hostname, detail_snapshot_time, table, keyspace_name, keyspace_type));
     }
     // build a vector for tablets
     for tablet in entities.tablets {
-        stored_tablets.push( StoredTablets::new( hostname, detail_snapshot_time, &tablet.table_id, &tablet.tablet_id, &tablet.state, &tablet.leader.unwrap_or_else(|| "-".to_string())));
+        stored_tablets.push( StoredTablets::new( hostname, detail_snapshot_time, &tablet));
         match tablet.replicas {
             Some(replicas) => {
                 for replica in replicas {
-                    stored_replicas.push(StoredReplicas::new(hostname, detail_snapshot_time, &tablet.tablet_id, &replica.replica_type, &replica.server_uuid, &replica.addr));
+                    stored_replicas.push(StoredReplicas::new(hostname, detail_snapshot_time, &tablet.tablet_id, replica));
                 }
             },
             None => {},
@@ -387,7 +387,7 @@ pub fn print_entities(
                                       row.keyspace_name.to_string(),
                                       row.table_name.to_string(),
                                       row.table_id.to_string()),
-                                StoredTables::new(&row.hostname_port, row.timestamp, &row.table_id, &row.table_name, &row.table_state, &row.keyspace_id, &row.keyspace_name, &row.keyspace_type)
+                                StoredTables { ..row }
         );
     }
     for ((hostname, keyspace_type, keyspace_name, table_name, table_id), row) in tables_btreemap {

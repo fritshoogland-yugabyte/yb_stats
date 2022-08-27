@@ -172,6 +172,19 @@ pub struct StoredInboundRpc {
     pub serial_nr: u32
 }
 
+impl StoredInboundRpc {
+    fn new(hostname_port: &str, timestamp: DateTime<Local>, serial_number: u32, inboundrpc: &InboundConnection) -> Self {
+        Self {
+            hostname_port: hostname_port.to_string(),
+            timestamp,
+            remote_ip: inboundrpc.remote_ip.to_string(),
+            state: inboundrpc.state.to_string(),
+            processed_call_count: inboundrpc.processed_call_count.unwrap_or_default(),
+            serial_nr: serial_number,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct StoredOutboundRpc {
     pub hostname_port: String,
@@ -275,6 +288,7 @@ fn parse_rpcs(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn add_to_rpcs_vectors(
     allconnections: AllConnections,
     hostname: &str,
@@ -296,14 +310,7 @@ pub fn add_to_rpcs_vectors(
         InAndOutboundConnections { inbound_connections, outbound_connections } => {
             for (serial_number, inboundrpc) in (0_u32..).zip(inbound_connections.into_iter()) {
                 trace!("add_to_rpcs_vectors inboundrpc, hostname: {}, {:?}", hostname, inboundrpc);
-                stored_inboundrpc.push(StoredInboundRpc {
-                    hostname_port: hostname.to_string(),
-                    timestamp: detail_snapshot_time,
-                    remote_ip: inboundrpc.remote_ip.to_string(),
-                    state: inboundrpc.state.to_string(),
-                    processed_call_count: inboundrpc.processed_call_count.unwrap_or_default(),
-                    serial_nr: serial_number,
-                });
+                stored_inboundrpc.push(StoredInboundRpc::new(hostname, detail_snapshot_time, serial_number, &inboundrpc));
                 let keyspace = match inboundrpc.connection_details.as_ref() {
                     Some( connection_details )  => {
                         connection_details.cql_connection_details.keyspace.clone()
@@ -383,7 +390,7 @@ pub fn add_to_rpcs_vectors(
             }
         },
         _ => {
-            info!("No match: {:?}", allconnections);
+            info!("No match: hostname: {}; {:?}", hostname, allconnections);
             //panic!();
         },
     }

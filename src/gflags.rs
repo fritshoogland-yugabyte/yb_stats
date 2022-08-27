@@ -5,7 +5,6 @@ use regex::Regex;
 use std::fs;
 use std::process;
 use serde_derive::{Serialize,Deserialize};
-//use rayon;
 use std::sync::mpsc::channel;
 use log::*;
 

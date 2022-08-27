@@ -83,12 +83,12 @@ pub struct StoredValues {
 }
 
 impl StoredValues {
-    fn new(hostname_port: &str, timestamp: DateTime<Local>, metric_type: &str, metric_id: &str, attribute_namespace: &str, attribute_table_name: &str, metric_name: &str, metric_value: i64) -> Self {
+    fn new(hostname_port: &str, timestamp: DateTime<Local>, metric: &Metrics, attribute_namespace: &str, attribute_table_name: &str, metric_name: &str, metric_value: i64) -> Self {
         Self {
             hostname_port: hostname_port.to_string(),
             timestamp,
-            metric_type: metric_type.to_string(),
-            metric_id: metric_id.to_string(),
+            metric_type: metric.metrics_type.to_string(),
+            metric_id: metric.id.to_string(),
             attribute_namespace: attribute_namespace.to_string(),
             attribute_table_name: attribute_table_name.to_string(),
             metric_name: metric_name.to_string(),
@@ -121,8 +121,7 @@ pub struct StoredCountSum {
 impl StoredCountSum {
     fn new(hostname_port: &str,
            timestamp: DateTime<Local>,
-           metric_type: &str,
-           metric_id: &str,
+           metric: &Metrics,
            attribute_namespace: &str,
            attribute_table_name: &str,
            metric_name: &str,
@@ -140,8 +139,8 @@ impl StoredCountSum {
         Self {
             hostname_port: hostname_port.to_string(),
             timestamp,
-            metric_type: metric_type.to_string(),
-            metric_id: metric_id.to_string(),
+            metric_type: metric.metrics_type.to_string(),
+            metric_id: metric.id.to_string(),
             attribute_namespace: attribute_namespace.to_string(),
             attribute_table_name: attribute_table_name.to_string(),
             metric_name: metric_name.to_string(),
@@ -176,8 +175,7 @@ pub struct StoredCountSumRows {
 impl StoredCountSumRows {
     fn new(hostname_port: &str,
            timestamp: DateTime<Local>,
-           metric_type: &str,
-           metric_id: &str,
+           metric: &Metrics,
            attribute_namespace: &str,
            attribute_table_name: &str,
            metric_name: &str,
@@ -188,8 +186,8 @@ impl StoredCountSumRows {
         Self {
             hostname_port: hostname_port.to_string(),
             timestamp,
-            metric_type: metric_type.to_string(),
-            metric_id: metric_id.to_string(),
+            metric_type: metric.metrics_type.to_string(),
+            metric_id: metric.id.to_string(),
             attribute_namespace: attribute_namespace.to_string(),
             attribute_table_name: attribute_table_name.to_string(),
             metric_name: metric_name.to_string(),
@@ -211,14 +209,54 @@ pub struct SnapshotDiffValues {
 }
 
 impl SnapshotDiffValues {
-    fn new(table_name: &str, namespace: &str, first_snapshot_time: DateTime<Local>, second_snapshot_time: DateTime<Local>, first_snapshot_value: i64, second_snapshot_value: i64) -> Self {
+    fn first_snapshot(storedvalues: StoredValues) -> Self {
         Self {
-            table_name: table_name.to_string(),
-            namespace: namespace.to_string(),
+            table_name: storedvalues.attribute_table_name.to_string(),
+            namespace: storedvalues.attribute_namespace.to_string(),
+            first_snapshot_time: storedvalues.timestamp,
+            second_snapshot_time: storedvalues.timestamp,
+            first_snapshot_value: storedvalues.metric_value,
+            second_snapshot_value: 0,
+        }
+    }
+    fn second_snapshot_existing(values_diff_row: &mut SnapshotDiffValues, storedvalues: StoredValues) -> Self {
+        Self {
+            table_name: values_diff_row.table_name.to_string(),
+            namespace: values_diff_row.namespace.to_string(),
+            first_snapshot_time: values_diff_row.first_snapshot_time,
+            second_snapshot_time: storedvalues.timestamp,
+            first_snapshot_value: values_diff_row.first_snapshot_value,
+            second_snapshot_value: storedvalues.metric_value,
+        }
+    }
+    fn second_snapshot_new(storedvalues: StoredValues, first_snapshot_time: DateTime<Local>) -> Self {
+        Self {
+            table_name: storedvalues.attribute_table_name.to_string(),
+            namespace: storedvalues.attribute_namespace.to_string(),
             first_snapshot_time,
-            second_snapshot_time,
-            first_snapshot_value,
-            second_snapshot_value,
+            second_snapshot_time: storedvalues.timestamp,
+            first_snapshot_value: 0,
+            second_snapshot_value: storedvalues.metric_value,
+        }
+    }
+    fn diff_sum_existing(sum_value_diff_row: &mut SnapshotDiffValues, value_diff_row: &SnapshotDiffValues) -> Self {
+        Self {
+            table_name: sum_value_diff_row.table_name.to_string(),
+            namespace: sum_value_diff_row.namespace.to_string(),
+            first_snapshot_time: sum_value_diff_row.first_snapshot_time,
+            second_snapshot_time: sum_value_diff_row.second_snapshot_time,
+            first_snapshot_value: sum_value_diff_row.first_snapshot_value + value_diff_row.first_snapshot_value,
+            second_snapshot_value: sum_value_diff_row.second_snapshot_value + value_diff_row.second_snapshot_value,
+        }
+    }
+    fn diff_sum_new(value_diff_row: &SnapshotDiffValues) -> Self {
+        Self {
+            table_name: "-".to_string(),
+            namespace: "-".to_string(),
+            first_snapshot_time: value_diff_row.first_snapshot_time,
+            second_snapshot_time: value_diff_row.second_snapshot_time,
+            first_snapshot_value: value_diff_row.first_snapshot_value,
+            second_snapshot_value: value_diff_row.second_snapshot_value,
         }
     }
 }
@@ -244,39 +282,108 @@ pub struct SnapshotDiffCountSum {
 }
 
 impl SnapshotDiffCountSum {
-    fn new(table_name: &str,
-           namespace: &str,
-           first_snapshot_time: DateTime<Local>,
-           second_snapshot_time: DateTime<Local>,
-           second_snapshot_total_count: u64,
-           second_snapshot_min: u64,
-           second_snapshot_mean: f64,
-           second_snapshot_percentile_75: u64,
-           second_snapshot_percentile_95: u64,
-           second_snapshot_percentile_99: u64,
-           second_snapshot_percentile_99_9: u64,
-           second_snapshot_percentile_99_99: u64,
-           second_snapshot_max: u64,
-           second_snapshot_total_sum: u64,
-           first_snapshot_total_count: u64,
-           first_snapshot_total_sum: u64) -> Self {
+    fn first_snapshot(storedcountsum: StoredCountSum) -> Self {
         Self {
-            table_name: table_name.to_string(),
-            namespace: namespace.to_string(),
+            table_name: storedcountsum.attribute_table_name.to_string(),
+            namespace: storedcountsum.attribute_namespace.to_string(),
+            first_snapshot_time: storedcountsum.timestamp,
+            second_snapshot_time: storedcountsum.timestamp,
+            second_snapshot_total_count: 0,
+            second_snapshot_min: 0,
+            second_snapshot_mean: 0.,
+            second_snapshot_percentile_75: 0,
+            second_snapshot_percentile_95: 0,
+            second_snapshot_percentile_99: 0,
+            second_snapshot_percentile_99_9: 0,
+            second_snapshot_percentile_99_99: 0,
+            second_snapshot_max: 0,
+            second_snapshot_total_sum: 0,
+            first_snapshot_total_count: storedcountsum.metric_total_count,
+            first_snapshot_total_sum: storedcountsum.metric_total_sum,
+        }
+    }
+    fn second_snapshot_existing(countsum_diff_row: &mut SnapshotDiffCountSum, storedcountsum: StoredCountSum) -> Self
+    {
+        Self {
+            table_name: countsum_diff_row.table_name.to_string(),
+            namespace: countsum_diff_row.namespace.to_string(),
+            first_snapshot_time: countsum_diff_row.first_snapshot_time,
+            second_snapshot_time: storedcountsum.timestamp,
+            second_snapshot_total_count: storedcountsum.metric_total_count,
+            second_snapshot_min: storedcountsum.metric_min,
+            second_snapshot_mean: storedcountsum.metric_mean,
+            second_snapshot_percentile_75: storedcountsum.metric_percentile_75,
+            second_snapshot_percentile_95: storedcountsum.metric_percentile_95,
+            second_snapshot_percentile_99: storedcountsum.metric_percentile_99,
+            second_snapshot_percentile_99_9: storedcountsum.metric_percentile_99_9,
+            second_snapshot_percentile_99_99: storedcountsum.metric_percentile_99_99,
+            second_snapshot_max: storedcountsum.metric_max,
+            second_snapshot_total_sum: storedcountsum.metric_total_sum,
+            first_snapshot_total_count: countsum_diff_row.first_snapshot_total_count,
+            first_snapshot_total_sum: countsum_diff_row.first_snapshot_total_sum,
+        }
+    }
+    fn second_snapshot_new(storedcountsum: StoredCountSum, first_snapshot_time: DateTime<Local>) -> Self
+    {
+        Self {
+            table_name: storedcountsum.attribute_table_name.to_string(),
+            namespace: storedcountsum.attribute_namespace.to_string(),
             first_snapshot_time,
-            second_snapshot_time,
-            second_snapshot_total_count,
-            second_snapshot_min,
-            second_snapshot_mean,
-            second_snapshot_percentile_75,
-            second_snapshot_percentile_95,
-            second_snapshot_percentile_99,
-            second_snapshot_percentile_99_9,
-            second_snapshot_percentile_99_99,
-            second_snapshot_max,
-            second_snapshot_total_sum,
-            first_snapshot_total_count,
-            first_snapshot_total_sum,
+            second_snapshot_time: storedcountsum.timestamp,
+            second_snapshot_total_count: storedcountsum.metric_total_count,
+            second_snapshot_min: storedcountsum.metric_min,
+            second_snapshot_mean: storedcountsum.metric_mean,
+            second_snapshot_percentile_75: storedcountsum.metric_percentile_75,
+            second_snapshot_percentile_95: storedcountsum.metric_percentile_95,
+            second_snapshot_percentile_99: storedcountsum.metric_percentile_99,
+            second_snapshot_percentile_99_9: storedcountsum.metric_percentile_99_9,
+            second_snapshot_percentile_99_99: storedcountsum.metric_percentile_99_99,
+            second_snapshot_max: storedcountsum.metric_max,
+            second_snapshot_total_sum: storedcountsum.metric_total_sum,
+            first_snapshot_total_count: 0,
+            first_snapshot_total_sum: 0,
+        }
+    }
+    fn diff_sum_existing(sum_countsum_diff_row: &mut SnapshotDiffCountSum, countsum_diff_row: &SnapshotDiffCountSum) -> Self
+    {
+        Self {
+            table_name: sum_countsum_diff_row.table_name.to_string(),
+            namespace: sum_countsum_diff_row.namespace.to_string(),
+            first_snapshot_time: sum_countsum_diff_row.first_snapshot_time,
+            second_snapshot_time: sum_countsum_diff_row.second_snapshot_time,
+            second_snapshot_total_count: sum_countsum_diff_row.second_snapshot_total_count + countsum_diff_row.second_snapshot_total_count,
+            second_snapshot_min: 0,
+            second_snapshot_mean: 0.,
+            second_snapshot_percentile_75: 0,
+            second_snapshot_percentile_95: 0,
+            second_snapshot_percentile_99: 0,
+            second_snapshot_percentile_99_9: 0,
+            second_snapshot_percentile_99_99: 0,
+            second_snapshot_max: 0,
+            second_snapshot_total_sum: sum_countsum_diff_row.second_snapshot_total_sum + countsum_diff_row.second_snapshot_total_sum,
+            first_snapshot_total_count: sum_countsum_diff_row.first_snapshot_total_count + countsum_diff_row.first_snapshot_total_count,
+            first_snapshot_total_sum: sum_countsum_diff_row.first_snapshot_total_sum + countsum_diff_row.first_snapshot_total_sum,
+        }
+    }
+    fn diff_sum_new(countsum_diff_row: &SnapshotDiffCountSum) -> Self
+    {
+        Self {
+            table_name: "-".to_string(),
+            namespace: "-".to_string(),
+            first_snapshot_time: countsum_diff_row.first_snapshot_time,
+            second_snapshot_time: countsum_diff_row.second_snapshot_time,
+            second_snapshot_total_count: countsum_diff_row.second_snapshot_total_count,
+            second_snapshot_min: 0,
+            second_snapshot_mean: 0.,
+            second_snapshot_percentile_75: 0,
+            second_snapshot_percentile_95: 0,
+            second_snapshot_percentile_99: 0,
+            second_snapshot_percentile_99_9: 0,
+            second_snapshot_percentile_99_99: 0,
+            second_snapshot_max: 0,
+            second_snapshot_total_sum: countsum_diff_row.second_snapshot_total_sum,
+            first_snapshot_total_count: countsum_diff_row.first_snapshot_total_count,
+            first_snapshot_total_sum: countsum_diff_row.first_snapshot_total_sum,
         }
     }
 }
@@ -296,28 +403,46 @@ pub struct SnapshotDiffCountSumRows {
 }
 
 impl SnapshotDiffCountSumRows {
-    fn new(table_name: &str,
-           namespace: &str,
-           first_snapshot_time: DateTime<Local>,
-           second_snapshot_time: DateTime<Local>,
-           first_snapshot_count: u64,
-           first_snapshot_sum: u64,
-           first_snapshot_rows: u64,
-           second_snapshot_count: u64,
-           second_snapshot_sum: u64,
-           second_snapshot_rows: u64,
-    ) -> Self {
+    fn first_snapshot(storedcountsumrows: StoredCountSumRows) -> Self {
         Self {
-            table_name: table_name.to_string(),
-            namespace: namespace.to_string(),
+            table_name: storedcountsumrows.attribute_table_name.to_string(),
+            namespace: storedcountsumrows.attribute_namespace.to_string(),
+            first_snapshot_time: storedcountsumrows.timestamp,
+            second_snapshot_time: storedcountsumrows.timestamp,
+            first_snapshot_count: storedcountsumrows.metric_count,
+            first_snapshot_sum: storedcountsumrows.metric_sum,
+            first_snapshot_rows: storedcountsumrows.metric_rows,
+            second_snapshot_count: 0,
+            second_snapshot_sum: 0,
+            second_snapshot_rows: 0,
+        }
+    }
+    fn second_snapshot_existing(countsumrows_diff_row: &mut SnapshotDiffCountSumRows, storedcountsumrows: StoredCountSumRows) -> Self {
+        Self {
+            table_name: countsumrows_diff_row.table_name.to_string(),
+            namespace: countsumrows_diff_row.namespace.to_string(),
+            first_snapshot_time: countsumrows_diff_row.first_snapshot_time,
+            second_snapshot_time: storedcountsumrows.timestamp,
+            first_snapshot_count: countsumrows_diff_row.first_snapshot_count,
+            first_snapshot_sum: countsumrows_diff_row.first_snapshot_sum,
+            first_snapshot_rows: countsumrows_diff_row.first_snapshot_rows,
+            second_snapshot_count: storedcountsumrows.metric_count,
+            second_snapshot_sum: storedcountsumrows.metric_sum,
+            second_snapshot_rows: storedcountsumrows.metric_rows,
+        }
+    }
+    fn second_snapshot_new(storedcountsumrows: StoredCountSumRows, first_snapshot_time: DateTime<Local>) -> Self {
+        Self {
+            table_name: storedcountsumrows.attribute_table_name.to_string(),
+            namespace: storedcountsumrows.attribute_namespace.to_string(),
             first_snapshot_time,
-            second_snapshot_time,
-            first_snapshot_count,
-            first_snapshot_sum,
-            first_snapshot_rows,
-            second_snapshot_count,
-            second_snapshot_sum,
-            second_snapshot_rows,
+            second_snapshot_time: storedcountsumrows.timestamp,
+            first_snapshot_count: 0,
+            first_snapshot_sum: 0,
+            first_snapshot_rows: 0,
+            second_snapshot_count: storedcountsumrows.metric_count,
+            second_snapshot_sum: storedcountsumrows.metric_sum,
+            second_snapshot_rows: storedcountsumrows.metric_rows,
         }
     }
 }
@@ -446,6 +571,7 @@ pub fn add_to_metric_vectors(
     stored_countsumrows: &mut Vec<StoredCountSumRows>,
 ) {
     for metric in data_parsed_from_json {
+        /*
         let metric_attribute_namespace_name = match &metric.attributes {
             None => String::from("-"),
             Some(attribute) => {
@@ -464,6 +590,9 @@ pub fn add_to_metric_vectors(
                 }
             }
         };
+         */
+        let metric_attribute_namespace_name = metric.attributes.as_ref().map(|x| x.namespace_name.as_deref().unwrap_or("-")).unwrap_or("-").to_string();
+        let metric_attribute_table_name = metric.attributes.as_ref().map(|x| x.table_name.as_deref().unwrap_or("-")).unwrap_or("-").to_string();
         trace!("metric_type: {}, metric_id: {}, metric_attribute_namespace_name: {}, metric_attribute_table_name: {}", &metric.metrics_type, &metric.id, metric_attribute_namespace_name, metric_attribute_table_name);
         for statistic in &metric.metrics {
             match statistic {
@@ -473,7 +602,7 @@ pub fn add_to_metric_vectors(
                      * These values are skipped!
                      */
                     if *value > 0 {
-                        stored_values.push( StoredValues::new(hostname, detail_snapshot_time, &metric.metrics_type, &metric.id, &metric_attribute_namespace_name, &metric_attribute_table_name, &name, *value));
+                        stored_values.push( StoredValues::new(hostname, detail_snapshot_time, &metric, &metric_attribute_namespace_name, &metric_attribute_table_name, name, *value));
                     }
                 },
                 NamedMetrics::MetricCountSum { name, total_count, min, mean, percentile_75, percentile_95, percentile_99, percentile_99_9, percentile_99_99, max, total_sum } => {
@@ -482,7 +611,7 @@ pub fn add_to_metric_vectors(
                      * These values are skipped!
                      */
                     if *total_count > 0 {
-                        stored_countsum.push(StoredCountSum::new(hostname, detail_snapshot_time, &metric.metrics_type, &metric.id, &metric_attribute_namespace_name, &metric_attribute_table_name, &name, *total_count, *min, *mean, *percentile_75, *percentile_95, *percentile_99, *percentile_99_9, *percentile_99_99, *max, *total_sum));
+                        stored_countsum.push(StoredCountSum::new(hostname, detail_snapshot_time, &metric, &metric_attribute_namespace_name, &metric_attribute_table_name, name, *total_count, *min, *mean, *percentile_75, *percentile_95, *percentile_99, *percentile_99_9, *percentile_99_99, *max, *total_sum));
                     }
                 },
                 NamedMetrics::MetricCountSumRows { name, count, sum, rows} => {
@@ -491,7 +620,7 @@ pub fn add_to_metric_vectors(
                      * These values are skipped!
                      */
                     if *count > 0 {
-                        stored_countsumrows.push(StoredCountSumRows::new(hostname, detail_snapshot_time, &metric.metrics_type, &metric.id, &metric_attribute_namespace_name, &metric_attribute_table_name, &name, *count, *sum, *rows));
+                        stored_countsumrows.push(StoredCountSumRows::new(hostname, detail_snapshot_time, &metric, &metric_attribute_namespace_name, &metric_attribute_table_name, name, *count, *sum, *rows));
                     }
                 },
                 // This is to to soak up invalid/rejected values.
@@ -549,7 +678,7 @@ fn build_metrics_values_btreemap(
                 },
                 None => {
                     values_btreemap.insert(( row.hostname_port.to_string(), row.metric_type.to_string(), row.metric_id.to_string(), row.metric_name.to_string() ),
-                                           StoredValues::new(&row.hostname_port, row.timestamp, &row.metric_type, &row.metric_id, &row.attribute_namespace, &row.attribute_table_name, &row.metric_name, row.metric_value)
+                                           row
                     );
                 },
             }
@@ -560,7 +689,7 @@ fn build_metrics_values_btreemap(
                 },
                 None => {
                     values_btreemap.insert(( row.hostname_port.to_string(), row.metric_type.to_string(), String::from("-"), row.metric_name.to_string() ),
-                                           StoredValues::new(&row.hostname_port, row.timestamp, &row.metric_type, &"-", &"-", &"-", &row.metric_name, row.metric_value)
+                                           row
                     );
                 }
             }
@@ -582,7 +711,7 @@ fn build_metrics_countsum_btreemap(
                 },
                 None => {
                     countsum_btreemap.insert(( row.hostname_port.to_string(), row.metric_type.to_string(), row.metric_id.to_string(), row.metric_name.to_string() ),
-                                                  StoredCountSum::new(&row.hostname_port, row.timestamp, &row.metric_type, &row.metric_id, &row.attribute_namespace, &row.attribute_table_name, &row.metric_name, row.metric_total_count, 0, 0., 0, 0, 0, 0, 0, 0, row.metric_total_sum)
+                                                    row
                     );
                 }
             }
@@ -593,7 +722,7 @@ fn build_metrics_countsum_btreemap(
                 },
                 None => {
                     countsum_btreemap.insert(( row.hostname_port.to_string(), row.metric_type.to_string(), String::from("-"), row.metric_name.to_string() ),
-                                            StoredCountSum::new(&row.hostname_port, row.timestamp, &row.metric_type, &"-", &"-", &"-", &row.metric_name, row.metric_total_count, 0, 0., 0, 0, 0, 0, 0, 0, row.metric_total_sum)
+                                            row
                     );
                 }
             }
@@ -614,7 +743,7 @@ fn build_metrics_countsumrows_btreemap(
             },
             None => {
                 countsumrows_btreemap.insert( ( row.hostname_port.to_string(), row.metric_type.to_string(), row.metric_id.to_string(), row.metric_name.to_string() ),
-                                              StoredCountSumRows::new(&row.hostname_port, row.timestamp, &row.metric_type, &row.metric_id, &row.attribute_namespace, &row.attribute_table_name, &row.metric_name, row.metric_count, row.metric_sum, row.metric_rows)
+                                              row
                 );
             }
         }
@@ -697,21 +826,21 @@ pub fn insert_first_snapshot_metrics(
     let mut values_diff: BTreeMapSnapshotDiffValues = BTreeMap::new();
     for ((hostname_port, metric_type, metric_id, metric_name), storedvalues) in values_map {
         values_diff.insert((hostname_port.to_string(), metric_type.to_string(), metric_id.to_string(), metric_name.to_string()),
-                           SnapshotDiffValues::new(&storedvalues.attribute_table_name, &storedvalues.attribute_namespace, storedvalues.timestamp, storedvalues.timestamp, storedvalues.metric_value, 0)
+                           SnapshotDiffValues::first_snapshot(storedvalues)
         );
     };
 
     let mut countsum_diff: BTreeMapSnapshotDiffCountSum = BTreeMap::new();
     for ((hostname_port, metric_type, metric_id, metric_name), storedcountsum) in countsum_map {
         countsum_diff.insert( (hostname_port.to_string(), metric_type.to_string(), metric_id.to_string(), metric_name.to_string()),
-                             SnapshotDiffCountSum::new(&storedcountsum.attribute_table_name, &storedcountsum.attribute_namespace, storedcountsum.timestamp, storedcountsum.timestamp, 0, 0, 0., 0, 0, 0, 0, 0, 0, 0, storedcountsum.metric_total_count, storedcountsum.metric_total_sum)
+                              SnapshotDiffCountSum::first_snapshot(storedcountsum)
         );
     }
 
     let mut countsumrows_diff: BTreeMapSnapshotDiffCountSumRows = BTreeMap::new();
     for ((hostname_port, metric_type, metric_id, metric_name), storedcountsumrows) in countsumrows_map {
         countsumrows_diff.insert( (hostname_port.to_string(), metric_type.to_string(), metric_id.to_string(), metric_name.to_string()),
-                                 SnapshotDiffCountSumRows::new(&storedcountsumrows.attribute_table_name, &storedcountsumrows.attribute_namespace, storedcountsumrows.timestamp, storedcountsumrows.timestamp,storedcountsumrows.metric_count, storedcountsumrows.metric_sum, storedcountsumrows.metric_rows, 0, 0, 0)
+                                  SnapshotDiffCountSumRows::first_snapshot(storedcountsumrows)
         );
     }
 
@@ -758,11 +887,12 @@ pub fn insert_second_snapshot_metrics(
     for ((hostname_port, metric_type, metric_id, metric_name), storedvalues) in values_map {
         match values_diff.get_mut(&(hostname_port.to_string(), metric_type.to_string(), metric_id.to_string(), metric_name.to_string())) {
             Some(values_diff_row) => {
-                *values_diff_row = SnapshotDiffValues::new(&values_diff_row.table_name, &values_diff_row.namespace, values_diff_row.first_snapshot_time, storedvalues.timestamp, values_diff_row.first_snapshot_value, storedvalues.metric_value);
+                *values_diff_row = SnapshotDiffValues::second_snapshot_existing(values_diff_row, storedvalues)
             },
             None => {
                 values_diff.insert((hostname_port.to_string(), metric_type.to_string(), metric_id.to_string(), metric_name.to_string()),
-                                   SnapshotDiffValues::new(&storedvalues.attribute_table_name, &storedvalues.attribute_namespace, *first_snapshot_time, storedvalues.timestamp, 0, storedvalues.metric_value),
+                                   //SnapshotDiffValues::new(&storedvalues.attribute_table_name, &storedvalues.attribute_namespace, *first_snapshot_time, storedvalues.timestamp, 0, storedvalues.metric_value),
+                                   SnapshotDiffValues::second_snapshot_new(storedvalues,  *first_snapshot_time)
                 );
             },
         }
@@ -770,71 +900,23 @@ pub fn insert_second_snapshot_metrics(
     for ((hostname_port, metric_type, metric_id, metric_name), storedcountsum) in countsum_map {
         match countsum_diff.get_mut(&(hostname_port.to_string(), metric_type.to_string(), metric_id.to_string(), metric_name.to_string())) {
             Some(countsum_diff_row) => {
-                *countsum_diff_row = SnapshotDiffCountSum::new(&countsum_diff_row.table_name,
-                                                               &countsum_diff_row.namespace,
-                                                               countsum_diff_row.first_snapshot_time,
-                                                               storedcountsum.timestamp,
-                                                               storedcountsum.metric_total_count,
-                                                               storedcountsum.metric_min,
-                                                               storedcountsum.metric_mean,
-                                                               storedcountsum.metric_percentile_75,
-                                                               storedcountsum.metric_percentile_95,
-                                                               storedcountsum.metric_percentile_99,
-                                                               storedcountsum.metric_percentile_99_9,
-                                                               storedcountsum.metric_percentile_99_99,
-                                                               storedcountsum.metric_max,
-                                                               storedcountsum.metric_total_sum,
-                                                               countsum_diff_row.first_snapshot_total_count,
-                                                               countsum_diff_row.first_snapshot_total_sum);
+                *countsum_diff_row = SnapshotDiffCountSum::second_snapshot_existing( countsum_diff_row, storedcountsum)
             },
             None => {
                 countsum_diff.insert((hostname_port.to_string(), metric_type.to_string(), metric_id.to_string(), metric_name.to_string()),
-                                     SnapshotDiffCountSum::new(&storedcountsum.attribute_table_name,
-                                                               &storedcountsum.attribute_namespace,
-                                                               *first_snapshot_time,
-                                                               storedcountsum.timestamp,
-                                                               storedcountsum.metric_total_count,
-                                                               storedcountsum.metric_min,
-                                                               storedcountsum.metric_mean,
-                                                               storedcountsum.metric_percentile_75,
-                                                               storedcountsum.metric_percentile_95,
-                                                               storedcountsum.metric_percentile_99,
-                                                               storedcountsum.metric_percentile_99_9,
-                                                               storedcountsum.metric_percentile_99_99,
-                                                               storedcountsum.metric_max,
-                                                               storedcountsum.metric_total_sum,
-                                                               0,
-                                                               0)
-                                     );
+                                     SnapshotDiffCountSum::second_snapshot_new(storedcountsum, *first_snapshot_time)
+                );
             },
         }
     }
     for ((hostname_port, metric_type, metric_id, metric_name), storedcountsumrows) in countsumrows_map {
         match countsumrows_diff.get_mut(&(hostname_port.to_string(), metric_type.to_string(), metric_id.to_string(), metric_name.to_string())) {
             Some(countsumrows_diff_row) => {
-                *countsumrows_diff_row = SnapshotDiffCountSumRows::new(&countsumrows_diff_row.table_name,
-                                                                       &countsumrows_diff_row.namespace,
-                                                                       countsumrows_diff_row.first_snapshot_time,
-                                                                       storedcountsumrows.timestamp,
-                                                                       countsumrows_diff_row.first_snapshot_count,
-                                                                       countsumrows_diff_row.first_snapshot_sum,
-                                                                       countsumrows_diff_row.first_snapshot_rows,
-                                                                       storedcountsumrows.metric_count,
-                                                                       storedcountsumrows.metric_sum,
-                                                                       storedcountsumrows.metric_rows);
+                *countsumrows_diff_row = SnapshotDiffCountSumRows::second_snapshot_existing( countsumrows_diff_row, storedcountsumrows);
             },
             None => {
                 countsumrows_diff.insert((hostname_port.to_string(), metric_type.to_string(), metric_id.to_string(), metric_name.to_string()),
-                                         SnapshotDiffCountSumRows::new(&storedcountsumrows.attribute_table_name,
-                                                                       &storedcountsumrows.attribute_namespace,
-                                                                       *first_snapshot_time,
-                                                                       storedcountsumrows.timestamp,
-                                                                       0,
-                                                                       0,
-                                                                       0,
-                                                                       storedcountsumrows.metric_count,
-                                                                       storedcountsumrows.metric_sum,
-                                                                       storedcountsumrows.metric_rows)
+                                         SnapshotDiffCountSumRows::second_snapshot_new(storedcountsumrows, *first_snapshot_time)
                 );
             },
         }
@@ -852,6 +934,9 @@ pub fn print_diff_metrics(
     gauges_enable: &bool,
 )
 {
+    /*
+     * These are the value and countsum statistics as they have been captured.
+     */
     if *details_enable {
         // value_diff
         let value_statistics = ValueStatistics::create();
@@ -954,6 +1039,10 @@ pub fn print_diff_metrics(
             }
         }
     } else {
+        /*
+         * These are the value and countsum statistics summed.
+         * The statistics for table, tablet and cdc types are per object.
+         */
         // value_diff
         let value_statistics = ValueStatistics::create();
         let mut sum_value_diff: BTreeMap<(String, String, String, String), SnapshotDiffValues> = BTreeMap::new();
@@ -966,31 +1055,12 @@ pub fn print_diff_metrics(
                  */
                 if value_diff_row.second_snapshot_value > 0 {
                     match sum_value_diff.get_mut(&(hostname_port.to_string(), metric_type.to_string(), String::from("-"), metric_name.to_string())) {
-                        Some(sum_value_diff_row) => {
-                            *sum_value_diff_row = SnapshotDiffValues {
-                                table_name: sum_value_diff_row.table_name.to_string(),
-                                namespace: sum_value_diff_row.namespace.to_string(),
-                                first_snapshot_time: sum_value_diff_row.first_snapshot_time,
-                                second_snapshot_time: sum_value_diff_row.second_snapshot_time,
-                                first_snapshot_value: sum_value_diff_row.first_snapshot_value + value_diff_row.first_snapshot_value,
-                                second_snapshot_value: sum_value_diff_row.second_snapshot_value + value_diff_row.second_snapshot_value,
-                            }
-                        },
+                        Some(sum_value_diff_row) => *sum_value_diff_row = SnapshotDiffValues::diff_sum_existing(sum_value_diff_row, value_diff_row),
                         None => {
-                            sum_value_diff.insert((
-                                                      hostname_port.to_string(),
-                                                      metric_type.to_string(),
-                                                      String::from("-"),
-                                                      metric_name.to_string()
-                                                  ), SnapshotDiffValues {
-                                table_name: String::from("-"),
-                                namespace: String::from("-"),
-                                first_snapshot_time: value_diff_row.first_snapshot_time,
-                                second_snapshot_time: value_diff_row.second_snapshot_time,
-                                first_snapshot_value: value_diff_row.first_snapshot_value,
-                                second_snapshot_value: value_diff_row.second_snapshot_value
-                            });
-                        }
+                            sum_value_diff.insert(( hostname_port.to_string(), metric_type.to_string(), String::from("-"), metric_name.to_string() ),
+                                                  SnapshotDiffValues::diff_sum_new(value_diff_row)
+                            );
+                        },
                     }
                 }
             } else {
@@ -999,19 +1069,9 @@ pub fn print_diff_metrics(
                         panic!("Error: (sum_value_diff) found second entry for hostname: {}, type: {}, id: {}, name: {}", &hostname_port.clone(), &metric_type.clone(), String::from("-"), &metric_name.clone());
                     },
                     None => {
-                        sum_value_diff.insert((
-                                                  hostname_port.to_string(),
-                                                  metric_type.to_string(),
-                                                  String::from("-"),
-                                                  metric_name.to_string()
-                                              ), SnapshotDiffValues {
-                            table_name: String::from("-"),
-                            namespace: String::from("-"),
-                            first_snapshot_time: value_diff_row.first_snapshot_time,
-                            second_snapshot_time: value_diff_row.second_snapshot_time,
-                            first_snapshot_value: value_diff_row.first_snapshot_value,
-                            second_snapshot_value: value_diff_row.second_snapshot_value,
-                        });
+                        sum_value_diff.insert(( hostname_port.to_string(), metric_type.to_string(), String::from("-"), metric_name.to_string() ),
+                                              SnapshotDiffValues::diff_sum_new(value_diff_row)
+                        );
                     }
                 }
             }
@@ -1079,52 +1139,18 @@ pub fn print_diff_metrics(
         let mut sum_countsum_diff: BTreeMap<(String, String, String, String), SnapshotDiffCountSum> = BTreeMap::new();
         for ((hostname_port, metric_type, _metric_id, metric_name), countsum_diff_row) in countsum_diff {
             if metric_type == "table" || metric_type == "tablet" || metric_type == "cdc" {
+                /*
+                 * If a table and thus its tablets have been deleted between the first and second snapshot, the second_snapshot_value is 0.
+                 * However, the first_snapshot_value is > 0, it means it can make the subtraction between the second and the first snapshot get negative, and a summary overview be incorrect.
+                 * Therefore we remove individual statistics where the second snapshot value is set to 0.
+                 */
                 if countsum_diff_row.second_snapshot_total_count > 0 {
                     match sum_countsum_diff.get_mut(&(hostname_port.to_string(), metric_type.to_string(), String::from("-"), metric_name.to_string())) {
-                        Some(sum_countsum_diff_row) => {
-                            *sum_countsum_diff_row = SnapshotDiffCountSum {
-                                table_name: sum_countsum_diff_row.table_name.to_string(),
-                                namespace: sum_countsum_diff_row.namespace.to_string(),
-                                first_snapshot_time: sum_countsum_diff_row.first_snapshot_time,
-                                second_snapshot_time: sum_countsum_diff_row.second_snapshot_time,
-                                second_snapshot_total_count: sum_countsum_diff_row.second_snapshot_total_count + countsum_diff_row.second_snapshot_total_count,
-                                second_snapshot_min: 0,
-                                second_snapshot_mean: 0.0,
-                                second_snapshot_percentile_75: 0,
-                                second_snapshot_percentile_95: 0,
-                                second_snapshot_percentile_99: 0,
-                                second_snapshot_percentile_99_9: 0,
-                                second_snapshot_percentile_99_99: 0,
-                                second_snapshot_max: 0,
-                                second_snapshot_total_sum: sum_countsum_diff_row.second_snapshot_total_sum + countsum_diff_row.second_snapshot_total_sum,
-                                first_snapshot_total_count: sum_countsum_diff_row.first_snapshot_total_count + countsum_diff_row.first_snapshot_total_count,
-                                first_snapshot_total_sum: sum_countsum_diff_row.first_snapshot_total_sum + countsum_diff_row.first_snapshot_total_sum
-                            }
-                        },
+                        Some(sum_countsum_diff_row) => *sum_countsum_diff_row = SnapshotDiffCountSum::diff_sum_existing(sum_countsum_diff_row, countsum_diff_row),
                         None => {
-                            sum_countsum_diff.insert((
-                                                         hostname_port.to_string(),
-                                                         metric_type.to_string(),
-                                                         String::from("-"),
-                                                         metric_name.to_string()
-                                                     ), SnapshotDiffCountSum {
-                                table_name: String::from("-"),
-                                namespace: String::from("-"),
-                                first_snapshot_time: countsum_diff_row.first_snapshot_time,
-                                second_snapshot_time: countsum_diff_row.second_snapshot_time,
-                                second_snapshot_total_count: countsum_diff_row.second_snapshot_total_count,
-                                second_snapshot_min: 0,
-                                second_snapshot_mean: 0.0,
-                                second_snapshot_percentile_75: 0,
-                                second_snapshot_percentile_95: 0,
-                                second_snapshot_percentile_99: 0,
-                                second_snapshot_percentile_99_9: 0,
-                                second_snapshot_percentile_99_99: 0,
-                                second_snapshot_max: 0,
-                                second_snapshot_total_sum: countsum_diff_row.second_snapshot_total_sum,
-                                first_snapshot_total_count: countsum_diff_row.first_snapshot_total_count,
-                                first_snapshot_total_sum: countsum_diff_row.first_snapshot_total_sum
-                            });
+                            sum_countsum_diff.insert(( hostname_port.to_string(), metric_type.to_string(), String::from("-"), metric_name.to_string() ),
+                                                     SnapshotDiffCountSum::diff_sum_new(countsum_diff_row)
+                            );
                         }
                     }
                 }
@@ -1134,29 +1160,9 @@ pub fn print_diff_metrics(
                         panic!("Error: (sum_countsum_diff) found second entry for hostname: {}, type: {}, id: {}, name: {}", &hostname_port.clone(), &metric_type.clone(), String::from("-"), &metric_name.clone());
                     },
                     None => {
-                        sum_countsum_diff.insert((
-                                                     hostname_port.to_string(),
-                                                     metric_type.to_string(),
-                                                     String::from("-"),
-                                                     metric_name.to_string()
-                                                 ), SnapshotDiffCountSum {
-                            table_name: String::from("-"),
-                            namespace: String::from("-"),
-                            first_snapshot_time: countsum_diff_row.first_snapshot_time,
-                            second_snapshot_time: countsum_diff_row.second_snapshot_time,
-                            second_snapshot_total_count: countsum_diff_row.second_snapshot_total_count,
-                            second_snapshot_min: 0,
-                            second_snapshot_mean: 0.0,
-                            second_snapshot_percentile_75: 0,
-                            second_snapshot_percentile_95: 0,
-                            second_snapshot_percentile_99: 0,
-                            second_snapshot_percentile_99_9: 0,
-                            second_snapshot_percentile_99_99: 0,
-                            second_snapshot_max: 0,
-                            second_snapshot_total_sum: countsum_diff_row.second_snapshot_total_sum,
-                            first_snapshot_total_count: countsum_diff_row.first_snapshot_total_count,
-                            first_snapshot_total_sum: countsum_diff_row.first_snapshot_total_sum
-                        });
+                        sum_countsum_diff.insert(( hostname_port.to_string(), metric_type.to_string(), String::from("-"), metric_name.to_string() ),
+                                                 SnapshotDiffCountSum::diff_sum_new(countsum_diff_row)
+                        );
                     }
                 }
             }

@@ -54,19 +54,19 @@ pub struct StoredVersionData {
 }
 
 impl StoredVersionData {
-    fn new(hostname_port: &str, timestamp: DateTime<Local>, git_hash: &str, build_hostname: &str, build_timestamp: &str, build_username: &str, build_clean_repo: bool, build_id: &str, build_type: &str, version_number: &str, build_number: &str) -> Self {
+    fn new_from_versiondata(hostname_port: &str, timestamp: DateTime<Local>, versiondata: VersionData) -> Self {
         Self {
             hostname_port: hostname_port.to_string(),
             timestamp,
-            git_hash: git_hash.to_string(),
-            build_hostname: build_hostname.to_string(),
-            build_timestamp: build_timestamp.to_string(),
-            build_username: build_username.to_string(),
-            build_clean_repo: build_clean_repo.to_string(),
-            build_id: build_id.to_string(),
-            build_type: build_type.to_string(),
-            version_number: version_number.to_string(),
-            build_number: build_number.to_string(),
+            git_hash: versiondata.git_hash.to_string(),
+            build_hostname: versiondata.build_hostname.to_string(),
+            build_timestamp: versiondata.build_timestamp.to_string(),
+            build_username: versiondata.build_hostname.to_string(),
+            build_clean_repo: versiondata.build_clean_repo.to_string(),
+            build_id: versiondata.build_id.to_string(),
+            build_type: versiondata.build_type.to_string(),
+            version_number: versiondata.version_number.to_string(),
+            build_number: versiondata.build_number,
         }
     }
 }
@@ -187,14 +187,14 @@ pub fn print_version_data(
     }
 }
 
-#[allow(dead_code)]
+//#[allow(dead_code)]
 pub fn add_to_version_vector(versiondata: VersionData,
                              hostname: &str,
                              snapshot_time: DateTime<Local>,
                              stored_versiondata: &mut Vec<StoredVersionData>
 ) {
     if !versiondata.git_hash.is_empty() {
-        stored_versiondata.push(StoredVersionData::new( hostname, snapshot_time, &versiondata.git_hash, &versiondata.build_hostname, &versiondata.build_timestamp, &versiondata.build_username, versiondata.build_clean_repo, &versiondata.build_id, &versiondata.build_type, &versiondata.version_number, &versiondata.build_number));
+        stored_versiondata.push(StoredVersionData::new_from_versiondata( hostname, snapshot_time, versiondata));
     }
 }
 

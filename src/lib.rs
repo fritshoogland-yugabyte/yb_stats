@@ -5,9 +5,7 @@ extern crate serde_derive;
 extern crate csv;
 
 pub mod value_statistic_details;
-//use value_statistic_details::{ValueStatisticDetails, value_create_hashmap};
 pub mod countsum_statistic_details;
-//use countsum_statistic_details::{CountSumStatisticDetails, countsum_create_hashmap};
 
 pub mod threads;
 pub mod memtrackers;
@@ -57,13 +55,20 @@ pub fn read_snapshots_from_file( yb_stats_directory: &PathBuf ) -> Vec<Snapshot>
     snapshots
 }
 
-pub fn read_begin_end_snapshot_from_user( snapshots: &[Snapshot] ) -> (String, String, Snapshot) {
+pub fn read_begin_end_snapshot_from_user( snapshots: &[Snapshot], option_begin: Option<i32>, option_end: Option<i32> ) -> (String, String, Snapshot) {
 
-    let mut begin_snapshot = String::new();
-    print!("Enter begin snapshot: ");
-    let _ = stdout().flush();
-    stdin().read_line(&mut begin_snapshot).expect("Failed to read input.");
-    let begin_snapshot: i32 = begin_snapshot.trim().parse().expect("Invalid input");
+    //let mut begin_snapshot = String::new();
+    let begin_snapshot= match option_begin {
+        Some(nr) => nr,
+        None => {
+            print!("Enter begin snapshot: ");
+            let mut snap= String::new();
+            let _ = stdout().flush();
+            stdin().read_line(&mut snap).expect("Failed to read input.");
+            let snap: i32 = snap.trim().parse().expect("Invalid input");
+            snap
+        }
+    };
     let begin_snapshot_row = match snapshots.iter().find(|&row| row.number == begin_snapshot) {
         Some(snapshot_find_result) => snapshot_find_result.clone(),
         None => {
@@ -72,11 +77,17 @@ pub fn read_begin_end_snapshot_from_user( snapshots: &[Snapshot] ) -> (String, S
         }
     };
 
-    let mut end_snapshot = String::new();
-    print!("Enter end snapshot: ");
-    let _ = stdout().flush();
-    stdin().read_line(&mut end_snapshot).expect("Failed to read input.");
-    let end_snapshot: i32 = end_snapshot.trim().parse().expect("Invalid input");
+    let end_snapshot = match option_end {
+        Some(nr) => nr,
+        None => {
+            print!("Enter end snapshot: ");
+            let mut snap = String::new();
+            let _ = stdout().flush();
+            stdin().read_line(&mut snap).expect("Failed to read input.");
+            let snap: i32 = snap.trim().parse().expect("Invalid input");
+            snap
+        }
+    };
     let _ = match snapshots.iter().find(|&row| row.number == end_snapshot) {
         Some(snapshot_find_result) => snapshot_find_result.clone(),
         None => {
@@ -123,13 +134,13 @@ fn read_snapshot_number(
 fn create_new_snapshot_directory(
     yb_stats_directory: &PathBuf,
     snapshot_number: i32,
-    snapshot_comment: String,
+    snapshot_comment: Option<String>,
     snapshots: &mut Vec<Snapshot>,
 ) {
     info!("create_new_snapshot_directory");
     let snapshot_time = Local::now();
     let snapshot_index = &yb_stats_directory.join("snapshot.index");
-    let current_snapshot: Snapshot = Snapshot { number: snapshot_number, timestamp: snapshot_time, comment: snapshot_comment };
+    let current_snapshot: Snapshot = Snapshot { number: snapshot_number, timestamp: snapshot_time, comment: snapshot_comment.unwrap_or_default() };
     let _ = &snapshots.push(current_snapshot);
     let file = fs::OpenOptions::new()
         .create(true)
@@ -157,7 +168,7 @@ fn create_new_snapshot_directory(
 pub fn perform_snapshot(
     hosts: Vec<&'static str>,
     ports: Vec<&'static str>,
-    snapshot_comment: String,
+    snapshot_comment: Option<String>,
     parallel: usize,
     disable_threads: bool,
 ) -> i32 {

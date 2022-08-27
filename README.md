@@ -19,11 +19,15 @@ In snapshot mode (`--snapshot`) the following data is gathered and stored in a C
 - node_exporter /metrics data (non-YugabyteDB data).  
  
 Plus:
-- version via the versions endpoints (/api/v1/version)
+- versions (api/v1/version)
 - gflags (/varz)
-- logging (/logs). Caveat: only the last 1M of logs is available via this endpoint.
+- logging (/logz) Caveat: only the last 1M of logs is available via this endpoint.
 - memtrackers (/mem-trackers)
 - threads (/threadz)
+- entities (/dump-entities)
+- master status (/api/v1/masters)
+- rpcs (/rpcz; including full decode of active statuses)
+- pprof growth (/pprof/growth)
 
 In order to conveniently view the work executed based on the performance data captured in the snapshots, use the `--snapshot-diff` switch.
 In order to make using different snapshots more easy, use the `--snapshot-comment` switch when creating a snapshot.

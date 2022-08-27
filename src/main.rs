@@ -83,6 +83,15 @@ struct Opts {
     /// this lists the snapshots, and allows you to select a begin and end snapshot for a diff report
     #[structopt(long)]
     snapshot_diff: bool,
+    /// this lists the snapshots
+    #[structopt(short = "l", long)]
+    snapshot_list: bool,
+    /// begin snapshot number for snapshot diff
+    #[structopt(short = "b", long)]
+    begin: Option<i32>,
+    /// end snapshot number for snapshot diff
+    #[structopt(short = "e", long)]
+    end: Option<i32>,
     /// print memtrackers data for the given snapshot
     #[structopt(long, value_name = "snapshot number")]
     print_memtrackers: Option<String>,
@@ -118,7 +127,7 @@ struct Opts {
     disable_threads: bool,
     /// the length of the SQL text display
     #[structopt(long, value_name = "nr", default_value = "80")]
-    sql_length: i32,
+    sql_length: usize,
 }
 
 fn main() {
@@ -207,18 +216,6 @@ fn main() {
     };
     let parallel: usize = parallel_string.parse().unwrap();
 
-    let snapshot: bool = options.snapshot as bool;
-    let gauges_enable: bool = options.gauges_enable as bool;
-    let details_enable: bool = options.details_enable as bool;
-    let snapshot_diff: bool = options.snapshot_diff as bool;
-    let disable_threads: bool = options.disable_threads as bool;
-    let silent: bool = options.silent as bool;
-    let sql_length: usize = options.sql_length as usize;
-    let log_severity: String = options.log_severity;
-    let snapshot_comment = match options.snapshot_comment {
-        Some(comment) => comment,
-        None => String::from("")
-    };
     let stat_name_filter = match options.stat_name_match {
         Some(stat_name_match) => Regex::new( stat_name_match.as_str() ).unwrap(),
         None => Regex::new( ".*" ).unwrap()
@@ -235,15 +232,15 @@ fn main() {
     let current_directory = env::current_dir().unwrap();
     let yb_stats_directory = current_directory.join("yb_stats.snapshots");
 
-    if snapshot {
+    if options.snapshot {
 
         info!("snapshot option");
-        let snapshot_number: i32 = perform_snapshot(hosts, ports, snapshot_comment, parallel, disable_threads);
-        if ! silent {
+        let snapshot_number: i32 = perform_snapshot(hosts, ports, options.snapshot_comment, parallel, options.disable_threads);
+        if ! options.silent {
             println!("snapshot number {}", snapshot_number);
         }
 
-    } else if snapshot_diff {
+    } else if options.snapshot_diff || options.snapshot_list {
 
         info!("snapshot_diff");
         let current_directory = env::current_dir().unwrap();
@@ -253,12 +250,13 @@ fn main() {
         for row in &snapshots {
             println!("{:>3} {:30} {:50}", row.number, row.timestamp, row.comment);
         }
+        if options.snapshot_list { process::exit(0) };
 
-        let (begin_snapshot, end_snapshot, begin_snapshot_row) = read_begin_end_snapshot_from_user(&snapshots);
+        let (begin_snapshot, end_snapshot, begin_snapshot_row) = read_begin_end_snapshot_from_user(&snapshots, options.begin, options.end);
 
-        print_metrics_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
-        print_statements_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter, sql_length);
-        print_nodeexporter_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter, &stat_name_filter, &gauges_enable, &details_enable);
+        print_metrics_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable);
+        print_statements_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter, options.sql_length);
+        print_nodeexporter_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
 
     } else if options.print_memtrackers.is_some() {
 
@@ -266,7 +264,7 @@ fn main() {
 
     } else if options.print_log.is_some() {
 
-        print_loglines(&options.print_log.unwrap(), &yb_stats_directory, &hostname_filter, &log_severity);
+        print_loglines(&options.print_log.unwrap(), &yb_stats_directory, &hostname_filter, &options.log_severity);
 
     } else if options.print_version.is_some() {
 
@@ -290,7 +288,7 @@ fn main() {
 
     } else if options.print_rpcs.is_some() {
 
-        print_rpcs(&options.print_rpcs.unwrap(), &yb_stats_directory, &hostname_filter, &details_enable);
+        print_rpcs(&options.print_rpcs.unwrap(), &yb_stats_directory, &hostname_filter, &options.details_enable);
 
     } else {
 
@@ -310,9 +308,9 @@ fn main() {
         get_nodeexpoter_into_diff_second_snapshot(&hosts, &ports, &mut node_exporter_diff, &first_snapshot_time, parallel);
 
         println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time-first_snapshot_time).num_milliseconds() as f64/1000_f64);
-        print_diff_metrics(&values_diff, &countsum_diff, &countsumrows_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &details_enable, &gauges_enable);
-        print_diff_statements(&statements_diff, &hostname_filter, sql_length);
-        print_diff_nodeexporter(&node_exporter_diff, &hostname_filter, &stat_name_filter, &gauges_enable, &details_enable);
+        print_diff_metrics(&values_diff, &countsum_diff, &countsumrows_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable);
+        print_diff_statements(&statements_diff, &hostname_filter, options.sql_length);
+        print_diff_nodeexporter(&node_exporter_diff, &hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
 
     }
 

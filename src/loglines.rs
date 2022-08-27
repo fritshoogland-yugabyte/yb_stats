@@ -5,7 +5,6 @@ use std::path::PathBuf;
 use regex::{Regex,Captures};
 use std::fs;
 use serde_derive::{Serialize,Deserialize};
-//use rayon;
 use std::sync::mpsc::channel;
 use log::*;
 
@@ -26,6 +25,19 @@ pub struct StoredLogLines {
     pub tid: String,
     pub sourcefile_nr: String,
     pub message: String,
+}
+
+impl StoredLogLines {
+    fn new(hostname_port: &str, logline: LogLine ) -> Self {
+        Self {
+            hostname_port: hostname_port.to_string(),
+            timestamp: logline.timestamp,
+            severity: logline.severity.to_string(),
+            tid: logline.tid.to_string(),
+            sourcefile_nr: logline.sourcefile_nr.to_string(),
+            message: logline.message,
+        }
+    }
 }
 
 #[allow(dead_code)]
@@ -137,7 +149,8 @@ pub fn add_to_loglines_vector(loglinedata: Vec<LogLine>,
                               stored_loglines: &mut Vec<StoredLogLines>
 ) {
     for logline in loglinedata {
-        stored_loglines.push( StoredLogLines {
+        stored_loglines.push( StoredLogLines::new(hostname, logline));
+        /*
             hostname_port: hostname.to_string(),
             timestamp: logline.timestamp,
             severity: logline.severity.to_string(),
@@ -145,6 +158,7 @@ pub fn add_to_loglines_vector(loglinedata: Vec<LogLine>,
             sourcefile_nr: logline.sourcefile_nr.to_string(),
             message: logline.message.to_string()
         });
+         */
     }
 }
 

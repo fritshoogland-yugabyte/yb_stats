@@ -39,6 +39,31 @@ struct UniqueStatementData {
     pub rows: i64,
 }
 
+impl UniqueStatementData {
+    fn add_existing(row: &mut UniqueStatementData, statement: Queries) -> Self {
+        Self {
+            calls: row.calls + statement.calls,
+            total_time: row.total_time + statement.total_time,
+            min_time: 0.,
+            max_time: 0.,
+            mean_time: 0.,
+            stddev_time: 0.,
+            rows: row.rows + statement.rows,
+        }
+    }
+    fn add_new(statement: Queries) -> Self {
+        Self {
+            calls: statement.calls,
+            total_time: statement.total_time,
+            min_time: statement.min_time,
+            max_time: statement.max_time,
+            mean_time: statement.mean_time,
+            stddev_time: statement.stddev_time,
+            rows: statement.rows,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct StoredStatements {
     pub hostname_port: String,
@@ -53,6 +78,23 @@ pub struct StoredStatements {
     pub rows: i64,
 }
 
+impl StoredStatements {
+    fn new(hostname: String, snapshot_time: DateTime<Local>, query: String, unique_statement_data: UniqueStatementData) -> Self {
+        Self {
+            hostname_port: hostname,
+            timestamp: snapshot_time,
+            query,
+            calls: unique_statement_data.calls,
+            total_time: unique_statement_data.total_time,
+            min_time: unique_statement_data.min_time,
+            max_time: unique_statement_data.max_time,
+            mean_time: unique_statement_data.mean_time,
+            stddev_time: unique_statement_data.stddev_time,
+            rows:unique_statement_data.rows,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct SnapshotDiffStatements {
     pub first_snapshot_time: DateTime<Local>,
@@ -63,6 +105,45 @@ pub struct SnapshotDiffStatements {
     pub second_total_time: f64,
     pub first_rows: i64,
     pub second_rows: i64,
+}
+
+impl SnapshotDiffStatements {
+    fn first_snapshot(statement: StoredStatements) -> Self {
+        Self {
+            first_snapshot_time: statement.timestamp,
+            second_snapshot_time: statement.timestamp,
+            first_calls: statement.calls,
+            second_calls: 0,
+            first_total_time: statement.total_time,
+            second_total_time: 0.,
+            first_rows: statement.rows,
+            second_rows: 0
+        }
+    }
+    fn second_snapshot_existing(statement: StoredStatements, statements_diff_row: &mut SnapshotDiffStatements) -> Self {
+        Self {
+            first_snapshot_time: statements_diff_row.first_snapshot_time,
+            second_snapshot_time: statement.timestamp,
+            first_calls: statements_diff_row.first_calls,
+            second_calls: statement.calls,
+            first_total_time: statements_diff_row.first_total_time,
+            second_total_time: statement.total_time,
+            first_rows: statements_diff_row.first_rows,
+            second_rows: statement.rows,
+        }
+    }
+    fn second_snapshot_new(statement: StoredStatements, first_snapshot_time: DateTime<Local>) -> Self {
+        Self {
+            first_snapshot_time,
+            second_snapshot_time: statement.timestamp,
+            first_calls: statement.calls,
+            second_calls: 0,
+            first_total_time: statement.total_time,
+            second_total_time: 0.,
+            first_rows: statement.rows,
+            second_rows: 0
+        }
+    }
 }
 
 pub fn read_statements(
@@ -149,46 +230,27 @@ pub fn add_to_statements_vector(
     snapshot_time: DateTime<Local>,
     stored_statements: &mut Vec<StoredStatements>
 ) {
+    /*
+     * This construction creates a BTreeMap in order to summarize the statements per YSQL endpoint.
+     * The YSQL endpoint data does not carry the query_id field from pg_stat_statements to be able to distinguish between identical statement versions.
+     * Therefore the statistics of identical queries are added.
+     * Excluding min/max/mean/stddev: there is nothing mathematically correct that can be done with it.
+     */
     let mut unique_statement: BTreeMap<(String, DateTime<Local>, String), UniqueStatementData> = BTreeMap::new();
     for statement in statementdata.statements {
         match unique_statement.get_mut(&(hostname.to_string().clone(), snapshot_time, statement.query.to_string())) {
             Some(row) => {
-                *row = UniqueStatementData {
-                    calls: row.calls + statement.calls,
-                    total_time: row.total_time + statement.total_time,
-                    min_time: 0.,
-                    max_time: 0.,
-                    mean_time: 0.,
-                    stddev_time: 0.,
-                    rows: row.rows + statement.rows,
-                }
+                *row = UniqueStatementData::add_existing(row, statement)
             },
             None => {
-                unique_statement.insert((hostname.to_string(), snapshot_time, statement.query.to_string()), UniqueStatementData {
-                    calls: statement.calls,
-                    total_time: statement.total_time,
-                    min_time: statement.min_time,
-                    max_time: statement.max_time,
-                    mean_time: statement.mean_time,
-                    stddev_time: statement.stddev_time,
-                    rows: statement.calls,
-                });
+                unique_statement.insert((hostname.to_string(), snapshot_time, statement.query.to_string()),
+                                            UniqueStatementData::add_new(statement)
+                );
             },
         }
     }
-    for ((sd_hostname, sd_snapshot_time, sd_query), sd_data) in unique_statement {
-        stored_statements.push( StoredStatements {
-            hostname_port: sd_hostname.to_string(),
-            timestamp: sd_snapshot_time,
-            query: sd_query.to_string(),
-            calls: sd_data.calls,
-            total_time: sd_data.total_time,
-            min_time: sd_data.min_time,
-            max_time: sd_data.max_time,
-            mean_time: sd_data.mean_time,
-            stddev_time: sd_data.stddev_time,
-            rows: sd_data.rows,
-        });
+    for ((hostname, snapshot_time, query), unique_statement_data) in unique_statement {
+        stored_statements.push( StoredStatements::new(hostname, snapshot_time, query, unique_statement_data) );
     }
 }
 
@@ -221,16 +283,9 @@ pub fn insert_first_snapshot_statements(
 {
     let mut statements_diff: BTreeMap<(String, String), SnapshotDiffStatements> = BTreeMap::new();
     for statement in stored_statements {
-        statements_diff.insert( (statement.hostname_port.to_string(), statement.query.to_string()), SnapshotDiffStatements {
-            first_snapshot_time: statement.timestamp,
-            second_snapshot_time: statement.timestamp,
-            first_calls: statement.calls,
-            first_total_time: statement.total_time,
-            first_rows: statement.rows,
-            second_calls: 0,
-            second_total_time: 0.0,
-            second_rows: 0
-        });
+        statements_diff.insert( (statement.hostname_port.to_string(), statement.query.to_string()),
+                                SnapshotDiffStatements::first_snapshot(statement)
+        );
     }
     statements_diff
 }
@@ -244,28 +299,12 @@ pub fn insert_second_snapshot_statements(
     for statement in stored_statements {
         match statements_diff.get_mut( &(statement.hostname_port.to_string(), statement.query.to_string()) ) {
             Some( statements_diff_row ) => {
-                *statements_diff_row = SnapshotDiffStatements {
-                    first_snapshot_time: statements_diff_row.first_snapshot_time,
-                    second_snapshot_time: statement.timestamp,
-                    first_calls: statements_diff_row.first_calls,
-                    second_calls: statement.calls,
-                    first_total_time: statements_diff_row.first_total_time,
-                    second_total_time: statement.total_time,
-                    first_rows: statements_diff_row.first_rows,
-                    second_rows: statement.rows
-                }
+                *statements_diff_row = SnapshotDiffStatements::second_snapshot_existing(statement, statements_diff_row)
             },
             None => {
-                statements_diff.insert( (statement.hostname_port.to_string(), statement.query.to_string()), SnapshotDiffStatements {
-                    first_snapshot_time: *first_snapshot_time,
-                    second_snapshot_time: statement.timestamp,
-                    first_calls: 0,
-                    second_calls: statement.calls,
-                    first_total_time: 0.0,
-                    second_total_time: statement.total_time,
-                    first_rows: 0,
-                    second_rows: statement.rows
-                });
+                statements_diff.insert( (statement.hostname_port.to_string(), statement.query.to_string()),
+                                        SnapshotDiffStatements::second_snapshot_new(statement, *first_snapshot_time)
+                );
             }
         }
     }

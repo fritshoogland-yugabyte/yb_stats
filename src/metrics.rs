@@ -571,26 +571,7 @@ pub fn add_to_metric_vectors(
     stored_countsumrows: &mut Vec<StoredCountSumRows>,
 ) {
     for metric in data_parsed_from_json {
-        /*
-        let metric_attribute_namespace_name = match &metric.attributes {
-            None => String::from("-"),
-            Some(attribute) => {
-                match &attribute.namespace_name {
-                    Some(namespace_name) => namespace_name.to_string(),
-                    None => String::from("-"),
-                }
-            }
-        };
-        let metric_attribute_table_name = match &metric.attributes {
-            None => String::from("-"),
-            Some(attribute) => {
-                match &attribute.table_name {
-                    Some(table_name) => table_name.to_string(),
-                    None => String::from("-"),
-                }
-            }
-        };
-         */
+        // This takes the option from attributes via as_ref(), and then the option of namespace_name/table_name via as_deref().
         let metric_attribute_namespace_name = metric.attributes.as_ref().map(|x| x.namespace_name.as_deref().unwrap_or("-")).unwrap_or("-").to_string();
         let metric_attribute_table_name = metric.attributes.as_ref().map(|x| x.table_name.as_deref().unwrap_or("-")).unwrap_or("-").to_string();
         trace!("metric_type: {}, metric_id: {}, metric_attribute_namespace_name: {}, metric_attribute_table_name: {}", &metric.metrics_type, &metric.id, metric_attribute_namespace_name, metric_attribute_table_name);
@@ -891,7 +872,6 @@ pub fn insert_second_snapshot_metrics(
             },
             None => {
                 values_diff.insert((hostname_port.to_string(), metric_type.to_string(), metric_id.to_string(), metric_name.to_string()),
-                                   //SnapshotDiffValues::new(&storedvalues.attribute_table_name, &storedvalues.attribute_namespace, *first_snapshot_time, storedvalues.timestamp, 0, storedvalues.metric_value),
                                    SnapshotDiffValues::second_snapshot_new(storedvalues,  *first_snapshot_time)
                 );
             },

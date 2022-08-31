@@ -136,12 +136,12 @@ impl SnapshotDiffStatements {
         Self {
             first_snapshot_time,
             second_snapshot_time: statement.timestamp,
-            first_calls: statement.calls,
-            second_calls: 0,
-            first_total_time: statement.total_time,
-            second_total_time: 0.,
-            first_rows: statement.rows,
-            second_rows: 0
+            first_calls: 0,
+            second_calls: statement.calls,
+            first_total_time: 0.,
+            second_total_time: statement.total_time,
+            first_rows: 0,
+            second_rows: statement.rows,
         }
     }
 }

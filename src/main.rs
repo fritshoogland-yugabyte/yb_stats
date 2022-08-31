@@ -247,8 +247,10 @@ fn main() {
         let yb_stats_directory = current_directory.join("yb_stats.snapshots");
         let snapshots: Vec<Snapshot> = read_snapshots_from_file(&yb_stats_directory);
 
-        for row in &snapshots {
-            println!("{:>3} {:30} {:50}", row.number, row.timestamp, row.comment);
+        if options.begin.is_none() || options.end.is_none() {
+            for row in &snapshots {
+                println!("{:>3} {:30} {:50}", row.number, row.timestamp, row.comment);
+            }
         }
         if options.snapshot_list { process::exit(0) };
 

@@ -19,6 +19,7 @@ pub mod entities;
 pub mod masters;
 pub mod rpcs;
 pub mod pprof;
+pub mod mems;
 
 use chrono::{DateTime, Local};
 use std::process;
@@ -283,11 +284,17 @@ pub fn perform_snapshot(
 
         let arc_hosts_clone = arc_hosts.clone();
         let arc_ports_clone = arc_ports.clone();
-        let arc_yb_stats_directory_clone = arc_yb_stats_directory;
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
         mps.spawn(move |_| {
             pprof::perform_pprof_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
         });
 
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory;
+        mps.spawn(move |_| {
+            mems::perform_mems_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+        });
     });
 
     /*

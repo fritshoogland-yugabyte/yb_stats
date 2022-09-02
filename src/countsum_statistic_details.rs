@@ -25,7 +25,7 @@ impl CountSumStatistics {
     }
     pub fn create() -> CountSumStatistics {
         let mut table = CountSumStatistics { countsumstatisticsdetails: HashMap::new() };
-        // special row for unknown values
+        // special row for unknown values. Do NOT remove!
         table.insert("?", "?", "?");
         table.insert("Create_Tablet_Attempt", "microseconds","counter");
         table.insert("Create_Tablet_Task", "microseconds","counter");

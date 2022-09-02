@@ -107,7 +107,6 @@ fn get_port_entities() -> String {
     };
     port
 }
-
 fn get_hostname_pprof() -> String {
     let hostname= match env::var("HOSTNAME_PPROF") {
         Ok(value) => value,
@@ -119,6 +118,20 @@ fn get_port_pprof() -> String {
     let port= match env::var("PORT_PPROF") {
         Ok(value) => value,
         Err(e) => panic!("Error reading environment variable PORT_PPROF: {:?}", e)
+    };
+    port
+}
+fn get_hostname_mems() -> String {
+    let hostname= match env::var("HOSTNAME_MEMS") {
+        Ok(value) => value,
+        Err(e) => panic!("Error reading environment variable HOSTNAME_MEMS: {:?}", e)
+    };
+    hostname
+}
+fn get_port_mems() -> String {
+    let port= match env::var("PORT_MEMS") {
+        Ok(value) => value,
+        Err(e) => panic!("Error reading environment variable PORT_MEMS: {:?}", e)
     };
     port
 }
@@ -457,4 +470,13 @@ fn parse_pprof_growth() {
     let hostname = get_hostname_pprof();
     let port = get_port_pprof();
     read_pprof(&hostname, &port);
+}
+use yb_stats::mems::read_mems;
+#[test]
+fn parse_mems() {
+    // currently, the mems "parsing" is not much parsing.
+    // What currently is done, is that the hostname:port/memz output is stored in a file in the snapshot directory named <hostname>:<port>_pprof_growth.
+    let hostname = get_hostname_mems();
+    let port = get_port_mems();
+    read_mems(&hostname, &port);
 }

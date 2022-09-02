@@ -25,7 +25,7 @@ impl ValueStatistics {
     }
     pub fn create() -> ValueStatistics {
         let mut table = ValueStatistics { valuestatisticdetails: HashMap::new() };
-        // special row for unknown values
+        // special row for unknown values. Do NOT remove!
         table.insert("?", "?", "?");
         table.insert("all_operations_inflight", "operations", "gauge");
         table.insert("alter_schema_operations_inflight", "operations", "gauge");
@@ -108,6 +108,7 @@ impl ValueStatistics {
         table.insert("mem_tracker_RegularDB_MemTable", "bytes","gauge");
         table.insert("mem_tracker_Tablets", "bytes","gauge");
         table.insert("mem_tracker_log_cache", "bytes","gauge");
+        table.insert("mem_tracker_operation_tracker", "bytes","gauge");
         table.insert("not_leader_rejections", "rejections","counter");
         table.insert("num_entries_with_type_10_loaded", "entries","counter");
         table.insert("num_entries_with_type_1_loaded", "entries","counter");
@@ -136,6 +137,8 @@ impl ValueStatistics {
         table.insert("proxy_request_bytes_yb_consensus_ConsensusService_UpdateConsensus", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterClient_GetTableLocations", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterClient_GetTabletLocations", "bytes","counter");
+        table.insert("proxy_request_bytes_yb_master_MasterClient_GetTransactionStatusTablets", "bytes","counter");
+        table.insert("proxy_request_bytes_yb_master_MasterClient_ReservePgsqlOids", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterCluster_GetMasterRegistration", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterCluster_ListTabletServers", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterDdl_CreateNamespace", "bytes","counter");
@@ -286,6 +289,8 @@ impl ValueStatistics {
         table.insert("proxy_response_bytes_yb_consensus_ConsensusService_UpdateConsensus", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterClient_GetTableLocations", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterClient_GetTabletLocations", "bytes","counter");
+        table.insert("proxy_response_bytes_yb_master_MasterClient_GetTransactionStatusTablets", "bytes","counter");
+        table.insert("proxy_response_bytes_yb_master_MasterClient_ReservePgsqlOids", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterCluster_GetMasterRegistration", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterCluster_ListTabletServers", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterDdl_CreateNamespace", "bytes","counter");
@@ -666,6 +671,7 @@ impl ValueStatistics {
         table.insert("service_request_bytes_yb_tserver_PgClientService_DropDatabase", "bytes","counter");
         table.insert("service_request_bytes_yb_tserver_PgClientService_DropTable", "bytes","counter");
         table.insert("service_request_bytes_yb_tserver_PgClientService_DropTablegroup", "bytes","counter");
+        table.insert("service_request_bytes_yb_tserver_PgClientService_FinishTransaction", "bytes","counter");
         table.insert("service_request_bytes_yb_tserver_PgClientService_GetCatalogMasterVersion", "bytes","counter");
         table.insert("service_request_bytes_yb_tserver_PgClientService_GetDatabaseInfo", "bytes","counter");
         table.insert("service_request_bytes_yb_tserver_PgClientService_Heartbeat", "bytes","counter");
@@ -849,6 +855,7 @@ impl ValueStatistics {
         table.insert("service_response_bytes_yb_tserver_PgClientService_DropTablegroup", "bytes","counter");
         table.insert("service_response_bytes_yb_tserver_PgClientService_GetCatalogMasterVersion", "bytes","counter");
         table.insert("service_response_bytes_yb_tserver_PgClientService_GetDatabaseInfo", "bytes","counter");
+        table.insert("service_response_bytes_yb_tserver_PgClientService_FinishTransaction", "bytes","counter");
         table.insert("service_response_bytes_yb_tserver_PgClientService_Heartbeat", "bytes","counter");
         table.insert("service_response_bytes_yb_tserver_PgClientService_IsInitDbDone", "bytes","counter");
         table.insert("service_response_bytes_yb_tserver_PgClientService_ListLiveTabletServers", "bytes","counter");

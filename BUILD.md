@@ -121,5 +121,4 @@ end
 ```shell
 brew tap fritshoogland-yugabyte/yb_stats
 brew install yb_stats
-
 ```

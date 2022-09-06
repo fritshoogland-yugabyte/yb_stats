@@ -475,7 +475,7 @@ use yb_stats::mems::read_mems;
 #[test]
 fn parse_mems() {
     // currently, the mems "parsing" is not much parsing.
-    // What currently is done, is that the hostname:port/memz output is stored in a file in the snapshot directory named <hostname>:<port>_pprof_growth.
+    // What currently is done, is that the hostname:port/memz output is stored in a file in the snapshot directory named <hostname>:<port>_mems.
     let hostname = get_hostname_mems();
     let port = get_port_mems();
     read_mems(&hostname, &port);

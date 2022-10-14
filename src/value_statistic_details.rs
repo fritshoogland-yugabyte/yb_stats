@@ -80,7 +80,7 @@ impl ValueStatistics {
         table.insert("log_cache_size", "bytes","gauge");
         table.insert("log_reader_bytes_read", "bytes","counter");
         table.insert("log_reader_entries_read", "entries","counter");
-        table.insert("log_wal_size", "bytes","counter");
+        table.insert("log_wal_size", "bytes","gauge");
         table.insert("majority_done_ops", "operations","gauge");
         table.insert("majority_sst_files_rejections", "rejections","counter");
         table.insert("mem_tracker", "bytes","gauge");
@@ -243,6 +243,10 @@ impl ValueStatistics {
         table.insert("proxy_request_bytes_yb_server_GenericService_RefreshFlags", "bytes","counter");
         table.insert("proxy_request_bytes_yb_server_GenericService_ServerClock", "bytes","counter");
         table.insert("proxy_request_bytes_yb_server_GenericService_SetFlag", "bytes","counter");
+        table.insert("proxy_request_bytes_yb_tserver_RemoteBootstrapService_BeginRemoteBootstrapSession", "bytes","counter"); // 2.15.2.0
+        table.insert("proxy_request_bytes_yb_tserver_RemoteBootstrapService_EndRemoteBootstrapSession", "bytes","counter"); // 2.15.2.0
+        table.insert("proxy_request_bytes_yb_tserver_RemoteBootstrapService_FetchData", "bytes","counter"); // 2.15.2.0
+        table.insert("proxy_request_bytes_yb_tserver_RemoteBootstrapService_RemoveSession", "bytes","counter"); // 2.15.2.0
         table.insert("proxy_request_bytes_yb_tserver_TabletServerAdminService_AddTableToTablet", "bytes","counter");
         table.insert("proxy_request_bytes_yb_tserver_TabletServerAdminService_AlterSchema", "bytes","counter");
         table.insert("proxy_request_bytes_yb_tserver_TabletServerAdminService_BackfillDone", "bytes","counter");
@@ -394,6 +398,9 @@ impl ValueStatistics {
         table.insert("proxy_response_bytes_yb_server_GenericService_RefreshFlags", "bytes","counter");
         table.insert("proxy_response_bytes_yb_server_GenericService_ServerClock", "bytes","counter");
         table.insert("proxy_response_bytes_yb_server_GenericService_SetFlag", "bytes","counter");
+        table.insert("proxy_response_bytes_yb_tserver_RemoteBootstrapService_BeginRemoteBootstrapSession", "bytes","counter"); // 2.15.2.0
+        table.insert("proxy_response_bytes_yb_tserver_RemoteBootstrapService_EndRemoteBootstrapSession", "bytes","counter"); // 2.15.2.0
+        table.insert("proxy_response_bytes_yb_tserver_RemoteBootstrapService_FetchData", "bytes","counter"); // 2.15.2.0
         table.insert("proxy_response_bytes_yb_tserver_TabletServerAdminService_AddTableToTablet", "bytes","counter");
         table.insert("proxy_response_bytes_yb_tserver_TabletServerAdminService_AlterSchema", "bytes","counter");
         table.insert("proxy_response_bytes_yb_tserver_TabletServerAdminService_BackfillDone", "bytes","counter");
@@ -562,10 +569,14 @@ impl ValueStatistics {
         table.insert("service_request_bytes_yb_master_MasterBackupService_RestoreSnapshot", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterClient_GetTableLocations", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterClient_GetTabletLocations", "bytes","counter");
-        table.insert("service_request_bytes_yb_master_MasterCluster_ListTabletServers", "bytes","counter");
+        table.insert("service_request_bytes_yb_master_MasterClient_GetTransactionStatusTablets", "bytes","counter"); //
+        table.insert("service_request_bytes_yb_master_MasterClient_ReservePgsqlOids", "bytes","counter"); //
+        table.insert("service_request_bytes_yb_master_MasterCluster_GetAutoFlagsConfig", "bytes","counter"); // 2.15.2.1
         table.insert("service_request_bytes_yb_master_MasterCluster_GetMasterRegistration", "bytes","counter");
+        table.insert("service_request_bytes_yb_master_MasterCluster_ListTabletServers", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterDdl_CreateTable", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterDdl_DeleteTable", "bytes","counter");
+        table.insert("service_request_bytes_yb_master_MasterDdl_GetNamespaceInfo", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterDdl_GetTableSchema", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterDdl_IsCreateTableDone", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterDdl_IsDeleteTableDone", "bytes","counter");
@@ -744,10 +755,14 @@ impl ValueStatistics {
         table.insert("service_response_bytes_yb_master_MasterBackupService_RestoreSnapshot", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterClient_GetTableLocations", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterClient_GetTabletLocations", "bytes","counter");
+        table.insert("service_response_bytes_yb_master_MasterClient_GetTransactionStatusTablets", "bytes","counter"); //
+        table.insert("service_response_bytes_yb_master_MasterClient_ReservePgsqlOids", "bytes","counter"); //
+        table.insert("service_response_bytes_yb_master_MasterCluster_GetAutoFlagsConfig", "bytes","counter"); // 2.15.2.1
         table.insert("service_response_bytes_yb_master_MasterCluster_ListTabletServers", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterCluster_GetMasterRegistration", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterDdl_CreateTable", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterDdl_DeleteTable", "bytes","counter");
+        table.insert("service_response_bytes_yb_master_MasterDdl_GetNamespaceInfo", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterDdl_GetTableSchema", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterDdl_IsCreateTableDone", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterDdl_IsDeleteTableDone", "bytes","counter");
@@ -940,11 +955,13 @@ impl ValueStatistics {
         table.insert("threads_started_Master_reactor", "threads","counter");
         table.insert("threads_started_TabletServer_reactor", "threads","gauge");
         table.insert("threads_started_acceptor", "threads","counter");
+        table.insert("threads_started_auto_flags_client_reactor", "threads","counter"); // 2.15.2.1
         table.insert("threads_started_catalog_manager", "threads","counter");
         table.insert("threads_started_heartbeater", "threads","counter");
         table.insert("threads_started_iotp_CQLServer", "threads","counter");
         table.insert("threads_started_iotp_Master", "threads","counter");
         table.insert("threads_started_iotp_TabletServer", "threads","counter");
+        table.insert("threads_started_iotp_auto_flags_client", "threads","counter"); // 2.15.2.1
         table.insert("threads_started_iotp_call_home", "threads","counter");
         table.insert("threads_started_maintenance", "threads","counter");
         table.insert("threads_started_pg_supervisor", "threads","counter");

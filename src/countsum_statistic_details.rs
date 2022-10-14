@@ -27,6 +27,8 @@ impl CountSumStatistics {
         let mut table = CountSumStatistics { countsumstatisticsdetails: HashMap::new() };
         // special row for unknown values. Do NOT remove!
         table.insert("?", "?", "?");
+        table.insert("AddServer_ChangeConfig_Attempt", "microseconds","counter"); // 2.15.2
+        table.insert("AddServer_ChangeConfig_Task", "microseconds","counter"); // 2.15.2
         table.insert("Create_Tablet_Attempt", "microseconds","counter");
         table.insert("Create_Tablet_Task", "microseconds","counter");
         table.insert("Delete_Tablet_Attempt", "microseconds","counter");
@@ -93,6 +95,7 @@ impl CountSumStatistics {
         table.insert("handler_latency_yb_master_MasterClient_GetTabletLocations", "microseconds","counter");
         table.insert("handler_latency_yb_master_MasterClient_GetTransactionStatusTablets", "microseconds","counter");
         table.insert("handler_latency_yb_master_MasterClient_ReservePgsqlOids", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterCluster_GetAutoFlagsConfig", "microseconds","counter"); // 2.15.2.1
         table.insert("handler_latency_yb_master_MasterCluster_ListTabletServers", "microseconds","counter");
         table.insert("handler_latency_yb_master_MasterCluster_GetMasterRegistration", "microseconds","counter");
         table.insert("handler_latency_yb_master_MasterDdl_CreateTable", "microseconds","counter");

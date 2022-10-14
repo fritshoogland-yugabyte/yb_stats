@@ -1873,7 +1873,7 @@ dependencies = [
 
 [[package]]
 name = "yb_stats"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "chrono",
  "csv",

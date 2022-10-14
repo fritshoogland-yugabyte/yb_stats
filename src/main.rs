@@ -10,7 +10,7 @@ use std::fs;
 use log::*;
 
 //mod yb_statsmetrics;
-use yb_stats::metrics::{print_metrics_diff_for_snapshots, print_diff_metrics, get_metrics_into_diff_first_snapshot, get_metrics_into_diff_second_snapshot};
+use yb_stats::metrics::SnapshotDiffBtreeMaps;
 
 
 // structs from lib
@@ -256,7 +256,8 @@ fn main() {
 
         let (begin_snapshot, end_snapshot, begin_snapshot_row) = read_begin_end_snapshot_from_user(&snapshots, options.begin, options.end);
 
-        print_metrics_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable);
+        let metrics_diff = SnapshotDiffBtreeMaps::snapshot_diff(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp);
+        metrics_diff.print(&hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable);
         print_statements_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter, options.sql_length);
         print_nodeexporter_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
 
@@ -296,7 +297,7 @@ fn main() {
 
         info!("ad-hoc mode");
         let first_snapshot_time = Local::now();
-        let (mut values_diff, mut countsum_diff, mut countsumrows_diff) = get_metrics_into_diff_first_snapshot(&hosts, &ports, parallel);
+        let mut metrics_diff = SnapshotDiffBtreeMaps::adhoc_read_first_snapshot(&hosts, &ports, parallel);
         let mut statements_diff = get_statements_into_diff_first_snapshot(&hosts, &ports, parallel);
         let mut node_exporter_diff = get_nodeexporter_into_diff_first_snapshot(&hosts, &ports, parallel);
 
@@ -305,12 +306,12 @@ fn main() {
         stdin().read_line(&mut input).expect("failed");
 
         let second_snapshot_time = Local::now();
-        get_metrics_into_diff_second_snapshot(&hosts, &ports, &mut values_diff, &mut countsum_diff, &mut countsumrows_diff, &first_snapshot_time, parallel);
+        metrics_diff.adhoc_read_second_snapshot(&hosts, &ports, parallel, &first_snapshot_time);
         get_statements_into_diff_second_snapshot(&hosts, &ports, &mut statements_diff, &first_snapshot_time, parallel);
         get_nodeexpoter_into_diff_second_snapshot(&hosts, &ports, &mut node_exporter_diff, &first_snapshot_time, parallel);
 
         println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time-first_snapshot_time).num_milliseconds() as f64/1000_f64);
-        print_diff_metrics(&values_diff, &countsum_diff, &countsumrows_diff, &hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable);
+        metrics_diff.print(&hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable);
         print_diff_statements(&statements_diff, &hostname_filter, options.sql_length);
         print_diff_nodeexporter(&node_exporter_diff, &hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
 

@@ -109,7 +109,7 @@ class yb_stats < Formula
   homepage "https://github.com/fritshoogland-yugabyte/yb_stats"
   url "https://github.com/fritshoogland-yugabyte/yb_stats/releases/latest/download/yb_stats.tar.gz"
   sha256 "480c978c8ba5c27a096523a22e74b2a389121538ab89fee8468a294a80dbbbd2"
-  version "0.8.7"
+  version "v0.8.7"
 
   def install
     bin.install "yb_stats"

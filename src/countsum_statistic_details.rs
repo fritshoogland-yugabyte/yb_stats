@@ -1,6 +1,8 @@
+//! The list of known statistics for metrics of the type CountSum, with helper functions.
 use std::collections::HashMap;
 use log::*;
-
+/// The struct that contains all the details for a named statistic.
+/// This struct is used in [CountSumStatistics.countsumstatisticdetails], which holds a HashMap with the statistic name as key and this struct as value.
 #[derive(Debug)]
 pub struct CountSumStatisticDetails {
     pub unit: String,
@@ -8,12 +10,14 @@ pub struct CountSumStatisticDetails {
     pub divisor: i64,
     pub stat_type: String,
 }
-
+/// This struct is the main struct that provides the functionality for CountSum statistics.
 pub struct CountSumStatistics {
     pub countsumstatisticsdetails: HashMap<String, CountSumStatisticDetails>
 }
 
 impl CountSumStatistics {
+    /// Take a statistic name, and return the details about it.
+    /// If it doesn't exist, it returns '?', and generates logging at the info level.
     pub fn lookup(&self, argument: &str) -> &CountSumStatisticDetails {
         match self.countsumstatisticsdetails.get(&argument.to_string()) {
             Some(lookup) => lookup,
@@ -23,6 +27,7 @@ impl CountSumStatistics {
             },
         }
     }
+    /// Create a struct holding a HashMap with all the known statistics and the specifics.
     pub fn create() -> CountSumStatistics {
         let mut table = CountSumStatistics { countsumstatisticsdetails: HashMap::new() };
         // special row for unknown values. Do NOT remove!
@@ -328,11 +333,14 @@ impl CountSumStatistics {
         table.insert("ycql_queries_system_size_estimates", "microseconds","counter");
         table
     }
+    /// Insert a row into the HashMap.
     fn insert(&mut self, name: &str, unit: &str, statistic_type: &str) {
         self.countsumstatisticsdetails.insert( name.to_string(), 
                                                CountSumStatisticDetails { unit: unit.to_string(), unit_suffix: Self::suffix_lookup_countsum(unit), divisor: Self::divisor_lookup_countsum(unit), stat_type: statistic_type.to_string() }
         );
     }
+    /// This creates a small lookup table to translate the full statistic type to the display version, which is abbreviated.
+    /// This also helps to document the known statistic types.
     fn suffix_lookup_countsum(unit: &str) -> String {
         let suffix = HashMap::from( [
             ("?", "?"),
@@ -341,7 +349,7 @@ impl CountSumStatistics {
             ("bytes", "bytes"),
             ("files", "files"),
             ("tasks", "tasks"),
-            ("requests", "requests"),
+            ("requests", "reqs"),
         ]);
         match suffix.get(unit) {
             Some(x) => x.to_string(),
@@ -351,6 +359,8 @@ impl CountSumStatistics {
             },
         }
     }
+    /// Translate the type of divisor to the unit to make calculations.
+    /// Please mind this is currently not done.
     fn divisor_lookup_countsum(unit: &str) -> i64 {
         let divisor = HashMap::from( [
             ("?", 0_i64),
@@ -370,7 +380,7 @@ impl CountSumStatistics {
         }
     }
 }
-
+/// These are the unit tests
 #[cfg(test)]
 mod tests {
     use super::*;

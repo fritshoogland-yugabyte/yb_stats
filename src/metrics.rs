@@ -1,3 +1,62 @@
+//! The functionalities for using the JSON metrics (/metrics) from the tablet server and master http and YSQL endpoints.
+//!
+//! These endpoints provide a separate metrics endpoint in the prometheus format (/prometheus-metrics).
+//!
+//! The functionality for metrics has 3 public entries:
+//! 1. Snapshot creation: [AllStoredMetrics::perform_snapshot]
+//! 2. Snapshot diff: [SnapshotDiffBtreeMaps::snapshot_diff]
+//! 3. Ad-hoc mode (diff): [SnapshotDiffBtreeMaps::adhoc_read_first_snapshot]
+//!
+//! In general, the metric data is stored in the struct [AllStoredMetrics], which contains vectors of the three types of data.
+//! When data is fetched to be shown to the user, it is fetched in [AllStoredMetrics] for both snapshots, and put in [SnapshotDiffBtreeMaps] which has specific vectors for the three types.
+//! The essence of the vectors in [SnapshotDiffBtreeMaps] is that the statistics can be subtracted.
+//!
+//! # Snapshot creation
+//! When a snapshot is created using the `--snapshot` option, this function is provided via the method [AllStoredMetrics::perform_snapshot].
+//!
+//! 1. The snapshot is called via the [crate::perform_snapshot] function, which calls all snapshot functions for all data sources.
+//! 2. For metrics, this is via the [AllStoredMetrics::perform_snapshot] method. This method performs two calls.
+//!
+//!   * The method [AllStoredMetrics::read_metrics]
+//!     * This method starts a rayon threadpool, and runs the general function [read_metrics] for all host and port combinations.
+//!       * [read_metrics] calls [parse_metrics] to parse the http JSON output into a Vector of [MetricEntity].
+//!     * The vector is iterated over and processed in using the function [add_to_metric_vectors] into the struct [AllStoredMetrics] into the vectors [StoredValues], [StoredCountSum] and [StoredCountSumRows].
+//!
+//!   * The method [AllStoredMetrics::save_snapshot]
+//!     * This method takes each of the vectors in the struct [AllStoredMetrics] and saves these to CSV files in the numbered snapshot directory.
+//!
+//! # Snapshot diff
+//! When a snapshot diff is requested via the `--snapshot-diff` option, this function is provided via the method [SnapshotDiffBtreeMaps::snapshot_diff]
+//!
+//! 1. Snapshot-diff is called directly in main, which calls the method [SnapshotDiffBtreeMaps::snapshot_diff].
+//!
+//!   * The method [AllStoredMetrics::read_snapshot] is called to read all data for an [AllStoredMetrics] struct.
+//!     * The method [SnapshotDiffBtreeMaps::first_snapshot] is called with [AllStoredMetrics] as argument to insert the first snapshot data.
+//!   * The method [AllStoredMetrics::read_snapshot] is called to read all data for an [AllStoredMetrics] struct.
+//!     * The method [SnapshotDiffBtreeMaps::second_snapshot] is called with [AllStoredMetrics] as argument to insert the second snapshot data.
+//!   * The method [SnapshotDiffBtreeMaps::print] is called to print out the the diff report from the [SnapshotDiffBtreeMaps] data.
+//!
+//! # Ad-hoc mode diff
+//! When an ad-hoc diff is requested by not specifying any option, this is performed by three methods of [SnapshotDiffBtreeMaps].
+//!
+//! 1. [SnapshotDiffBtreeMaps::adhoc_read_first_snapshot]
+//!   * The method calls [AllStoredMetrics::read_metrics]
+//!     * This method starts a rayon threadpool, and runs the general function [read_metrics] for all host and port combinations.
+//!       * [read_metrics] calls [parse_metrics] to parse the http JSON output into a Vector of [MetricEntity].
+//!     * The vector is iterated over and processed in using the function [add_to_metric_vectors] into the struct [AllStoredMetrics] into the vectors [StoredValues], [StoredCountSum] and [StoredCountSumRows].
+//!   * The method [SnapshotDiffBtreeMaps::first_snapshot] is called with [AllStoredMetrics] as argument to insert the first snapshot data.
+//!
+//! 2. The user is asked for enter via stdin().read_line()
+//!
+//! 3. [SnapshotDiffBtreeMaps::adhoc_read_second_snapshot]
+//!   * The method calls [AllStoredMetrics::read_metrics]
+//!     * This method starts a rayon threadpool, and runs the general function [read_metrics] for all host and port combinations.
+//!       * [read_metrics] calls [parse_metrics] to parse the http JSON output into a Vector of [MetricEntity].
+//!     * The vector is iterated over and processed in using the function [add_to_metric_vectors] into the struct [AllStoredMetrics] into the vectors [StoredValues], [StoredCountSum] and [StoredCountSumRows].
+//!   * The method [SnapshotDiffBtreeMaps::second_snapshot] is called with [AllStoredMetrics] as argument to insert the second snapshot data.
+//!
+//! 4. [SnapshotDiffBtreeMaps::print]
+//!
 use std::{process, fs, env, error::Error, sync::mpsc::channel, collections::BTreeMap};
 use chrono::{DateTime, Local};
 use port_scanner::scan_port_addr;
@@ -6,11 +65,8 @@ use regex::Regex;
 use substring::Substring;
 use rayon;
 use log::*;
-// the value_statistic_details crate allows to create a lookup table for statistics
 use crate::value_statistic_details::ValueStatistics;
-// the countsum_statistic_details crate allows to create a lookup table for statistics
 use crate::countsum_statistic_details::CountSumStatistics;
-///
 /// Struct to represent the metric entities found in the YugabyteDB master and tserver metrics endpoint.
 ///
 /// The struct [MetricEntity] uses two child structs: [Attributes] and a vector of [Metrics].
@@ -697,6 +753,7 @@ impl SnapshotDiffCountSumRows {
         }
     }
 }
+#[allow(rustdoc::private_intra_doc_links)]
 /// [AllStoredMetrics] is a struct that functions as a superstruct for holding [StoredValues], [StoredCountSum] and [StoredCountSumRows].
 /// It is the main struct that is used when dealing with the statistics obtained from YugabyteDB metric endpoints.
 #[derive(Debug)]
@@ -841,6 +898,8 @@ impl AllStoredMetrics {
 type BTreeMapSnapshotDiffValues = BTreeMap<(String, String, String, String), SnapshotDiffValues>;
 type BTreeMapSnapshotDiffCountSum = BTreeMap<(String, String, String, String), SnapshotDiffCountSum>;
 type BTreeMapSnapshotDiffCountSumRows = BTreeMap<(String, String, String, String), SnapshotDiffCountSumRows>;
+
+#[allow(rustdoc::private_intra_doc_links)]
 /// The [SnapshotDiffBtreeMaps] struct holds 3 btreemaps for Values, CountSum and CountSumRows.
 /// Which are [BTreeMapSnapshotDiffValues], [BTreeMapSnapshotDiffCountSum] and [BTreeMapSnapshotDiffCountSumRows].
 /// The key for each of the btreemaps is a record of hostname_port, metric_type, metric_id and metric_name.

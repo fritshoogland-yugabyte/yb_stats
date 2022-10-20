@@ -1,19 +1,23 @@
+//! The list of known statistics for metrics of the type Value, with helper functions.
 use std::collections::HashMap;
 use log::*;
-
+/// The struct that contains all the details for a named statistic.
+/// This struct is used in [ValueStatistics.valuestatisticdetails], which holds a HashMap with the statistic name as key and this struct as value.
 #[derive(Debug, Clone)]
 pub struct ValueStatisticDetails {
     pub unit: String,
     pub unit_suffix: String,
     pub stat_type: String,
 }
-
+/// This struct is the main struct that provides the functionality for Value statistics.
 #[derive(Debug)]
 pub struct ValueStatistics {
     pub valuestatisticdetails: HashMap<String, ValueStatisticDetails>
 }
 
 impl ValueStatistics {
+    /// Take a statistic name, and return the details about it.
+    /// If it doesn't exist, it returns '?', and generates logging at the info level.
     pub fn lookup(&self, argument: &str) -> &ValueStatisticDetails {
         match self.valuestatisticdetails.get(&argument.to_string()) {
             Some(lookup) => lookup,
@@ -23,6 +27,7 @@ impl ValueStatistics {
             },
         }
     }
+    /// Create a struct holding a HashMap with all the known statistics and the specifics.
     pub fn create() -> ValueStatistics {
         let mut table = ValueStatistics { valuestatisticdetails: HashMap::new() };
         // special row for unknown values. Do NOT remove!
@@ -986,11 +991,14 @@ impl ValueStatistics {
         table.insert("write_operations_inflight", "operations","gauge");
         table
     }
+    /// Insert a row into the HashMap
     fn insert(&mut self, name: &str, unit: &str, statistic_type: &str) {
         self.valuestatisticdetails.insert(name.to_string(),
                                           ValueStatisticDetails { unit: unit.to_string(), unit_suffix: Self::suffix_lookup_value(unit), stat_type: statistic_type.to_string() }
         );
     }
+    /// This creates a small lookup table to translate the full statistic type to the display version, which is abbreviated.
+    /// This also helps to document the known statistic types.
     fn suffix_lookup_value(unit: &str) -> String {
         let suffix = HashMap::from([
             ("?", "?"),
@@ -1039,7 +1047,7 @@ impl ValueStatistics {
         }
     }
 }
-
+/// These are the unit tests
 #[cfg(test)]
 mod tests {
     use super::*;

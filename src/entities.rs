@@ -236,6 +236,12 @@ pub fn add_to_entity_vectors(
     // build a vector for tablets
     for tablet in entities.tablets {
         stored_tablets.push( StoredTablets::new( hostname, detail_snapshot_time, &tablet));
+        if let Some(replicas) = tablet.replicas {
+            for replica in replicas {
+                stored_replicas.push(StoredReplicas::new(hostname, detail_snapshot_time, &tablet.tablet_id, replica));
+            }
+        }
+        /*
         match tablet.replicas {
             Some(replicas) => {
                 for replica in replicas {
@@ -244,6 +250,8 @@ pub fn add_to_entity_vectors(
             },
             None => {},
         }
+
+         */
     }
 }
 

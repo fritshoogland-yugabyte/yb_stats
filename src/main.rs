@@ -9,39 +9,19 @@ use std::collections::HashMap;
 use std::fs;
 use log::*;
 
-//mod yb_statsmetrics;
-use yb_stats::metrics::SnapshotDiffBtreeMaps;
-
-
-// structs from lib
+use yb_stats::SnapshotDiffBtreeMaps;
 use yb_stats::Snapshot;
-
-// functions from lib
-use yb_stats::{perform_snapshot,
-               read_snapshots_from_file,
-               read_begin_end_snapshot_from_user};
-
-mod memtrackers;
-use memtrackers::print_memtrackers_data;
-mod loglines;
-use loglines::print_loglines;
-mod versions;
-use versions::print_version_data;
-mod threads;
-use threads::print_threads_data;
-mod gflags;
-use gflags::print_gflags_data;
-mod rpcs;
-use rpcs::print_rpcs;
+use yb_stats::perform_snapshot;
+use yb_stats::memtrackers::print_memtrackers_data;
+use yb_stats::loglines::print_loglines;
+use yb_stats::versions::print_version_data;
+use yb_stats::threads::print_threads_data;
+use yb_stats::gflags::print_gflags_data;
+use yb_stats::rpcs::print_rpcs;
 use yb_stats::node_exporter::{get_nodeexporter_into_diff_first_snapshot, get_nodeexpoter_into_diff_second_snapshot, print_diff_nodeexporter, print_nodeexporter_diff_for_snapshots};
-
-mod statements;
 use yb_stats::statements::{print_diff_statements, print_statements_diff_for_snapshots, get_statements_into_diff_first_snapshot, get_statements_into_diff_second_snapshot};
-
-mod entities;
-use entities::print_entities;
-mod masters;
-use masters::print_masters;
+use yb_stats::entities::print_entities;
+use yb_stats::masters::print_masters;
 
 const DEFAULT_HOSTS: &str = "192.168.66.80,192.168.66.81,192.168.66.82";
 const DEFAULT_PORTS: &str = "7000,9000,12000,13000,9300";
@@ -243,18 +223,12 @@ fn main() {
     } else if options.snapshot_diff || options.snapshot_list {
 
         info!("snapshot_diff");
-        let current_directory = env::current_dir().unwrap();
-        let yb_stats_directory = current_directory.join("yb_stats.snapshots");
-        let snapshots: Vec<Snapshot> = read_snapshots_from_file(&yb_stats_directory);
-
         if options.begin.is_none() || options.end.is_none() {
-            for row in &snapshots {
-                println!("{:>3} {:30} {:50}", row.number, row.timestamp, row.comment);
-            }
+            Snapshot::print();
         }
         if options.snapshot_list { process::exit(0) };
 
-        let (begin_snapshot, end_snapshot, begin_snapshot_row) = read_begin_end_snapshot_from_user(&snapshots, options.begin, options.end);
+        let (begin_snapshot, end_snapshot, begin_snapshot_row) = Snapshot::read_begin_end_snapshot_from_user(options.begin, options.end);
 
         let metrics_diff = SnapshotDiffBtreeMaps::snapshot_diff(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp);
         metrics_diff.print(&hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable);

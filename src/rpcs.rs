@@ -318,6 +318,23 @@ pub fn add_to_rpcs_vectors(
                     None => String::from("")
                 };
                 for calls_in_flight in inboundrpc.calls_in_flight.unwrap_or_default() {
+                    if let Some ( cql_details ) = calls_in_flight.cql_details {
+                        for call_detail in cql_details.call_details {
+                            stored_cqldetails.push(StoredCqlDetails {
+                                hostname_port: hostname.to_string(),
+                                timestamp: detail_snapshot_time,
+                                remote_ip: inboundrpc.remote_ip.to_string(),
+                                keyspace: keyspace.to_owned(),
+                                elapsed_millis: calls_in_flight.elapsed_millis,
+                                cql_details_type: cql_details.call_type.clone(),
+                                sql_id: call_detail.sql_id.unwrap_or_default(),
+                                sql_string: call_detail.sql_string,
+                                params: call_detail.params.unwrap_or_default(),
+                                serial_nr: serial_number,
+                            });
+                        }
+                    };
+                    /*
                     match calls_in_flight.cql_details {
                         Some ( cql_details ) => {
                             for call_detail in cql_details.call_details {
@@ -337,6 +354,22 @@ pub fn add_to_rpcs_vectors(
                         },
                         None => {},
                     }
+                     */
+                    if let Some ( header) = calls_in_flight.header {
+                        stored_headers.push( StoredHeaders {
+                            hostname_port: hostname.to_string(),
+                            timestamp: detail_snapshot_time,
+                            remote_ip: inboundrpc.remote_ip.to_string(),
+                            call_id: header.call_id,
+                            remote_method_service_name: header.remote_method.service_name.to_string(),
+                            remote_method_method_name: header.remote_method.method_name.to_string(),
+                            timeout_millis: header.timeout_millis,
+                            elapsed_millis: calls_in_flight.elapsed_millis,
+                            state: calls_in_flight.state.unwrap_or_default(),
+                            serial_nr: serial_number,
+                        });
+                    };
+                    /*
                     match calls_in_flight.header {
                         Some ( header) => {
                             stored_headers.push( StoredHeaders {
@@ -354,6 +387,7 @@ pub fn add_to_rpcs_vectors(
                         },
                         None => {},
                     }
+                     */
                 }
             };
 
@@ -369,6 +403,21 @@ pub fn add_to_rpcs_vectors(
                     serial_nr: serial_number,
                 });
                 for calls_in_flight in outboundrpc.calls_in_flight.unwrap_or_default() {
+                    if let Some ( header) = calls_in_flight.header {
+                        stored_headers.push( StoredHeaders {
+                            hostname_port: hostname.to_string(),
+                            timestamp: detail_snapshot_time,
+                            remote_ip: outboundrpc.remote_ip.to_string(),
+                            call_id: header.call_id,
+                            remote_method_service_name: header.remote_method.service_name.to_string(),
+                            remote_method_method_name: header.remote_method.method_name.to_string(),
+                            timeout_millis: header.timeout_millis,
+                            elapsed_millis: calls_in_flight.elapsed_millis,
+                            state: calls_in_flight.state.unwrap_or_default(),
+                            serial_nr: serial_number,
+                        });
+                    };
+                    /*
                     match calls_in_flight.header {
                         Some ( header) => {
                             stored_headers.push( StoredHeaders {
@@ -386,12 +435,13 @@ pub fn add_to_rpcs_vectors(
                         },
                         None => {},
                     }
+
+                     */
                 }
             }
         },
         _ => {
             info!("No match: hostname: {}; {:?}", hostname, allconnections);
-            //panic!();
         },
     }
 }

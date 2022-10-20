@@ -278,87 +278,70 @@ fn parse_statements_ysql() {
     // to make sure this test works in both the scenario of no statements, and with statements, perform no assertion.
 }
 
-use yb_stats::metrics::{StoredValues,StoredCountSum, StoredCountSumRows, read_metrics, add_to_metric_vectors};
-#[test]
-fn parse_metrics_master() {
-    let mut stored_values: Vec<StoredValues> = Vec::new();
-    let mut stored_countsum: Vec<StoredCountSum> = Vec::new();
-    let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
+use yb_stats::{read_metrics, add_to_metric_vectors, AllStoredMetrics};
+/// This function performs reading the http endpoint.
+fn test_function_read_metrics(
+    hostname: String,
+    port: String) -> AllStoredMetrics
+{
+    let mut allstoredmetrics = AllStoredMetrics { stored_values: Vec::new(), stored_countsum: Vec::new(), stored_countsumrows: Vec::new() };
     let detail_snapshot_time = Local::now();
-    let hostname = get_hostname_master();
-    let port = get_port_master();
 
     let data_parsed_from_json = read_metrics(hostname.as_str(), port.as_str());
-    add_to_metric_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_values, &mut stored_countsum, &mut stored_countsumrows);
+    add_to_metric_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut allstoredmetrics);
+    allstoredmetrics
+}
+#[test]
+fn parse_metrics_master()
+{
+    let hostname = get_hostname_master();
+    let port = get_port_master();
+    let allstoredmetrics = test_function_read_metrics(hostname, port);
     // a master will produce values and countsum rows, but no countsumrows rows, because that belongs to YSQL.
-    assert!(!stored_values.is_empty());
-    assert!(!stored_countsum.is_empty());
-    assert!(stored_countsumrows.is_empty());
+    assert!(!allstoredmetrics.stored_values.is_empty());
+    assert!(!allstoredmetrics.stored_countsum.is_empty());
+    assert!(allstoredmetrics.stored_countsumrows.is_empty());
 }
 #[test]
 fn parse_metrics_tserver() {
-    let mut stored_values: Vec<StoredValues> = Vec::new();
-    let mut stored_countsum: Vec<StoredCountSum> = Vec::new();
-    let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
-    let detail_snapshot_time = Local::now();
     let hostname = get_hostname_tserver();
     let port = get_port_tserver();
-
-    let data_parsed_from_json = read_metrics(hostname.as_str(), port.as_str());
-    add_to_metric_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_values, &mut stored_countsum, &mut stored_countsumrows);
-    // a master will produce values and countsum rows, but no countsumrows rows, because that belongs to YSQL.
-    assert!(!stored_values.is_empty());
-    assert!(!stored_countsum.is_empty());
-    assert!(stored_countsumrows.is_empty());
+    let allstoredmetrics = test_function_read_metrics(hostname, port);
+    // a tablet server will produce values and countsum rows, but no countsumrows rows, because that belongs to YSQL.
+    assert!(!allstoredmetrics.stored_values.is_empty());
+    assert!(!allstoredmetrics.stored_countsum.is_empty());
+    assert!(allstoredmetrics.stored_countsumrows.is_empty());
 }
 #[test]
 fn parse_metrics_ysql() {
-    let mut stored_values: Vec<StoredValues> = Vec::new();
-    let mut stored_countsum: Vec<StoredCountSum> = Vec::new();
-    let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
-    let detail_snapshot_time = Local::now();
     let hostname = get_hostname_ysql();
     let port = get_port_ysql();
-
-    let data_parsed_from_json = read_metrics(hostname.as_str(), port.as_str());
-    add_to_metric_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_values, &mut stored_countsum, &mut stored_countsumrows);
+    let allstoredmetrics = test_function_read_metrics(hostname, port);
     // YSQL will produce countsumrows rows, but no value or countsum rows
-    assert!(stored_values.is_empty());
-    assert!(stored_countsum.is_empty());
-    assert!(stored_countsumrows.is_empty());
+    assert!(allstoredmetrics.stored_values.is_empty());
+    assert!(allstoredmetrics.stored_countsum.is_empty());
+    assert!(allstoredmetrics.stored_countsumrows.is_empty());
 }
 #[test]
 fn parse_metrics_ycql() {
-    let mut stored_values: Vec<StoredValues> = Vec::new();
-    let mut stored_countsum: Vec<StoredCountSum> = Vec::new();
-    let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
-    let detail_snapshot_time = Local::now();
     let hostname = get_hostname_ycql();
     let port = get_port_ycql();
-
-    let data_parsed_from_json = read_metrics(hostname.as_str(), port.as_str());
-    add_to_metric_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_values, &mut stored_countsum, &mut stored_countsumrows);
+    let allstoredmetrics = test_function_read_metrics(hostname, port);
     // YCQL will produce values and countsum rows, but no countsumrows rows, because that belongs to YSQL.
     // countsum rows are filtered on count == 0, which is true if it wasn't used. therefore, we do not check on countsum statistics. likely, YCQL wasn't used prior to the test.
-    assert!(!stored_values.is_empty());
-    //assert!(stored_countsum.len() > 0);
-    assert!(stored_countsumrows.is_empty());
+    assert!(!allstoredmetrics.stored_values.is_empty());
+    //assert!(allstoredmetrics.stored_countsum.len() > 0);
+    assert!(allstoredmetrics.stored_countsumrows.is_empty());
 }
 #[test]
 fn parse_metrics_yedis() {
-    let mut stored_values: Vec<StoredValues> = Vec::new();
-    let mut stored_countsum: Vec<StoredCountSum> = Vec::new();
-    let mut stored_countsumrows: Vec<StoredCountSumRows> = Vec::new();
-    let detail_snapshot_time = Local::now();
     let hostname = get_hostname_yedis();
     let port = get_port_yedis();
-
-    let data_parsed_from_json = read_metrics(hostname.as_str(), port.as_str());
-    add_to_metric_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_values, &mut stored_countsum, &mut stored_countsumrows);
+    let allstoredmetrics = test_function_read_metrics(hostname, port);
     // YEDIS will produce values and countsum rows, but no countsumrows rows, because that belongs to YSQL.
     // countsum rows are filtered on count == 0, which is true when it wasn't used. therefore, we do not check on countsum statistics. likely, YEDIS wasn't used prior to the test.
-    assert!(!stored_values.is_empty());
-    assert!(stored_countsumrows.is_empty());
+    assert!(!allstoredmetrics.stored_values.is_empty());
+    assert!(allstoredmetrics.stored_countsumrows.is_empty());
 }
 use yb_stats::node_exporter::{StoredNodeExporterValues, read_node_exporter, add_to_node_exporter_vectors};
 #[test]

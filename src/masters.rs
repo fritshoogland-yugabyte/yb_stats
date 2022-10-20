@@ -197,6 +197,12 @@ pub fn add_to_master_vectors(
         let mut placement_cloud = String::from("Unset");
         let mut placement_region = String::from("Unset");
         let mut placement_zone = String::from("Unset");
+        if let Some(cloud_info) = master.registration.cloud_info {
+            placement_cloud = cloud_info.placement_cloud;
+            placement_region = cloud_info.placement_region;
+            placement_zone = cloud_info.placement_zone;
+        };
+        /*
         match master.registration.cloud_info {
             Some(cloud_info) => {
                 placement_cloud = cloud_info.placement_cloud;
@@ -205,6 +211,8 @@ pub fn add_to_master_vectors(
             },
             None => {},
         };
+
+         */
         stored_masters.push(StoredMasters {
             hostname_port: hostname.to_string(),
             timestamp: detail_snapshot_time,
@@ -217,6 +225,20 @@ pub fn add_to_master_vectors(
             registration_placement_uuid: master.registration.placement_uuid.unwrap_or_else(|| "Unset".to_string()).to_string(),
             role: master.role.unwrap_or_else(|| "Unknown".to_string()).to_string(),
         });
+        if let Some(error) = master.error {
+            stored_mastererror.push(StoredMasterError {
+                hostname_port: hostname.to_string(),
+                timestamp: detail_snapshot_time,
+                instance_permanent_uuid: master.instance_id.permanent_uuid.to_string(),
+                code: error.code.to_string(),
+                message: error.message.to_string(),
+                posix_code: error.posix_code,
+                source_file: error.source_file.to_string(),
+                source_line: error.source_line,
+                errors: error.errors.to_string(),
+            });
+        }
+        /*
         match master.error {
             Some(error) => {
                 stored_mastererror.push(StoredMasterError {
@@ -233,6 +255,8 @@ pub fn add_to_master_vectors(
             },
             None => {},
         };
+
+         */
         for rpc_address in master.registration.private_rpc_addresses {
             stored_rpcaddresses.push( StoredRpcAddresses {
                 hostname_port: hostname.to_string(),
@@ -242,6 +266,18 @@ pub fn add_to_master_vectors(
                 port: rpc_address.port.to_string(),
             });
         };
+        if let Some(http_addresses) = master.registration.http_addresses {
+            for http_address in http_addresses {
+                stored_httpaddresses.push(StoredHttpAddresses {
+                    hostname_port: hostname.to_string(),
+                    timestamp: detail_snapshot_time,
+                    instance_permanent_uuid: master.instance_id.permanent_uuid.to_string(),
+                    host: http_address.host.to_string(),
+                    port: http_address.port.to_string(),
+                });
+            };
+        };
+        /*
         match master.registration.http_addresses {
             Some(http_addresses) => {
                 for http_address in http_addresses {
@@ -256,6 +292,8 @@ pub fn add_to_master_vectors(
             },
             None => {},
         };
+
+         */
     }
 }
 

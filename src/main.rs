@@ -1,14 +1,40 @@
+//! This is the main crate of the yb_stats executable: a utility to extract all possible data from a YugabyteDB cluster.
+//!
+#![allow(rustdoc::private_intra_doc_links)]
+
+extern crate serde;
+extern crate serde_json;
+#[macro_use]
+extern crate serde_derive;
+extern crate csv;
+
 use structopt::StructOpt;
-use std::process;
+use std::{process, env, fs, collections::HashMap, io::{stdin, Write}, sync::Arc, time::Instant};
 use regex::Regex;
 use chrono::Local;
-use std::io::{stdin, Write};
-use std::env;
 use dotenv::dotenv;
-use std::collections::HashMap;
-use std::fs;
 use log::*;
 
+mod snapshot;
+mod value_statistic_details;
+mod countsum_statistic_details;
+
+mod statements;
+
+mod threads;
+mod memtrackers;
+mod gflags;
+mod loglines;
+mod versions;
+mod node_exporter;
+mod entities;
+mod masters;
+mod rpcs;
+mod pprof;
+mod mems;
+mod metrics;
+
+/*
 use yb_stats::SnapshotDiffBTreeMapsMetrics;
 use yb_stats::Snapshot;
 use yb_stats::perform_snapshot;
@@ -23,6 +49,8 @@ use yb_stats::statements::SnapshotDiffBTreeMapStatements;
 use yb_stats::entities::print_entities;
 use yb_stats::masters::print_masters;
 //use yb_stats::metrics::SnapshotDiffBTreeMapsMetrics;
+
+ */
 
 const DEFAULT_HOSTS: &str = "192.168.66.80,192.168.66.81,192.168.66.82";
 const DEFAULT_PORTS: &str = "7000,9000,12000,13000,9300";
@@ -225,57 +253,57 @@ fn main() {
 
         info!("snapshot_diff");
         if options.begin.is_none() || options.end.is_none() {
-            Snapshot::print();
+            snapshot::Snapshot::print();
         }
         if options.snapshot_list { process::exit(0) };
 
-        let (begin_snapshot, end_snapshot, begin_snapshot_row) = Snapshot::read_begin_end_snapshot_from_user(options.begin, options.end);
+        let (begin_snapshot, end_snapshot, begin_snapshot_row) = snapshot::Snapshot::read_begin_end_snapshot_from_user(options.begin, options.end);
 
-        let metrics_diff = SnapshotDiffBTreeMapsMetrics::snapshot_diff(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp);
+        let metrics_diff = metrics::SnapshotDiffBTreeMapsMetrics::snapshot_diff(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp);
         metrics_diff.print(&hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable);
-        let statements_diff = SnapshotDiffBTreeMapStatements::snapshot_diff(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp);
+        let statements_diff = statements::SnapshotDiffBTreeMapStatements::snapshot_diff(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp);
         statements_diff.print(&hostname_filter, options.sql_length);
-        print_nodeexporter_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
+        node_exporter::print_nodeexporter_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
 
     } else if options.print_memtrackers.is_some() {
 
-        print_memtrackers_data(&options.print_memtrackers.unwrap(), &yb_stats_directory, &hostname_filter, &stat_name_filter);
+        memtrackers::print_memtrackers_data(&options.print_memtrackers.unwrap(), &yb_stats_directory, &hostname_filter, &stat_name_filter);
 
     } else if options.print_log.is_some() {
 
-        print_loglines(&options.print_log.unwrap(), &yb_stats_directory, &hostname_filter, &options.log_severity);
+        loglines::print_loglines(&options.print_log.unwrap(), &yb_stats_directory, &hostname_filter, &options.log_severity);
 
     } else if options.print_version.is_some() {
 
-        print_version_data(&options.print_version.unwrap(), &yb_stats_directory, &hostname_filter);
+        versions::print_version_data(&options.print_version.unwrap(), &yb_stats_directory, &hostname_filter);
 
     } else if options.print_threads.is_some() {
 
-        print_threads_data(&options.print_threads.unwrap(), &yb_stats_directory, &hostname_filter);
+        threads::print_threads_data(&options.print_threads.unwrap(), &yb_stats_directory, &hostname_filter);
 
     } else if options.print_gflags.is_some() {
 
-        print_gflags_data(&options.print_gflags.unwrap(), &yb_stats_directory, &hostname_filter, &stat_name_filter);
+        gflags::print_gflags_data(&options.print_gflags.unwrap(), &yb_stats_directory, &hostname_filter, &stat_name_filter);
 
     } else if options.print_entities.is_some() {
 
-        print_entities(&options.print_entities.unwrap(), &yb_stats_directory, &hostname_filter, &table_name_filter);
+        entities::print_entities(&options.print_entities.unwrap(), &yb_stats_directory, &hostname_filter, &table_name_filter);
 
     } else if options.print_masters.is_some() {
 
-        print_masters(&options.print_masters.unwrap(), &yb_stats_directory, &hostname_filter);
+        masters::print_masters(&options.print_masters.unwrap(), &yb_stats_directory, &hostname_filter);
 
     } else if options.print_rpcs.is_some() {
 
-        print_rpcs(&options.print_rpcs.unwrap(), &yb_stats_directory, &hostname_filter, &options.details_enable);
+        rpcs::print_rpcs(&options.print_rpcs.unwrap(), &yb_stats_directory, &hostname_filter, &options.details_enable);
 
     } else {
 
         info!("ad-hoc mode");
         let first_snapshot_time = Local::now();
-        let mut metrics_diff = SnapshotDiffBTreeMapsMetrics::adhoc_read_first_snapshot(&hosts, &ports, parallel);
-        let mut statements_diff = SnapshotDiffBTreeMapStatements::adhoc_read_first_snapshot(&hosts, &ports, parallel);
-        let mut node_exporter_diff = get_nodeexporter_into_diff_first_snapshot(&hosts, &ports, parallel);
+        let mut metrics_diff = metrics::SnapshotDiffBTreeMapsMetrics::adhoc_read_first_snapshot(&hosts, &ports, parallel);
+        let mut statements_diff = statements::SnapshotDiffBTreeMapStatements::adhoc_read_first_snapshot(&hosts, &ports, parallel);
+        let mut node_exporter_diff = node_exporter::get_nodeexporter_into_diff_first_snapshot(&hosts, &ports, parallel);
 
         println!("Begin metrics snapshot created, press enter to create end snapshot for difference calculation.");
         let mut input = String::new();
@@ -284,12 +312,12 @@ fn main() {
         let second_snapshot_time = Local::now();
         metrics_diff.adhoc_read_second_snapshot(&hosts, &ports, parallel, &first_snapshot_time);
         statements_diff.adhoc_read_second_snapshot(&hosts, &ports, parallel, &first_snapshot_time);
-        get_nodeexpoter_into_diff_second_snapshot(&hosts, &ports, &mut node_exporter_diff, &first_snapshot_time, parallel);
+        node_exporter::get_nodeexpoter_into_diff_second_snapshot(&hosts, &ports, &mut node_exporter_diff, &first_snapshot_time, parallel);
 
         println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time-first_snapshot_time).num_milliseconds() as f64/1000_f64);
         metrics_diff.print(&hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable);
         statements_diff.print(&hostname_filter, options.sql_length);
-        print_diff_nodeexporter(&node_exporter_diff, &hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
+        node_exporter::print_diff_nodeexporter(&node_exporter_diff, &hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
 
     }
 
@@ -310,4 +338,209 @@ fn main() {
             }
             file.flush().unwrap();
     }
+}
+
+pub fn perform_snapshot(
+    hosts: Vec<&'static str>,
+    ports: Vec<&'static str>,
+    snapshot_comment: Option<String>,
+    parallel: usize,
+    disable_threads: bool,
+) -> i32 {
+    info!("begin snapshot");
+    let timer = Instant::now();
+
+    let current_directory = env::current_dir().unwrap();
+    let yb_stats_directory = current_directory.join("yb_stats.snapshots");
+
+    let snapshot_number= snapshot::Snapshot::insert_new_snapshot_number(snapshot_comment);
+    info!("using snapshot number: {}", snapshot_number);
+
+    /*
+     * Snapshot creation is done using a threadpool using rayon.
+     * Every different snapshot type is executing in its own thread.
+     * The maximum number of threads for each snapshot type is set by the user using the --parallel switch or via .env.
+     * The default value is 1 to be conservative.
+     *
+     * Inside the thread for the specific snapshot type, that thread also uses --parallel.
+     * The reason being that most of the work is sending and waiting for a remote server to respond.
+     * This might not be really intuitive, but it should not overallocate CPU very much.
+     *
+     * If it does: set parallel to 1 again using --parallel 1, which will also set it in .env.
+     *
+     *
+     * Using a threadpool
+     */
+    let main_pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
+    main_pool.scope(|mps| {
+        let arc_hosts = Arc::new(hosts);
+        let arc_ports = Arc::new(ports);
+        let arc_yb_stats_directory = Arc::new(yb_stats_directory);
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        mps.spawn(move |_| {
+            metrics::AllStoredMetrics::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel);
+        });
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        mps.spawn(move |_| {
+            statements::AllStoredStatements::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel);
+        });
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+        mps.spawn(move |_| {
+            gflags::perform_gflags_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+        });
+
+        if !disable_threads {
+            let arc_hosts_clone = arc_hosts.clone();
+            let arc_ports_clone = arc_ports.clone();
+            let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+            mps.spawn(move |_| {
+                threads::perform_threads_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel)
+            });
+        };
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+        mps.spawn(move |_| {
+            memtrackers::perform_memtrackers_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+        });
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+        mps.spawn(move |_| {
+            loglines::perform_loglines_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+        });
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+        mps.spawn(move |_| {
+            versions::perform_versions_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+        });
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+        mps.spawn(move |_| {
+            node_exporter::perform_nodeexporter_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+        });
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+        mps.spawn(move |_| {
+            entities::perform_entities_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+        });
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+        mps.spawn(move |_| {
+            masters::perform_masters_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+        });
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+        mps.spawn(move |_| {
+            rpcs::perform_rpcs_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+        });
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+        mps.spawn(move |_| {
+            pprof::perform_pprof_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+        });
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory;
+        mps.spawn(move |_| {
+            mems::perform_mems_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+        });
+    });
+
+    /*
+     * No threadpool
+     * The rpcs function didn't seem to work reliably with threads, but it turned out to be a JSON parsing problem.
+     * probably this should be removed in the future.
+     *
+        let arc_hosts = Arc::new(hosts);
+        let arc_ports = Arc::new(ports);
+        let arc_yb_stats_directory = Arc::new(yb_stats_directory);
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+            metrics::perform_metrics_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+            gflags::perform_gflags_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+
+        if !disable_threads {
+            let arc_hosts_clone = arc_hosts.clone();
+            let arc_ports_clone = arc_ports.clone();
+            let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+                threads::perform_threads_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel)
+        };
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+            memtrackers::perform_memtrackers_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+            loglines::perform_loglines_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+            versions::perform_versions_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+            statements::perform_statements_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+            node_exporter::perform_nodeexporter_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+            entities::perform_entities_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+            masters::perform_masters_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+            rpcs::perform_rpcs_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        let arc_yb_stats_directory_clone = arc_yb_stats_directory;
+            pprof::perform_pprof_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+     */
+
+    info!("end snapshot: {:?}", timer.elapsed());
+    snapshot_number
 }

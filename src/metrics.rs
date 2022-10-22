@@ -66,10 +66,11 @@ use port_scanner::scan_port_addr;
 use serde_derive::{Serialize,Deserialize};
 use regex::Regex;
 use substring::Substring;
-use rayon;
 use log::*;
-use crate::value_statistic_details::ValueStatistics;
-use crate::countsum_statistic_details::CountSumStatistics;
+
+use crate::value_statistic_details;
+use crate::countsum_statistic_details;
+
 /// Struct to represent the metric entities found in the YugabyteDB master and tserver metrics endpoint.
 ///
 /// The struct [MetricEntity] uses two child structs: [Attributes] and a vector of [Metrics].
@@ -1245,7 +1246,7 @@ impl SnapshotDiffBTreeMapsMetrics {
          */
         if *details_enable {
             // value_diff
-            let value_statistics = ValueStatistics::create();
+            let value_statistics = value_statistic_details::ValueStatistics::create();
             for ((hostname, metric_type, metric_id, metric_name), value_diff_row) in &self.btreemap_snapshotdiff_values {
                 if value_diff_row.second_snapshot_value > 0
                     && hostname_filter.is_match(hostname)
@@ -1306,7 +1307,7 @@ impl SnapshotDiffBTreeMapsMetrics {
                 }
             }
             // countsum_diff
-            let countsum_statistics = CountSumStatistics::create();
+            let countsum_statistics = countsum_statistic_details::CountSumStatistics::create();
             for ((hostname, metric_type, metric_id, metric_name), countsum_diff_row) in &self.btreemap_snapshotdiff_countsum {
                 if countsum_diff_row.second_snapshot_total_count > 0
                     && hostname_filter.is_match(hostname)
@@ -1350,7 +1351,7 @@ impl SnapshotDiffBTreeMapsMetrics {
              * The statistics for table, tablet and cdc types are per object.
              */
             // value_diff
-            let value_statistics = ValueStatistics::create();
+            let value_statistics = value_statistic_details::ValueStatistics::create();
             let mut sum_value_diff: BTreeMap<(String, String, String, String), SnapshotDiffValues> = BTreeMap::new();
             for ((hostname_port, metric_type, _metric_id, metric_name), value_diff_row) in &self.btreemap_snapshotdiff_values {
                 if metric_type == "table" || metric_type == "tablet" || metric_type == "cdc"{
@@ -1442,7 +1443,7 @@ impl SnapshotDiffBTreeMapsMetrics {
                 }
             }
             // countsum_diff
-            let countsum_statistics = CountSumStatistics::create();
+            let countsum_statistics = countsum_statistic_details::CountSumStatistics::create();
             let mut sum_countsum_diff: BTreeMap<(String, String, String, String), SnapshotDiffCountSum> = BTreeMap::new();
             for ((hostname_port, metric_type, _metric_id, metric_name), countsum_diff_row) in &self.btreemap_snapshotdiff_countsum {
                 if metric_type == "table" || metric_type == "tablet" || metric_type == "cdc" {

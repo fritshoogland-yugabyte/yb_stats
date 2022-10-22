@@ -5,7 +5,6 @@ use prometheus_parse::Value;
 use serde_derive::{Serialize,Deserialize};
 use port_scanner::scan_port_addr;
 use std::process;
-use rayon;
 use std::sync::mpsc::channel;
 use std::fs;
 use regex::Regex;

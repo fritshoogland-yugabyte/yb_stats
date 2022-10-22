@@ -13,8 +13,8 @@
 //!
 //!    * The method [AllStoredStatements::read_statements]
 //!      * This method starts a rayon threadpool, and runs the general function [AllStoredStatements::read_http] for all host and port combinations.
-//!        * [AllStoredStatements::read_http] calls [AllStoredStatements::parse_statements] to parse the http JSON output into a vector of [StoredStatements] inside [AllStoredStatements].
-//!        * There is no need to perform any further processing like with metrics, because these need to be split in 3 different vectors.
+//!        * [AllStoredStatements::read_http] calls [AllStoredStatements::parse_statements] to parse the http JSON output into a vector of [Statement].
+//!        * The vector is iterated over and processed using the function [AllStoredStatements::add_and_sum_statements], which produces a struct [AllStoredStatements], which contains a vector [StoredStatements].
 //!
 //!    * The method [AllStoredStatements::save_snapshot]
 //!      * This method takes the vector of [StoredStatements] inside the struct of [AllStoredStatements] and saves it to a CSV file in the numbered directory.
@@ -23,6 +23,35 @@
 //! When a snapshot diff is requested via the `--snapshot-diff` option, this function is provided via the method [SnapshotDiffBTreeMapStatements::snapshot_diff].
 //!
 //! 1. Snapshot-diff is called directory in main, which calls the method [SnapshotDiffBTreeMapStatements::snapshot_diff].
+//!
+//!    * The method [AllStoredStatements::read_snapshot] is called to read all the data for an [AllStoredStatements] struct for the begin snapshot.
+//!      * The method [SnapshotDiffBTreeMapStatements::first_snapshot] is called with [AllStoredStatements] as argument to insert the first snapshot data.
+//!    * The method [AllStoredStatements::read_snapshot] is called to read all the data for an [AllStoredStatements] struct for the end snapshot.
+//!      * The method [SnapshotDiffBTreeMapStatements::second_snapshot] is called with [AllStoredStatements] as argument to insert the second snapshot data.
+//!    * The method [SnapshotDiffBTreeMapStatements::print] is called to print out the diff report from the [SnapshotDiffBTreeMapStatements] data.
+//!
+//! # Ad-hoc mode diff
+//! When an ad-hoc diff is requested by not specifying an action on the `yb_stats` executable commandline, this is performed using three methods of [SnapshotDiffBTreeMapStatements].
+//!
+//! 1. [SnapshotDiffBTreeMapStatements::adhoc_read_first_snapshot]
+//!
+//!   * The method calls [AllStoredStatements::read_statements]
+//!      * This method starts a rayon threadpool, and runs the general function [AllStoredStatements::read_http] for all host and port combinations.
+//!        * [AllStoredStatements::read_http] calls [AllStoredStatements::parse_statements] to parse the http JSON output into a vector of [Statement].
+//!        * The vector is iterated over and processed using the function [AllStoredStatements::add_and_sum_statements], which produces a struct [AllStoredStatements], which contains a vector [StoredStatements].
+//!   * The method calls [SnapshotDiffBTreeMapStatements::first_snapshot] with [AllStoredStatements] as argument to insert the first snapshot data.
+//!
+//! 2. The user is asked for enter via stdin().read_line()
+//!
+//! 3. [SnapshotDiffBTreeMapStatements::adhoc_read_second_snapshot]
+//!
+//!   * The method calls [AllStoredStatements::read_statements]
+//!      * This method starts a rayon threadpool, and runs the general function [AllStoredStatements::read_http] for all host and port combinations.
+//!        * [AllStoredStatements::read_http] calls [AllStoredStatements::parse_statements] to parse the http JSON output into a vector of [Statement].
+//!        * The vector is iterated over and processed using the function [AllStoredStatements::add_and_sum_statements], which produces a struct [AllStoredStatements], which contains a vector [StoredStatements].
+//!   * The method calls [SnapshotDiffBTreeMapStatements::second_snapshot] with [AllStoredStatements] as argument to insert the second snapshot data.
+//!
+//! 4. [SnapshotDiffBTreeMapStatements::print]
 //!
 use port_scanner::scan_port_addr;
 use chrono::{DateTime, Local};

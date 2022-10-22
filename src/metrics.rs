@@ -30,9 +30,9 @@
 //!
 //! 1. Snapshot-diff is called directly in main, which calls the method [SnapshotDiffBTreeMapsMetrics::snapshot_diff].
 //!
-//!   * The method [AllStoredMetrics::read_snapshot] is called to read all data for an [AllStoredMetrics] struct.
+//!   * The method [AllStoredMetrics::read_snapshot] is called to read all data for an [AllStoredMetrics] struct for the begin snapshot.
 //!     * The method [SnapshotDiffBTreeMapsMetrics::first_snapshot] is called with [AllStoredMetrics] as argument to insert the first snapshot data.
-//!   * The method [AllStoredMetrics::read_snapshot] is called to read all data for an [AllStoredMetrics] struct.
+//!   * The method [AllStoredMetrics::read_snapshot] is called to read all data for an [AllStoredMetrics] struct for the end snapshot.
 //!     * The method [SnapshotDiffBTreeMapsMetrics::second_snapshot] is called with [AllStoredMetrics] as argument to insert the second snapshot data.
 //!   * The method [SnapshotDiffBTreeMapsMetrics::print] is called to print out the the diff report from the [SnapshotDiffBTreeMapsMetrics] data.
 //!

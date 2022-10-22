@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::fs;
 use log::*;
 
-use yb_stats::SnapshotDiffBtreeMaps;
+use yb_stats::SnapshotDiffBTreeMapsMetrics;
 use yb_stats::Snapshot;
 use yb_stats::perform_snapshot;
 use yb_stats::memtrackers::print_memtrackers_data;
@@ -19,9 +19,10 @@ use yb_stats::threads::print_threads_data;
 use yb_stats::gflags::print_gflags_data;
 use yb_stats::rpcs::print_rpcs;
 use yb_stats::node_exporter::{get_nodeexporter_into_diff_first_snapshot, get_nodeexpoter_into_diff_second_snapshot, print_diff_nodeexporter, print_nodeexporter_diff_for_snapshots};
-use yb_stats::statements::{print_diff_statements, print_statements_diff_for_snapshots, get_statements_into_diff_first_snapshot, get_statements_into_diff_second_snapshot};
+use yb_stats::statements::SnapshotDiffBTreeMapStatements;
 use yb_stats::entities::print_entities;
 use yb_stats::masters::print_masters;
+//use yb_stats::metrics::SnapshotDiffBTreeMapsMetrics;
 
 const DEFAULT_HOSTS: &str = "192.168.66.80,192.168.66.81,192.168.66.82";
 const DEFAULT_PORTS: &str = "7000,9000,12000,13000,9300";
@@ -230,9 +231,10 @@ fn main() {
 
         let (begin_snapshot, end_snapshot, begin_snapshot_row) = Snapshot::read_begin_end_snapshot_from_user(options.begin, options.end);
 
-        let metrics_diff = SnapshotDiffBtreeMaps::snapshot_diff(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp);
+        let metrics_diff = SnapshotDiffBTreeMapsMetrics::snapshot_diff(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp);
         metrics_diff.print(&hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable);
-        print_statements_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter, options.sql_length);
+        let statements_diff = SnapshotDiffBTreeMapStatements::snapshot_diff(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp);
+        statements_diff.print(&hostname_filter, options.sql_length);
         print_nodeexporter_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
 
     } else if options.print_memtrackers.is_some() {
@@ -271,8 +273,8 @@ fn main() {
 
         info!("ad-hoc mode");
         let first_snapshot_time = Local::now();
-        let mut metrics_diff = SnapshotDiffBtreeMaps::adhoc_read_first_snapshot(&hosts, &ports, parallel);
-        let mut statements_diff = get_statements_into_diff_first_snapshot(&hosts, &ports, parallel);
+        let mut metrics_diff = SnapshotDiffBTreeMapsMetrics::adhoc_read_first_snapshot(&hosts, &ports, parallel);
+        let mut statements_diff = SnapshotDiffBTreeMapStatements::adhoc_read_first_snapshot(&hosts, &ports, parallel);
         let mut node_exporter_diff = get_nodeexporter_into_diff_first_snapshot(&hosts, &ports, parallel);
 
         println!("Begin metrics snapshot created, press enter to create end snapshot for difference calculation.");
@@ -281,12 +283,12 @@ fn main() {
 
         let second_snapshot_time = Local::now();
         metrics_diff.adhoc_read_second_snapshot(&hosts, &ports, parallel, &first_snapshot_time);
-        get_statements_into_diff_second_snapshot(&hosts, &ports, &mut statements_diff, &first_snapshot_time, parallel);
+        statements_diff.adhoc_read_second_snapshot(&hosts, &ports, parallel, &first_snapshot_time);
         get_nodeexpoter_into_diff_second_snapshot(&hosts, &ports, &mut node_exporter_diff, &first_snapshot_time, parallel);
 
         println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time-first_snapshot_time).num_milliseconds() as f64/1000_f64);
         metrics_diff.print(&hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable);
-        print_diff_statements(&statements_diff, &hostname_filter, options.sql_length);
+        statements_diff.print(&hostname_filter, options.sql_length);
         print_diff_nodeexporter(&node_exporter_diff, &hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
 
     }

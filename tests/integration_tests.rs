@@ -264,21 +264,20 @@ fn parse_threadsdata_tserver() {
     assert!(stored_threadsdata.len() > 1);
 }
 
-use yb_stats::statements::{StoredStatements, read_statements, add_to_statements_vector};
+use yb_stats::statements::AllStoredStatements;
 #[test]
 fn parse_statements_ysql() {
-    let mut stored_statements: Vec<StoredStatements> = Vec::new();
-    let detail_snapshot_time = Local::now();
+    let mut allstoredstatements = AllStoredStatements { stored_statements: Vec::new() };
     let hostname = get_hostname_ysql();
     let port = get_port_ysql();
 
-    let data_parsed_from_json = read_statements(hostname.as_str(), port.as_str());
-    add_to_statements_vector(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_statements);
+    let result = AllStoredStatements::read_http(hostname.as_str(), port.as_str());
+    AllStoredStatements::add_and_sum_statements(result, &hostname, Local::now(), &mut allstoredstatements);
     // likely in a test scenario, there are no SQL commands executed, and thus no rows are returned.
     // to make sure this test works in both the scenario of no statements, and with statements, perform no assertion.
 }
 
-use yb_stats::{read_metrics, add_to_metric_vectors, AllStoredMetrics};
+use yb_stats::AllStoredMetrics;
 /// This function performs reading the http endpoint.
 fn test_function_read_metrics(
     hostname: String,
@@ -287,8 +286,8 @@ fn test_function_read_metrics(
     let mut allstoredmetrics = AllStoredMetrics { stored_values: Vec::new(), stored_countsum: Vec::new(), stored_countsumrows: Vec::new() };
     let detail_snapshot_time = Local::now();
 
-    let data_parsed_from_json = read_metrics(hostname.as_str(), port.as_str());
-    add_to_metric_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut allstoredmetrics);
+    let data_parsed_from_json = AllStoredMetrics::read_http(hostname.as_str(), port.as_str());
+    AllStoredMetrics::split_into_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut allstoredmetrics);
     allstoredmetrics
 }
 #[test]

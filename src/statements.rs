@@ -1,14 +1,35 @@
+//! The functionalities for using the JSON statements (/statements) from the tablet server YSQL endpoint.
+//!
+//! The functionality for statements has 3 public entries:
+//! 1. Snapshot creation: [AllStoredStatements::perform_snapshot]
+//! 2. Snapshot diff: [SnapshotDiffBTreeMapStatements::snapshot_diff]
+//! 3. Ad-hoc mode (diff): [SnapshotDiffBTreeMapStatements::adhoc_read_first_snapshot], [SnapshotDiffBTreeMapStatements::adhoc_read_second_snapshot], [SnapshotDiffBTreeMapStatements::print].
+//!
+//! # Snapshot creation
+//! When a snapshot is created using the `--snapshot` option, this functionality is provided via the method [AllStoredStatements::perform_snapshot]
+//!
+//! 1. The snapshot is called via the [crate::perform_snapshot] function, which calls all snapshot functions for all data sources.
+//! 2. For statements, this is done via the [AllStoredStatements::perform_snapshot] method. This method performs two calls.
+//!
+//!    * The method [AllStoredStatements::read_statements]
+//!      * This method starts a rayon threadpool, and runs the general function [AllStoredStatements::read_http] for all host and port combinations.
+//!        * [AllStoredStatements::read_http] calls [AllStoredStatements::parse_statements] to parse the http JSON output into a vector of [StoredStatements] inside [AllStoredStatements].
+//!        * There is no need to perform any further processing like with metrics, because these need to be split in 3 different vectors.
+//!
+//!    * The method [AllStoredStatements::save_snapshot]
+//!      * This method takes the vector of [StoredStatements] inside the struct of [AllStoredStatements] and saves it to a CSV file in the numbered directory.
+//!
+//! # Snapshot diff
+//! When a snapshot diff is requested via the `--snapshot-diff` option, this function is provided via the method [SnapshotDiffBTreeMapStatements::snapshot_diff].
+//!
+//! 1. Snapshot-diff is called directory in main, which calls the method [SnapshotDiffBTreeMapStatements::snapshot_diff].
+//!
 use port_scanner::scan_port_addr;
 use chrono::{DateTime, Local};
 use serde_derive::{Serialize,Deserialize};
-use std::fs;
-use std::process;
-use std::path::PathBuf;
-use std::collections::BTreeMap;
+use std::{fs, process, error::Error, collections::BTreeMap, env, sync::mpsc::channel, time::Instant};
 use regex::Regex;
 use substring::Substring;
-use std::env;
-use std::sync::mpsc::channel;
 use log::*;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -146,6 +167,255 @@ impl SnapshotDiffStatements {
     }
 }
 
+type BTreeMapSnapshotDiffStatements = BTreeMap<(String, String), SnapshotDiffStatements>;
+
+pub struct SnapshotDiffBTreeMapStatements {
+    pub btreemap_snapshotdiff_statements: BTreeMapSnapshotDiffStatements,
+}
+
+impl SnapshotDiffBTreeMapStatements {
+    pub fn snapshot_diff(
+        begin_snapshot: &String,
+        end_snapshot: &String,
+        begin_snapshot_time: &DateTime<Local>,
+    ) -> SnapshotDiffBTreeMapStatements
+    {
+        let allstoredstatements = AllStoredStatements::read_snapshot(begin_snapshot)
+            .unwrap_or_else(|e| {
+                error!("Fatal: error reading snapshot: {}", e);
+                process::exit(1);
+            });
+
+        let mut statements_snapshot_diff = SnapshotDiffBTreeMapStatements::first_snapshot(allstoredstatements);
+
+        let allstoredstatements = AllStoredStatements::read_snapshot(end_snapshot)
+            .unwrap_or_else(|e| {
+                error!("Fatal: error reading snapshot: {}", e);
+                process::exit(1);
+            });
+
+        statements_snapshot_diff.second_snapshot(allstoredstatements, begin_snapshot_time);
+
+        statements_snapshot_diff
+    }
+    fn first_snapshot(
+        allstoredstatements: AllStoredStatements,
+    ) -> SnapshotDiffBTreeMapStatements
+    {
+        let mut statements_diff_btreemap = SnapshotDiffBTreeMapStatements { btreemap_snapshotdiff_statements: BTreeMap::new() };
+        for statement in allstoredstatements.stored_statements {
+            statements_diff_btreemap.btreemap_snapshotdiff_statements.insert(
+                (statement.hostname_port.to_string(), statement.query.to_string()),
+               SnapshotDiffStatements::first_snapshot(statement)
+            );
+        }
+        statements_diff_btreemap
+    }
+    fn second_snapshot(
+        &mut self,
+        allstoredstatements: AllStoredStatements,
+        first_snapshot_time: &DateTime<Local>,
+    ) {
+        for statement in allstoredstatements.stored_statements {
+            match self.btreemap_snapshotdiff_statements.get_mut( &(statement.hostname_port.to_string(), statement.query.to_string()) ) {
+                Some( statements_diff_row ) => {
+                    *statements_diff_row = SnapshotDiffStatements::second_snapshot_existing(statement, statements_diff_row)
+                },
+                None => {
+                    self.btreemap_snapshotdiff_statements.insert( (statement.hostname_port.to_string(), statement.query.to_string()),
+                                            SnapshotDiffStatements::second_snapshot_new(statement, *first_snapshot_time)
+                    );
+                },
+            }
+        }
+    }
+    pub fn adhoc_read_first_snapshot(
+        hosts: &Vec<&str>,
+        ports: &Vec<&str>,
+        parallel: usize,
+    ) -> SnapshotDiffBTreeMapStatements
+    {
+        let allstoredstatements = AllStoredStatements::read_statements(hosts, ports, parallel);
+        SnapshotDiffBTreeMapStatements::first_snapshot(allstoredstatements)
+    }
+    pub fn adhoc_read_second_snapshot(
+        &mut self,
+        hosts: &Vec<&str>,
+        ports: &Vec<&str>,
+        parallel: usize,
+        first_snapshot_time: &DateTime<Local>,
+    )
+    {
+        let allstoredstatements = AllStoredStatements::read_statements(hosts, ports, parallel);
+        self.second_snapshot(allstoredstatements, first_snapshot_time);
+    }
+    pub fn print(
+        &self,
+        hostname_filter: &Regex,
+        sql_length: usize,
+    )
+    {
+        for ((hostname, query), statements_row) in &self.btreemap_snapshotdiff_statements {
+            if hostname_filter.is_match(&hostname)
+                && statements_row.second_calls - statements_row.first_calls != 0 {
+                let adaptive_length = if query.len() < sql_length { query.len() } else { sql_length };
+                println!("{:20} {:10} avg: {:15.3} tot: {:15.3} ms avg: {:10} tot: {:10} rows: {:0adaptive_length$}",
+                         hostname,
+                         statements_row.second_calls - statements_row.first_calls,
+                         (statements_row.second_total_time - statements_row.first_total_time) / (statements_row.second_calls as f64 - statements_row.first_calls as f64),
+                         statements_row.second_total_time - statements_row.first_total_time as f64,
+                         (statements_row.second_rows - statements_row.first_rows) / (statements_row.second_calls - statements_row.first_calls),
+                         statements_row.second_rows - statements_row.first_rows,
+                         query.substring(0, adaptive_length).escape_default()
+                );
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct AllStoredStatements {
+    pub stored_statements: Vec<StoredStatements>
+}
+impl AllStoredStatements {
+    pub fn perform_snapshot(
+        hosts: &Vec<&str>,
+        ports: &Vec<&str>,
+        snapshot_number: i32,
+        parallel: usize
+    ) {
+        info!("begin snapshot");
+        let timer = Instant::now();
+
+        let allstoredstatements = AllStoredStatements::read_statements(hosts, ports, parallel);
+        allstoredstatements.save_snapshot(snapshot_number)
+            .unwrap_or_else(|e| {
+                error!("error saving snapshot: {}", e);
+                process::exit(1);
+            });
+
+        info!("end snapshot: {:?}", timer.elapsed())
+    }
+    fn save_snapshot ( self, snapshot_number: i32 ) -> Result<(), Box<dyn Error>>
+    {
+        let current_directory = env::current_dir()?;
+        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(&snapshot_number.to_string());
+
+        let statements_file = &current_snapshot_directory.join("statements");
+        let file = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(&statements_file)?;
+        let mut writer = csv::Writer::from_writer(file);
+        for row in self.stored_statements {
+            writer.serialize(row)?;
+        }
+        writer.flush()?;
+
+        Ok(())
+    }
+    fn read_snapshot( snapshot_number: &String, ) -> Result<AllStoredStatements, Box<dyn Error>>
+    {
+        let mut allstoredstatements = AllStoredStatements { stored_statements: Vec::new() };
+
+        let current_directory = env::current_dir()?;
+        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(&snapshot_number);
+
+        let statements_file = &current_snapshot_directory.join("statements");
+        let file = fs::File::open(&statements_file)?;
+
+        let mut reader = csv::Reader::from_reader(file);
+        for  row in reader.deserialize() {
+            let data: StoredStatements = row?;
+            allstoredstatements.stored_statements.push(data);
+        }
+
+        Ok(allstoredstatements)
+    }
+    pub fn read_statements (
+        hosts: &Vec<&str>,
+        ports: &Vec<&str>,
+        parallel: usize
+    ) -> AllStoredStatements
+    {
+        info!("begin parallel http read");
+        let timer = Instant::now();
+
+        let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
+        let (tx, rx) = channel();
+        pool.scope(move |s| {
+            for host in hosts {
+                for port in ports {
+                    let tx = tx.clone();
+                    s.spawn(move |_| {
+                        let detail_snapshot_time = Local::now();
+                        let statements = AllStoredStatements::read_http(host, port);
+                        tx.send((format!("{}:{}", host, port), detail_snapshot_time, statements)).expect("error sending data via tx (statements)");
+                    });
+                }
+            }
+        });
+
+        info!("end parallel http read {:?}", timer.elapsed());
+
+        let mut allstoredstatements = AllStoredStatements { stored_statements: Vec::new() };
+        for (hostname_port, detail_snapshot_time, statements) in rx {
+            AllStoredStatements::add_and_sum_statements(statements, &hostname_port, detail_snapshot_time, &mut allstoredstatements);
+        }
+        allstoredstatements
+    }
+    pub fn add_and_sum_statements(
+        statementdata: Statement,
+        hostname: &str,
+        snapshot_time: DateTime<Local>,
+        allstoredstatements: &mut AllStoredStatements,
+    ) {
+        /*
+         * This construction creates a BTreeMap in order to summarize the statements per YSQL endpoint.
+         * The YSQL endpoint data does not carry the query_id field from pg_stat_statements to be able to distinguish between identical statement versions.
+         * Therefore the statistics of identical queries are added.
+         * Excluding min/max/mean/stddev: there is nothing mathematically correct that can be done with it.
+         */
+        let mut unique_statement: BTreeMap<(String, DateTime<Local>, String), UniqueStatementData> = BTreeMap::new();
+        for statement in statementdata.statements {
+            match unique_statement.get_mut(&(hostname.to_string().clone(), snapshot_time, statement.query.to_string())) {
+                Some(row) => {
+                    *row = UniqueStatementData::add_existing(row, statement)
+                },
+                None => {
+                    unique_statement.insert((hostname.to_string(), snapshot_time, statement.query.to_string()),
+                                            UniqueStatementData::add_new(statement)
+                    );
+                },
+            }
+        }
+        for ((hostname, snapshot_time, query), unique_statement_data) in unique_statement {
+            allstoredstatements.stored_statements.push( StoredStatements::new(hostname, snapshot_time, query, unique_statement_data) );
+        }
+    }
+    pub fn read_http(
+        host: &str,
+        port: &str,
+    ) -> Statement {
+        if ! scan_port_addr( format!("{}:{}", host, port) ) {
+            warn!("Warning: hostname:port {}:{} cannot be reached, skipping (statements)", host, port);
+            return AllStoredStatements::parse_statements(String::from(""))
+        }
+        if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}:{}/statements", host, port)) {
+            AllStoredStatements::parse_statements(data_from_http.text().unwrap())
+        } else {
+            AllStoredStatements::parse_statements(String::from(""))
+        }
+    }
+    fn parse_statements( statements_data: String ) -> Statement {
+        serde_json::from_str( &statements_data )
+            .unwrap_or_else(|_e| {
+                Statement { statements: Vec::<Queries>::new() }
+            })
+    }
+}
+
+/*
 pub fn read_statements(
     host: &str,
     port: &str,
@@ -378,6 +648,9 @@ pub fn get_statements_into_diff_second_snapshot(
 }
 
 
+ */
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -409,7 +682,7 @@ mod tests {
         }
     ]
 }"#.to_string();
-        let result = parse_statements(statements_json);
+        let result = AllStoredStatements::parse_statements(statements_json);
         assert_eq!(result.statements.len(), 2);
     }
     #[test]
@@ -449,16 +722,17 @@ mod tests {
         }
     ]
 }"#.to_string();
-        let mut stored_statements: Vec<StoredStatements> = Vec::new();
-        let result = parse_statements(statements_json);
-        add_to_statements_vector(result, "localhost", Local::now(), &mut stored_statements);
+        let mut allstoredstatements = AllStoredStatements { stored_statements: Vec::new() };
+        let result = AllStoredStatements::parse_statements(statements_json);
+        AllStoredStatements::add_and_sum_statements(result, "localhost", Local::now(), &mut allstoredstatements);
+        //add_to_statements_vector(result, "localhost", Local::now(), &mut stored_statements);
         // with the new way of adding up all relevant statistics, we still should have 2 statements
-        assert_eq!(stored_statements.len(), 2);
+        assert_eq!(allstoredstatements.stored_statements.len(), 2);
         // the first statement, being the select count(*) should have a total number of calls of 2
-        assert_eq!(stored_statements[1].query, "select count(*) from ybio1.benchmark_table");
+        assert_eq!(allstoredstatements.stored_statements[1].query, "select count(*) from ybio1.benchmark_table");
         // the call count should be 2
-        assert_eq!(stored_statements[1].calls, 2);
+        assert_eq!(allstoredstatements.stored_statements[1].calls, 2);
         // the min_time should be 0., because these can be two totally different statements
-        assert_eq!(stored_statements[1].min_time, 0.);
+        assert_eq!(allstoredstatements.stored_statements[1].min_time, 0.);
     }
 }

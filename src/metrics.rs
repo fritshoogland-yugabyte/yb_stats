@@ -4,12 +4,12 @@
 //!
 //! The functionality for metrics has 3 public entries:
 //! 1. Snapshot creation: [AllStoredMetrics::perform_snapshot]
-//! 2. Snapshot diff: [SnapshotDiffBtreeMaps::snapshot_diff]
-//! 3. Ad-hoc mode (diff): [SnapshotDiffBtreeMaps::adhoc_read_first_snapshot]
+//! 2. Snapshot diff: [SnapshotDiffBTreeMapsMetrics::snapshot_diff]
+//! 3. Ad-hoc mode (diff): [SnapshotDiffBTreeMapsMetrics::adhoc_read_first_snapshot], [SnapshotDiffBTreeMapsMetrics::adhoc_read_second_snapshot], [SnapshotDiffBTreeMapsMetrics::print].
 //!
 //! In general, the metric data is stored in the struct [AllStoredMetrics], which contains vectors of the three types of data.
-//! When data is fetched to be shown to the user, it is fetched in [AllStoredMetrics] for both snapshots, and put in [SnapshotDiffBtreeMaps] which has specific vectors for the three types.
-//! The essence of the vectors in [SnapshotDiffBtreeMaps] is that the statistics can be subtracted.
+//! When data is fetched to be shown to the user, it is fetched in [AllStoredMetrics] for both snapshots, and put in [SnapshotDiffBTreeMapsMetrics] which has specific vectors for the three types.
+//! The essence of the vectors in [SnapshotDiffBTreeMapsMetrics] is that the statistics can be subtracted.
 //!
 //! # Snapshot creation
 //! When a snapshot is created using the `--snapshot` option, this function is provided via the method [AllStoredMetrics::perform_snapshot].
@@ -18,47 +18,50 @@
 //! 2. For metrics, this is via the [AllStoredMetrics::perform_snapshot] method. This method performs two calls.
 //!
 //!   * The method [AllStoredMetrics::read_metrics]
-//!     * This method starts a rayon threadpool, and runs the general function [read_metrics] for all host and port combinations.
-//!       * [read_metrics] calls [parse_metrics] to parse the http JSON output into a Vector of [MetricEntity].
-//!     * The vector is iterated over and processed in using the function [add_to_metric_vectors] into the struct [AllStoredMetrics] into the vectors [StoredValues], [StoredCountSum] and [StoredCountSumRows].
+//!     * This method starts a rayon threadpool, and runs the general function [AllStoredMetrics::read_http] for all host and port combinations.
+//!       * [AllStoredMetrics::read_http] calls [AllStoredMetrics::parse_metrics] to parse the http JSON output into a Vector of [MetricEntity].
+//!     * The vector is iterated over and processed in using the function [AllStoredMetrics::split_into_vectors] into the struct [AllStoredMetrics] into the vectors [StoredValues], [StoredCountSum] and [StoredCountSumRows].
 //!
 //!   * The method [AllStoredMetrics::save_snapshot]
 //!     * This method takes each of the vectors in the struct [AllStoredMetrics] and saves these to CSV files in the numbered snapshot directory.
 //!
 //! # Snapshot diff
-//! When a snapshot diff is requested via the `--snapshot-diff` option, this function is provided via the method [SnapshotDiffBtreeMaps::snapshot_diff]
+//! When a snapshot diff is requested via the `--snapshot-diff` option, this function is provided via the method [SnapshotDiffBTreeMapsMetrics::snapshot_diff]
 //!
-//! 1. Snapshot-diff is called directly in main, which calls the method [SnapshotDiffBtreeMaps::snapshot_diff].
+//! 1. Snapshot-diff is called directly in main, which calls the method [SnapshotDiffBTreeMapsMetrics::snapshot_diff].
 //!
 //!   * The method [AllStoredMetrics::read_snapshot] is called to read all data for an [AllStoredMetrics] struct.
-//!     * The method [SnapshotDiffBtreeMaps::first_snapshot] is called with [AllStoredMetrics] as argument to insert the first snapshot data.
+//!     * The method [SnapshotDiffBTreeMapsMetrics::first_snapshot] is called with [AllStoredMetrics] as argument to insert the first snapshot data.
 //!   * The method [AllStoredMetrics::read_snapshot] is called to read all data for an [AllStoredMetrics] struct.
-//!     * The method [SnapshotDiffBtreeMaps::second_snapshot] is called with [AllStoredMetrics] as argument to insert the second snapshot data.
-//!   * The method [SnapshotDiffBtreeMaps::print] is called to print out the the diff report from the [SnapshotDiffBtreeMaps] data.
+//!     * The method [SnapshotDiffBTreeMapsMetrics::second_snapshot] is called with [AllStoredMetrics] as argument to insert the second snapshot data.
+//!   * The method [SnapshotDiffBTreeMapsMetrics::print] is called to print out the the diff report from the [SnapshotDiffBTreeMapsMetrics] data.
 //!
 //! # Ad-hoc mode diff
-//! When an ad-hoc diff is requested by not specifying any option, this is performed by three methods of [SnapshotDiffBtreeMaps].
+//! When an ad-hoc diff is requested by not specifying any option, this is performed by three methods of [SnapshotDiffBTreeMapsMetrics].
 //!
-//! 1. [SnapshotDiffBtreeMaps::adhoc_read_first_snapshot]
+//! 1. [SnapshotDiffBTreeMapsMetrics::adhoc_read_first_snapshot]
+//!
 //!   * The method calls [AllStoredMetrics::read_metrics]
-//!     * This method starts a rayon threadpool, and runs the general function [read_metrics] for all host and port combinations.
-//!       * [read_metrics] calls [parse_metrics] to parse the http JSON output into a Vector of [MetricEntity].
-//!     * The vector is iterated over and processed in using the function [add_to_metric_vectors] into the struct [AllStoredMetrics] into the vectors [StoredValues], [StoredCountSum] and [StoredCountSumRows].
-//!   * The method [SnapshotDiffBtreeMaps::first_snapshot] is called with [AllStoredMetrics] as argument to insert the first snapshot data.
+//!     * This method starts a rayon threadpool, and runs the general function [AllStoredMetrics::read_http] for all host and port combinations.
+//!       * [AllStoredMetrics::read_http] calls [AllStoredMetrics::parse_metrics] to parse the http JSON output into a Vector of [MetricEntity].
+//!     * The vector is iterated over and processed in using the function [AllStoredMetrics::split_into_vectors] into the struct [AllStoredMetrics] into the vectors [StoredValues], [StoredCountSum] and [StoredCountSumRows].
+//!   * The method [SnapshotDiffBTreeMapsMetrics::first_snapshot] is called with [AllStoredMetrics] as argument to insert the first snapshot data.
 //!
 //! 2. The user is asked for enter via stdin().read_line()
 //!
-//! 3. [SnapshotDiffBtreeMaps::adhoc_read_second_snapshot]
+//! 3. [SnapshotDiffBTreeMapsMetrics::adhoc_read_second_snapshot]
+//!
 //!   * The method calls [AllStoredMetrics::read_metrics]
-//!     * This method starts a rayon threadpool, and runs the general function [read_metrics] for all host and port combinations.
-//!       * [read_metrics] calls [parse_metrics] to parse the http JSON output into a Vector of [MetricEntity].
-//!     * The vector is iterated over and processed in using the function [add_to_metric_vectors] into the struct [AllStoredMetrics] into the vectors [StoredValues], [StoredCountSum] and [StoredCountSumRows].
-//!   * The method [SnapshotDiffBtreeMaps::second_snapshot] is called with [AllStoredMetrics] as argument to insert the second snapshot data.
+//!     * This method starts a rayon threadpool, and runs the general function [AllStoredMetrics::read_http] for all host and port combinations.
+//!       * [AllStoredMetrics::read_http] calls [AllStoredMetrics::parse_metrics] to parse the http JSON output into a Vector of [MetricEntity].
+//!     * The vector is iterated over and processed in using the function [AllStoredMetrics::split_into_vectors] into the struct [AllStoredMetrics] into the vectors [StoredValues], [StoredCountSum] and [StoredCountSumRows].
+//!   * The method [SnapshotDiffBTreeMapsMetrics::second_snapshot] is called with [AllStoredMetrics] as argument to insert the second snapshot data.
 //!
-//! 4. [SnapshotDiffBtreeMaps::print]
+//! 4. [SnapshotDiffBTreeMapsMetrics::print]
 //!
-use std::{process, fs, env, error::Error, sync::mpsc::channel, collections::BTreeMap};
+use std::{process, fs, env, error::Error, sync::mpsc::channel, collections::BTreeMap, time};
 use chrono::{DateTime, Local};
+use time::Instant;
 use port_scanner::scan_port_addr;
 use serde_derive::{Serialize,Deserialize};
 use regex::Regex;
@@ -232,8 +235,8 @@ pub enum Metrics {
 #[allow(rustdoc::private_intra_doc_links)]
 /// [StoredValues] is the format in which a [Metrics::MetricValue] is transformed into before it's used in the current 3 different ways of usage:
 /// - Perform a snapshot: the parsed http endpoint data is first stored in [MetricEntity] and [Metrics::MetricValue], after which it's transformed into [StoredValues] format which then is saved as CSV using serde.
-/// - Read a snapshot: the saved CSV data is read back into [StoredValues] using serde. Once in [StoredValues] format, it is added to the [AllStoredMetrics] super struct together with [StoredCountSum] and [StoredCountSumRows]. This is then diffed with another [AllStoredMetrics] struct using the [SnapshotDiffBtreeMaps::first_snapshot] and [SnapshotDiffBtreeMaps::second_snapshot] functions.
-/// - Ad-hoc mode: Read and parse the http endpoint data into [MetricEntity] and [Metrics::MetricValue], after which it's transformed into [StoredValues]. Once in [StoredValues] format, it is added to the [AllStoredMetrics] super struct together with [StoredCountSum] and [StoredCountSumRows]. This is then diffed with another [AllStoredMetrics] struct using the [SnapshotDiffBtreeMaps::first_snapshot] and [SnapshotDiffBtreeMaps::second_snapshot] functions.
+/// - Read a snapshot: the saved CSV data is read back into [StoredValues] using serde. Once in [StoredValues] format, it is added to the [AllStoredMetrics] super struct together with [StoredCountSum] and [StoredCountSumRows]. This is then diffed with another [AllStoredMetrics] struct using the [SnapshotDiffBTreeMapsMetrics::first_snapshot] and [SnapshotDiffBTreeMapsMetrics::second_snapshot] functions.
+/// - Ad-hoc mode: Read and parse the http endpoint data into [MetricEntity] and [Metrics::MetricValue], after which it's transformed into [StoredValues]. Once in [StoredValues] format, it is added to the [AllStoredMetrics] super struct together with [StoredCountSum] and [StoredCountSumRows]. This is then diffed with another [AllStoredMetrics] struct using the [SnapshotDiffBTreeMapsMetrics::first_snapshot] and [SnapshotDiffBTreeMapsMetrics::second_snapshot] functions.
 ///
 /// This struct is used in a superstruct called [AllStoredMetrics].
 /// Th superstruct adds hostname and port and timestamp to the [MetricEntity] and [Metrics::MetricValue] data.
@@ -274,8 +277,8 @@ impl StoredValues {
 #[allow(rustdoc::private_intra_doc_links)]
 /// [StoredCountSum] is the format in which a [Metrics::MetricCountSum] is transformed into before it's used in the current 3 different ways of usage:
 /// - Perform a snapshot: the parsed http endpoint data is first stored in [MetricEntity] and [Metrics::MetricCountSum], after which it's transformed into [StoredCountSum] format which then is saved as CSV using serde.
-/// - Read a snapshot: the saved CSV data is read back into [StoredCountSum] using serde. Once in [StoredCountSum] format, it is added to the [AllStoredMetrics] super struct together with [StoredCountSum] and [StoredCountSumRows]. This is then diffed with another [AllStoredMetrics] struct using the [SnapshotDiffBtreeMaps::first_snapshot] and [SnapshotDiffBtreeMaps::second_snapshot] functions.
-/// - Ad-hoc mode: Read and parse the http endpoint data into [MetricEntity] and [Metrics::MetricCountSum], after which it's transformed into [StoredCountSum]. Once in [StoredCountSum] format, it is added to the [AllStoredMetrics] super struct together with [StoredValues] and [StoredCountSumRows]. This is then diffed with another [AllStoredMetrics] struct using the [SnapshotDiffBtreeMaps::first_snapshot] and [SnapshotDiffBtreeMaps::second_snapshot] functions.
+/// - Read a snapshot: the saved CSV data is read back into [StoredCountSum] using serde. Once in [StoredCountSum] format, it is added to the [AllStoredMetrics] super struct together with [StoredCountSum] and [StoredCountSumRows]. This is then diffed with another [AllStoredMetrics] struct using the [SnapshotDiffBTreeMapsMetrics::first_snapshot] and [SnapshotDiffBTreeMapsMetrics::second_snapshot] functions.
+/// - Ad-hoc mode: Read and parse the http endpoint data into [MetricEntity] and [Metrics::MetricCountSum], after which it's transformed into [StoredCountSum]. Once in [StoredCountSum] format, it is added to the [AllStoredMetrics] super struct together with [StoredValues] and [StoredCountSumRows]. This is then diffed with another [AllStoredMetrics] struct using the [SnapshotDiffBTreeMapsMetrics::first_snapshot] and [SnapshotDiffBTreeMapsMetrics::second_snapshot] functions.
 ///
 /// This struct is used in a superstruct called [AllStoredMetrics].
 /// This struct adds hostname and port and timestamp to the [MetricEntity] and [Metrics::MetricCountSum] data.
@@ -346,8 +349,8 @@ impl StoredCountSum {
 #[allow(rustdoc::private_intra_doc_links)]
 /// [StoredCountSumRows] is the format in which a [Metrics::MetricCountSumRows] is transformed into before it's used in the current 3 different ways of usage:
 /// - Perform a snapshot: the parsed http endpoint data is first stored in [MetricEntity] and [Metrics::MetricCountSumRows], after which it's transformed into [StoredCountSumRows] format which then is saved as CSV using serde.
-/// - Read a snapshot: the saved CSV data is read back into [StoredCountSumRows] using serde. Once in [StoredCountSumRows] format, it is added to the [AllStoredMetrics] super struct together with [StoredValues] and [StoredCountSum]. This is then diffed with another [AllStoredMetrics] struct using the [SnapshotDiffBtreeMaps::first_snapshot] and [SnapshotDiffBtreeMaps::second_snapshot] functions.
-/// - Ad-hoc mode: Read and parse the http endpoint data into [MetricEntity] and [Metrics::MetricCountSumRows], after which it's transformed into [StoredCountSumRows]. Once in [StoredCountSumRows] format, it is added to the [AllStoredMetrics] super struct together with [StoredValues] and [StoredCountSum]. This is then diffed with another [AllStoredMetrics] struct using the [SnapshotDiffBtreeMaps::first_snapshot] and [SnapshotDiffBtreeMaps::second_snapshot] functions.
+/// - Read a snapshot: the saved CSV data is read back into [StoredCountSumRows] using serde. Once in [StoredCountSumRows] format, it is added to the [AllStoredMetrics] super struct together with [StoredValues] and [StoredCountSum]. This is then diffed with another [AllStoredMetrics] struct using the [SnapshotDiffBTreeMapsMetrics::first_snapshot] and [SnapshotDiffBTreeMapsMetrics::second_snapshot] functions.
+/// - Ad-hoc mode: Read and parse the http endpoint data into [MetricEntity] and [Metrics::MetricCountSumRows], after which it's transformed into [StoredCountSumRows]. Once in [StoredCountSumRows] format, it is added to the [AllStoredMetrics] super struct together with [StoredValues] and [StoredCountSum]. This is then diffed with another [AllStoredMetrics] struct using the [SnapshotDiffBTreeMapsMetrics::first_snapshot] and [SnapshotDiffBTreeMapsMetrics::second_snapshot] functions.
 ///
 /// This struct is used in a superstruct called [AllStoredMetrics].
 /// This struct adds hostname and port and timestamp to the [MetricEntity] and [Metrics::MetricCountSumRows] data.
@@ -458,7 +461,7 @@ impl SnapshotDiffValues {
             second_snapshot_value: storedvalues.metric_value,
         }
     }
-    /// This is a private function for a special use of [SnapshotDiffValues], which happens in the [SnapshotDiffBtreeMaps::print] function.
+    /// This is a private function for a special use of [SnapshotDiffValues], which happens in the [SnapshotDiffBTreeMapsMetrics::print] function.
     /// The special use is if the `--details-enable` flag is not set, statistics that are kept per table, tablet or cdc as metric_type are added together per server.
     /// This is the default mode, in order to try to reduce the amount of output.
     /// The way this works is that the existing, detailed, [BTreeMapSnapshotDiffValues] BTreeMap is iterated over, and for each key consisting of hostname_port, metric_type, metric_id and metric_name, the metric_id is set to "-".
@@ -475,7 +478,7 @@ impl SnapshotDiffValues {
             second_snapshot_value: sum_value_diff_row.second_snapshot_value + value_diff_row.second_snapshot_value,
         }
     }
-    /// This is a private function for a special use of [SnapshotDiffValues], which happens in the [SnapshotDiffBtreeMaps::print] function.
+    /// This is a private function for a special use of [SnapshotDiffValues], which happens in the [SnapshotDiffBTreeMapsMetrics::print] function.
     /// The special use is if the `--details-enable` flag is not set, statistics that are kept per table, tablet or cdc as metric_type are added together per server.
     /// This is the default mode, in order to try to reduce the amount of output.
     /// The way this works is that the existing, detailed, [BTreeMapSnapshotDiffValues] BTreeMap is iterated over, and for each key consisting of hostname_port, metric_type, metric_id and metric_name, the metric_id is set to "-".
@@ -610,7 +613,7 @@ impl SnapshotDiffCountSum {
             first_snapshot_total_sum: 0,
         }
     }
-    /// This is a private function for a special use of [SnapshotDiffCountSum], which happens in the [SnapshotDiffBtreeMaps::print] function.
+    /// This is a private function for a special use of [SnapshotDiffCountSum], which happens in the [SnapshotDiffBTreeMapsMetrics::print] function.
     /// The special use is if the `--details-enable` flag is not set, statistics that are kept per table, tablet or cdc as metric_type are added together per server.
     /// This is the default mode, in order to try to reduce the amount of output.
     /// The way this works is that the existing, detailed, [BTreeMapSnapshotDiffCountSum] BTreeMap is iterated over, and for each key consisting of hostname_port, metric_type, metric_id and metric_name, the metric_id is set to "-".
@@ -639,7 +642,7 @@ impl SnapshotDiffCountSum {
             first_snapshot_total_sum: sum_countsum_diff_row.first_snapshot_total_sum + countsum_diff_row.first_snapshot_total_sum,
         }
     }
-    /// This is a private function for a special use of [SnapshotDiffCountSum], which happens in the [SnapshotDiffBtreeMaps::print] function.
+    /// This is a private function for a special use of [SnapshotDiffCountSum], which happens in the [SnapshotDiffBTreeMapsMetrics::print] function.
     /// The special use is if the `--details-enable` flag is not set, statistics that are kept per table, tablet or cdc as metric_type are added together per server.
     /// This is the default mode, in order to try to reduce the amount of output.
     /// The way this works is that the existing, detailed, [BTreeMapSnapshotDiffCountSum] BTreeMap is iterated over, and for each key consisting of hostname_port, metric_type, metric_id and metric_name, the metric_id is set to "-".
@@ -772,8 +775,10 @@ impl AllStoredMetrics {
         ports: &Vec<&str>,
         snapshot_number: i32,
         parallel: usize,
-    ) {
-        info!("perform_snapshot (metrics)");
+    )
+    {
+        info!("begin snapshot");
+        let timer = Instant::now();
 
         let allstoredmetrics = AllStoredMetrics::read_metrics(hosts, ports, parallel);
         allstoredmetrics.save_snapshot(snapshot_number)
@@ -781,13 +786,19 @@ impl AllStoredMetrics {
                 error!("error saving snapshot: {}",e);
                 process::exit(1);
             });
+
+        info!("end snapshot: {:?}", timer.elapsed())
     }
     /// This function reads all the host/port combinations for metric endpoints and returns an [AllStoredMetrics] struct containing vectors of [StoredValues], [StoredCountSum] and [StoredCountSumRows].
     fn read_metrics (
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize,
-    ) -> AllStoredMetrics {
+    ) -> AllStoredMetrics
+    {
+        info!("begin parallel http read");
+        let timer = Instant::now();
+
         let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
         let (tx, rx) = channel();
         pool.scope(move |s| {
@@ -796,19 +807,98 @@ impl AllStoredMetrics {
                     let tx = tx.clone();
                     s.spawn(move |_| {
                         let detail_snapshot_time = Local::now();
-                        let metrics = read_metrics(host, port);
+                        let metrics = AllStoredMetrics::read_http(host, port);
                         tx.send((format!("{}:{}", host, port), detail_snapshot_time, metrics)).expect("error sending data via tx (metrics)");
                     });
                 }
             }
         });
 
+        info!("end parallel http read {:?}", timer.elapsed());
+
         let mut allstoredmetrics = AllStoredMetrics { stored_values: Vec::new(), stored_countsum: Vec::new(), stored_countsumrows: Vec::new() };
         for (hostname_port, detail_snapshot_time, metrics) in rx {
-            add_to_metric_vectors(metrics, &hostname_port, detail_snapshot_time, &mut allstoredmetrics);
+            AllStoredMetrics::split_into_vectors(metrics, &hostname_port, detail_snapshot_time, &mut allstoredmetrics);
         }
 
         allstoredmetrics
+    }
+    /// This function takes the host and port &str values, and tries to read it, and parse the result.
+    /// This function is public because the integration tests need access to it.
+    pub fn read_http(
+        host: &str,
+        port: &str,
+    ) -> Vec<MetricEntity> {
+        if ! scan_port_addr(format!("{}:{}", host, port)) {
+            warn!("hostname: port {}:{} cannot be reached, skipping", host, port);
+            return AllStoredMetrics::parse_metrics(String::from(""), "", "")
+        };
+        let data_from_http = reqwest::blocking::get(format!("http://{}:{}/metrics", host, port))
+            .unwrap_or_else(|e| {
+                error!("Fatal: error reading from URL: {}", e);
+                process::exit(1);
+            })
+            .text().unwrap();
+        AllStoredMetrics::parse_metrics(data_from_http, host, port)
+    }
+    /// This function takes the metrics data as String, and tries to parse the JSON in it to a vector [MetricEntity].
+    fn parse_metrics(metrics_data: String, host: &str, port: &str) -> Vec<MetricEntity> {
+        serde_json::from_str(&metrics_data)
+            .unwrap_or_else(|e| {
+                info!("({}:{}) unable to parse, error: {}", host, port, e);
+                Vec::<MetricEntity>::new()
+            })
+    }
+    /// This function takes the [MetricEntity] struct, and splits the different types of values into [StoredValues], [StoredCountSum] and [StoredCountSumRows] vectors of structs.
+    /// It is public because it is used in the integration tests too.
+    pub fn split_into_vectors(
+        data_parsed_from_json: Vec<MetricEntity>,
+        hostname: &str,
+        detail_snapshot_time: DateTime<Local>,
+        allstoredmetrics: &mut AllStoredMetrics,
+    ) {
+        for metric in data_parsed_from_json {
+            // This takes the option from attributes via as_ref(), and then the option of namespace_name/table_name via as_deref().
+            let metric_attribute_namespace_name = metric.attributes.as_ref().map(|x| x.namespace_name.as_deref().unwrap_or("-")).unwrap_or("-").to_string();
+            let metric_attribute_table_name = metric.attributes.as_ref().map(|x| x.table_name.as_deref().unwrap_or("-")).unwrap_or("-").to_string();
+            trace!("metric_type: {}, metric_id: {}, metric_attribute_namespace_name: {}, metric_attribute_table_name: {}", &metric.metrics_type, &metric.id, metric_attribute_namespace_name, metric_attribute_table_name);
+            for statistic in &metric.metrics {
+                match statistic {
+                    Metrics::MetricValue { name, value } => {
+                        /*
+                         * Important! Any value that is 0 is never used.
+                         * These values are skipped!
+                         */
+                        if *value > 0 {
+                            allstoredmetrics.stored_values.push( StoredValues::new(hostname, detail_snapshot_time, &metric, &metric_attribute_namespace_name, &metric_attribute_table_name, name, *value));
+                        }
+                    },
+                    Metrics::MetricCountSum { name, total_count, min, mean, percentile_75, percentile_95, percentile_99, percentile_99_9, percentile_99_99, max, total_sum } => {
+                        /*
+                         * Important! Any total_count that is 0 is never used.
+                         * These values are skipped!
+                         */
+                        if *total_count > 0 {
+                            allstoredmetrics.stored_countsum.push(StoredCountSum::new(hostname, detail_snapshot_time, &metric, &metric_attribute_namespace_name, &metric_attribute_table_name, name, *total_count, *min, *mean, *percentile_75, *percentile_95, *percentile_99, *percentile_99_9, *percentile_99_99, *max, *total_sum));
+                        }
+                    },
+                    Metrics::MetricCountSumRows { name, count, sum, rows} => {
+                        /*
+                         * Important! Any count that is 0 is never used.
+                         * These values are skipped!
+                         */
+                        if *count > 0 {
+                            allstoredmetrics.stored_countsumrows.push(StoredCountSumRows::new(hostname, detail_snapshot_time, &metric, &metric_attribute_namespace_name, &metric_attribute_table_name, name, *count, *sum, *rows));
+                        }
+                    },
+                    // This is to to soak up invalid/rejected values.
+                    // See the explanation with the unit tests below.
+                    _ => {
+                        warn!("statistic that is unknown or inconsistent: hostname_port: {}, type: {}, namespace: {}, table_name: {}: {:#?}", hostname, metric.metrics_type, metric_attribute_namespace_name, metric_attribute_table_name, statistic);
+                    },
+                }
+            }
+        }
     }
     /// This function takes the [AllStoredMetrics] struct vectors and saves these as CSV files.
     /// The vectors this struct holds are of structs of [StoredValues], [StoredCountSum] and [StoredCountSumRows].
@@ -900,33 +990,33 @@ type BTreeMapSnapshotDiffCountSum = BTreeMap<(String, String, String, String), S
 type BTreeMapSnapshotDiffCountSumRows = BTreeMap<(String, String, String, String), SnapshotDiffCountSumRows>;
 
 #[allow(rustdoc::private_intra_doc_links)]
-/// The [SnapshotDiffBtreeMaps] struct holds 3 btreemaps for Values, CountSum and CountSumRows.
+/// The [SnapshotDiffBTreeMapsMetrics] struct holds 3 btreemaps for Values, CountSum and CountSumRows.
 /// Which are [BTreeMapSnapshotDiffValues], [BTreeMapSnapshotDiffCountSum] and [BTreeMapSnapshotDiffCountSumRows].
 /// The key for each of the btreemaps is a record of hostname_port, metric_type, metric_id and metric_name.
 /// Because the key holds the metric_name, the struct that is the value belonging to the key doesn't need to hold that.
 /// The values are the structs [SnapshotDiffValues], [SnapshotDiffCountSum] and [SnapshotDiffCountSumRows].
 /// The reason for the BTreeMap is to order the output in a consistent and logical way, and to be able to find entries back based on the key.
-pub struct SnapshotDiffBtreeMaps {
+pub struct SnapshotDiffBTreeMapsMetrics {
     pub btreemap_snapshotdiff_values: BTreeMapSnapshotDiffValues,
     pub btreemap_snapshotdiff_countsum: BTreeMapSnapshotDiffCountSum,
     pub btreemap_snapshotdiff_countsumrows: BTreeMapSnapshotDiffCountSumRows,
 }
 
-impl SnapshotDiffBtreeMaps {
-    /// This function takes a begin and end snapshot number and begin snapshot time, and returns the [SnapshotDiffBtreeMaps] struct.
+impl SnapshotDiffBTreeMapsMetrics {
+    /// This function takes a begin and end snapshot number and begin snapshot time, and returns the [SnapshotDiffBTreeMapsMetrics] struct.
     /// The function assumes the snapshot directories and the needed files in the snapshot directories exist, otherwise it exits yb_stats.
     pub fn snapshot_diff(
         begin_snapshot: &String,
         end_snapshot: &String,
         begin_snapshot_timestamp: &DateTime<Local>,
-    ) -> SnapshotDiffBtreeMaps {
+    ) -> SnapshotDiffBTreeMapsMetrics {
         let allstoredmetrics = AllStoredMetrics::read_snapshot(begin_snapshot)
             .unwrap_or_else(|e| {
                 error!("Fatal: error reading snapshot: {}", e);
                 process::exit(1);
             });
 
-        let mut metrics_snapshot_diff = SnapshotDiffBtreeMaps::first_snapshot(allstoredmetrics);
+        let mut metrics_snapshot_diff = SnapshotDiffBTreeMapsMetrics::first_snapshot(allstoredmetrics);
 
         let allstoredmetrics = AllStoredMetrics::read_snapshot(end_snapshot)
             .unwrap_or_else(|e| {
@@ -938,16 +1028,16 @@ impl SnapshotDiffBtreeMaps {
 
         metrics_snapshot_diff
     }
-    /// This function reads the first snapshot data from the http endpoints itself (=adhoc mode), and stores it as first snapshot data in [SnapshotDiffBtreeMaps], and returns the struct.
+    /// This function reads the first snapshot data from the http endpoints itself (=adhoc mode), and stores it as first snapshot data in [SnapshotDiffBTreeMapsMetrics], and returns the struct.
     pub fn adhoc_read_first_snapshot(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize,
-    ) -> SnapshotDiffBtreeMaps {
+    ) -> SnapshotDiffBTreeMapsMetrics {
         let allstoredmetrics = AllStoredMetrics::read_metrics(hosts, ports, parallel);
-        SnapshotDiffBtreeMaps::first_snapshot(allstoredmetrics)
+        SnapshotDiffBTreeMapsMetrics::first_snapshot(allstoredmetrics)
     }
-    /// This function reads the second snapshot data from the http endpoints itself (=adhoc mode), and stores it as second snapshot data in [SnapshotDiffBtreeMaps].
+    /// This function reads the second snapshot data from the http endpoints itself (=adhoc mode), and stores it as second snapshot data in [SnapshotDiffBTreeMapsMetrics].
     /// Because not all metrics might have had a first snapshot entry, we need the first_snapshot_time to know when the first snapshot was taken.
     pub fn adhoc_read_second_snapshot(
         &mut self,
@@ -959,11 +1049,11 @@ impl SnapshotDiffBtreeMaps {
         let allstoredmetrics = AllStoredMetrics::read_metrics(hosts, ports, parallel);
         self.second_snapshot(allstoredmetrics, first_snapshot_time);
     }
-    /// This function takes the data from the struct [AllStoredMetrics], creates a struct [SnapshotDiffBtreeMaps] and adds the data as first snapshot.
+    /// This function takes the data from the struct [AllStoredMetrics], creates a struct [SnapshotDiffBTreeMapsMetrics] and adds the data as first snapshot.
     /// The struct [AllStoredMetrics] contains vectors of the structs of [StoredValues], [StoredCountSum] and [StoredCountSumRows].
-    /// This function is used in [SnapshotDiffBtreeMaps::snapshot_diff], [SnapshotDiffBtreeMaps::adhoc_read_first_snapshot], but never directly, which is why it is private.
-    fn first_snapshot(allstoredmetrics: AllStoredMetrics) -> SnapshotDiffBtreeMaps {
-        let mut snapshotdiff_btreemaps = SnapshotDiffBtreeMaps { btreemap_snapshotdiff_values: BTreeMap::new(), btreemap_snapshotdiff_countsum: BTreeMap::new(), btreemap_snapshotdiff_countsumrows: BTreeMap::new() };
+    /// This function is used in [SnapshotDiffBTreeMapsMetrics::snapshot_diff], [SnapshotDiffBTreeMapsMetrics::adhoc_read_first_snapshot], but never directly, which is why it is private.
+    fn first_snapshot(allstoredmetrics: AllStoredMetrics) -> SnapshotDiffBTreeMapsMetrics {
+        let mut snapshotdiff_btreemaps = SnapshotDiffBTreeMapsMetrics { btreemap_snapshotdiff_values: BTreeMap::new(), btreemap_snapshotdiff_countsum: BTreeMap::new(), btreemap_snapshotdiff_countsumrows: BTreeMap::new() };
         // values
         for row in allstoredmetrics.stored_values {
             if row.metric_type == "table" || row.metric_type == "tablet" || row.metric_type == "cdc" {
@@ -971,7 +1061,7 @@ impl SnapshotDiffBtreeMaps {
                     // If we encounter a match, it means we found another row of the combination of hostname_port, metric_type (table, tablet or cdc), metric_id and metric_name, which is supposed to be unique.
                     // Therefore we tell the user the exact details and quit.
                     Some(_value_row) => {
-                        panic!("Error: (SnapshotDiffBtreeMaps values) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port, &row.metric_type.clone(), &row.metric_id.clone(), &row.metric_name.clone());
+                        panic!("Error: (SnapshotDiffBTreeMapsMetrics values) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port, &row.metric_type.clone(), &row.metric_id.clone(), &row.metric_name.clone());
                     },
                     // This inserts the key-value combination.
                     None => {
@@ -987,7 +1077,7 @@ impl SnapshotDiffBtreeMaps {
                     // The combination of hostname_port, metric_type, metric_id == "-" and metric_name is supposed to be unique.
                     // Therefore if we have a match, we tell the user the exact details and quit.
                     Some(_value_row) => {
-                        panic!("Error: (SnapshotDiffBtreeMaps values) found second entry for hostname: {}, type: {}, id: {} name: {}", &row.hostname_port, &row.metric_type.clone(), String::from("-"), &row.metric_name.clone());
+                        panic!("Error: (SnapshotDiffBTreeMapsMetrics values) found second entry for hostname: {}, type: {}, id: {} name: {}", &row.hostname_port, &row.metric_type.clone(), String::from("-"), &row.metric_name.clone());
                     },
                     // This inserts the key-value combination.
                     None => {
@@ -1006,7 +1096,7 @@ impl SnapshotDiffBtreeMaps {
                     // If we encounter a match, it means we found another row of the combination of hostname_port, metric_type (table, tablet or cdc), metric_id and metric_name, which is supposed to be unique.
                     // Therefore we tell the user the exact details and quit.
                     Some(_countsum_row) => {
-                        panic!("Error: (SnapshotDiffBtreeMaps countsum) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port, &row.metric_type.clone(), &row.metric_id.clone(), &row.metric_name.clone());
+                        panic!("Error: (SnapshotDiffBTreeMapsMetrics countsum) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port, &row.metric_type.clone(), &row.metric_id.clone(), &row.metric_name.clone());
                     },
                     // This inserts the key-value combination.
                     None => {
@@ -1022,7 +1112,7 @@ impl SnapshotDiffBtreeMaps {
                     // The combination of hostname_port, metric_type, metric_id == "-" and metric_name is supposed to be unique.
                     // Therefore if we have a match, we tell the user the exact details and quit.
                     Some(_countsum_row) => {
-                        panic!("Error: (SnapshotDiffBtreeMaps countsum) found second entry for hostname: {}, type: {}, id: {} name: {}", &row.hostname_port, &row.metric_type.clone(), String::from("-"), &row.metric_name.clone());
+                        panic!("Error: (SnapshotDiffBTreeMapsMetrics countsum) found second entry for hostname: {}, type: {}, id: {} name: {}", &row.hostname_port, &row.metric_type.clone(), String::from("-"), &row.metric_name.clone());
                     },
                     // This inserts the key-value combination.
                     None => {
@@ -1041,7 +1131,7 @@ impl SnapshotDiffBtreeMaps {
                 // If we found another combination of hostname_port, metric_type, metric_id and metric_name, something is wrong.
                 // Therefore if we have a match, we tell the user the exact details and quit.
                 Some(_countsumrows_row) => {
-                    panic!("Error: (SnapshotDiffBtreeMaps countsumrows) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port, &row.metric_type.clone(), &row.metric_id.clone(), &row.metric_name.clone());
+                    panic!("Error: (SnapshotDiffBTreeMapsMetrics countsumrows) found second entry for hostname: {}, type: {}, id: {}, name: {}", &row.hostname_port, &row.metric_type.clone(), &row.metric_id.clone(), &row.metric_name.clone());
                 },
                 // This inserts the key-value combination.
                 None => {
@@ -1054,9 +1144,9 @@ impl SnapshotDiffBtreeMaps {
         }
         snapshotdiff_btreemaps
     }
-    /// This function takes the data from the struct [AllStoredMetrics], creates a struct [SnapshotDiffBtreeMaps] and adds the data as second snapshot.
+    /// This function takes the data from the struct [AllStoredMetrics], creates a struct [SnapshotDiffBTreeMapsMetrics] and adds the data as second snapshot.
     /// The struct [AllStoredMetrics] contains vectors of the structs of [StoredValues], [StoredCountSum] and [StoredCountSumRows].
-    /// This function is used in [SnapshotDiffBtreeMaps::snapshot_diff] and [SnapshotDiffBtreeMaps::adhoc_read_second_snapshot], but never directly, which is why it is private.
+    /// This function is used in [SnapshotDiffBTreeMapsMetrics::snapshot_diff] and [SnapshotDiffBTreeMapsMetrics::adhoc_read_second_snapshot], but never directly, which is why it is private.
     fn second_snapshot(
         &mut self,
         allstoredmetrics: AllStoredMetrics,
@@ -1134,6 +1224,14 @@ impl SnapshotDiffBtreeMaps {
             }
         }
     }
+    /// This function prints the BTreeMaps in the [SnapshotDiffBTreeMapsMetrics] struct.
+    /// It first is taking the details_enable boolean, which splits the printing between printing per table and tablet or summing it all up per server portnumber combination.
+    /// Inside it, it first reads
+    /// - [BTreeMapSnapshotDiffValues] for hostname_port, metric_type, metrid_id and metric_name as key and the struct [SnapshotDiffValues] as value, and then
+    /// - [BTreeMapSnapshotDiffCountSum] for hostname_port, metric_type, metric_id and metric_name as key and the struct [SnapshotDiffCountSum] as value.
+    /// If details are not enabled, it loops over them and for the types of "cdc", "table" and "tablet" adds up the values.
+    /// It then prints out the values in the new summed BTreeMap if details are not enabled, or the original BTreeMap.
+    /// The last thing is to print out the values in [BTreeMapSnapshotDiffCountSumRows].
     pub fn print(
         &self,
         hostname_filter: &Regex,
@@ -1432,88 +1530,14 @@ impl SnapshotDiffBtreeMaps {
     }
 }
 
-pub fn read_metrics(
-    host: &str,
-    port: &str,
-) -> Vec<MetricEntity> {
-    if ! scan_port_addr(format!("{}:{}", host, port)) {
-        warn!("hostname: port {}:{} cannot be reached, skipping", host, port);
-        return parse_metrics(String::from(""), "", "")
-    };
-    let data_from_http = reqwest::blocking::get(format!("http://{}:{}/metrics", host, port))
-        .unwrap_or_else(|e| {
-            error!("Fatal: error reading from URL: {}", e);
-            process::exit(1);
-        })
-        .text().unwrap();
-    parse_metrics(data_from_http, host, port)
-}
-
-pub fn add_to_metric_vectors(
-    data_parsed_from_json: Vec<MetricEntity>,
-    hostname: &str,
-    detail_snapshot_time: DateTime<Local>,
-    allstoredmetrics: &mut AllStoredMetrics,
-) {
-    for metric in data_parsed_from_json {
-        // This takes the option from attributes via as_ref(), and then the option of namespace_name/table_name via as_deref().
-        let metric_attribute_namespace_name = metric.attributes.as_ref().map(|x| x.namespace_name.as_deref().unwrap_or("-")).unwrap_or("-").to_string();
-        let metric_attribute_table_name = metric.attributes.as_ref().map(|x| x.table_name.as_deref().unwrap_or("-")).unwrap_or("-").to_string();
-        trace!("metric_type: {}, metric_id: {}, metric_attribute_namespace_name: {}, metric_attribute_table_name: {}", &metric.metrics_type, &metric.id, metric_attribute_namespace_name, metric_attribute_table_name);
-        for statistic in &metric.metrics {
-            match statistic {
-                Metrics::MetricValue { name, value } => {
-                    /*
-                     * Important! Any value that is 0 is never used.
-                     * These values are skipped!
-                     */
-                    if *value > 0 {
-                        allstoredmetrics.stored_values.push( StoredValues::new(hostname, detail_snapshot_time, &metric, &metric_attribute_namespace_name, &metric_attribute_table_name, name, *value));
-                    }
-                },
-                Metrics::MetricCountSum { name, total_count, min, mean, percentile_75, percentile_95, percentile_99, percentile_99_9, percentile_99_99, max, total_sum } => {
-                    /*
-                     * Important! Any total_count that is 0 is never used.
-                     * These values are skipped!
-                     */
-                    if *total_count > 0 {
-                        allstoredmetrics.stored_countsum.push(StoredCountSum::new(hostname, detail_snapshot_time, &metric, &metric_attribute_namespace_name, &metric_attribute_table_name, name, *total_count, *min, *mean, *percentile_75, *percentile_95, *percentile_99, *percentile_99_9, *percentile_99_99, *max, *total_sum));
-                    }
-                },
-                Metrics::MetricCountSumRows { name, count, sum, rows} => {
-                    /*
-                     * Important! Any count that is 0 is never used.
-                     * These values are skipped!
-                     */
-                    if *count > 0 {
-                        allstoredmetrics.stored_countsumrows.push(StoredCountSumRows::new(hostname, detail_snapshot_time, &metric, &metric_attribute_namespace_name, &metric_attribute_table_name, name, *count, *sum, *rows));
-                    }
-                },
-                // This is to to soak up invalid/rejected values.
-                // See the explanation with the unit tests below.
-                _ => {
-                    warn!("statistic that is unknown or inconsistent: hostname_port: {}, type: {}, namespace: {}, table_name: {}: {:#?}", hostname, metric.metrics_type, metric_attribute_namespace_name, metric_attribute_table_name, statistic);
-                },
-            }
-        }
-    }
-}
-
-fn parse_metrics( metrics_data: String, host: &str, port: &str ) -> Vec<MetricEntity> {
-    serde_json::from_str(&metrics_data )
-        .unwrap_or_else(|e| {
-            info!("({}:{}) error parsing /metrics json data for metrics, error: {}", host, port, e);
-            Vec::<MetricEntity>::new()
-        })
-}
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn parse_cdc_metrics_value() {
+    /// cdc (change data capture) metrics value
+    /// Please mind type cdc has an extra, unique, attribute: stream_id. This is currently not parsed.
+    fn parse_metrics_cdc_value() {
         let json = r#"
 [
     {
@@ -1533,7 +1557,7 @@ mod tests {
         ]
     }
 ]"#.to_string();
-        let result = parse_metrics(json, "", "");
+        let result = AllStoredMetrics::parse_metrics(json, "", "");
         assert_eq!(result[0].metrics_type,"cdc");
         let statistic_value = match &result[0].metrics[0] {
             Metrics::MetricValue { name, value} => format!("{}, {}",name, value),
@@ -1543,7 +1567,9 @@ mod tests {
     }
 
     #[test]
-    fn parse_cdc_metrics_countsum() {
+    /// cdc (change data capture) metrics value
+    /// Please mind type cdc has an extra, unique, attribute: stream_id. This is currently not parsed.
+    fn parse_metrics_cdc_countsum() {
         let json = r#"
 [
     {
@@ -1572,7 +1598,7 @@ mod tests {
         ]
     }
 ]"#.to_string();
-        let result = parse_metrics(json, "", "");
+        let result = AllStoredMetrics::parse_metrics(json, "", "");
         assert_eq!(result[0].metrics_type,"cdc");
         let statistic_value = match &result[0].metrics[0] {
             Metrics::MetricCountSum { name, total_count, min: _, mean: _, percentile_75: _, percentile_95: _, percentile_99: _, percentile_99_9: _, percentile_99_99: _, max: _, total_sum} => format!("{}, {}, {}",name, total_count, total_sum),
@@ -1582,8 +1608,11 @@ mod tests {
     }
 
     #[test]
-    fn parse_tablet_metrics_value() {
-        let json = r#"[
+    /// Parse tablet metrics value.
+    /// It seems there are no other types of metrics in tablet metrics.
+    fn parse_metrics_tablet_value() {
+        let json = r#"
+[
     {
         "type": "tablet",
         "id": "16add7b1248a45d2880e5527b2059b54",
@@ -1599,8 +1628,8 @@ mod tests {
             }
         ]
     }
-    ]"#.to_string();
-        let result = parse_metrics(json, "", "");
+]"#.to_string();
+        let result = AllStoredMetrics::parse_metrics(json, "", "");
         assert_eq!(result[0].metrics_type,"tablet");
         let statistic_value = match &result[0].metrics[0] {
             Metrics::MetricValue { name, value} => format!("{}, {}",name, value),
@@ -1610,8 +1639,11 @@ mod tests {
     }
 
     #[test]
-    fn parse_tablet_metrics_countsum() {
-        let json = r#"[
+    /// Parse table metrics countsum
+    /// It seems tables can have both countsum as well as value metrics
+    fn parse_metrics_table_countsum() {
+        let json = r#"
+[
     {
         "type": "table",
         "id": "000033e10000300080000000000042ac",
@@ -1636,8 +1668,8 @@ mod tests {
             }
         ]
     }
-    ]"#.to_string();
-        let result = parse_metrics(json, "", "");
+]"#.to_string();
+        let result = AllStoredMetrics::parse_metrics(json, "", "");
         assert_eq!(result[0].metrics_type,"table");
         let statistic_value = match &result[0].metrics[0] {
             Metrics::MetricCountSum { name, total_count, min: _, mean: _, percentile_75: _, percentile_95: _, percentile_99: _, percentile_99_9: _, percentile_99_99: _, max: _, total_sum} => format!("{}, {}, {}",name, total_count, total_sum),
@@ -1647,8 +1679,129 @@ mod tests {
     }
 
     #[test]
-    fn parse_tablet_metrics_countsumrows() {
-        let json = r#"[
+    /// Parse table metrics countsum
+    /// It seems tables can have both countsum as well as value metrics
+    fn parse_metrics_table_value() {
+        let json = r#"
+[
+    {
+        "type": "table",
+        "id": "sys.catalog.uuid",
+        "attributes": {
+            "table_name": "sys.catalog",
+            "namespace_name": "",
+            "table_id": "sys.catalog.uuid"
+        },
+        "metrics": [
+            {
+                "name": "log_gc_running",
+                "value": 0
+            }
+        ]
+    }
+]"#.to_string();
+        let result = AllStoredMetrics::parse_metrics(json, "", "");
+        assert_eq!(result[0].metrics_type,"table");
+        let statistic_value = match &result[0].metrics[0] {
+            Metrics::MetricValue { name, value} => format!("{}, {}",name, value),
+            _ => String::from("")
+        };
+        assert_eq!(statistic_value, "log_gc_running, 0");
+    }
+
+    #[test]
+    /// Parse cluster metrics value
+    fn parse_metrics_cluster_value() {
+        let json = r#"
+[
+        {
+        "type": "cluster",
+        "id": "yb.cluster",
+        "attributes": {},
+        "metrics": [
+           {
+                "name": "num_tablet_servers_live",
+                "value": 0
+            }
+        ]
+    }
+]"#.to_string();
+        let result = AllStoredMetrics::parse_metrics(json, "", "");
+        assert_eq!(result[0].metrics_type, "cluster");
+        let statistic_value = match &result[0].metrics[0] {
+            Metrics::MetricValue { name, value } => format!("{}, {}", name, value),
+            _ => String::from("")
+        };
+        assert_eq!(statistic_value, "num_tablet_servers_live, 0");
+    }
+
+    #[test]
+    /// Parse server metrics value
+    fn parse_metrics_server_value() {
+        let json = r#"
+[
+    {
+        "type": "server",
+        "id": "yb.master",
+        "attributes": {},
+        "metrics": [
+            {
+                "name": "mem_tracker",
+                "value": 529904
+            }
+        ]
+    }
+]"#.to_string();
+        let result = AllStoredMetrics::parse_metrics(json, "", "");
+        assert_eq!(result[0].metrics_type, "server");
+        let statistic_value = match &result[0].metrics[0] {
+            Metrics::MetricValue { name, value } => format!("{}, {}", name, value),
+            _ => String::from("")
+        };
+        assert_eq!(statistic_value, "mem_tracker, 529904");
+    }
+
+    #[test]
+    /// Parse server metrics countsum
+    fn parse_metrics_server_countsum() {
+        let json = r#"
+[
+    {
+        "type": "server",
+        "id": "yb.tabletserver",
+        "attributes": {},
+        "metrics": [
+            {
+                "name": "handler_latency_outbound_call_time_to_response",
+                "total_count": 1384630,
+                "min": 0,
+                "mean": 676.4016688575184,
+                "percentile_75": 2,
+                "percentile_95": 2,
+                "percentile_99": 2,
+                "percentile_99_9": 2,
+                "percentile_99_99": 2,
+                "max": 25000,
+                "total_sum": 1057260382
+            }
+        ]
+    }
+]"#.to_string();
+        let result = AllStoredMetrics::parse_metrics(json, "", "");
+        assert_eq!(result[0].metrics_type,"server");
+        let statistic_value = match &result[0].metrics[0] {
+            Metrics::MetricCountSum { name, total_count, min: _, mean: _, percentile_75: _, percentile_95: _, percentile_99: _, percentile_99_9: _, percentile_99_99: _, max: _, total_sum} => format!("{}, {}, {}",name, total_count, total_sum),
+            _ => String::from("")
+        };
+        assert_eq!(statistic_value, "handler_latency_outbound_call_time_to_response, 1384630, 1057260382");
+    }
+
+    #[test]
+    /// Parse YSQL server countsumrows
+    /// The YSQL metrics are unique metrics
+    fn parse_metrics_server_countsumrows() {
+        let json = r#"
+[
     {
         "type": "server",
         "id": "yb.ysqlserver",
@@ -1661,8 +1814,8 @@ mod tests {
             }
         ]
     }
-    ]"#.to_string();
-        let result = parse_metrics(json, "", "");
+]"#.to_string();
+        let result = AllStoredMetrics::parse_metrics(json, "", "");
         assert_eq!(result[0].metrics_type,"server");
         let statistic_value = match &result[0].metrics[0] {
             Metrics::MetricCountSumRows { name, count, sum, rows} => format!("{}, {}, {}, {}",name, count, sum, rows),
@@ -1672,7 +1825,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_tablet_metrics_rejectedu64metricvalue() {
+    fn parse_metrics_server_rejectedu64metricvalue() {
         // Funny, when I checked with version 2.11.2.0-b89 I could not find the value that only fitted in an unsigned 64 bit integer.
         // Still let's check for it.
         // The id is yb.cqlserver, because that is where I found this value.
@@ -1692,7 +1845,7 @@ mod tests {
         ]
     }
 ]"#.to_string();
-        let result = parse_metrics(json, "", "");
+        let result = AllStoredMetrics::parse_metrics(json, "", "");
         assert_eq!(result[0].metrics_type,"server");
         let statistic_value = match &result[0].metrics[0] {
             Metrics::RejectedU64MetricValue { name, value} => format!("{}, {}", name, value),
@@ -1702,7 +1855,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_tablet_metrics_rejectedbooleanmetricvalue() {
+    fn parse_metrics_cluster_rejectedbooleanmetricvalue() {
         // Version 2.15.2.0-b83 a value appeared that is boolean instead of a number.
         // For now, I will just ditch the value, and request for it to be handled as all the other booleans, which are by the values of 0 and 1.
         let json = r#"
@@ -1720,7 +1873,7 @@ mod tests {
         ]
    }
 ]"#.to_string();
-        let result = parse_metrics(json, "", "");
+        let result = AllStoredMetrics::parse_metrics(json, "", "");
         assert_eq!(result[0].metrics_type,"cluster");
         let statistic_value = match &result[0].metrics[0] {
             Metrics::RejectedBooleanMetricValue { name, value } => format!("{}, {}", name, value),
@@ -1728,5 +1881,4 @@ mod tests {
         };
         assert_eq!(statistic_value, "is_load_balancing_enabled, false");
     }
-
 }

@@ -28,8 +28,11 @@ pub mod metrics;
 use std::env;
 use log::*;
 use std::sync::Arc;
-pub use metrics::{AllStoredMetrics, SnapshotDiffBtreeMaps, read_metrics, add_to_metric_vectors};
+use std::time::Instant;
+
+pub use metrics::{AllStoredMetrics, SnapshotDiffBTreeMapsMetrics};
 pub use snapshot::Snapshot;
+pub use statements::AllStoredStatements;
 
 /// This is the function that performs all snapshots for all different sources of information, and returns the snapshot number.
 pub fn perform_snapshot(
@@ -39,6 +42,8 @@ pub fn perform_snapshot(
     parallel: usize,
     disable_threads: bool,
 ) -> i32 {
+    info!("begin snapshot");
+    let timer = Instant::now();
 
     let current_directory = env::current_dir().unwrap();
     let yb_stats_directory = current_directory.join("yb_stats.snapshots");
@@ -71,8 +76,15 @@ pub fn perform_snapshot(
         let arc_ports_clone = arc_ports.clone();
         //let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
         mps.spawn(move |_| {
-            //metrics::perform_metrics_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
             AllStoredMetrics::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel);
+        });
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        //let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
+        mps.spawn(move |_| {
+            //statements::perform_statements_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
+            AllStoredStatements::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel);
         });
 
         let arc_hosts_clone = arc_hosts.clone();
@@ -110,13 +122,6 @@ pub fn perform_snapshot(
         let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
         mps.spawn(move |_| {
             versions::perform_versions_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
-        });
-
-        let arc_hosts_clone = arc_hosts.clone();
-        let arc_ports_clone = arc_ports.clone();
-        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-        mps.spawn(move |_| {
-            statements::perform_statements_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
         });
 
         let arc_hosts_clone = arc_hosts.clone();
@@ -234,6 +239,7 @@ pub fn perform_snapshot(
             pprof::perform_pprof_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
      */
 
+    info!("end snapshot: {:?}", timer.elapsed());
     snapshot_number
 }
 

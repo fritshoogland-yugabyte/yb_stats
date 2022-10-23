@@ -1,4 +1,6 @@
-//! The functionalities for using the JSON statements (/statements) from the tablet server YSQL endpoint.
+//! The module for JSON statements from /statements endpoint, unique to YSQL.
+//!
+//! This endpoint has no prometheus format endpoint.
 //!
 //! The functionality for statements has 3 public entries:
 //! 1. Snapshot creation: [AllStoredStatements::perform_snapshot]
@@ -449,40 +451,58 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_statements_single_statement() {
+    fn parse_statements_simple() {
         // This is a very simple example of the statements json.
-        let statements_json = r#"{
-    "statements": [
+        // please mind the query_id which is added!
+        let statements_json = r#"
+{
+    "statements":
+    [
         {
-            "query": "select count(*) from ybio1.benchmark_table",
+            "query_id": -7776630665575107081,
+            "query": "SELECT inhparent::pg_catalog.regclass,\n  pg_catalog.pg_get_expr(c.relpartbound, inhrelid)\nFROM pg_catalog.pg_class c JOIN pg_catalog.pg_inherits i ON c.oid = inhrelid\nWHERE c.oid = $1 AND c.relispartition",
             "calls": 1,
-            "total_time": 13.76067,
-            "min_time": 13.76067,
-            "max_time": 13.76067,
-            "mean_time": 13.76067,
+            "total_time": 0.60377,
+            "min_time": 0.60377,
+            "max_time": 0.60377,
+            "mean_time": 0.60377,
             "stddev_time": 0.0,
-            "rows": 1
+            "rows": 0
         },
         {
-            "query": "select $1+$2",
+            "query_id": 1950307723985771540,
+            "query": "SELECT pubname\nFROM pg_catalog.pg_publication p\nJOIN pg_catalog.pg_publication_rel pr ON p.oid = pr.prpubid\nWHERE pr.prrelid = $1\nUNION ALL\nSELECT pubname\nFROM pg_catalog.pg_publication p\nWHERE p.puballtables AND pg_catalog.pg_relation_is_publishable($2)\nORDER BY 1",
             "calls": 1,
-            "total_time": 0.006206000000000001,
-            "min_time": 0.006206000000000001,
-            "max_time": 0.006206000000000001,
-            "mean_time": 0.006206000000000001,
+            "total_time": 1.548288,
+            "min_time": 1.548288,
+            "max_time": 1.548288,
+            "mean_time": 1.548288,
             "stddev_time": 0.0,
-            "rows": 1
+            "rows": 0
+        },
+        {
+            "query_id": -874942831733610733,
+            "query": "SELECT tg.grpname\nFROM yb_table_properties($1::regclass) props,\n   pg_yb_tablegroup tg\nWHERE tg.oid = props.tablegroup_oid",
+            "calls": 2,
+            "total_time": 29.426344,
+            "min_time": 0.9091859999999999,
+            "max_time": 28.517158000000003,
+            "mean_time": 14.713172,
+            "stddev_time": 13.803986000000002,
+            "rows": 0
         }
     ]
 }"#.to_string();
         let result = AllStoredStatements::parse_statements(statements_json);
-        assert_eq!(result.statements.len(), 2);
+        assert_eq!(result.statements.len(), 3);
     }
     #[test]
     fn parse_statements_multiple_statements() {
         // This is a very simple example of the statements json.
-        let statements_json = r#"{
-    "statements": [
+        let statements_json = r#"
+{
+    "statements":
+    [
         {
             "query": "select count(*) from ybio1.benchmark_table",
             "calls": 1,
@@ -494,22 +514,24 @@ mod tests {
             "rows": 1
         },
         {
-            "query": "select $1+$2",
+            "query_id": -4118693658226780799,
+            "query": "select $1",
             "calls": 1,
-            "total_time": 0.006206000000000001,
-            "min_time": 0.006206000000000001,
-            "max_time": 0.006206000000000001,
-            "mean_time": 0.006206000000000001,
+            "total_time": 0.019489,
+            "min_time": 0.019489,
+            "max_time": 0.019489,
+            "mean_time": 0.019489,
             "stddev_time": 0.0,
             "rows": 1
         },
         {
-            "query": "select count(*) from ybio1.benchmark_table",
+            "query_id": -4118693658226780799,
+            "query": "select $1",
             "calls": 1,
-            "total_time": 13.76067,
-            "min_time": 13.76067,
-            "max_time": 13.76067,
-            "mean_time": 13.76067,
+            "total_time": 0.023414,
+            "min_time": 0.023414,
+            "max_time": 0.023414,
+            "mean_time": 0.023414,
             "stddev_time": 0.0,
             "rows": 1
         }
@@ -521,11 +543,11 @@ mod tests {
         //add_to_statements_vector(result, "localhost", Local::now(), &mut stored_statements);
         // with the new way of adding up all relevant statistics, we still should have 2 statements
         assert_eq!(allstoredstatements.stored_statements.len(), 2);
-        // the first statement, being the select count(*) should have a total number of calls of 2
-        assert_eq!(allstoredstatements.stored_statements[1].query, "select count(*) from ybio1.benchmark_table");
+        // the second statement, being the select 1 should have a total number of calls of 2
+        assert_eq!(allstoredstatements.stored_statements[0].query, "select $1");
         // the call count should be 2
-        assert_eq!(allstoredstatements.stored_statements[1].calls, 2);
+        assert_eq!(allstoredstatements.stored_statements[0].calls, 2);
         // the min_time should be 0., because these can be two totally different statements
-        assert_eq!(allstoredstatements.stored_statements[1].min_time, 0.);
+        assert_eq!(allstoredstatements.stored_statements[0].min_time, 0.);
     }
 }

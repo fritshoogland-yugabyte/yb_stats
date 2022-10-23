@@ -1,4 +1,4 @@
-//! The list of known statistics for metrics of the type Value, with helper functions.
+//! Utility module for metrics of the type Value, with helper functions.
 use std::collections::HashMap;
 use log::*;
 /// The struct that contains all the details for a named statistic.

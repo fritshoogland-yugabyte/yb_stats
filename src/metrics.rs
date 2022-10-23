@@ -1,6 +1,7 @@
-//! The functionalities for using the JSON metrics (/metrics) from the tablet server and master http and YSQL endpoints.
+//! The module for JSON metrics from /metrics endpoints of master, tablet server, YCQL and YSQL.
+//! (and YEDIS)
 //!
-//! These endpoints provide a separate metrics endpoint in the prometheus format (/prometheus-metrics).
+//! These endpoints provide a separate metrics endpoint in the prometheus format (/prometheus-metrics) too.
 //!
 //! The functionality for metrics has 3 public entries:
 //! 1. Snapshot creation: [AllStoredMetrics::perform_snapshot]
@@ -59,6 +60,7 @@
 //!
 //! 4. [SnapshotDiffBTreeMapsMetrics::print]
 //!
+/// This imports extrnal crates
 use std::{process, fs, env, error::Error, sync::mpsc::channel, collections::BTreeMap, time};
 use chrono::{DateTime, Local};
 use time::Instant;
@@ -67,10 +69,10 @@ use serde_derive::{Serialize,Deserialize};
 use regex::Regex;
 use substring::Substring;
 use log::*;
-
+/// This imports two utility crates
 use crate::value_statistic_details;
 use crate::countsum_statistic_details;
-
+///
 /// Struct to represent the metric entities found in the YugabyteDB master and tserver metrics endpoint.
 ///
 /// The struct [MetricEntity] uses two child structs: [Attributes] and a vector of [Metrics].

@@ -1,4 +1,4 @@
-//! The snapshot CSV file functionalities using the [Snapshot] struct and its interfaces.
+//! Utility module for the [Snapshot] struct and snapshot CSV file.
 //!
 //! This currently leaves a single snapshot function in lib.rs which performs the complete snapshot of all modules.
 //! Because all the interaction of [Snapshot] is including reading and writing to a CSV file, there are no unittests.

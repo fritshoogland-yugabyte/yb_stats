@@ -136,7 +136,7 @@ fn get_port_mems() -> String {
     port
 }
 
-use yb_stats::gflags::{StoredGFlags, read_gflags, add_to_gflags_vector};
+use gflags::{StoredGFlags, read_gflags, add_to_gflags_vector};
 #[test]
 fn parse_gflags_master() {
     let mut stored_gflags: Vec<StoredGFlags> = Vec::new();
@@ -162,7 +162,7 @@ fn parse_gflags_tserver() {
     assert!(!stored_gflags.is_empty());
 }
 
-use yb_stats::memtrackers::{MemTrackers, StoredMemTrackers, read_memtrackers, add_to_memtrackers_vector};
+use memtrackers::{MemTrackers, StoredMemTrackers, read_memtrackers, add_to_memtrackers_vector};
 #[test]
 fn parse_memtrackers_master() {
     let mut stored_memtrackers: Vec<StoredMemTrackers> = Vec::new();
@@ -342,7 +342,7 @@ fn parse_metrics_yedis() {
     assert!(!allstoredmetrics.stored_values.is_empty());
     assert!(allstoredmetrics.stored_countsumrows.is_empty());
 }
-use yb_stats::node_exporter::{StoredNodeExporterValues, read_node_exporter, add_to_node_exporter_vectors};
+use yb_stats::node_exporter::AllStoredNodeExporterValues;
 #[test]
 fn parse_node_exporter() {
     let mut stored_nodeexportervalues: Vec<StoredNodeExporterValues> = Vec::new();
@@ -353,7 +353,7 @@ fn parse_node_exporter() {
     }
     let port = get_port_node_exporter();
 
-    let data_parsed_from_json = read_node_exporter(hostname.as_str(), port.as_str());
+    let data_parsed_from_json = AllStoredNodeExporterValues::read_http(hostname.as_str(), port.as_str());
     add_to_node_exporter_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), &mut stored_nodeexportervalues);
     // a node exporter endpoint will generate entries in the stored_nodeexportervalues vector.
     assert!(!stored_nodeexportervalues.is_empty());

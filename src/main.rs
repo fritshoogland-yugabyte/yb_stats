@@ -34,24 +34,6 @@ mod pprof;
 mod mems;
 mod metrics;
 
-/*
-use yb_stats::SnapshotDiffBTreeMapsMetrics;
-use yb_stats::Snapshot;
-use yb_stats::perform_snapshot;
-use yb_stats::memtrackers::print_memtrackers_data;
-use yb_stats::loglines::print_loglines;
-use yb_stats::versions::print_version_data;
-use yb_stats::threads::print_threads_data;
-use yb_stats::gflags::print_gflags_data;
-use yb_stats::rpcs::print_rpcs;
-use yb_stats::node_exporter::{get_nodeexporter_into_diff_first_snapshot, get_nodeexpoter_into_diff_second_snapshot, print_diff_nodeexporter, print_nodeexporter_diff_for_snapshots};
-use yb_stats::statements::SnapshotDiffBTreeMapStatements;
-use yb_stats::entities::print_entities;
-use yb_stats::masters::print_masters;
-//use yb_stats::metrics::SnapshotDiffBTreeMapsMetrics;
-
- */
-
 const DEFAULT_HOSTS: &str = "192.168.66.80,192.168.66.81,192.168.66.82";
 const DEFAULT_PORTS: &str = "7000,9000,12000,13000,9300";
 const DEFAULT_PARALLEL: &str = "1";
@@ -263,7 +245,9 @@ fn main() {
         metrics_diff.print(&hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable);
         let statements_diff = statements::SnapshotDiffBTreeMapStatements::snapshot_diff(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp);
         statements_diff.print(&hostname_filter, options.sql_length);
-        node_exporter::print_nodeexporter_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
+        let nodeexporter_diff = node_exporter::SnapshotDiffBTreeMapNodeExporter::snapshot_diff(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp);
+        nodeexporter_diff.print(&hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
+        //node_exporter::print_nodeexporter_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
 
     } else if options.print_memtrackers.is_some() {
 
@@ -303,7 +287,7 @@ fn main() {
         let first_snapshot_time = Local::now();
         let mut metrics_diff = metrics::SnapshotDiffBTreeMapsMetrics::adhoc_read_first_snapshot(&hosts, &ports, parallel);
         let mut statements_diff = statements::SnapshotDiffBTreeMapStatements::adhoc_read_first_snapshot(&hosts, &ports, parallel);
-        let mut node_exporter_diff = node_exporter::get_nodeexporter_into_diff_first_snapshot(&hosts, &ports, parallel);
+        let mut node_exporter_diff = node_exporter::SnapshotDiffBTreeMapNodeExporter::adhoc_read_first_snapshot(&hosts, &ports, parallel);
 
         println!("Begin metrics snapshot created, press enter to create end snapshot for difference calculation.");
         let mut input = String::new();
@@ -312,12 +296,13 @@ fn main() {
         let second_snapshot_time = Local::now();
         metrics_diff.adhoc_read_second_snapshot(&hosts, &ports, parallel, &first_snapshot_time);
         statements_diff.adhoc_read_second_snapshot(&hosts, &ports, parallel, &first_snapshot_time);
-        node_exporter::get_nodeexpoter_into_diff_second_snapshot(&hosts, &ports, &mut node_exporter_diff, &first_snapshot_time, parallel);
+        node_exporter_diff.adhoc_read_second_snapshot(&hosts, &ports, parallel, &first_snapshot_time);
 
         println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time-first_snapshot_time).num_milliseconds() as f64/1000_f64);
         metrics_diff.print(&hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable);
         statements_diff.print(&hostname_filter, options.sql_length);
-        node_exporter::print_diff_nodeexporter(&node_exporter_diff, &hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
+        node_exporter_diff.print(&hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
+        //node_exporter::print_diff_nodeexporter(&node_exporter_diff, &hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
 
     }
 
@@ -340,7 +325,7 @@ fn main() {
     }
 }
 
-pub fn perform_snapshot(
+fn perform_snapshot(
     hosts: Vec<&'static str>,
     ports: Vec<&'static str>,
     snapshot_comment: Option<String>,
@@ -391,6 +376,12 @@ pub fn perform_snapshot(
 
         let arc_hosts_clone = arc_hosts.clone();
         let arc_ports_clone = arc_ports.clone();
+        mps.spawn(move |_| {
+            node_exporter::AllStoredNodeExporterValues::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel);
+        });
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
         let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
         mps.spawn(move |_| {
             gflags::perform_gflags_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
@@ -424,13 +415,6 @@ pub fn perform_snapshot(
         let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
         mps.spawn(move |_| {
             versions::perform_versions_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
-        });
-
-        let arc_hosts_clone = arc_hosts.clone();
-        let arc_ports_clone = arc_ports.clone();
-        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-        mps.spawn(move |_| {
-            node_exporter::perform_nodeexporter_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
         });
 
         let arc_hosts_clone = arc_hosts.clone();

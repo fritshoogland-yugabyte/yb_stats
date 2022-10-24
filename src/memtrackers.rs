@@ -224,9 +224,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_memtrackers_data() {
-        // This is what /mem-trackers return.
-        let memtrackers = r#"<!DOCTYPE html><html>  <head>    <title>YugabyteDB</title>    <link rel='shortcut icon' href='/favicon.ico'>    <link href='/bootstrap/css/bootstrap.min.css' rel='stylesheet' media='screen' />    <link href='/bootstrap/css/bootstrap-theme.min.css' rel='stylesheet' media='screen' />    <link href='/font-awesome/css/font-awesome.min.css' rel='stylesheet' media='screen' />    <link href='/yb.css' rel='stylesheet' media='screen' />  </head>
+    fn unit_parse_memtrackers_data() {
+        // This is what /mem-trackers returns.
+        let memtrackers = r#"
+<!DOCTYPE html><html>  <head>    <title>YugabyteDB</title>    <link rel='shortcut icon' href='/favicon.ico'>    <link href='/bootstrap/css/bootstrap.min.css' rel='stylesheet' media='screen' />    <link href='/bootstrap/css/bootstrap-theme.min.css' rel='stylesheet' media='screen' />    <link href='/font-awesome/css/font-awesome.min.css' rel='stylesheet' media='screen' />    <link href='/yb.css' rel='stylesheet' media='screen' />  </head>
 <body>
   <nav class="navbar navbar-fixed-top navbar-inverse sidebar-wrapper" role="navigation">    <ul class="nav sidebar-nav">      <li><a href='/'><img src='/logo.png' alt='YugabyteDB' class='nav-logo' /></a></li>
 <li class='nav-item'><a href='/'><div><i class='fa fa-dashboard'aria-hidden='true'></i></div>Dashboards</a></li>
@@ -1276,8 +1277,36 @@ mod tests {
 </table>
 <div class='yb-bottom-spacer'></div></div>
 <footer class='footer'><div class='yb-footer container text-muted'><pre class='message'><i class="fa-lg fa fa-gift" aria-hidden="true"></i> Congratulations on installing YugabyteDB. We'd like to welcome you to the community with a free t-shirt and pack of stickers! Please claim your reward here: <a href='https://www.yugabyte.com/community-rewards/'>https://www.yugabyte.com/community-rewards/</a></pre><pre>version 2.11.2.0 build 89 revision d142556567b5e1c83ea5c915ec7b9964492b2321 build_type RELEASE built at 25 Jan 2022 17:51:08 UTC
-server uuid 05b8d17620eb4cd79eddaddb2fbcbb42</pre></div></footer></body></html>"#.to_string();
+server uuid 05b8d17620eb4cd79eddaddb2fbcbb42</pre></div></footer></body></html>
+"#.to_string();
         let result = parse_memtrackers(memtrackers);
         assert_eq!(result.len(), 345);
+    }
+
+    use crate::utility;
+
+    #[test]
+    fn integration_parse_memtrackers_master() {
+        let mut stored_memtrackers: Vec<StoredMemTrackers> = Vec::new();
+        let detail_snapshot_time = Local::now();
+        let hostname = utility::get_hostname_master();
+        let port = utility::get_port_master();
+
+        let memtrackers: Vec<MemTrackers> = read_memtrackers(hostname.as_str(), port.as_str());
+        add_to_memtrackers_vector(memtrackers, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_memtrackers);
+        // memtrackers must return some rows
+        assert!(!stored_memtrackers.is_empty());
+    }
+    #[test]
+    fn parse_memtrackers_tserver() {
+        let mut stored_memtrackers: Vec<StoredMemTrackers> = Vec::new();
+        let detail_snapshot_time = Local::now();
+        let hostname = utility::get_hostname_tserver();
+        let port = utility::get_port_tserver();
+
+        let memtrackers: Vec<MemTrackers> = read_memtrackers(hostname.as_str(), port.as_str());
+        add_to_memtrackers_vector(memtrackers, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_memtrackers);
+        // memtrackers must return some rows
+        assert!(!stored_memtrackers.is_empty());
     }
 }

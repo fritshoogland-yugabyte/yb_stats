@@ -241,7 +241,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_threads_data() {
+    fn unit_parse_threads_data() {
         // This is what /threadz?group=all returns.
         let threads = r#"<!DOCTYPE html><html>  <head>    <title>YugabyteDB</title>    <link rel='shortcut icon' href='/favicon.ico'>    <link href='/bootstrap/css/bootstrap.min.css' rel='stylesheet' media='screen' />    <link href='/bootstrap/css/bootstrap-theme.min.css' rel='stylesheet' media='screen' />    <link href='/font-awesome/css/font-awesome.min.css' rel='stylesheet' media='screen' />    <link href='/yb.css' rel='stylesheet' media='screen' />  </head>
 <body>
@@ -379,4 +379,32 @@ server uuid 4ce571a18f8c4a9a8b35246222d12025 local time 2022-03-16 12:33:37.6344
         //assert_eq!(result[0].stack, "<pre>    @     0x7f035af7a9f2  __GI_epoll_wait\n    @     0x7f035db7fbf7  epoll_poll\n    @     0x7f035db7ac5d  ev_run\n    @     0x7f035e02f07b  yb::rpc::Reactor::RunThread()\n    @     0x7f035de5f1d4  yb::Thread::SuperviseThread()\n    @     0x7f035b83e693  start_thread\n    @     0x7f035af7a41c  __clone\n\nTotal number of threads: 1</pre>");
         assert_eq!(result[0].stack, "__clone;start_thread;yb::Thread::SuperviseThread();yb::rpc::Reactor::RunThread();ev_run;epoll_poll;__GI_epoll_wait");
     }
+
+    use crate::utility;
+
+    #[test]
+    fn integration_parse_threadsdata_master() {
+        let mut stored_threadsdata: Vec<StoredThreads> = Vec::new();
+        let detail_snapshot_time = Local::now();
+        let hostname = utility::get_hostname_master();
+        let port = utility::get_port_master();
+
+        let data_parsed_from_json = read_threads(hostname.as_str(), port.as_str());
+        add_to_threads_vector(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_threadsdata);
+        // each daemon should return one row.
+        assert!(stored_threadsdata.len() > 1);
+    }
+    #[test]
+    fn integration_parse_threadsdata_tserver() {
+        let mut stored_threadsdata: Vec<StoredThreads> = Vec::new();
+        let detail_snapshot_time = Local::now();
+        let hostname = utility::get_hostname_tserver();
+        let port = utility::get_port_tserver();
+
+        let data_parsed_from_json = read_threads(hostname.as_str(), port.as_str());
+        add_to_threads_vector(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_threadsdata);
+        // each daemon should return one row.
+        assert!(stored_threadsdata.len() > 1);
+    }
+
 }

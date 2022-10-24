@@ -211,7 +211,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_version_data() {
+    fn unit_parse_version_data() {
         // This is what /api/v1/version return.
         let version = r#"{
     "git_hash": "d142556567b5e1c83ea5c915ec7b9964492b2321",
@@ -226,5 +226,32 @@ mod tests {
 }"#.to_string();
         let result = parse_version(version);
         assert_eq!(result.git_hash, "d142556567b5e1c83ea5c915ec7b9964492b2321");
+    }
+
+    use crate::utility;
+
+    #[test]
+    fn integration_parse_versiondata_master() {
+        let mut stored_versiondata: Vec<StoredVersionData> = Vec::new();
+        let detail_snapshot_time = Local::now();
+        let hostname = utility::get_hostname_master();
+        let port = utility::get_port_master();
+
+        let data_parsed_from_json = read_version(hostname.as_str(), port.as_str());
+        add_to_version_vector(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_versiondata);
+        // each daemon should return one row.
+        assert!(stored_versiondata.len() == 1);
+    }
+    #[test]
+    fn integration_parse_versiondata_tserver() {
+        let mut stored_versiondata: Vec<StoredVersionData> = Vec::new();
+        let detail_snapshot_time = Local::now();
+        let hostname = utility::get_hostname_tserver();
+        let port = utility::get_port_tserver();
+
+        let data_parsed_from_json = read_version(hostname.as_str(), port.as_str());
+        add_to_version_vector(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_versiondata);
+        // each daemon should return one row.
+        assert!(stored_versiondata.len() == 1);
     }
 }

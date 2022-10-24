@@ -523,7 +523,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_master_data() {
+    fn unit_parse_master_data() {
         let json = r#"
 {
   "masters": [
@@ -615,16 +615,26 @@ mod tests {
 }
         "#.to_string();
         let result = parse_masters(json, "", "");
-        //println!("{:#?}", result);
         assert!(result.masters[0].error.is_none());
-        /*
-        assert_eq!(result.tables[0].table_name,"pg_user_mapping_user_server_index");
-        assert_eq!(result.tablets[0].table_id,"sys.catalog.uuid");
-        assert_eq!(result.tablets[1].table_id,"a1da3fb4b3be4bd4860253e723d11b97");
-        assert_eq!(result.tablets[1].replicas.as_ref().unwrap()[0].server_uuid,"5b6fd994d7e34504ac48a5e653456704");
-        assert_eq!(result.tablets[1].leader.as_ref().unwrap(),"a3f5a16532bb4ed4a061e794831168f8");
-         */
+    }
 
+    use crate::utility;
+
+    #[test]
+    fn integration_parse_masters() {
+        let mut stored_masters: Vec<StoredMasters> = Vec::new();
+        let mut stored_rpc_addresses: Vec<StoredRpcAddresses> = Vec::new();
+        let mut stored_http_addresses: Vec<StoredHttpAddresses> = Vec::new();
+        let mut stored_master_errors: Vec<StoredMasterError> = Vec::new();
+        let hostname = utility::get_hostname_master();
+        let port = utility::get_port_master();
+
+        let data_parsed_from_json = read_masters(hostname.as_str(), port.as_str());
+        add_to_master_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now(), &mut stored_masters, &mut stored_rpc_addresses, &mut stored_http_addresses, &mut stored_master_errors);
+        // a MASTER only will generate entities on each master (!)
+        assert!(!stored_masters.is_empty());
+        assert!(!stored_rpc_addresses.is_empty());
+        assert!(!stored_http_addresses.is_empty());
     }
 
 }

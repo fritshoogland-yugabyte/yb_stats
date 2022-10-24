@@ -226,7 +226,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_regular_logline() {
+    fn unit_parse_regular_logline() {
         // This is a regular log line.
         let logline = "I0217 10:19:56.834905  31987 docdb_rocksdb_util.cc:416] FLAGS_rocksdb_base_background_compactions was not set, automatically configuring 1 base background compactions.\n".to_string();
         let result = parse_loglines(logline);
@@ -234,7 +234,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_long_operation_backtrace_multiline_logline() {
+    fn unit_parse_long_operation_backtrace_multiline_logline() {
         // This is a log line that contains a backtrace.
         // WARNING! Currently, the backtrace is not added to the line, and just ignored.
         // This means success here means not correctly parsing!
@@ -263,7 +263,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_tabletserver_ulimit_multiline_logline() {
+    fn unit_parse_tabletserver_ulimit_multiline_logline() {
         // This is a log line that contains a ulimit "dump".
         // WARNING! Currently, the ulimit info on the other lines are not added to the line, and just ignored.
         // This means success here means not correctly parsing!
@@ -287,7 +287,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_process_context_sql_error_multiline_logline() {
+    fn unit_parse_process_context_sql_error_multiline_logline() {
         // This is a log line that contains a SQL error statement.
         // WARNING!! Currently, any following line is ignored.
         // This means success here means not correctly parsing!
@@ -300,7 +300,7 @@ create table test (id int primary key, f1 tdxt);
     }
 
     #[test]
-    fn parse_process_context_cql_error_multiline_logline() {
+    fn unit_parse_process_context_cql_error_multiline_logline() {
         // This is a log line that contains a CQL error statement.
         // WARNING!! Currently, any following line is ignored.
         // This means success here means not correctly parsing!
@@ -313,7 +313,7 @@ insert into test values (1,'a');
     }
 
     #[test]
-    fn parse_fs_manager_multiline_logline() {
+    fn unit_parse_fs_manager_multiline_logline() {
         // This is a log line that contains a fs manager message.
         // WARNING!! Currently, any following line is ignored.
         // This means success here means not correctly parsing!
@@ -326,7 +326,7 @@ format_stamp: "Formatted at 2022-02-13 16:26:17 on yb-1.local""#.to_string();
     }
 
     #[test]
-    fn parse_writing_version_edit_logline() {
+    fn unit_parse_writing_version_edit_logline() {
         // This is a log line that contains a version edit. It is an informal (I) line, I don't know how important this is.
         // WARNING!! Currently, any following line is ignored.
         // This means success here means not correctly parsing!
@@ -392,7 +392,7 @@ flushed_frontier {
     }
 
     #[test]
-    fn parse_tablet_alter_schema_from_schema_multiline_logline() {
+    fn unit_parse_tablet_alter_schema_from_schema_multiline_logline() {
         // This is a log line that contains a tablet message.
         // WARNING!! Currently, any following line is ignored.
         // This means success here means not correctly parsing!
@@ -410,6 +410,32 @@ properties: contain_counters: false is_transactional: true consistency_level: ST
         let result = parse_loglines(logline);
         //assert_eq!(result[0].message,"T c6099b05976f49d9b782ccbe126f9b2d P 05b8d17620eb4cd79eddaddb2fbcbb42: Alter schema from Schema [");
         assert_eq!(result[0].message,"T c6099b05976f49d9b782ccbe126f9b2d P 05b8d17620eb4cd79eddaddb2fbcbb42: Alter schema from Schema [        0:ybrowid[binary NOT NULL PARTITION KEY],\n        1:dir[string NULLABLE NOT A PARTITION KEY],\n        2:dirname[string NULLABLE NOT A PARTITION KEY]\n]\nproperties: contain_counters: false is_transactional: true consistency_level: STRONG use_mangled_column_name: false is_ysql_catalog_table: false retain_delete_markers: false version 0 to Schema [\n        0:ybrowid[binary NOT NULL PARTITION KEY],\n        1:dir[string NULLABLE NOT A PARTITION KEY],\n        2:dirname[string NULLABLE NOT A PARTITION KEY]\n]\nproperties: contain_counters: false is_transactional: true consistency_level: STRONG use_mangled_column_name: false is_ysql_catalog_table: false retain_delete_markers: false version 1");
+    }
+
+    use crate::utility;
+
+    #[test]
+    fn integration_parse_loglines_master() {
+        let mut stored_loglines: Vec<StoredLogLines> = Vec::new();
+        let hostname = utility::get_hostname_master();
+        let port = utility::get_port_master();
+
+        let loglines = read_loglines(hostname.as_str(), port.as_str());
+        add_to_loglines_vector(loglines, format!("{}:{}", hostname, port).as_str(), &mut stored_loglines);
+        // it's likely there will be logging
+        assert!(!stored_loglines.is_empty());
+    }
+
+    #[test]
+    fn integration_parse_loglines_tserver() {
+        let mut stored_loglines: Vec<StoredLogLines> = Vec::new();
+        let hostname = utility::get_hostname_tserver();
+        let port = utility::get_port_tserver();
+
+        let loglines = read_loglines(hostname.as_str(), port.as_str());
+        add_to_loglines_vector(loglines, format!("{}:{}", hostname, port).as_str(), &mut stored_loglines);
+        // it's likely there will be logging
+        assert!(!stored_loglines.is_empty());
     }
 
 }

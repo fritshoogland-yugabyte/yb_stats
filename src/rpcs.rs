@@ -417,26 +417,6 @@ pub fn add_to_rpcs_vectors(
                             serial_nr: serial_number,
                         });
                     };
-                    /*
-                    match calls_in_flight.header {
-                        Some ( header) => {
-                            stored_headers.push( StoredHeaders {
-                                hostname_port: hostname.to_string(),
-                                timestamp: detail_snapshot_time,
-                                remote_ip: outboundrpc.remote_ip.to_string(),
-                                call_id: header.call_id,
-                                remote_method_service_name: header.remote_method.service_name.to_string(),
-                                remote_method_method_name: header.remote_method.method_name.to_string(),
-                                timeout_millis: header.timeout_millis,
-                                elapsed_millis: calls_in_flight.elapsed_millis,
-                                state: calls_in_flight.state.unwrap_or_default(),
-                                serial_nr: serial_number,
-                            });
-                        },
-                        None => {},
-                    }
-
-                     */
                 }
             }
         },
@@ -726,7 +706,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_ysqlrpc_only_checkpointer() {
+    fn unit_parse_ysqlrpc_only_checkpointer() {
         let json = r#"
 {
     "connections": [
@@ -752,7 +732,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_ysqlrpc_active_transaction() {
+    fn unit_parse_ysqlrpc_active_transaction() {
         let json = r#"
 {
     "connections":
@@ -791,7 +771,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_inboundrpc_idle_ycql() {
+    fn unit_parse_inboundrpc_idle_ycql() {
         /*
          * This is how a simple, inactive simple connection via ycqlsh looks like.
          */
@@ -827,7 +807,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_inboundrpc_active_query_ycql() {
+    fn unit_parse_inboundrpc_active_query_ycql() {
         /*
          * This is how an active query via ycqlsh looks like.
          */
@@ -881,11 +861,10 @@ mod tests {
      */
     #[test]
     #[allow(clippy::invisible_characters)]
-    fn parse_inboundrpc_active_batch_query_ycql() {
+    fn unit_parse_inboundrpc_active_batch_query_ycql() {
         /*
          * This is how an active batch query via ycqlsh looks like.
          */
-        #[allow(clippy::invisible_characters)]
         let json = r#"
 {
     "inbound_connections": [
@@ -1036,7 +1015,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_inboundrpc_and_outboundrpc_simple_tabletserver() {
+    fn unit_parse_inboundrpc_and_outboundrpc_simple_tabletserver() {
         /*
          * This is the simple, most usual form of inbound and outbound connections for tablet server and master.
          * The entries can have a more verbose form when they are active.
@@ -1081,7 +1060,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_inboundrpc_only_simple_tabletserver() {
+    fn unit_parse_inboundrpc_only_simple_tabletserver() {
         /*
          * This is the simple, most usual form of inbound connections for tablet server and master.
          * The entries can have a more verbose form when they are active.
@@ -1112,7 +1091,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_inboundrpc_and_outboundrpc_advanced_tabletserver() {
+    fn unit_parse_inboundrpc_and_outboundrpc_advanced_tabletserver() {
         /*
          * This is the "advanced" form of inbound and outbound connections for tablet server and master.
          * "Advanced" means an in-progress tablet server transaction.
@@ -1213,7 +1192,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_inboundrpc_and_outboundrpc_master_server() {
+    fn unit_parse_inboundrpc_and_outboundrpc_master_server() {
         /*
          * It turns out the master can have a different format with lesser JSON fields used.
          * The below outbound_connections JSON document is an example of that.
@@ -1310,4 +1289,58 @@ mod tests {
         assert_eq!(stored_outboundrpc[0].remote_ip, "192.168.66.80:7100");
     }
 
+    use crate::utility;
+
+    #[test]
+    fn integration_parse_rpcs_tserver() {
+        let mut stored_ysqlrpc: Vec<StoredYsqlRpc> = Vec::new();
+        let mut stored_inboundrpc: Vec<StoredInboundRpc> = Vec::new();
+        let mut stored_outboundrpc: Vec<StoredOutboundRpc> = Vec::new();
+        let mut stored_cqldetails: Vec<StoredCqlDetails> = Vec::new();
+        let mut stored_header: Vec<StoredHeaders> = Vec::new();
+        let hostname = utility::get_hostname_tserver();
+        let port = utility::get_port_tserver();
+        let data_parsed_from_json = read_rpcs( hostname.as_str(), port.as_str());
+        add_to_rpcs_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now(), &mut stored_ysqlrpc, &mut stored_inboundrpc, &mut stored_outboundrpc, &mut stored_cqldetails, &mut stored_header);
+        // a tserver / port 9000 does not have YSQL rpcs, port 13000 has.
+        assert!(stored_ysqlrpc.is_empty());
+        // a tserver will have inbound RPCs, even RF=1 / 1 tserver.
+        assert!(!stored_inboundrpc.is_empty());
+        // a tserver will have outbound RPCs, even RF=1 / 1 tserver.
+        assert!(!stored_outboundrpc.is_empty());
+    }
+    #[test]
+    fn integration_parse_rpcs_master() {
+        let mut stored_ysqlrpc: Vec<StoredYsqlRpc> = Vec::new();
+        let mut stored_inboundrpc: Vec<StoredInboundRpc> = Vec::new();
+        let mut stored_outboundrpc: Vec<StoredOutboundRpc> = Vec::new();
+        let mut stored_cqldetails: Vec<StoredCqlDetails> = Vec::new();
+        let mut stored_header: Vec<StoredHeaders> = Vec::new();
+        let hostname = utility::get_hostname_master();
+        let port = utility::get_port_master();
+        let data_parsed_from_json = read_rpcs( hostname.as_str(), port.as_str());
+        add_to_rpcs_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now(), &mut stored_ysqlrpc, &mut stored_inboundrpc, &mut stored_outboundrpc, &mut stored_cqldetails, &mut stored_header);
+        // a master / port 7000 does not have YSQL rpcs, port 13000 has.
+        assert!(stored_ysqlrpc.is_empty());
+        // a master will have inbound RPCs, even RF=1 / 1 tserver.
+        assert!(!stored_inboundrpc.is_empty());
+    }
+    #[test]
+    fn integration_parse_rpcs_ysql() {
+        let mut stored_ysqlrpc: Vec<StoredYsqlRpc> = Vec::new();
+        let mut stored_inboundrpc: Vec<StoredInboundRpc> = Vec::new();
+        let mut stored_outboundrpc: Vec<StoredOutboundRpc> = Vec::new();
+        let mut stored_cqldetails: Vec<StoredCqlDetails> = Vec::new();
+        let mut stored_header: Vec<StoredHeaders> = Vec::new();
+        let hostname = utility::get_hostname_ysql();
+        let port = utility::get_port_ysql();
+        let data_parsed_from_json = read_rpcs( hostname.as_str(), port.as_str());
+        add_to_rpcs_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now(), &mut stored_ysqlrpc, &mut stored_inboundrpc, &mut stored_outboundrpc, &mut stored_cqldetails, &mut stored_header);
+        // ysql does have a single RPC connection by default after startup, which is the checkpointer process
+        assert!(!stored_ysqlrpc.is_empty());
+        // ysql does not have inbound RPCs
+        assert!(stored_inboundrpc.is_empty());
+        // ysql does not have outbound RPCs
+        assert!(stored_outboundrpc.is_empty());
+    }
 }

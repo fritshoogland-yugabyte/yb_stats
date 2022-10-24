@@ -431,7 +431,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_simple_entities_dump() {
+    fn unit_parse_simple_entities_dump() {
         let json = r#"
 {
   "keyspaces": [
@@ -488,7 +488,24 @@ mod tests {
         assert_eq!(result.tablets[1].table_id,"a1da3fb4b3be4bd4860253e723d11b97");
         assert_eq!(result.tablets[1].replicas.as_ref().unwrap()[0].server_uuid,"5b6fd994d7e34504ac48a5e653456704");
         assert_eq!(result.tablets[1].leader.as_ref().unwrap(),"a3f5a16532bb4ed4a061e794831168f8");
+    }
 
+    use crate::utility;
+
+    #[test]
+    fn integration_parse_entities() {
+        let mut stored_tables: Vec<StoredTables> = Vec::new();
+        let mut stored_tablets: Vec<StoredTablets> = Vec::new();
+        let mut stored_replicas: Vec<StoredReplicas> = Vec::new();
+        let hostname = utility::get_hostname_master();
+        let port = utility::get_port_master();
+
+        let data_parsed_from_json = read_entities(hostname.as_str(), port.as_str());
+        add_to_entity_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now(), &mut stored_tables, &mut stored_tablets, &mut stored_replicas);
+        // a MASTER only will generate entities on each master (!)
+        assert!(!stored_tables.is_empty());
+        assert!(!stored_tablets.is_empty());
+        assert!(!stored_replicas.is_empty());
     }
 
 }

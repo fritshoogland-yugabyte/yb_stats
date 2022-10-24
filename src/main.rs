@@ -33,6 +33,7 @@ mod rpcs;
 mod pprof;
 mod mems;
 mod metrics;
+mod utility;
 
 const DEFAULT_HOSTS: &str = "192.168.66.80,192.168.66.81,192.168.66.82";
 const DEFAULT_PORTS: &str = "7000,9000,12000,13000,9300";

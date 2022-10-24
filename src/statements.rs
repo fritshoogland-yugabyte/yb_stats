@@ -451,7 +451,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_statements_simple() {
+    fn unit_parse_statements_simple() {
         // This is a very simple example of the statements json.
         // please mind the query_id which is added!
         let statements_json = r#"
@@ -497,7 +497,7 @@ mod tests {
         assert_eq!(result.statements.len(), 3);
     }
     #[test]
-    fn parse_statements_multiple_statements() {
+    fn unit_parse_statements_multiple_statements() {
         // This is a very simple example of the statements json.
         let statements_json = r#"
 {
@@ -549,5 +549,19 @@ mod tests {
         assert_eq!(allstoredstatements.stored_statements[0].calls, 2);
         // the min_time should be 0., because these can be two totally different statements
         assert_eq!(allstoredstatements.stored_statements[0].min_time, 0.);
+    }
+
+    use crate::utility;
+
+    #[test]
+    fn integration_parse_statements_ysql() {
+        let mut allstoredstatements = AllStoredStatements { stored_statements: Vec::new() };
+        let hostname = utility::get_hostname_ysql();
+        let port = utility::get_port_ysql();
+
+        let result = AllStoredStatements::read_http(hostname.as_str(), port.as_str());
+        AllStoredStatements::add_and_sum_statements(result, &hostname, Local::now(), &mut allstoredstatements);
+        // likely in a test scenario, there are no SQL commands executed, and thus no rows are returned.
+        // to make sure this test works in both the scenario of no statements, and with statements, perform no assertion.
     }
 }

@@ -374,8 +374,8 @@ impl SnapshotDiffBTreeMapNodeExporter {
     )
     {
         for ((hostname, nodeexporter_name), nodeexporter_row) in &self.btreemap_snapshotdiff_nodeexporter {
-            if hostname_filter.is_match(&hostname)
-                && stat_name_filter.is_match(&nodeexporter_name)
+            if hostname_filter.is_match(hostname)
+                && stat_name_filter.is_match(nodeexporter_name)
                 && nodeexporter_row.second_value - nodeexporter_row.first_value != 0.0
                 && nodeexporter_row.node_exporter_type == "counter" {
                 if *details_enable && nodeexporter_row.category == "summary" { continue };
@@ -388,8 +388,8 @@ impl SnapshotDiffBTreeMapNodeExporter {
                          (nodeexporter_row.second_value - nodeexporter_row.first_value) / (nodeexporter_row.second_snapshot_time - nodeexporter_row.first_snapshot_time).num_seconds() as f64,
                 );
             }
-            if hostname_filter.is_match(&hostname)
-                && stat_name_filter.is_match(&nodeexporter_name)
+            if hostname_filter.is_match(hostname)
+                && stat_name_filter.is_match(nodeexporter_name)
                 && nodeexporter_row.node_exporter_type == "gauge"
                 && *gauges_enable {
                 if *details_enable && nodeexporter_row.category == "summary" { continue };
@@ -406,7 +406,8 @@ impl SnapshotDiffBTreeMapNodeExporter {
     }
 }
 
-fn nodeexporter_statistics_to_detail(nodeexportervalues: &mut Vec<NodeExporterValues>)
+//fn nodeexporter_statistics_to_detail(nodeexportervalues: &mut Vec<NodeExporterValues>)
+fn nodeexporter_statistics_to_detail(nodeexportervalues: &mut [NodeExporterValues])
 {
     // anything that starts with process_ is node_exporter process
     for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name.starts_with("process_")) {
@@ -430,7 +431,7 @@ fn nodeexporter_statistics_to_detail(nodeexportervalues: &mut Vec<NodeExporterVa
     }
 }
 
-fn linux_dm_to_detail(nodeexportervalues: &mut Vec<NodeExporterValues>)
+fn linux_dm_to_detail(nodeexportervalues: &mut [NodeExporterValues])
 {
     // any record that contains a label that contains 'dm-' is a specification of a block device, and not the block device itself
     for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_labels.contains("dm-")) {
@@ -614,7 +615,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_node_exporter_non_prometheus_data() {
+    fn unit_parse_node_exporter_non_prometheus_data() {
         let fake_http_data = r#"
         [
     {
@@ -644,7 +645,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_node_exporter_data_gauge() {
+    fn unit_parse_node_exporter_data_gauge() {
         let fake_http_data = r#"
         # HELP go_memstats_gc_cpu_fraction The fraction of this program's available CPU time used by the GC since the program started.
         # TYPE go_memstats_gc_cpu_fraction gauge
@@ -656,7 +657,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_node_exporter_data_counter() {
+    fn unit_parse_node_exporter_data_counter() {
         let fake_http_data = r#"
         # HELP node_network_transmit_packets_total Network device statistic transmit_packets.
         # TYPE node_network_transmit_packets_total counter
@@ -670,7 +671,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_node_exporter_data_untyped() {
+    fn unit_parse_node_exporter_data_untyped() {
         let fake_http_data = r#"
         # HELP node_vmstat_pgfault /proc/vmstat information field pgfault.
         # TYPE node_vmstat_pgfault untyped
@@ -682,7 +683,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_node_exporter_data_summary() {
+    fn unit_parse_node_exporter_data_summary() {
         let fake_http_data = r#"
         # HELP go_gc_duration_seconds A summary of the pause duration of garbage collection cycles.
         # TYPE go_gc_duration_seconds summary
@@ -699,7 +700,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_node_exporter_data_histogram() {
+    fn unit_parse_node_exporter_data_histogram() {
         let fake_http_data = r#"
 # HELP request_duration Time for HTTP request.
 # TYPE request_duration histogram
@@ -723,5 +724,23 @@ request_duration_sum 22.978489699999997
         "#.to_string();
         let result = AllStoredNodeExporterValues::parse_nodeexporter(fake_http_data);
         assert_eq!(result.len(), 0);
+    }
+
+    use crate::utility;
+
+    #[test]
+    fn integration_parse_node_exporter() {
+        let hostname = utility::get_hostname_node_exporter();
+        if hostname == *"SKIP" {
+            // workaround for allowing integration tests where no node exporter is present.
+            return;
+        }
+        let port = utility::get_port_node_exporter();
+
+        let mut allstorednodeexportervalues = AllStoredNodeExporterValues { stored_nodeexportervalues: Vec::new() };
+        let node_exporter_values = AllStoredNodeExporterValues::read_http(hostname.as_str(), port.as_str());
+        AllStoredNodeExporterValues::add_to_vector(node_exporter_values, format!("{}:{}",hostname, port).as_ref(), &mut allstorednodeexportervalues);
+        // a node exporter endpoint will generate entries in the stored_nodeexportervalues vector.
+        assert!(!allstorednodeexportervalues.stored_nodeexportervalues.is_empty());
     }
 }

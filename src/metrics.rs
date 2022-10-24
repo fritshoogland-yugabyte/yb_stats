@@ -1540,7 +1540,7 @@ mod tests {
     #[test]
     /// cdc (change data capture) metrics value
     /// Please mind type cdc has an extra, unique, attribute: stream_id. This is currently not parsed.
-    fn parse_metrics_cdc_value() {
+    fn unit_parse_metrics_cdc_value() {
         let json = r#"
 [
     {
@@ -1572,7 +1572,7 @@ mod tests {
     #[test]
     /// cdc (change data capture) metrics value
     /// Please mind type cdc has an extra, unique, attribute: stream_id. This is currently not parsed.
-    fn parse_metrics_cdc_countsum() {
+    fn unit_parse_metrics_cdc_countsum() {
         let json = r#"
 [
     {
@@ -1613,7 +1613,7 @@ mod tests {
     #[test]
     /// Parse tablet metrics value.
     /// It seems there are no other types of metrics in tablet metrics.
-    fn parse_metrics_tablet_value() {
+    fn unit_parse_metrics_tablet_value() {
         let json = r#"
 [
     {
@@ -1644,7 +1644,7 @@ mod tests {
     #[test]
     /// Parse table metrics countsum
     /// It seems tables can have both countsum as well as value metrics
-    fn parse_metrics_table_countsum() {
+    fn unit_parse_metrics_table_countsum() {
         let json = r#"
 [
     {
@@ -1684,7 +1684,7 @@ mod tests {
     #[test]
     /// Parse table metrics countsum
     /// It seems tables can have both countsum as well as value metrics
-    fn parse_metrics_table_value() {
+    fn unit_parse_metrics_table_value() {
         let json = r#"
 [
     {
@@ -1714,7 +1714,7 @@ mod tests {
 
     #[test]
     /// Parse cluster metrics value
-    fn parse_metrics_cluster_value() {
+    fn unit_parse_metrics_cluster_value() {
         let json = r#"
 [
         {
@@ -1740,7 +1740,7 @@ mod tests {
 
     #[test]
     /// Parse server metrics value
-    fn parse_metrics_server_value() {
+    fn unit_parse_metrics_server_value() {
         let json = r#"
 [
     {
@@ -1766,7 +1766,7 @@ mod tests {
 
     #[test]
     /// Parse server metrics countsum
-    fn parse_metrics_server_countsum() {
+    fn unit_parse_metrics_server_countsum() {
         let json = r#"
 [
     {
@@ -1802,7 +1802,7 @@ mod tests {
     #[test]
     /// Parse YSQL server countsumrows
     /// The YSQL metrics are unique metrics
-    fn parse_metrics_server_countsumrows() {
+    fn unit_parse_metrics_server_countsumrows() {
         let json = r#"
 [
     {
@@ -1828,7 +1828,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_metrics_server_rejectedu64metricvalue() {
+    fn unit_parse_metrics_server_rejectedu64metricvalue() {
         // Funny, when I checked with version 2.11.2.0-b89 I could not find the value that only fitted in an unsigned 64 bit integer.
         // Still let's check for it.
         // The id is yb.cqlserver, because that is where I found this value.
@@ -1858,7 +1858,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_metrics_cluster_rejectedbooleanmetricvalue() {
+    fn unit_parse_metrics_cluster_rejectedbooleanmetricvalue() {
         // Version 2.15.2.0-b83 a value appeared that is boolean instead of a number.
         // For now, I will just ditch the value, and request for it to be handled as all the other booleans, which are by the values of 0 and 1.
         let json = r#"
@@ -1883,5 +1883,71 @@ mod tests {
             _ => String::from("Not RejectedMetricValue")
         };
         assert_eq!(statistic_value, "is_load_balancing_enabled, false");
+    }
+
+    use crate::utility;
+
+    fn test_function_read_metrics(
+        hostname: String,
+        port: String) -> AllStoredMetrics
+    {
+        let mut allstoredmetrics = AllStoredMetrics { stored_values: Vec::new(), stored_countsum: Vec::new(), stored_countsumrows: Vec::new() };
+        let detail_snapshot_time = Local::now();
+
+        let data_parsed_from_json = AllStoredMetrics::read_http(hostname.as_str(), port.as_str());
+        AllStoredMetrics::split_into_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut allstoredmetrics);
+        allstoredmetrics
+    }
+    #[test]
+    fn integration_parse_metrics_master()
+    {
+        let hostname = utility::get_hostname_master();
+        let port = utility::get_port_master();
+        let allstoredmetrics = test_function_read_metrics(hostname, port);
+        // a master will produce values and countsum rows, but no countsumrows rows, because that belongs to YSQL.
+        assert!(!allstoredmetrics.stored_values.is_empty());
+        assert!(!allstoredmetrics.stored_countsum.is_empty());
+        assert!(allstoredmetrics.stored_countsumrows.is_empty());
+    }
+    #[test]
+    fn integration_parse_metrics_tserver() {
+        let hostname = utility::get_hostname_tserver();
+        let port = utility::get_port_tserver();
+        let allstoredmetrics = test_function_read_metrics(hostname, port);
+        // a tablet server will produce values and countsum rows, but no countsumrows rows, because that belongs to YSQL.
+        assert!(!allstoredmetrics.stored_values.is_empty());
+        assert!(!allstoredmetrics.stored_countsum.is_empty());
+        assert!(allstoredmetrics.stored_countsumrows.is_empty());
+    }
+    #[test]
+    fn integration_parse_metrics_ysql() {
+        let hostname = utility::get_hostname_ysql();
+        let port = utility::get_port_ysql();
+        let allstoredmetrics = test_function_read_metrics(hostname, port);
+        // YSQL will produce countsumrows rows, but no value or countsum rows
+        assert!(allstoredmetrics.stored_values.is_empty());
+        assert!(allstoredmetrics.stored_countsum.is_empty());
+        assert!(allstoredmetrics.stored_countsumrows.is_empty());
+    }
+    #[test]
+    fn integration_parse_metrics_ycql() {
+        let hostname = utility::get_hostname_ycql();
+        let port = utility::get_port_ycql();
+        let allstoredmetrics = test_function_read_metrics(hostname, port);
+        // YCQL will produce values and countsum rows, but no countsumrows rows, because that belongs to YSQL.
+        // countsum rows are filtered on count == 0, which is true if it wasn't used. therefore, we do not check on countsum statistics. likely, YCQL wasn't used prior to the test.
+        assert!(!allstoredmetrics.stored_values.is_empty());
+        //assert!(allstoredmetrics.stored_countsum.len() > 0);
+        assert!(allstoredmetrics.stored_countsumrows.is_empty());
+    }
+    #[test]
+    fn integration_parse_metrics_yedis() {
+        let hostname = utility::get_hostname_yedis();
+        let port = utility::get_port_yedis();
+        let allstoredmetrics = test_function_read_metrics(hostname, port);
+        // YEDIS will produce values and countsum rows, but no countsumrows rows, because that belongs to YSQL.
+        // countsum rows are filtered on count == 0, which is true when it wasn't used. therefore, we do not check on countsum statistics. likely, YEDIS wasn't used prior to the test.
+        assert!(!allstoredmetrics.stored_values.is_empty());
+        assert!(allstoredmetrics.stored_countsumrows.is_empty());
     }
 }

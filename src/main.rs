@@ -34,12 +34,14 @@ mod pprof;
 mod mems;
 mod metrics;
 mod utility;
+mod isleader;
 
 const DEFAULT_HOSTS: &str = "192.168.66.80,192.168.66.81,192.168.66.82";
 const DEFAULT_PORTS: &str = "7000,9000,12000,13000,9300";
 const DEFAULT_PARALLEL: &str = "1";
 const WRITE_DOTENV: bool = true;
 
+/// Struct that holds the commandline options.
 #[derive(Debug, StructOpt)]
 struct Opts {
     /// hostnames (comma separated) default 192.168.66.80,192.168.66.81,192.168.66.82
@@ -122,6 +124,7 @@ struct Opts {
     sql_length: usize,
 }
 
+/// The entrypoint of the executable.
 fn main() {
     env_logger::init();
     let mut changed_options = HashMap::new();
@@ -303,7 +306,6 @@ fn main() {
         metrics_diff.print(&hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable);
         statements_diff.print(&hostname_filter, options.sql_length);
         node_exporter_diff.print(&hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
-        //node_exporter::print_diff_nodeexporter(&node_exporter_diff, &hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
 
     }
 
@@ -326,6 +328,7 @@ fn main() {
     }
 }
 
+/// The function to perform a snapshot resulting in CSV files.
 fn perform_snapshot(
     hosts: Vec<&'static str>,
     ports: Vec<&'static str>,
@@ -379,6 +382,12 @@ fn perform_snapshot(
         let arc_ports_clone = arc_ports.clone();
         mps.spawn(move |_| {
             node_exporter::AllStoredNodeExporterValues::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel);
+        });
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        mps.spawn(move |_| {
+            isleader::AllStoredIsLeader::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel);
         });
 
         let arc_hosts_clone = arc_hosts.clone();

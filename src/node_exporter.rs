@@ -406,7 +406,6 @@ impl SnapshotDiffBTreeMapNodeExporter {
     }
 }
 
-//fn nodeexporter_statistics_to_detail(nodeexportervalues: &mut Vec<NodeExporterValues>)
 fn nodeexporter_statistics_to_detail(nodeexportervalues: &mut [NodeExporterValues])
 {
     // anything that starts with process_ is node_exporter process
@@ -488,7 +487,16 @@ fn linux_softnet_sum(nodeexportervalues: &mut Vec<NodeExporterValues>)
         });
     }
 }
-
+/// Scheduler statistics summarization.
+///
+/// Scheduler statistics are provided per logical CPU. That is the most correct way to show these statistics.
+/// However: that is not very easy for a human to read.
+/// For that reason, this function sums up the total amounts of the schedstat statistics:
+/// - schedstat_waiting (task runnable, but not running on CPU, waiting for runtime)
+/// - schedstat_running (task runnable and running on CPU)
+/// - schedstat_timeslices (the number of timeslices executed)
+/// The original values are kept, but put in category 'detail'.
+/// The summarized values are put in a category 'summary'.
 fn linux_schedstat_sum(nodeexportervalues: &mut Vec<NodeExporterValues>)
 {
     // schedstat: node_schedstat_waiting_seconds
@@ -534,7 +542,24 @@ fn linux_schedstat_sum(nodeexportervalues: &mut Vec<NodeExporterValues>)
         });
     }
 }
-
+/// CPU statistics summarization.
+///
+/// CPU statistics are provided per logical CPU. That is the most correct way to show these statistics.
+/// However: that is not very easy for a human to read.
+/// For that reason, this function sums up the total amounts of the cpu statistics:
+/// - user      : amount of time running in normal (user) mode.
+/// - system    : amount of time running in kernel (system) mode.
+/// - nice      : amount of time running in normal mode with a changed priority.
+/// - irq       : amount of time running for interrupt CPU usage.
+/// - softirq   : amount of time running deferrable functions (non-urgent interruptable kernel functions).
+/// - idle      : amount of time NOT running.
+/// - iowait    : this is a special case. There is no IO wait time in the kernel. Instead for regular, buffered, IO, linux keeps a counter of outstanding IOs, and tries to map idle time to these, based on idle time availability.
+///               More advanced IO interfaces mostly do not increase this counter, such as io_submit/io_getevents.
+/// - steal     : this too is a special case: this is the time the hypervisor did not get CPU slices. Higher values for this could indicate CPU oversubscription by the hypervisor.
+///
+/// The original values are kept, but put in category 'detail'.
+/// The summarized values are put in a category 'summary'.
+/// TBD: category node_cpu_guest_seconds
 fn linux_cpu_sum(nodeexportervalues: &mut Vec<NodeExporterValues>)
 {
     // cpu_seconds_total:

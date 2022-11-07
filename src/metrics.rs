@@ -61,9 +61,8 @@
 //! 4. [SnapshotDiffBTreeMapsMetrics::print]
 //!
 /// This imports extrnal crates
-use std::{process, fs, env, error::Error, sync::mpsc::channel, collections::BTreeMap, time};
+use std::{process, fs, env, error::Error, sync::mpsc::channel, collections::BTreeMap, time::Instant};
 use chrono::{DateTime, Local};
-use time::Instant;
 use port_scanner::scan_port_addr;
 use serde_derive::{Serialize,Deserialize};
 use regex::Regex;
@@ -790,7 +789,7 @@ impl AllStoredMetrics {
                 process::exit(1);
             });
 
-        info!("end snapshot: {:?}", timer.elapsed())
+        info!("end snapshot: {:?}", timer.elapsed());
     }
     /// This function reads all the host/port combinations for metric endpoints and returns an [AllStoredMetrics] struct containing vectors of [StoredValues], [StoredCountSum] and [StoredCountSumRows].
     fn read_metrics (

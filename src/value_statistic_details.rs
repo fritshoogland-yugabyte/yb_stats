@@ -77,6 +77,7 @@ impl ValueStatistics {
         table.insert("hybrid_clock_skew", "microseconds","gauge");
         table.insert("in_progress_ops", "operations","gauge");
         table.insert("involuntary_context_switches", "context switches","counter");
+        table.insert("is_load_balancing_enabled", "indicator", "gauge"); // 2.15.3.0
         table.insert("is_raft_leader", "indicator", "gauge");
         table.insert("leader_memory_pressure_rejections", "rejections","counter");
         table.insert("log_bytes_logged", "bytes","counter");
@@ -586,6 +587,7 @@ impl ValueStatistics {
         table.insert("service_request_bytes_yb_master_MasterDdl_IsCreateTableDone", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterDdl_IsDeleteTableDone", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterDdl_IsTruncateTableDone", "bytes","counter");
+        table.insert("service_request_bytes_yb_master_MasterDdl_ListTables", "bytes","counter"); // 2.15.3.0
         table.insert("service_request_bytes_yb_master_MasterDdl_TruncateTable", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterEncryption_GetUniverseKeyRegistry", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterHeartbeat_TSHeartbeat", "bytes","counter");
@@ -772,6 +774,7 @@ impl ValueStatistics {
         table.insert("service_response_bytes_yb_master_MasterDdl_IsCreateTableDone", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterDdl_IsDeleteTableDone", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterDdl_IsTruncateTableDone", "bytes","counter");
+        table.insert("service_response_bytes_yb_master_MasterDdl_ListTables", "bytes","counter"); // 2.15.3.0
         table.insert("service_response_bytes_yb_master_MasterDdl_TruncateTable", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterEncryption_GetUniverseKeyRegistry", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterHeartbeat_TSHeartbeat", "bytes","counter");

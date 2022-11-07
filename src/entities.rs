@@ -1,13 +1,66 @@
+//! The module for reading /dump-entities available on the masters.
+//!
+//! The /dump-entities endpoint contains a number of independent JSON arrays:
+//! 1. keyspaces: "keyspaces":[{"keyspace_id":"00000000000000000000000000000001","keyspace_name":"system","keyspace_type":"ycql"},..]
+//! 2. tables: "tables":[{"table_id":"000000010000300080000000000000af","keyspace_id":"00000001000030008000000000000000","table_name":"pg_user_mapping_user_server_index","state":"RUNNING"},..]
+//! 3. tablets: "tablets":[{"table_id":"sys.catalog.uuid","tablet_id":"00000000000000000000000000000000","state":"RUNNING"},..]
+//! 3.1 replicas: "replicas":[{"type":"VOTER","server_uuid":"047856aaf11547749694ca7d7941fb31","addr":"yb-2.local:9100"},..]
+//! This is 3.1 because replicas are arrays nested in tablets.
+//!
+//! The way these link together is:
+//! tables.keyspace_id -> keyspaces.keyspace_id (keyspaces.keyspace_id must exist for tables.keyspace_id)
+//! tables.table_id -> tablets.table_id, which contains the replicas as a nested array.
+//! tablets.table_id might not exist for tables.table_id, because some tables do not have tablets, such as the postgres catalog entries.
+//!
+//! Special keyspaces:
+//! - system: contains the local, partitions, roles, transactions, peers, size_estimates, transactions-<UUID> tables.
+//! - system_schema: contains the YCQL indexes, views, aggregates, keyspaces, tables, types, functions, triggers, columns, sys.catalog tables.
+//! - system_auth: contains the roles, role_permissions, resource_role_permissions_index tables.
+//! - template1: postgres template1 database template, contains catalog
+//! - template0: postgres template0 database template, contains catalog
+//! - postgres: postgres standard database, not commonly used with YugabyteDB.
+//! - yugabyte: postgres standard database, default database.
+//! - system_platform: postgres database, contains a few extra catalog tables starting with 'sql'.
+//!
+//! YCQL requires a keyspace to be defined before user objects can be created and loaded, and
+//! keyspace, table and tablet will get a random UUID as id.
+//!
+//! YSQL keyspaces do get an id in a specific way.
+//! The id of the YSQL keyspace is in a format that later is used by the objects too.
+//! This is how a YSQL keyspace id looks like:
+//! 000033e5000030008000000000000000
+//! |------|xxxx||xx||xxxxxx|------|
+//! database    ver var     object
+//! oid         (3) (8)     oid
+//! (hex)                   (hex)
+//! A YSQL keyspace has the object id set to all 0.
+//! This is described in the YugabyteDB sourcecode: src/yb/common/entity_ids.cc
+//! Version 3 is for ISO4122 UUID version.
+//! Variant 8 means DCE 1.1, ISO/IEC 11578:1996
+//! Version and variant are static currently.
+//!
+//! The object OID number indicates whether an object is a catalog object or a user object.
+//! Any object OID lower than 16384 (0x4000) is a catalog object. This is why a user table_id always starts from ..4000.
+//!
+//! YSQL colocated databases.
+//! If a database is created with colocation turned on, it will generate a special table entry:
+//!     {
+//!       "table_id": "0000400f000030008000000000000000.colocated.parent.uuid",
+//!       "keyspace_id": "0000400f000030008000000000000000",
+//!       "table_name": "0000400f000030008000000000000000.colocated.parent.tablename",
+//!       "state": "RUNNING"
+//!     }
+//! This indicates the keyspace/database is colocated, and thus any object not explicitly defined using its own tablets,
+//! will be stored in the tablets that are part of the database.
+//! 
 use serde_derive::{Serialize,Deserialize};
 use port_scanner::scan_port_addr;
 use chrono::{DateTime, Local};
-use std::{fs, process};
+//use std::{fs, process, collections::BTreeMap, path::PathBuf, sync::mpsc::channel, collections::HashMap, time::Instant, env, error::Error};
+use std::{fs, process, collections::BTreeMap, sync::mpsc::channel, time::Instant, env, error::Error};
 use log::*;
-use std::sync::mpsc::channel;
-use std::collections::HashMap;
-use std::path::PathBuf;
 use regex::Regex;
-use std::collections::BTreeMap;
+use crate::isleader::AllStoredIsLeader;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Entities {
@@ -60,23 +113,52 @@ pub struct StoredTables {
     pub keyspace_type: String,
 }
 
-impl StoredTables {
-    fn new(hostname_port: &str, timestamp: DateTime<Local>, table: Tables, keyspace_name: &str, keyspace_type: &str) -> Self {
-        Self {
+impl StoredTables
+{
+    fn new(hostname_port: &str, timestamp: DateTime<Local>, table: Tables) -> Self
+    {
+        Self
+        {
             hostname_port: hostname_port.to_string(),
             timestamp,
             table_id: table.table_id.to_string(),
             table_name: table.table_name.to_string(),
             table_state: table.state.to_string(),
             keyspace_id: table.keyspace_id,
-            keyspace_name: keyspace_name.to_string(),
-            keyspace_type: keyspace_type.to_string(),
+            keyspace_name: "".to_string(),
+            keyspace_type: "".to_string(),
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct StoredTablets {
+pub struct StoredKeyspaces
+{
+    pub hostname_port: String,
+    pub timestamp: DateTime<Local>,
+    pub keyspace_id: String,
+    pub keyspace_name: String,
+    pub keyspace_type: String,
+}
+
+impl StoredKeyspaces
+{
+    fn new(hostname_port: &str, timestamp: DateTime<Local>, keyspaces: &Keyspaces) -> Self
+    {
+        Self
+        {
+            hostname_port: hostname_port.to_string(),
+            timestamp,
+            keyspace_id: keyspaces.keyspace_id.to_string(),
+            keyspace_name: keyspaces.keyspace_name.to_string(),
+            keyspace_type: keyspaces.keyspace_type.to_string(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct StoredTablets
+{
     pub hostname_port: String,
     pub timestamp: DateTime<Local>,
     pub table_id: String,
@@ -85,9 +167,12 @@ pub struct StoredTablets {
     pub leader: String,
 }
 
-impl StoredTablets {
-    fn new(hostname_port: &str, timestamp: DateTime<Local>, tablet: &Tablets) -> Self {
-        Self {
+impl StoredTablets
+{
+    fn new(hostname_port: &str, timestamp: DateTime<Local>, tablet: &Tablets) -> Self
+    {
+        Self
+        {
             hostname_port: hostname_port.to_string(),
             timestamp,
             table_id: tablet.table_id.to_string(),
@@ -99,7 +184,8 @@ impl StoredTablets {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct StoredReplicas {
+pub struct StoredReplicas
+{
     pub hostname_port: String,
     pub timestamp: DateTime<Local>,
     pub tablet_id: String,
@@ -108,9 +194,12 @@ pub struct StoredReplicas {
     pub addr: String,
 }
 
-impl StoredReplicas {
-    fn new(hostname_port: &str, timestamp: DateTime<Local>, tablet_id: &str, replica: Replicas) -> Self {
-        Self {
+impl StoredReplicas
+{
+    fn new(hostname_port: &str, timestamp: DateTime<Local>, tablet_id: &str, replica: Replicas) -> Self
+    {
+        Self
+        {
             hostname_port: hostname_port.to_string(),
             timestamp,
             tablet_id: tablet_id.to_string(),
@@ -121,6 +210,7 @@ impl StoredReplicas {
     }
 }
 
+/*
 #[derive(Debug)]
 pub struct KeyspaceLookup {
     pub keyspace_name: String,
@@ -136,6 +226,314 @@ impl KeyspaceLookup {
     }
 }
 
+ */
+
+#[derive(Debug)]
+pub struct AllStoredEntities {
+    pub stored_keyspaces: Vec<StoredKeyspaces>,
+    pub stored_tables: Vec<StoredTables>,
+    pub stored_tablets: Vec<StoredTablets>,
+    pub stored_replicas: Vec<StoredReplicas>,
+
+}
+
+impl AllStoredEntities
+{
+    pub fn perform_snapshot(
+        hosts: &Vec<&str>,
+        ports: &Vec<&str>,
+        snapshot_number: i32,
+        parallel: usize,
+    )
+    {
+        info!("begin snapshot");
+        let timer = Instant::now();
+
+        let allstoredentities = AllStoredEntities::read_metrics(hosts, ports, parallel);
+        allstoredentities.save_snapshot(snapshot_number)
+            .unwrap_or_else(|e| {
+                error!("error saving snasphot: {}", e);
+                process::exit(1);
+            });
+
+        info!("end snapshot: {:?}", timer.elapsed());
+    }
+    fn read_metrics (
+        hosts: &Vec<&str>,
+        ports: &Vec<&str>,
+        parallel: usize,
+    ) -> AllStoredEntities
+    {
+        info!("begin parallel http read");
+        let timer = Instant::now();
+
+        let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
+        let (tx, rx) = channel();
+        pool.scope(move |s| {
+            for host in hosts {
+                for port in ports {
+                    let tx = tx.clone();
+                    s.spawn(move |_| {
+                        let detail_snapshot_time = Local::now();
+                        let entities = AllStoredEntities::read_http(host, port);
+                        tx.send((format!("{}:{}", host, port), detail_snapshot_time, entities)).expect("error sending data via tx (entities)");
+                    });
+                }
+            }
+        });
+
+        info!("end parallel http read {:?}", timer.elapsed());
+
+        let mut allstoredentities = AllStoredEntities { stored_keyspaces: Vec::new(), stored_tables: Vec::new(), stored_tablets: Vec::new(), stored_replicas: Vec::new() };
+        for (hostname_port, detail_snapshot_time, entities) in rx {
+            AllStoredEntities::split_into_vectors(entities, &hostname_port, detail_snapshot_time, &mut allstoredentities);
+        }
+
+        allstoredentities
+    }
+    fn read_http(
+        host: &str,
+        port: &str,
+    ) -> Entities
+    {
+        if ! scan_port_addr(format!("{}:{}", host, port)) {
+            warn!("hostname: port {}:{} cannot be reached, skipping", host, port);
+            return AllStoredEntities::parse_entities(String::from(""), "", "")
+        };
+        let data_from_http = reqwest::blocking::get(format!("http://{}:{}/dump-entities", host, port))
+            .unwrap_or_else(|e| {
+                error!("Fatal: error reading from URL: {}", e);
+                process::exit(1);
+            })
+            .text().unwrap();
+        AllStoredEntities::parse_entities(data_from_http, host, port)
+    }
+    fn parse_entities( entities_data: String, host: &str, port: &str ) -> Entities {
+        serde_json::from_str(&entities_data )
+            .unwrap_or_else(|e| {
+                info!("({}:{}) could not parse /dump-entities json data for entities, error: {}", host, port, e);
+                Entities { keyspaces: Vec::<Keyspaces>::new(), tables: Vec::<Tables>::new(), tablets: Vec::<Tablets>::new() }
+            })
+    }
+    fn split_into_vectors(
+        entities: Entities,
+        hostname_port: &str,
+        detail_snapshot_time: DateTime<Local>,
+        allstoredentities: &mut AllStoredEntities,
+    )
+    {
+        for keyspace in entities.keyspaces {
+            allstoredentities.stored_keyspaces.push(StoredKeyspaces::new(hostname_port, detail_snapshot_time, &keyspace) );
+        }
+        for table in entities.tables {
+            allstoredentities.stored_tables.push( StoredTables::new(hostname_port, detail_snapshot_time, table) );
+        }
+        for tablet in entities.tablets {
+            allstoredentities.stored_tablets.push( StoredTablets::new(hostname_port, detail_snapshot_time, &tablet) );
+            if let Some(replicas) = tablet.replicas {
+                for replica in replicas {
+                    allstoredentities.stored_replicas.push(StoredReplicas::new(hostname_port, detail_snapshot_time, &tablet.tablet_id, replica));
+                }
+            }
+        }
+    }
+    fn save_snapshot ( self, snapshot_number: i32 ) -> Result<(), Box<dyn Error>>
+    {
+        let current_directory = env::current_dir()?;
+        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(&snapshot_number.to_string());
+
+        let tables_file = &current_snapshot_directory.join("tables");
+        let file = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(&tables_file)?;
+        let mut writer = csv::Writer::from_writer(file);
+        for row in self.stored_tables {
+            writer.serialize(row)?;
+        }
+        writer.flush()?;
+
+        let tablets_file = &current_snapshot_directory.join("tablets");
+        let file = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(&tablets_file)?;
+        let mut writer = csv::Writer::from_writer(file);
+        for row in self.stored_tablets {
+            writer.serialize(row)?;
+        }
+        writer.flush()?;
+
+        let replicas_file = &current_snapshot_directory.join("replicas");
+        let file = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(&replicas_file)?;
+        let mut writer = csv::Writer::from_writer(file);
+        for row in self.stored_replicas {
+            writer.serialize(row)?;
+        }
+        writer.flush()?;
+
+        let keyspaces_file = &current_snapshot_directory.join("keyspaces");
+        let file = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(&keyspaces_file)?;
+        let mut writer = csv::Writer::from_writer(file);
+        for row in self.stored_keyspaces {
+            writer.serialize(row)?;
+        }
+        writer.flush()?;
+
+        Ok(())
+    }
+    pub fn read_snapshot( snapshot_number: &String, ) -> Result<AllStoredEntities, Box<dyn Error>>
+    {
+        let mut allstoredentities = AllStoredEntities { stored_keyspaces: Vec::new(), stored_tables: Vec::new(), stored_tablets: Vec::new(), stored_replicas: Vec::new() };
+
+        let current_directory = env::current_dir()?;
+        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(&snapshot_number);
+
+        let keyspaces_file = &current_snapshot_directory.join("keyspaces");
+        let file = fs::File::open(&keyspaces_file)?;
+
+        let mut reader = csv::Reader::from_reader(file);
+        for row in reader.deserialize() {
+            let data: StoredKeyspaces = row?;
+            allstoredentities.stored_keyspaces.push(data);
+        };
+
+        let tables_file = &current_snapshot_directory.join("tables");
+        let file = fs::File::open(&tables_file)?;
+
+        let mut reader = csv::Reader::from_reader(file);
+        for row in reader.deserialize() {
+            let data: StoredTables = row?;
+            allstoredentities.stored_tables.push(data);
+        };
+
+        let tablets_file = &current_snapshot_directory.join("tablets");
+        let file = fs::File::open(&tablets_file)?;
+
+        let mut reader = csv::Reader::from_reader(file);
+        for row in reader.deserialize() {
+            let data: StoredTablets = row?;
+            allstoredentities.stored_tablets.push(data);
+        };
+
+        let replicas_file = &current_snapshot_directory.join("replicas");
+        let file = fs::File::open(&replicas_file)?;
+
+        let mut reader = csv::Reader::from_reader(file);
+        for row in reader.deserialize() {
+            let data: StoredReplicas = row?;
+            allstoredentities.stored_replicas.push(data);
+        };
+
+        Ok(allstoredentities)
+    }
+    pub fn print(
+        &self,
+        snapshot_number: &String,
+        table_name_filter: &Regex,
+        details_enable: &bool,
+    )
+    {
+        info!("print_entities");
+
+        let leader_hostname = AllStoredIsLeader::return_leader(snapshot_number);
+
+        let mut tables_btreemap: BTreeMap<(String, String, String), StoredTables> = BTreeMap::new();
+
+        let is_system_keyspace = |keyspace: &str| -> bool {
+            matches!(keyspace, "00000000000000000000000000000001" |   // ycql system
+                               "00000000000000000000000000000002" |   // ycql system_schema
+                               "00000000000000000000000000000003" |   // ycql system_auth
+                               "00000001000030008000000000000000" |   // ysql template1
+                               "000033e5000030008000000000000000")    // ysql template0
+        };
+
+        let object_oid_number = |oid: &str| -> u32 {
+            // The oid entry
+            if oid.len() == 32_usize {
+                let true_oid = &oid[24..];
+                u32::from_str_radix(true_oid, 16).unwrap()
+            } else {
+                0
+            }
+        };
+
+        for row in self.stored_tables.iter() {
+            if !*details_enable && row.hostname_port.ne(&leader_hostname) {
+               continue
+            }
+            if is_system_keyspace(row.keyspace_id.as_str()) && !*details_enable {
+                continue
+            }
+            if object_oid_number(row.table_id.as_str()) < 16384 && !*details_enable {
+                continue
+            }
+            if !table_name_filter.is_match(&row.table_name) {
+                continue
+            }
+            let keyspace_type = self.stored_keyspaces
+                .iter()
+                .filter(|r| r.keyspace_id == row.keyspace_id.clone())
+                .map(|r| r.keyspace_type.clone())
+                .next()
+                .unwrap();
+            tables_btreemap.insert( (keyspace_type.clone(), row.keyspace_id.clone(), row.table_id.clone()), StoredTables {
+                hostname_port: row.hostname_port.to_string(),
+                timestamp: row.timestamp,
+                table_id: row.table_id.to_string(),
+                table_name: row.table_name.to_string(),
+                table_state: row.table_state.to_string(),
+                keyspace_id: row.keyspace_id.to_string(),
+                keyspace_name: "".to_string(),
+                keyspace_type
+            } );
+        }
+
+        for ((keyspace_type, keyspace_id, table_id), row) in tables_btreemap {
+            let keyspace_name = self.stored_keyspaces
+                .iter()
+                .filter(|r| r.keyspace_id == keyspace_id)
+                .map(|r| r.keyspace_name.clone())
+                .next()
+                .unwrap();
+
+            if *details_enable {
+                print!("{} ", &row.hostname_port);
+            }
+            println!("{} {} {} {}", keyspace_type, keyspace_name, row.table_name, row.table_state);
+
+            for tablet in self.stored_tablets
+                .iter()
+                .filter(|r| r.hostname_port == leader_hostname)
+                .filter(|r| r.table_id == table_id)
+            {
+                if *details_enable {
+                    print!("{} ", &row.hostname_port);
+                }
+
+                print!(" {} {} ( ", tablet.tablet_id, tablet.tablet_state);
+
+                for replica in self.stored_replicas
+                    .iter()
+                    .filter(|r| r.hostname_port == leader_hostname)
+                    .filter(|r| r.tablet_id == tablet.tablet_id)
+                {
+                    let replica_state = if replica.server_uuid == tablet.leader { "LEADER" } else { "FOLLOWER" };
+                    print!("{},{},{} ", replica.replica_type, replica.addr, replica_state);
+                };
+                println!(")");
+            }
+        }
+    }
+}
+
+/*
 #[allow(dead_code)]
 pub fn read_entities(
     host: &str,
@@ -314,6 +712,7 @@ pub fn perform_entities_snapshot(
     writer.flush().unwrap();
 }
 
+
 #[allow(clippy::ptr_arg)]
 pub fn read_tables_snapshot(
     snapshot_number: &String,
@@ -425,6 +824,8 @@ pub fn print_entities(
         }
     }
 }
+
+ */
 
 #[cfg(test)]
 mod tests {

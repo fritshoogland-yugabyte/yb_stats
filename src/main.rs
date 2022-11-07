@@ -14,6 +14,7 @@ use regex::Regex;
 use chrono::Local;
 use dotenv::dotenv;
 use log::*;
+use crate::entities::AllStoredEntities;
 
 mod snapshot;
 mod value_statistic_details;
@@ -275,7 +276,16 @@ fn main() {
 
     } else if options.print_entities.is_some() {
 
-        entities::print_entities(&options.print_entities.unwrap(), &yb_stats_directory, &hostname_filter, &table_name_filter);
+        let snapshot_number = &options.print_entities.unwrap();
+
+        //let entities = AllStoredEntities::read_snapshot(&options.print_entities.unwrap())
+        let entities = AllStoredEntities::read_snapshot(snapshot_number)
+            .unwrap_or_else(|e| {
+                error!("Error loading snapshot: {}", e);
+                process::exit(1);
+            });
+
+        entities.print(snapshot_number, &table_name_filter, &options.details_enable);
 
     } else if options.print_masters.is_some() {
 
@@ -392,6 +402,12 @@ fn perform_snapshot(
 
         let arc_hosts_clone = arc_hosts.clone();
         let arc_ports_clone = arc_ports.clone();
+        mps.spawn(move |_| {
+            entities::AllStoredEntities::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel);
+        });
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
         let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
         mps.spawn(move |_| {
             gflags::perform_gflags_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
@@ -425,13 +441,6 @@ fn perform_snapshot(
         let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
         mps.spawn(move |_| {
             versions::perform_versions_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
-        });
-
-        let arc_hosts_clone = arc_hosts.clone();
-        let arc_ports_clone = arc_ports.clone();
-        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-        mps.spawn(move |_| {
-            entities::perform_entities_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
         });
 
         let arc_hosts_clone = arc_hosts.clone();

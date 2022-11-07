@@ -112,6 +112,7 @@ impl CountSumStatistics {
         table.insert("handler_latency_yb_master_MasterDdl_IsDeleteTableDone", "microseconds","counter");
         table.insert("handler_latency_yb_master_MasterDdl_IsTruncateTableDone", "microseconds","counter");
         table.insert("handler_latency_yb_master_MasterDdl_ListNamespaces", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterDdl_ListTables", "microseconds","counter"); // 2.15.3.0
         table.insert("handler_latency_yb_master_MasterDdl_TruncateTable", "microseconds","counter");
         table.insert("handler_latency_yb_master_MasterEncryption_GetUniverseKeyRegistry", "microseconds","counter");
         table.insert("handler_latency_yb_master_MasterBackupService_CreateSnapshot", "microseconds","counter");

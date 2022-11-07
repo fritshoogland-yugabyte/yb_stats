@@ -1,29 +1,48 @@
-//! the module for reading the /api/v1/is-leader to identify the master leader
+//! The module for reading the /api/v1/is-leader to identify the master leader.
+//!
+//! The functionality for isleader has the following public entries:
+//!  1. Snapshot creation: [AllStoredIsLeader::perform_snapshot]
+//!  2. Provide the master hostname:port for a given snapshot: [AllStoredIsLeader::return_leader]
+//!
+//! This function has no public display function, it is only used to store the and retrieve the master leader.
 use chrono::{DateTime, Local};
 use port_scanner::scan_port_addr;
 use std::{env, fs, error::Error, process, time::Instant, sync::mpsc::channel};
 use serde_derive::{Serialize,Deserialize};
 use log::*;
-
+/// The struct that is used to parse the JSON returned from /api/v1/is-leader using serde.
+///
+/// Please mind that only the leader shows:
+/// ```
+/// {"STATUS":"OK"}
+/// ```
+/// The master followers do not return anything after being parsed.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IsLeader {
+    /// The key for the status is in capitals, in this way it's renamed to 'status'.
     #[serde(rename = "STATUS")]
     pub status: String,
 }
-
+/// The struct that is used to store and retrieve the fetched and parsed data in CSV using serde.
+///
+/// The hostname_port and timestamp fields are filled out.
+/// One of all the servers will have status field reading 'OK', indicating being the master leader.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct StoredIsLeader {
     pub hostname_port: String,
     pub timestamp: DateTime<Local>,
     pub status: String,
 }
-
+/// This struct is used to handle the [StoredIsLeader] struct.
+///
+/// In this way, the struct can be using the impl functions.
 #[derive(Debug)]
 pub struct AllStoredIsLeader {
     pub stored_isleader: Vec<StoredIsLeader>
 }
 
 impl AllStoredIsLeader {
+    /// This function reads all the host/port combinations for metrics and saves these in a snapshot indicated by the snapshot_number.
     pub fn perform_snapshot(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
@@ -43,6 +62,7 @@ impl AllStoredIsLeader {
 
         info!("end snapshot: {:?}", timer.elapsed())
     }
+    /// This function requires a snapshot number, and returns the hostname_port of the master leader.
     pub fn return_leader (
        snapshot_number: &String
     ) -> String
@@ -54,7 +74,10 @@ impl AllStoredIsLeader {
            });
         stored_isleader.stored_isleader.iter().filter(|r| r.status == "OK").map(|r| r.hostname_port.to_string()).next().unwrap()
     }
-    pub fn read_isleader (
+    /// This function takes a vector of hosts and ports, and the allowed parallellism to (try to) read /api/v1/is-leader.
+    /// It creates a threadpool based on parallel, and spawns a task for reading and parsing for all host-port combinations.
+    /// When all combinations are read, the results are gathered in Vec<AllStoredIsLeader> and returned.
+    fn read_isleader (
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize
@@ -72,6 +95,7 @@ impl AllStoredIsLeader {
                     s.spawn(move |_| {
                         let detail_snapshot_time = Local::now();
                         let isleader = AllStoredIsLeader::read_http(host, port);
+                        debug!("{:?}",&isleader);
                         tx.send((format!("{}:{}", host, port), detail_snapshot_time, isleader)).expect("error sending data via tx (isleader)");
                     });
                 }
@@ -82,11 +106,14 @@ impl AllStoredIsLeader {
 
         let mut allstoredisleader = AllStoredIsLeader { stored_isleader: Vec::new() };
         for (hostname_port, detail_snapshot_time, isleader) in rx {
-            allstoredisleader.stored_isleader.push(StoredIsLeader { hostname_port: hostname_port, timestamp: detail_snapshot_time, status: isleader.status.to_string() } );
+            debug!("hostname_port: {}, timestamp: {}, isleader: {}", &hostname_port, &detail_snapshot_time, &isleader.status);
+            allstoredisleader.stored_isleader.push(StoredIsLeader { hostname_port, timestamp: detail_snapshot_time, status: isleader.status.to_string() } );
         }
         allstoredisleader
     }
-    pub fn read_http(
+    /// Using provided host and port, read http://host:port/api/v1/is-leader and parse the result
+    /// via [AllStoredIsLeader::parse_isleader], and return struct [IsLeader].
+    fn read_http(
         host: &str,
         port: &str,
     ) -> IsLeader
@@ -101,6 +128,8 @@ impl AllStoredIsLeader {
             AllStoredIsLeader::parse_isleader(String::from(""))
         }
     }
+    /// This function parses the http output.
+    /// This is a separate function in order to allow integration tests to use it.
     fn parse_isleader( http_output: String ) -> IsLeader
     {
         serde_json::from_str( &http_output )
@@ -108,6 +137,7 @@ impl AllStoredIsLeader {
                 IsLeader { status: "".to_string() }
             })
     }
+    /// This function takes the rows in the vector StoredIsLeader, and saves it as CSV in the snapshot directory indicated by the snapshot number.
     fn save_snapshot ( self, snapshot_number: i32 ) -> Result<(), Box<dyn Error>>
     {
         let current_directory = env::current_dir()?;
@@ -126,6 +156,7 @@ impl AllStoredIsLeader {
 
         Ok(())
     }
+    /// This function takes a snapshot number and reads the isleader CSV and loads it into the vector stored_isleader in [AllStoredIsLeader].
     fn read_snapshot( snapshot_number: &String, ) -> Result<AllStoredIsLeader, Box<dyn Error>>
     {
         let mut allstoredisleader = AllStoredIsLeader { stored_isleader: Vec::new() };

@@ -78,6 +78,9 @@ struct Opts {
     /// this lists the snapshots, and allows you to select a begin and end snapshot for a diff report
     #[structopt(long)]
     snapshot_diff: bool,
+    /// this lists the snapshots, and allows you to select a begin and end snapshot for a entity diff
+    #[structopt(long)]
+    entity_diff: bool,
     /// this lists the snapshots
     #[structopt(short = "l", long)]
     snapshot_list: bool,
@@ -237,7 +240,6 @@ fn main() {
         }
 
     } else if options.snapshot_diff || options.snapshot_list {
-
         info!("snapshot_diff");
         if options.begin.is_none() || options.end.is_none() {
             snapshot::Snapshot::print();
@@ -252,7 +254,18 @@ fn main() {
         statements_diff.print(&hostname_filter, options.sql_length);
         let nodeexporter_diff = node_exporter::SnapshotDiffBTreeMapNodeExporter::snapshot_diff(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp);
         nodeexporter_diff.print(&hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
-        //node_exporter::print_nodeexporter_diff_for_snapshots(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
+
+    } else if options.entity_diff {
+        info!("entity_diff");
+
+        if options.begin.is_none() || options.end.is_none() {
+            snapshot::Snapshot::print();
+        }
+        if options.snapshot_list { process::exit(0) };
+
+        let (begin_snapshot, end_snapshot, _begin_snapshot_row) = snapshot::Snapshot::read_begin_end_snapshot_from_user(options.begin, options.end);
+        let entity_diff = entities::SnapshotDiffBTreeMapsEntities::snapshot_diff(&begin_snapshot, &end_snapshot, &options.details_enable);
+        entity_diff.print();
 
     } else if options.print_memtrackers.is_some() {
 

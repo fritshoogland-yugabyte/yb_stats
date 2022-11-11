@@ -25,6 +25,7 @@ dotenv = "0.15.0"
 prometheus-parse = "0.2.2"
 log = "0.4.17"
 env_logger = "0.9.0"
+colored = "2.0.0"
 
 [package.metadata.generate-rpm]
 assets = [

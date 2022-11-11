@@ -1891,10 +1891,9 @@ mod tests {
         port: String) -> AllStoredMetrics
     {
         let mut allstoredmetrics = AllStoredMetrics { stored_values: Vec::new(), stored_countsum: Vec::new(), stored_countsumrows: Vec::new() };
-        let detail_snapshot_time = Local::now();
 
         let data_parsed_from_json = AllStoredMetrics::read_http(hostname.as_str(), port.as_str());
-        AllStoredMetrics::split_into_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut allstoredmetrics);
+        AllStoredMetrics::split_into_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now(), &mut allstoredmetrics);
         allstoredmetrics
     }
     #[test]

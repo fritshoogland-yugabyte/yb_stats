@@ -56,10 +56,10 @@
 use serde_derive::{Serialize,Deserialize};
 use port_scanner::scan_port_addr;
 use chrono::{DateTime, Local};
-//use std::{fs, process, collections::BTreeMap, path::PathBuf, sync::mpsc::channel, collections::HashMap, time::Instant, env, error::Error};
 use std::{fs, process, collections::BTreeMap, sync::mpsc::channel, time::Instant, env, error::Error};
 use log::*;
 use regex::Regex;
+use colored::*;
 use crate::isleader::AllStoredIsLeader;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -209,24 +209,6 @@ impl StoredReplicas
         }
     }
 }
-
-/*
-#[derive(Debug)]
-pub struct KeyspaceLookup {
-    pub keyspace_name: String,
-    pub keyspace_type: String,
-}
-
-impl KeyspaceLookup {
-    fn new(keyspace_name: &str, keyspace_type: &str) -> Self {
-        Self {
-            keyspace_name: keyspace_name.to_string(),
-            keyspace_type: keyspace_type.to_string(),
-        }
-    }
-}
-
- */
 
 #[derive(Debug)]
 pub struct AllStoredEntities {
@@ -455,7 +437,8 @@ impl AllStoredEntities
         };
 
         let object_oid_number = |oid: &str| -> u32 {
-            // The oid entry
+            // The oid entry normally is a 32 byte UUID for both ycql and ysql, which only contains hexadecimal numbers.
+            // However, there is a single entry in system_schema that has a table_id that is 'sys.catalog.uuid'
             if oid.len() == 32_usize {
                 let true_oid = &oid[24..];
                 u32::from_str_radix(true_oid, 16).unwrap()
@@ -471,7 +454,11 @@ impl AllStoredEntities
             if is_system_keyspace(row.keyspace_id.as_str()) && !*details_enable {
                 continue
             }
-            if object_oid_number(row.table_id.as_str()) < 16384 && !*details_enable {
+            if object_oid_number(row.table_id.as_str()) < 16384
+            && !*details_enable
+            // this takes the keyspace_id from the stored_tables vector, and filters the contents of stored_keyspaces vector for the keyspace_id,
+            // and then maps the keyspace_name, which is tested for equality with "ysql" to make sure it's a ysql row for which the filter is applied.
+            && self.stored_keyspaces.iter().filter(|r| r.keyspace_id == row.keyspace_id).next().map(|r| &r.keyspace_type).unwrap() == "ysql" {
                 continue
             }
             if !table_name_filter.is_match(&row.table_name) {
@@ -533,299 +520,514 @@ impl AllStoredEntities
     }
 }
 
-/*
-#[allow(dead_code)]
-pub fn read_entities(
-    host: &str,
-    port: &str,
-) -> Entities {
-    if ! scan_port_addr(format!("{}:{}", host, port)) {
-        warn!("hostname: port {}:{} cannot be reached, skipping", host, port);
-        return parse_entities(String::from(""), "", "")
-    };
-    let data_from_http = reqwest::blocking::get(format!("http://{}:{}/dump-entities", host, port))
-        .unwrap_or_else(|e| {
-            error!("Fatal: error reading from URL: {}", e);
-            process::exit(1);
-        })
-        .text().unwrap();
-    parse_entities(data_from_http, host, port)
+// replica_id, server_uuid is the unique key
+//pub server_uuid: String,
+//pub tablet_id: String,
+#[derive(Debug)]
+pub struct SnapshotDiffReplica {
+    pub first_replica_type: String,
+    pub first_addr: String,
+    pub second_replica_type: String,
+    pub second_addr: String,
 }
 
-#[allow(dead_code)]
-fn parse_entities( entities_data: String, host: &str, port: &str ) -> Entities {
-    serde_json::from_str(&entities_data )
-        .unwrap_or_else(|e| {
-            info!("({}:{}) could not parse /dump-entities json data for entities, error: {}", host, port, e);
-            Entities { keyspaces: Vec::<Keyspaces>::new(), tables: Vec::<Tables>::new(), tablets: Vec::<Tablets>::new() }
-        })
-}
-
-#[allow(dead_code)]
-fn read_entities_into_vectors(
-    hosts: &Vec<&str>,
-    ports: &Vec<&str>,
-    parallel: usize,
-) -> (
-    Vec<StoredTables>,
-    Vec<StoredTablets>,
-    Vec<StoredReplicas>,
-) {
-    let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
-    let (tx, rx) = channel();
-    pool.scope(move |s| {
-        for host in hosts {
-            for port in ports {
-                let tx = tx.clone();
-                s.spawn(move |_| {
-                    let detail_snapshot_time = Local::now();
-                    let entities = read_entities(host, port);
-                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, entities)).expect("error sending data via tx (entities)");
-                });
-            }
+impl SnapshotDiffReplica {
+    fn first_snapshot ( storedreplicas: StoredReplicas ) -> Self
+    {
+        Self {
+            first_replica_type: storedreplicas.replica_type.to_string(),
+            first_addr: storedreplicas.addr.to_string(),
+            second_replica_type: "".to_string(),
+            second_addr: "".to_string()
         }
-    });
-    let mut stored_tables: Vec<StoredTables> = Vec::new();
-    let mut stored_tablets: Vec<StoredTablets> = Vec::new();
-    let mut stored_replicas: Vec<StoredReplicas> = Vec::new();
-    for (hostname_port, detail_snapshot_time, entities) in rx {
-        add_to_entity_vectors(entities, &hostname_port, detail_snapshot_time, &mut stored_tables, &mut stored_tablets, &mut stored_replicas);
     }
-    (stored_tables, stored_tablets, stored_replicas)
+    fn second_snapshot_new ( storedreplicas: StoredReplicas ) -> Self
+    {
+        Self {
+            first_replica_type: "".to_string(),
+            first_addr: "".to_string(),
+            second_replica_type: storedreplicas.replica_type.to_string(),
+            second_addr: storedreplicas.addr.to_string()
+        }
+    }
+    fn second_snapshot_existing ( replica_diff_row: &mut SnapshotDiffReplica, storedreplicas: StoredReplicas ) -> Self
+    {
+        Self {
+            first_replica_type: replica_diff_row.first_replica_type.to_string(),
+            first_addr: replica_diff_row.first_addr.to_string(),
+            second_replica_type: storedreplicas.replica_type.to_string(),
+            second_addr: storedreplicas.addr.to_string()
+        }
+    }
 }
 
-#[allow(dead_code)]
-pub fn add_to_entity_vectors(
-    entities: Entities,
-    hostname: &str,
-    detail_snapshot_time: DateTime<Local>,
-    stored_tables: &mut Vec<StoredTables>,
-    stored_tablets: &mut Vec<StoredTablets>,
-    stored_replicas: &mut Vec<StoredReplicas>,
-) {
+// tablet_id is the unique key
+// pub tablet_id: String,
+#[derive(Debug)]
+pub struct SnapshotDiffTablets
+{
+    pub first_table_id: String,
+    pub first_tablet_state: String,
+    pub first_leader: String,
+    pub second_table_id: String,
+    pub second_tablet_state: String,
+    pub second_leader: String,
+}
 
-    // build a lookup table for keyspaces
-    let mut keyspace_lookup: HashMap<String, KeyspaceLookup> = HashMap::new();
-    for keyspace in entities.keyspaces {
-        let keyspace_id = &keyspace.keyspace_id;
-        let keyspace_name= &keyspace.keyspace_name;
-        let keyspace_type = &keyspace.keyspace_type;
-        keyspace_lookup.insert(keyspace_id.to_string(), KeyspaceLookup::new(keyspace_name, keyspace_type));
+impl SnapshotDiffTablets {
+    fn first_snapshot ( storedtablets: StoredTablets ) -> Self
+    {
+        Self {
+            first_table_id: storedtablets.table_id.to_string(),
+            first_tablet_state: storedtablets.tablet_state.to_string(),
+            first_leader: storedtablets.leader.to_string(),
+            second_table_id: "".to_string(),
+            second_tablet_state: "".to_string(),
+            second_leader: "".to_string(),
+        }
     }
+    fn second_snapshot_new ( storedtablets: StoredTablets ) -> Self
+    {
+        Self {
+            first_table_id: "".to_string(),
+            first_tablet_state: "".to_string(),
+            first_leader: "".to_string(),
+            second_table_id: storedtablets.table_id.to_string(),
+            second_tablet_state: storedtablets.tablet_state.to_string(),
+            second_leader: storedtablets.leader.to_string(),
+        }
+    }
+    fn second_snapshot_existing ( tablet_diff_row: &mut SnapshotDiffTablets, storedtablets: StoredTablets ) -> Self
+    {
+        Self {
+            first_table_id: tablet_diff_row.first_table_id.to_string(),
+            first_tablet_state: tablet_diff_row.first_tablet_state.to_string(),
+            first_leader: tablet_diff_row.first_leader.to_string(),
+            second_table_id: storedtablets.table_id.to_string(),
+            second_tablet_state: storedtablets.tablet_state.to_string(),
+            second_leader: storedtablets.leader.to_string(),
+        }
+    }
+}
 
-    // build a vector for tables which includes the keyspaces data
-    for table in entities.tables {
-        let keyspace_name = match keyspace_lookup.get(&table.keyspace_id ) {
-            Some(x) => &x.keyspace_name,
-            None => {
-                error!("table keyspace_id: {} not found in keyspaces for keyspace_name", &table.keyspace_id);
-                "????"
-            },
+// table_id is the unique key
+// pub table_id: String,
+#[derive(Debug)]
+pub struct SnapshotDiffTables {
+    pub first_table_name: String,
+    pub first_table_state: String,
+    pub first_keyspace_id: String,
+    pub second_table_name: String,
+    pub second_table_state: String,
+    pub second_keyspace_id: String,
+}
+
+impl SnapshotDiffTables {
+    fn first_snapshot ( storedtables: StoredTables ) -> Self
+    {
+        Self {
+            first_table_name: storedtables.table_name.to_string(),
+            first_table_state: storedtables.table_state.to_string(),
+            first_keyspace_id: storedtables.keyspace_id.to_string(),
+            second_table_name: "".to_string(),
+            second_table_state: "".to_string(),
+            second_keyspace_id: "".to_string()
+        }
+    }
+    fn second_snapshot_new ( storedtables: StoredTables ) -> Self
+    {
+        Self {
+            first_table_name: "".to_string(),
+            first_table_state: "".to_string(),
+            first_keyspace_id: "".to_string(),
+            second_table_name: storedtables.table_name.to_string(),
+            second_table_state: storedtables.table_state.to_string(),
+            second_keyspace_id: storedtables.keyspace_id.to_string(),
+        }
+    }
+    fn second_snapshot_existing ( table_diff_row: &mut SnapshotDiffTables, storedtables: StoredTables ) -> Self
+    {
+        Self {
+            first_table_name: table_diff_row.first_table_name.to_string(),
+            first_table_state: table_diff_row.first_table_state.to_string(),
+            first_keyspace_id: table_diff_row.first_keyspace_id.to_string(),
+            second_table_name: storedtables.table_name.to_string(),
+            second_table_state: storedtables.table_state.to_string(),
+            second_keyspace_id: storedtables.keyspace_id.to_string(),
+        }
+    }
+}
+
+// keyspace_id is the unique key
+//pub keyspace_id: String,
+#[derive(Debug)]
+pub struct SnapshotDiffKeyspaces
+{
+    pub first_keyspace_name: String,
+    pub first_keyspace_type: String,
+    pub second_keyspace_name: String,
+    pub second_keyspace_type: String,
+}
+
+impl SnapshotDiffKeyspaces {
+    fn first_snapshot ( storedkeyspaces: StoredKeyspaces ) -> Self
+    {
+        Self {
+            first_keyspace_name: storedkeyspaces.keyspace_name.to_string(),
+            first_keyspace_type: storedkeyspaces.keyspace_type.to_string(),
+            second_keyspace_name: "".to_string(),
+            second_keyspace_type: "".to_string(),
+        }
+    }
+    fn second_snapshot_new ( storedkeyspaces: StoredKeyspaces ) -> Self
+    {
+        Self {
+            first_keyspace_name: "".to_string(),
+            first_keyspace_type: "".to_string(),
+            second_keyspace_name: storedkeyspaces.keyspace_name.to_string(),
+            second_keyspace_type: storedkeyspaces.keyspace_type.to_string(),
+        }
+    }
+    fn second_snapshot_existing ( keyspaces_diff_row: &mut SnapshotDiffKeyspaces, storedkeyspaces: StoredKeyspaces ) -> Self
+    {
+        Self {
+            first_keyspace_name: keyspaces_diff_row.first_keyspace_name.to_string(),
+            first_keyspace_type: keyspaces_diff_row.first_keyspace_type.to_string(),
+            second_keyspace_name: storedkeyspaces.keyspace_name.to_string(),
+            second_keyspace_type: storedkeyspaces.keyspace_type.to_string(),
+        }
+    }
+}
+
+// String, String = tablet_id, server_uuid
+type BTreeMapSnapshotDiffReplicas = BTreeMap<(String, String), SnapshotDiffReplica>;
+// String = tablet_id
+type BTreeMapSnapshotDiffTablets = BTreeMap<String, SnapshotDiffTablets>;
+// String = table_id
+type BTreeMapSnapshotDiffTables = BTreeMap<String, SnapshotDiffTables>;
+// String = keyspace_id
+type BTreeMapSnapshotDiffKeyspaces = BTreeMap<String, SnapshotDiffKeyspaces>;
+
+pub struct SnapshotDiffBTreeMapsEntities {
+    pub btreemap_snapshotdiff_replicas: BTreeMapSnapshotDiffReplicas,
+    pub btreemap_snapshotdiff_tablets: BTreeMapSnapshotDiffTablets,
+    pub btreemap_snapshotdiff_tables: BTreeMapSnapshotDiffTables,
+    pub btreemap_snapshotdiff_keyspaces: BTreeMapSnapshotDiffKeyspaces,
+}
+
+impl SnapshotDiffBTreeMapsEntities {
+    pub fn snapshot_diff(
+        begin_snapshot: &String,
+        end_snapshot: &String,
+        details_enable: &bool,
+    ) -> SnapshotDiffBTreeMapsEntities {
+        let allstoredentities = AllStoredEntities::read_snapshot(&begin_snapshot)
+            .unwrap_or_else(|e| {
+                error!("Fatal: error reading snapshot: {}", e);
+                process::exit(1);
+            });
+        let master_leader = AllStoredIsLeader::return_leader(begin_snapshot);
+        let mut entities_snapshot_diff = SnapshotDiffBTreeMapsEntities::first_snapshot(allstoredentities, master_leader, details_enable);
+
+        let allstoredentities = AllStoredEntities::read_snapshot(end_snapshot)
+            .unwrap_or_else(|e| {
+                error!("Fatal: error reading snapshot: {}", e);
+                process::exit(1);
+            });
+        let master_leader = AllStoredIsLeader::return_leader(end_snapshot);
+        entities_snapshot_diff.second_snapshot(allstoredentities, master_leader, details_enable);
+
+        entities_snapshot_diff
+    }
+    fn first_snapshot(
+        allstoredentities: AllStoredEntities,
+        master_leader: String,
+        details_enable: &bool,
+    ) -> SnapshotDiffBTreeMapsEntities {
+        let mut snapshotdiff_btreemaps = SnapshotDiffBTreeMapsEntities {
+            btreemap_snapshotdiff_replicas: Default::default(),
+            btreemap_snapshotdiff_tablets: Default::default(),
+            btreemap_snapshotdiff_tables: Default::default(),
+            btreemap_snapshotdiff_keyspaces: Default::default()
         };
-        let keyspace_type = match keyspace_lookup.get(&table.keyspace_id ) {
-            Some(x) => &x.keyspace_type,
-            None => {
-                error!("table keyspace_id: {} not found in keyspaces for keyspace_type", &table.keyspace_id);
-                "????"
-            },
+        let object_oid_number = |oid: &str| -> u32 {
+            // The oid entry normally is a 32 byte UUID for both ycql and ysql, which only contains hexadecimal numbers.
+            // However, there is a single entry in system_schema that has a table_id that is 'sys.catalog.uuid'
+            if oid.len() == 32_usize {
+                let true_oid = &oid[24..];
+                u32::from_str_radix(true_oid, 16).unwrap()
+            } else {
+                0
+            }
         };
-        stored_tables.push( StoredTables::new(hostname, detail_snapshot_time, table, keyspace_name, keyspace_type));
+        //replicas
+        for row in allstoredentities.stored_replicas.into_iter().filter(|r| r.hostname_port == master_leader.clone() ) {
+            match snapshotdiff_btreemaps.btreemap_snapshotdiff_replicas.get_mut( &(row.tablet_id.clone(), row.server_uuid.clone())) {
+                Some( _replica_row ) => {
+                    error!("Found second entry for first entry of replica, hostname: {}, tablet_id: {}, server_uuid: {}", &row.hostname_port.clone(), &row.tablet_id.clone(), &row.server_uuid.clone());
+                },
+                None => {
+                    snapshotdiff_btreemaps.btreemap_snapshotdiff_replicas.insert(
+                        (row.tablet_id.to_string(), row.server_uuid.to_string()),
+                        SnapshotDiffReplica::first_snapshot(row)
+                    );
+                },
+            }
+        };
+        //tablets
+        for row in allstoredentities.stored_tablets.into_iter().filter(|r| r.hostname_port == master_leader.clone() ) {
+            match snapshotdiff_btreemaps.btreemap_snapshotdiff_tablets.get_mut( &(row.tablet_id.clone())) {
+                Some( _tablet_row ) => {
+                    error!("Found second entry for first entry of tablet, hostname: {}, tablet_id: {}", &row.hostname_port.clone(), &row.tablet_id.clone());
+                },
+                None => {
+                    snapshotdiff_btreemaps.btreemap_snapshotdiff_tablets.insert(
+                        row.tablet_id.to_string(),
+                        SnapshotDiffTablets::first_snapshot(row)
+                    );
+                },
+            }
+        };
+        // tables
+        for row in allstoredentities.stored_tables.into_iter().filter(|r| r.hostname_port == master_leader.clone() ) {
+            if allstoredentities.stored_keyspaces.iter().filter(|r| r.keyspace_id == row.keyspace_id).next().map(|r| &r.keyspace_type).unwrap() == "ysql"
+            && object_oid_number(row.table_id.as_str()) < 16384
+            && !*details_enable
+            {
+                continue
+            }
+            match snapshotdiff_btreemaps.btreemap_snapshotdiff_tables.get_mut( &row.table_id.clone() ) {
+                Some( _table_row ) => {
+                    error!("Found second entry for first entry of table, hostname: {}, table_id: {}", &row.hostname_port.clone(), &row.table_id.clone());
+                },
+                None => {
+                    snapshotdiff_btreemaps.btreemap_snapshotdiff_tables.insert(
+                        row.table_id.to_string(),
+                        SnapshotDiffTables::first_snapshot(row)
+                    );
+                },
+            }
+        };
+        // keyspaces
+        for row in allstoredentities.stored_keyspaces.into_iter().filter(|r| r.hostname_port == master_leader.clone() ) {
+            match snapshotdiff_btreemaps.btreemap_snapshotdiff_keyspaces.get_mut( &row.keyspace_id.clone() ) {
+                Some( _keyspace_row ) => {
+                    error!("Found second entry for first entry of keyspace, hostname: {}, keyspace_id: {}", &row.hostname_port.clone(), &row.keyspace_id.clone());
+                },
+                None => {
+                    snapshotdiff_btreemaps.btreemap_snapshotdiff_keyspaces.insert(
+                        row.keyspace_id.to_string(),
+                        SnapshotDiffKeyspaces::first_snapshot(row)
+                    );
+                },
+            }
+        };
+
+
+        snapshotdiff_btreemaps
     }
-    // build a vector for tablets
-    for tablet in entities.tablets {
-        stored_tablets.push( StoredTablets::new( hostname, detail_snapshot_time, &tablet));
-        if let Some(replicas) = tablet.replicas {
-            for replica in replicas {
-                stored_replicas.push(StoredReplicas::new(hostname, detail_snapshot_time, &tablet.tablet_id, replica));
+    /// The second snapshot function checks the entries in
+    fn second_snapshot(
+        &mut self,
+        allstoredentities: AllStoredEntities,
+        master_leader: String,
+        details_enable: &bool,
+    )
+    {
+        let object_oid_number = |oid: &str| -> u32 {
+            // The oid entry normally is a 32 byte UUID for both ycql and ysql, which only contains hexadecimal numbers.
+            // However, there is a single entry in system_schema that has a table_id that is 'sys.catalog.uuid'
+            if oid.len() == 32_usize {
+                let true_oid = &oid[24..];
+                u32::from_str_radix(true_oid, 16).unwrap()
+            } else {
+                0
+            }
+        };
+        // replicas
+        for row in allstoredentities.stored_replicas.into_iter().filter(|r| r.hostname_port == master_leader.clone() ) {
+            match self.btreemap_snapshotdiff_replicas.get_mut( &(row.tablet_id.clone(), row.server_uuid.clone())) {
+                Some( replica_row ) => {
+                    if replica_row.first_addr == row.addr
+                    && replica_row.first_replica_type == row.replica_type
+                    {
+                        // second snapshot contains identical values, so we remove it.
+                        self.btreemap_snapshotdiff_replicas.remove( &(row.tablet_id.clone(), row.server_uuid.clone()) );
+                    }
+                    else
+                    {
+                        // second snapshot has the same key, but contains different values (?)
+                        *replica_row = SnapshotDiffReplica::second_snapshot_existing(replica_row, row);
+
+                    };
+                },
+                None => {
+                    self.btreemap_snapshotdiff_replicas.insert(
+                        (row.tablet_id.to_string(), row.server_uuid.to_string()),
+                        SnapshotDiffReplica::second_snapshot_new(row)
+                    );
+                },
             }
         }
-        /*
-        match tablet.replicas {
-            Some(replicas) => {
-                for replica in replicas {
-                    stored_replicas.push(StoredReplicas::new(hostname, detail_snapshot_time, &tablet.tablet_id, replica));
-                }
-            },
-            None => {},
+        // tablets
+        for row in allstoredentities.stored_tablets.into_iter().filter(|r| r.hostname_port == master_leader.clone() ) {
+            match self.btreemap_snapshotdiff_tablets.get_mut( &(row.tablet_id.clone())) {
+                Some( tablet_row ) => {
+                    if tablet_row.first_table_id == row.table_id
+                    && tablet_row.first_tablet_state == row.tablet_state
+                    && tablet_row.first_leader == row.leader
+                    {
+                        // second snapshot contains identical values, so we remove it.
+                        self.btreemap_snapshotdiff_tablets.remove( &(row.tablet_id.clone()) );
+                    }
+                    else
+                    {
+                        // second snapshot has the same key, but contains different values (?)
+                        *tablet_row = SnapshotDiffTablets::second_snapshot_existing(tablet_row, row);
+                    };
+                },
+                None => {
+                    self.btreemap_snapshotdiff_tablets.insert(
+                        row.tablet_id.to_string(),
+                        SnapshotDiffTablets::second_snapshot_new(row)
+                    );
+                },
+            }
         }
-
-         */
-    }
-}
-
-#[allow(dead_code)]
-#[allow(clippy::ptr_arg)]
-pub fn perform_entities_snapshot(
-    hosts: &Vec<&str>,
-    ports: &Vec<&str>,
-    snapshot_number: i32,
-    yb_stats_directory: &PathBuf,
-    parallel: usize,
-) {
-    info!("perform_entities_snapshot");
-    let (stored_tables, stored_tablets, stored_replicas) = read_entities_into_vectors(hosts, ports, parallel);
-
-    let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
-    let tables_file = &current_snapshot_directory.join("tables");
-    let file = fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .open(&tables_file)
-        .unwrap_or_else(|e| {
-            error!("Fatal: error writing tables data in snapshot directory {}: {}", &tables_file.clone().into_os_string().into_string().unwrap(), e);
-            process::exit(1);
-        });
-    let mut writer = csv::Writer::from_writer(file);
-    for row in stored_tables {
-        writer.serialize(row).unwrap();
-    }
-    writer.flush().unwrap();
-
-    let tablets_file = &current_snapshot_directory.join("tablets");
-    let file = fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .open(&tablets_file)
-        .unwrap_or_else(|e| {
-            error!("Fatal: error writing tablets data in snapshot directory {}: {}", &tablets_file.clone().into_os_string().into_string().unwrap(), e);
-            process::exit(1);
-        });
-    let mut writer = csv::Writer::from_writer(file);
-    for row in stored_tablets {
-        writer.serialize(row).unwrap();
-    }
-    writer.flush().unwrap();
-
-    let replicas_file = &current_snapshot_directory.join("replicas");
-    let file = fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .open(&replicas_file)
-        .unwrap_or_else(|e| {
-            error!("Fatal: error writing replicas data in snapshot directory {}: {}", &replicas_file.clone().into_os_string().into_string().unwrap(), e);
-            process::exit(1);
-        });
-    let mut writer = csv::Writer::from_writer(file);
-    for row in stored_replicas {
-        writer.serialize(row).unwrap();
-    }
-    writer.flush().unwrap();
-}
-
-
-#[allow(clippy::ptr_arg)]
-pub fn read_tables_snapshot(
-    snapshot_number: &String,
-    yb_stats_directory: &PathBuf,
-) -> Vec<StoredTables>
-{
-    let mut stored_tables: Vec<StoredTables> = Vec::new();
-    let tables_file = &yb_stats_directory.join(snapshot_number).join("tables");
-    let file = fs::File::open( &tables_file )
-    .unwrap_or_else(|e| {
-        error!("Fatal: error reading file: {}: {}", &tables_file.clone().into_os_string().into_string().unwrap(), e);
-        process::exit(1);
-    });
-    let mut reader = csv::Reader::from_reader(file);
-    for row in reader.deserialize() {
-        let data: StoredTables = row.unwrap();
-        let _ = &stored_tables.push(data);
-    }
-    stored_tables
-}
-
-#[allow(clippy::ptr_arg)]
-pub fn read_tablets_snapshot(
-    snapshot_number: &String,
-    yb_stats_directory: &PathBuf,
-) -> Vec<StoredTablets>
-{
-    let mut stored_tablets: Vec<StoredTablets> = Vec::new();
-    let tablets_file = &yb_stats_directory.join(snapshot_number).join("tablets");
-    let file = fs::File::open( &tablets_file )
-    .unwrap_or_else(|e| {
-        error!("Fatal: error reading file: {}: {}", &tablets_file.clone().into_os_string().into_string().unwrap(), e);
-        process::exit(1);
-    });
-    let mut reader = csv::Reader::from_reader(file);
-    for row in reader.deserialize() {
-        let data: StoredTablets = row.unwrap();
-        let _ = &stored_tablets.push(data);
-    }
-    stored_tablets
-}
-
-#[allow(clippy::ptr_arg)]
-pub fn read_replicas_snapshot(
-    snapshot_number: &String,
-    yb_stats_directory: &PathBuf,
-) -> Vec<StoredReplicas>
-{
-    let mut stored_replicas: Vec<StoredReplicas> = Vec::new();
-    let replicas_file = &yb_stats_directory.join(snapshot_number).join("replicas");
-    let file = fs::File::open( &replicas_file )
-    .unwrap_or_else(|e| {
-        error!("Fatal: error reading file: {}: {}", &replicas_file.clone().into_os_string().into_string().unwrap(), e);
-        process::exit(1);
-    });
-    let mut reader = csv::Reader::from_reader(file);
-    for row in reader.deserialize() {
-        let data: StoredReplicas = row.unwrap();
-        let _ = &stored_replicas.push(data);
-    }
-    stored_replicas
-}
-
-pub fn print_entities(
-    snapshot_number: &String,
-    yb_stats_directory: &PathBuf,
-    hostname_filter: &Regex,
-    table_name_filter: &Regex,
-) {
-    info!("print_entities");
-    let stored_tables: Vec<StoredTables>  = read_tables_snapshot(snapshot_number, yb_stats_directory);
-    let stored_tablets: Vec<StoredTablets> = read_tablets_snapshot(snapshot_number, yb_stats_directory);
-    let stored_replicas: Vec<StoredReplicas> = read_replicas_snapshot(snapshot_number, yb_stats_directory);
-
-    let mut tables_btreemap: BTreeMap<(String, String, String, String, String), StoredTables> = BTreeMap::new();
-    for row in stored_tables {
-        tables_btreemap.insert( (row.hostname_port.to_string(),
-                                      row.keyspace_type.to_string(),
-                                      row.keyspace_name.to_string(),
-                                      row.table_name.to_string(),
-                                      row.table_id.to_string()),
-                                StoredTables { ..row }
-        );
-    }
-    for ((hostname, keyspace_type, keyspace_name, table_name, table_id), row) in tables_btreemap {
-        if hostname_filter.is_match(&hostname)
-            &&table_name_filter.is_match(&table_name) {
-            // table data
-            println!("{} {} {} {} {} {}", hostname, keyspace_type, keyspace_name, table_name, table_id, row.table_state);
-            // build a vector of records for the tablets
-            let mut tablet_data: Vec<(String, String, String)> = Vec::new();
-            for tablet in stored_tablets.iter()
-                .filter(|x| x.hostname_port == hostname)
-                .filter(|x| x.table_id == table_id) {
-                tablet_data.push((tablet.leader.to_string(), tablet.tablet_id.to_string(), tablet.tablet_state.to_string()));
-            };
-            // iterate over the tablet vector
-            for (leader, tablet_id, tablet_state) in tablet_data {
-                print!("tablet:{} {} : ( ", tablet_id, tablet_state);
-                // iterate over the replicas of the tablet
-                for replica in stored_replicas.iter()
-                    .filter(|x| x.hostname_port == hostname)
-                    .filter(|x| x.tablet_id == tablet_id) {
-                    let replica_state = if leader == replica.server_uuid { "LEADER" } else { "FOLLOWER" };
-                    print!("{},{},{} ", replica.replica_type, replica.addr, replica_state);
-                }
-                println!(")");
+        // tables
+        for row in allstoredentities.stored_tables.into_iter().filter(|r| r.hostname_port == master_leader.clone() ) {
+            if allstoredentities.stored_keyspaces.iter().filter(|r| r.keyspace_id == row.keyspace_id).next().map(|r| &r.keyspace_type).unwrap() == "ysql"
+            && object_oid_number(row.table_id.as_str()) < 16384
+            && !*details_enable
+            {
+                continue;
+            }
+            match self.btreemap_snapshotdiff_tables.get_mut( &(row.table_id.clone())) {
+                Some( table_row ) => {
+                    if table_row.first_table_name == row.table_name
+                    && table_row.first_table_state == row.table_state
+                    && table_row.first_keyspace_id == row.keyspace_id
+                    {
+                        // second snapshot contains identical values, so we remove it.
+                        self.btreemap_snapshotdiff_tables.remove( &(row.table_id.clone()) );
+                    }
+                    else {
+                        // second snapshot has the same key, but contains different values.
+                        *table_row = SnapshotDiffTables::second_snapshot_existing(table_row, row);
+                    };
+                },
+                None => {
+                    self.btreemap_snapshotdiff_tables.insert(
+                        row.table_id.to_string(),
+                        SnapshotDiffTables::second_snapshot_new(row)
+                    );
+                },
+            }
+        }
+        // keyspaces
+        for row in allstoredentities.stored_keyspaces.into_iter().filter(|r| r.hostname_port == master_leader.clone() ) {
+            match self.btreemap_snapshotdiff_keyspaces.get_mut( &(row.keyspace_id.clone())) {
+                Some( keyspace_row ) => {
+                    if keyspace_row.first_keyspace_name == row.keyspace_name
+                    && keyspace_row.first_keyspace_type == row.keyspace_type
+                    {
+                        // second snapshot contains identical values, so we remove it.
+                        self.btreemap_snapshotdiff_keyspaces.remove( &(row.keyspace_id.clone()) );
+                    }
+                    else {
+                        // second snapshot has the same key, but contains different values.
+                        *keyspace_row = SnapshotDiffKeyspaces::second_snapshot_existing(keyspace_row, row);
+                    };
+                },
+                None => {
+                    self.btreemap_snapshotdiff_keyspaces.insert(
+                        row.keyspace_id.to_string(),
+                        SnapshotDiffKeyspaces::second_snapshot_new(row)
+                    );
+                },
             }
         }
     }
-}
+    pub fn print(
+        &self,
+    )
+    {
+        for (keyspace_id, keyspace_row) in self.btreemap_snapshotdiff_keyspaces.iter() {
+            if keyspace_row.first_keyspace_name.is_empty()
+            && keyspace_row.first_keyspace_type.is_empty()
+            {
+                let colocation = if self.btreemap_snapshotdiff_tablets.iter()
+                    .filter(|(_k,v)| v.second_table_id == format!("{}.colocated.parent.uuid", &keyspace_id)).next().is_some() {
+                    "[colocated]"
+                } else {
+                    ""
+                };
+                println!("{} Database type: {}, name: {}, id: {} {}", format!("+").green(), keyspace_row.second_keyspace_type, keyspace_row.second_keyspace_name, keyspace_id, colocation);
+            }
+            if keyspace_row.second_keyspace_name.is_empty()
+            && keyspace_row.second_keyspace_type.is_empty()
+            {
+                let colocation = if self.btreemap_snapshotdiff_tablets.iter()
+                    .filter(|(_k,v)| v.first_table_id == format!("{}.colocated.parent.uuid", &keyspace_id)).next().is_some() {
+                    "[colocated]"
+                } else {
+                    ""
+                };
+                println!("{} Database type: {}, name: {}, id: {} {}", format!("-").red(), keyspace_row.first_keyspace_type, keyspace_row.first_keyspace_name, keyspace_id, colocation);
+            }
 
- */
+        }
+        for (table_id, table_row) in &self.btreemap_snapshotdiff_tables {
+            if table_row.first_table_name.is_empty()
+            && table_row.first_table_state.is_empty()
+            && table_row.first_keyspace_id.is_empty()
+            {
+                println!("{} Table id: {}, name: {}, state: {}, keyspace: {}", format!("+").green(), table_id, table_row.second_table_name, table_row.second_table_state, table_row.second_keyspace_id);
+            }
+            if table_row.second_table_name.is_empty()
+            && table_row.second_table_state.is_empty()
+            && table_row.second_keyspace_id.is_empty()
+            {
+                println!("{} Table id: {}, name: {}, state: {}, keyspace: {}", format!("-").red(), table_id, table_row.first_table_name, table_row.first_table_state, table_row.first_keyspace_id);
+            }
+        }
+        for (tablet_id, tablet_row) in &self.btreemap_snapshotdiff_tablets {
+            if tablet_row.first_table_id.is_empty()
+            && tablet_row.first_tablet_state.is_empty()
+            && tablet_row.first_leader.is_empty()
+            {
+                println!("{} Tablet id: {}, state: {}, leader: {}, table_id: {}", format!("+").green(), tablet_id, tablet_row.second_tablet_state, tablet_row.second_leader, tablet_row.second_table_id);
+            }
+            else if tablet_row.second_table_id.is_empty()
+            && tablet_row.second_tablet_state.is_empty()
+            && tablet_row.second_leader.is_empty()
+            {
+                println!("{} Tablet id: {}, state: {}, leader: {}, table_id: {}", format!("-").red(), tablet_id, tablet_row.first_tablet_state, tablet_row.first_leader, tablet_row.first_table_id);
+            }
+            else
+            {
+                println!("{} Tablet id: {}, state: {} <> {}, leader: {} <> {}, table_id: {}", format!("*").yellow(), tablet_id, tablet_row.first_tablet_state, tablet_row.second_tablet_state, tablet_row.first_leader, tablet_row.second_leader, tablet_row.first_table_id);
+            }
+        }
+        for ((tablet_id, server_uuid), replica_row) in &self.btreemap_snapshotdiff_replicas {
+            if replica_row.first_addr.is_empty()
+            && replica_row.first_replica_type.is_empty()
+            {
+                println!("{} Replica server id: {}, address: {}, type: {}, tablet id: {}", format!("+").green(), server_uuid, replica_row.second_addr, replica_row.second_replica_type, tablet_id);
+            }
+            else if replica_row.second_addr.is_empty()
+            && replica_row.second_replica_type.is_empty()
+            {
+                println!("{} Replica server id: {}, address: {}, type: {}, tablet id: {}", format!("-").red(), server_uuid, replica_row.first_addr, replica_row.first_replica_type, tablet_id);
+            }
+            else
+            {
+                println!("{} Replica server id: {}, address: {} <> {}, type: {} <> {}, tablet id: {}", format!("*").yellow(), server_uuid, replica_row.first_addr, replica_row.second_addr, replica_row.first_replica_type, replica_row.first_addr, tablet_id);
+            }
+        }
+    }
+
+}
 
 #[cfg(test)]
 mod tests {
@@ -882,7 +1084,7 @@ mod tests {
   ]
 }
         "#.to_string();
-        let result = parse_entities(json, "", "");
+        let result = AllStoredEntities::parse_entities(json, "", "");
         assert_eq!(result.keyspaces[0].keyspace_type,"ycql");
         assert_eq!(result.tables[0].table_name,"pg_user_mapping_user_server_index");
         assert_eq!(result.tablets[0].table_id,"sys.catalog.uuid");
@@ -895,18 +1097,17 @@ mod tests {
 
     #[test]
     fn integration_parse_entities() {
-        let mut stored_tables: Vec<StoredTables> = Vec::new();
-        let mut stored_tablets: Vec<StoredTablets> = Vec::new();
-        let mut stored_replicas: Vec<StoredReplicas> = Vec::new();
+        let mut allstoredentities = AllStoredEntities { stored_keyspaces: Vec::new(), stored_tables: Vec::new(), stored_tablets: Vec::new(), stored_replicas: Vec::new() };
+
         let hostname = utility::get_hostname_master();
         let port = utility::get_port_master();
 
-        let data_parsed_from_json = read_entities(hostname.as_str(), port.as_str());
-        add_to_entity_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now(), &mut stored_tables, &mut stored_tablets, &mut stored_replicas);
-        // a MASTER only will generate entities on each master (!)
-        assert!(!stored_tables.is_empty());
-        assert!(!stored_tablets.is_empty());
-        assert!(!stored_replicas.is_empty());
+        let json = AllStoredEntities::read_http(hostname.as_str(), port.as_str());
+        AllStoredEntities::split_into_vectors(json, format!("{}:{}", hostname, port).as_str(), Local::now(), &mut allstoredentities);
+
+        assert!(!allstoredentities.stored_tables.is_empty());
+        assert!(!allstoredentities.stored_tablets.is_empty());
+        assert!(!allstoredentities.stored_replicas.is_empty());
     }
 
 }

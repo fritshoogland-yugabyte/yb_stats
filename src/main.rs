@@ -45,34 +45,34 @@ const WRITE_DOTENV: bool = true;
 /// Struct that holds the commandline options.
 #[derive(Debug, StructOpt)]
 struct Opts {
-    /// hostnames (comma separated) default 192.168.66.80,192.168.66.81,192.168.66.82
+    /// Snapshot input hostnames (comma separated)
     #[structopt(short, long, value_name = "hostname,hostname")]
     hosts: Option<String>,
-    /// port numbers (comma separated) default 7000,9000,12000,13000,9300
+    /// Snapshot input port numbers (comma separated)
     #[structopt(short, long, value_name = "port,port")]
     ports: Option<String>,
-    /// regex to filter statistic names
+    /// Output filter for statistic names as regex
     #[structopt(short, long, value_name = "regex")]
     stat_name_match: Option<String>,
-    /// regex to filter table names (requires --details-enable)
+    /// Output filter for table names as regex (requires --details-enable)
     #[structopt(short, long, value_name = "regex")]
     table_name_match: Option<String>,
-    /// regex to select hostnames or ports
+    /// Output filter for hostname or ports as regex
     #[structopt(long, value_name = "regex")]
     hostname_match: Option<String>,
-    /// add statistics that are not counters
+    /// Add statistics that are not counters to output
     #[structopt(short, long)]
     gauges_enable: bool,
-    /// report each table and tablet individually
+    /// Increase output detail, such as report each table and tablet individually
     #[structopt(short, long)]
     details_enable: bool,
-    /// be as silent as possible, only errors are printed
+    /// During snapshot, be as silent as possible, only errors are printed
     #[structopt(long)]
     silent: bool,
-    /// perform a CSV (stored) snapshot
+    /// Perform a CSV (stored) snapshot
     #[structopt(long)]
     snapshot: bool,
-    /// comment to be added with the snapshot
+    /// Comment to be added with the snapshot
     #[structopt(long, value_name = "\"comment\"")]
     snapshot_comment: Option<String>,
     /// this lists the snapshots, and allows you to select a begin and end snapshot for a diff report

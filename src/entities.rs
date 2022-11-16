@@ -56,7 +56,7 @@
 use serde_derive::{Serialize,Deserialize};
 use port_scanner::scan_port_addr;
 use chrono::{DateTime, Local};
-use std::{fs, process, collections::BTreeMap, sync::mpsc::channel, time::Instant, env, error::Error};
+use std::{fs, process, collections::{BTreeMap, HashMap}, sync::mpsc::channel, time::Instant, env, error::Error};
 use log::*;
 use regex::Regex;
 use colored::*;
@@ -713,6 +713,11 @@ pub struct SnapshotDiffBTreeMapsEntities {
     pub btreemap_snapshotdiff_tablets: BTreeMapSnapshotDiffTablets,
     pub btreemap_snapshotdiff_tables: BTreeMapSnapshotDiffTables,
     pub btreemap_snapshotdiff_keyspaces: BTreeMapSnapshotDiffKeyspaces,
+    pub keyspace_id_lookup: HashMap<String, (String, String)>,
+    pub table_keyspace_lookup: HashMap<String, String>,
+    pub table_id_lookup: HashMap<String, String>,
+    pub server_id_lookup: HashMap<String, String>,
+    pub tablet_table_lookup: HashMap<String, String>,
 }
 
 impl SnapshotDiffBTreeMapsEntities {
@@ -720,7 +725,8 @@ impl SnapshotDiffBTreeMapsEntities {
         begin_snapshot: &String,
         end_snapshot: &String,
         details_enable: &bool,
-    ) -> SnapshotDiffBTreeMapsEntities {
+    ) -> SnapshotDiffBTreeMapsEntities
+    {
         let allstoredentities = AllStoredEntities::read_snapshot(&begin_snapshot)
             .unwrap_or_else(|e| {
                 error!("Fatal: error reading snapshot: {}", e);
@@ -748,7 +754,12 @@ impl SnapshotDiffBTreeMapsEntities {
             btreemap_snapshotdiff_replicas: Default::default(),
             btreemap_snapshotdiff_tablets: Default::default(),
             btreemap_snapshotdiff_tables: Default::default(),
-            btreemap_snapshotdiff_keyspaces: Default::default()
+            btreemap_snapshotdiff_keyspaces: Default::default(),
+            keyspace_id_lookup: HashMap::new(),
+            table_keyspace_lookup: HashMap::new(),
+            table_id_lookup: HashMap::new(),
+            server_id_lookup: HashMap::new(),
+            tablet_table_lookup: HashMap::new(),
         };
         let object_oid_number = |oid: &str| -> u32 {
             // The oid entry normally is a 32 byte UUID for both ycql and ysql, which only contains hexadecimal numbers.
@@ -762,6 +773,8 @@ impl SnapshotDiffBTreeMapsEntities {
         };
         //replicas
         for row in allstoredentities.stored_replicas.into_iter().filter(|r| r.hostname_port == master_leader.clone() ) {
+            snapshotdiff_btreemaps.server_id_lookup.entry(row.server_uuid.to_string()).or_insert(row.addr.to_string());
+
             match snapshotdiff_btreemaps.btreemap_snapshotdiff_replicas.get_mut( &(row.tablet_id.clone(), row.server_uuid.clone())) {
                 Some( _replica_row ) => {
                     error!("Found second entry for first entry of replica, hostname: {}, tablet_id: {}, server_uuid: {}", &row.hostname_port.clone(), &row.tablet_id.clone(), &row.server_uuid.clone());
@@ -776,6 +789,7 @@ impl SnapshotDiffBTreeMapsEntities {
         };
         //tablets
         for row in allstoredentities.stored_tablets.into_iter().filter(|r| r.hostname_port == master_leader.clone() ) {
+            snapshotdiff_btreemaps.tablet_table_lookup.entry(row.tablet_id.to_string()).or_insert(row.table_id.to_string());
             match snapshotdiff_btreemaps.btreemap_snapshotdiff_tablets.get_mut( &(row.tablet_id.clone())) {
                 Some( _tablet_row ) => {
                     error!("Found second entry for first entry of tablet, hostname: {}, tablet_id: {}", &row.hostname_port.clone(), &row.tablet_id.clone());
@@ -788,8 +802,21 @@ impl SnapshotDiffBTreeMapsEntities {
                 },
             }
         };
+        // table counts for ysql keyspaces
+        let mut table_counts_hashmap = HashMap::new();
+        for keyspace in allstoredentities.stored_keyspaces.iter().filter(|r| r.hostname_port == master_leader.clone() ) {
+            let count = allstoredentities.stored_tables.iter()
+                .filter(|r| r.keyspace_id == keyspace.keyspace_id && keyspace.keyspace_type == "ysql" )
+                .count();
+            if keyspace.keyspace_type == "ysql"
+            {
+                table_counts_hashmap.insert(keyspace.keyspace_id.to_string(), count);
+            };
+        }
         // tables
         for row in allstoredentities.stored_tables.into_iter().filter(|r| r.hostname_port == master_leader.clone() ) {
+            snapshotdiff_btreemaps.table_id_lookup.entry(row.table_id.to_string()).or_insert(row.table_name.to_string());
+            snapshotdiff_btreemaps.table_keyspace_lookup.entry(row.table_id.to_string()).or_insert(row.keyspace_id.to_string());
             if allstoredentities.stored_keyspaces.iter().filter(|r| r.keyspace_id == row.keyspace_id).next().map(|r| &r.keyspace_type).unwrap() == "ysql"
             && object_oid_number(row.table_id.as_str()) < 16384
             && !*details_enable
@@ -810,16 +837,22 @@ impl SnapshotDiffBTreeMapsEntities {
         };
         // keyspaces
         for row in allstoredentities.stored_keyspaces.into_iter().filter(|r| r.hostname_port == master_leader.clone() ) {
-            match snapshotdiff_btreemaps.btreemap_snapshotdiff_keyspaces.get_mut( &row.keyspace_id.clone() ) {
-                Some( _keyspace_row ) => {
-                    error!("Found second entry for first entry of keyspace, hostname: {}, keyspace_id: {}", &row.hostname_port.clone(), &row.keyspace_id.clone());
-                },
-                None => {
-                    snapshotdiff_btreemaps.btreemap_snapshotdiff_keyspaces.insert(
-                        row.keyspace_id.to_string(),
-                        SnapshotDiffKeyspaces::first_snapshot(row)
-                    );
-                },
+            snapshotdiff_btreemaps.keyspace_id_lookup.entry(row.keyspace_id.to_string()).or_insert((row.keyspace_type.to_string(), row.keyspace_name.to_string()));
+
+            // if the keyspace is not in table_counts_hashmap it's not a ysql keyspace, and then gets the value 1 to pass.
+            // if the keyspace is in the table_counts_hashmap it must have more than one table to be a non-dropped database.
+            if table_counts_hashmap.get(&row.keyspace_id.to_string()).unwrap_or( &1_usize ) > &0_usize {
+                match snapshotdiff_btreemaps.btreemap_snapshotdiff_keyspaces.get_mut(&row.keyspace_id.clone()) {
+                    Some(_keyspace_row) => {
+                        error!("Found second entry for first entry of keyspace, hostname: {}, keyspace_id: {}", &row.hostname_port.clone(), &row.keyspace_id.clone());
+                    },
+                    None => {
+                        snapshotdiff_btreemaps.btreemap_snapshotdiff_keyspaces.insert(
+                            row.keyspace_id.to_string(),
+                            SnapshotDiffKeyspaces::first_snapshot(row)
+                        );
+                    },
+                }
             }
         };
 
@@ -846,6 +879,7 @@ impl SnapshotDiffBTreeMapsEntities {
         };
         // replicas
         for row in allstoredentities.stored_replicas.into_iter().filter(|r| r.hostname_port == master_leader.clone() ) {
+            self.server_id_lookup.entry(row.server_uuid.to_string()).or_insert(row.addr.to_string());
             match self.btreemap_snapshotdiff_replicas.get_mut( &(row.tablet_id.clone(), row.server_uuid.clone())) {
                 Some( replica_row ) => {
                     if replica_row.first_addr == row.addr
@@ -871,6 +905,7 @@ impl SnapshotDiffBTreeMapsEntities {
         }
         // tablets
         for row in allstoredentities.stored_tablets.into_iter().filter(|r| r.hostname_port == master_leader.clone() ) {
+            self.tablet_table_lookup.entry(row.tablet_id.to_string()).or_insert(row.table_id.to_string());
             match self.btreemap_snapshotdiff_tablets.get_mut( &(row.tablet_id.clone())) {
                 Some( tablet_row ) => {
                     if tablet_row.first_table_id == row.table_id
@@ -894,8 +929,21 @@ impl SnapshotDiffBTreeMapsEntities {
                 },
             }
         }
+        // table counts for ysql keyspaces
+        let mut table_counts_hashmap = HashMap::new();
+        for keyspace in allstoredentities.stored_keyspaces.iter().filter(|r| r.hostname_port == master_leader.clone() ) {
+            let count = allstoredentities.stored_tables.iter()
+                .filter(|r| r.keyspace_id == keyspace.keyspace_id && keyspace.keyspace_type == "ysql" )
+                .count();
+            if keyspace.keyspace_type == "ysql"
+            {
+                table_counts_hashmap.insert(keyspace.keyspace_id.to_string(), count);
+            };
+        }
         // tables
         for row in allstoredentities.stored_tables.into_iter().filter(|r| r.hostname_port == master_leader.clone() ) {
+            self.table_id_lookup.entry(row.table_id.to_string()).or_insert(row.table_name.to_string());
+            self.table_keyspace_lookup.entry(row.table_id.to_string()).or_insert(row.keyspace_id.to_string());
             if allstoredentities.stored_keyspaces.iter().filter(|r| r.keyspace_id == row.keyspace_id).next().map(|r| &r.keyspace_type).unwrap() == "ysql"
             && object_oid_number(row.table_id.as_str()) < 16384
             && !*details_enable
@@ -926,25 +974,29 @@ impl SnapshotDiffBTreeMapsEntities {
         }
         // keyspaces
         for row in allstoredentities.stored_keyspaces.into_iter().filter(|r| r.hostname_port == master_leader.clone() ) {
-            match self.btreemap_snapshotdiff_keyspaces.get_mut( &(row.keyspace_id.clone())) {
-                Some( keyspace_row ) => {
-                    if keyspace_row.first_keyspace_name == row.keyspace_name
-                    && keyspace_row.first_keyspace_type == row.keyspace_type
-                    {
-                        // second snapshot contains identical values, so we remove it.
-                        self.btreemap_snapshotdiff_keyspaces.remove( &(row.keyspace_id.clone()) );
-                    }
-                    else {
-                        // second snapshot has the same key, but contains different values.
-                        *keyspace_row = SnapshotDiffKeyspaces::second_snapshot_existing(keyspace_row, row);
-                    };
-                },
-                None => {
-                    self.btreemap_snapshotdiff_keyspaces.insert(
-                        row.keyspace_id.to_string(),
-                        SnapshotDiffKeyspaces::second_snapshot_new(row)
-                    );
-                },
+            self.keyspace_id_lookup.entry(row.keyspace_id.to_string()).or_insert((row.keyspace_type.to_string(), row.keyspace_name.to_string()));
+            // if the keyspace is not in table_counts_hashmap it's not a ysql keyspace, and then gets the value 1 to pass.
+            // if the keyspace is in the table_counts_hashmap it must have more than one table to be a non-dropped database.
+            if table_counts_hashmap.get(&row.keyspace_id.to_string()).unwrap_or( &1_usize ) > &0_usize {
+                match self.btreemap_snapshotdiff_keyspaces.get_mut(&(row.keyspace_id.clone())) {
+                    Some(keyspace_row) => {
+                        if keyspace_row.first_keyspace_name == row.keyspace_name
+                            && keyspace_row.first_keyspace_type == row.keyspace_type
+                        {
+                            // second snapshot contains identical values, so we remove it.
+                            self.btreemap_snapshotdiff_keyspaces.remove(&(row.keyspace_id.clone()));
+                        } else {
+                            // second snapshot has the same key, but contains different values.
+                            *keyspace_row = SnapshotDiffKeyspaces::second_snapshot_existing(keyspace_row, row);
+                        };
+                    },
+                    None => {
+                        self.btreemap_snapshotdiff_keyspaces.insert(
+                            row.keyspace_id.to_string(),
+                            SnapshotDiffKeyspaces::second_snapshot_new(row)
+                        );
+                    },
+                }
             }
         }
     }
@@ -962,9 +1014,8 @@ impl SnapshotDiffBTreeMapsEntities {
                 } else {
                     ""
                 };
-                println!("{} Database type: {}, name: {}, id: {} {}", format!("+").green(), keyspace_row.second_keyspace_type, keyspace_row.second_keyspace_name, keyspace_id, colocation);
-            }
-            if keyspace_row.second_keyspace_name.is_empty()
+                println!("{} Database: {}.{}, id: {} {}", format!("+").green(), keyspace_row.second_keyspace_type, keyspace_row.second_keyspace_name, keyspace_id, colocation);
+            } else if keyspace_row.second_keyspace_name.is_empty()
             && keyspace_row.second_keyspace_type.is_empty()
             {
                 let colocation = if self.btreemap_snapshotdiff_tablets.iter()
@@ -973,22 +1024,37 @@ impl SnapshotDiffBTreeMapsEntities {
                 } else {
                     ""
                 };
-                println!("{} Database type: {}, name: {}, id: {} {}", format!("-").red(), keyspace_row.first_keyspace_type, keyspace_row.first_keyspace_name, keyspace_id, colocation);
+                println!("{} Database: {}.{}, id: {} {}", format!("-").red(), keyspace_row.first_keyspace_type, keyspace_row.first_keyspace_name, keyspace_id, colocation);
             }
-
         }
         for (table_id, table_row) in &self.btreemap_snapshotdiff_tables {
             if table_row.first_table_name.is_empty()
             && table_row.first_table_state.is_empty()
             && table_row.first_keyspace_id.is_empty()
             {
-                println!("{} Table id: {}, name: {}, state: {}, keyspace: {}", format!("+").green(), table_id, table_row.second_table_name, table_row.second_table_state, table_row.second_keyspace_id);
+                //println!("{} Table id: {}, name: {}, state: {}, keyspace: {}", format!("+").green(), table_id, table_row.second_table_name, table_row.second_table_state, table_row.second_keyspace_id);
+                println!("{} Table:    {}.{}.{}, state: {}, id: {}",
+                         format!("+").green(),
+                         &self.keyspace_id_lookup.get(&table_row.second_keyspace_id).unwrap().0,
+                         &self.keyspace_id_lookup.get(&table_row.second_keyspace_id).unwrap().1,
+                         table_row.second_table_name,
+                         table_row.second_table_state,
+                         table_id,
+                );
             }
             if table_row.second_table_name.is_empty()
             && table_row.second_table_state.is_empty()
             && table_row.second_keyspace_id.is_empty()
             {
-                println!("{} Table id: {}, name: {}, state: {}, keyspace: {}", format!("-").red(), table_id, table_row.first_table_name, table_row.first_table_state, table_row.first_keyspace_id);
+                //println!("{} Table id: {}, name: {}, state: {}, keyspace: {}", format!("-").red(), table_id, table_row.first_table_name, table_row.first_table_state, table_row.first_keyspace_id);
+                println!("{} Table:    {}.{}.{}, state: {}, id: {}",
+                         format!("-").red(),
+                         &self.keyspace_id_lookup.get(&table_row.first_keyspace_id).unwrap().0,
+                         &self.keyspace_id_lookup.get(&table_row.first_keyspace_id).unwrap().1,
+                         table_row.first_table_name,
+                         table_row.first_table_state,
+                         table_id,
+                );
             }
         }
         for (tablet_id, tablet_row) in &self.btreemap_snapshotdiff_tablets {
@@ -996,33 +1062,91 @@ impl SnapshotDiffBTreeMapsEntities {
             && tablet_row.first_tablet_state.is_empty()
             && tablet_row.first_leader.is_empty()
             {
-                println!("{} Tablet id: {}, state: {}, leader: {}, table_id: {}", format!("+").green(), tablet_id, tablet_row.second_tablet_state, tablet_row.second_leader, tablet_row.second_table_id);
+                //println!("{} Tablet id: {}, state: {}, leader: {}, table_id: {}", format!("+").green(), tablet_id, tablet_row.second_tablet_state, tablet_row.second_leader, tablet_row.second_table_id);
+                println!("{} Tablet:   {}.{}.{}.{} state: {}, leader: {}",
+                         format!("+").green(),
+                         self.keyspace_id_lookup.get(self.table_keyspace_lookup.get(&tablet_row.second_table_id).unwrap()).unwrap().0,
+                         self.keyspace_id_lookup.get(self.table_keyspace_lookup.get(&tablet_row.second_table_id).unwrap()).unwrap().1,
+                         self.table_id_lookup.get(&tablet_row.second_table_id).unwrap(),
+                         tablet_id,
+                         tablet_row.second_tablet_state,
+                         self.server_id_lookup.get(&tablet_row.second_leader).unwrap(),
+                         //tablet_row.second_leader
+                );
             }
             else if tablet_row.second_table_id.is_empty()
             && tablet_row.second_tablet_state.is_empty()
             && tablet_row.second_leader.is_empty()
             {
-                println!("{} Tablet id: {}, state: {}, leader: {}, table_id: {}", format!("-").red(), tablet_id, tablet_row.first_tablet_state, tablet_row.first_leader, tablet_row.first_table_id);
+                //println!("{} Tablet id: {}, state: {}, leader: {}, table_id: {}", format!("-").red(), tablet_id, tablet_row.first_tablet_state, tablet_row.first_leader, tablet_row.first_table_id);
+                println!("{} Tablet:   {}.{}.{}.{} state: {}, leader: {}",
+                         format!("-").red(),
+                         self.keyspace_id_lookup.get(self.table_keyspace_lookup.get(&tablet_row.first_table_id).unwrap()).unwrap().0,
+                         self.keyspace_id_lookup.get(self.table_keyspace_lookup.get(&tablet_row.first_table_id).unwrap()).unwrap().1,
+                         self.table_id_lookup.get(&tablet_row.first_table_id).unwrap(),
+                         tablet_id,
+                         tablet_row.first_tablet_state,
+                         self.server_id_lookup.get(&tablet_row.first_leader).unwrap(),
+                         //tablet_row.first_leader
+                );
             }
             else
             {
-                println!("{} Tablet id: {}, state: {} <> {}, leader: {} <> {}, table_id: {}", format!("*").yellow(), tablet_id, tablet_row.first_tablet_state, tablet_row.second_tablet_state, tablet_row.first_leader, tablet_row.second_leader, tablet_row.first_table_id);
+                //println!("{} Tablet id: {}, state: {} > {}, leader: {} > {}, table_id: {}", format!("*").yellow(), tablet_id, tablet_row.first_tablet_state, tablet_row.second_tablet_state, tablet_row.first_leader, tablet_row.second_leader, tablet_row.first_table_id);
+                println!("{} Tablet:   {}.{}.{}.{} state: {}->{}, leader: {}->{}",
+                         format!("*").yellow(),
+                         self.keyspace_id_lookup.get(self.table_keyspace_lookup.get(&tablet_row.first_table_id).unwrap()).unwrap().0,
+                         self.keyspace_id_lookup.get(self.table_keyspace_lookup.get(&tablet_row.first_table_id).unwrap()).unwrap().1,
+                         self.table_id_lookup.get(&tablet_row.first_table_id).unwrap(),
+                         tablet_id,
+                         tablet_row.first_tablet_state,
+                         tablet_row.second_tablet_state,
+                         self.server_id_lookup.get(&tablet_row.first_leader).unwrap(),
+                         self.server_id_lookup.get(&tablet_row.second_leader).unwrap(),
+                         //tablet_row.first_leader,
+                         //tablet_row.second_leader,
+                );
             }
         }
-        for ((tablet_id, server_uuid), replica_row) in &self.btreemap_snapshotdiff_replicas {
+        for ((tablet_id, _server_uuid), replica_row) in &self.btreemap_snapshotdiff_replicas {
             if replica_row.first_addr.is_empty()
             && replica_row.first_replica_type.is_empty()
             {
-                println!("{} Replica server id: {}, address: {}, type: {}, tablet id: {}", format!("+").green(), server_uuid, replica_row.second_addr, replica_row.second_replica_type, tablet_id);
+                println!("{} Replica:  {}.{}.{}.{} server: {}, type: {}",
+                    format!("+").green(),
+                    self.keyspace_id_lookup.get(self.table_keyspace_lookup.get(self.tablet_table_lookup.get(tablet_id).unwrap()).unwrap()).unwrap().0,
+                    self.keyspace_id_lookup.get(self.table_keyspace_lookup.get(self.tablet_table_lookup.get(tablet_id).unwrap()).unwrap()).unwrap().1,
+                    self.table_id_lookup.get(self.tablet_table_lookup.get(tablet_id).unwrap()).unwrap(),
+                    tablet_id,
+                    replica_row.second_addr,
+                    replica_row.second_replica_type,
+                );
             }
             else if replica_row.second_addr.is_empty()
             && replica_row.second_replica_type.is_empty()
             {
-                println!("{} Replica server id: {}, address: {}, type: {}, tablet id: {}", format!("-").red(), server_uuid, replica_row.first_addr, replica_row.first_replica_type, tablet_id);
+                println!("{} Replica:  {}.{}.{}.{} server: {}, type: {}",
+                         format!("-").red(),
+                         self.keyspace_id_lookup.get(self.table_keyspace_lookup.get(self.tablet_table_lookup.get(tablet_id).unwrap()).unwrap()).unwrap().0,
+                         self.keyspace_id_lookup.get(self.table_keyspace_lookup.get(self.tablet_table_lookup.get(tablet_id).unwrap()).unwrap()).unwrap().1,
+                         self.table_id_lookup.get(self.tablet_table_lookup.get(tablet_id).unwrap()).unwrap(),
+                         tablet_id,
+                         replica_row.first_addr,
+                         replica_row.first_replica_type,
+                );
             }
             else
             {
-                println!("{} Replica server id: {}, address: {} <> {}, type: {} <> {}, tablet id: {}", format!("*").yellow(), server_uuid, replica_row.first_addr, replica_row.second_addr, replica_row.first_replica_type, replica_row.first_addr, tablet_id);
+                println!("{} Replica:  {}.{}.{}.{} server: {}, type: {}->{}",
+                         format!("*").yellow(),
+                         self.keyspace_id_lookup.get(self.table_keyspace_lookup.get(self.tablet_table_lookup.get(tablet_id).unwrap()).unwrap()).unwrap().0,
+                         self.keyspace_id_lookup.get(self.table_keyspace_lookup.get(self.tablet_table_lookup.get(tablet_id).unwrap()).unwrap()).unwrap().1,
+                         self.table_id_lookup.get(self.tablet_table_lookup.get(tablet_id).unwrap()).unwrap(),
+                         tablet_id,
+                         replica_row.first_addr,
+                         replica_row.first_replica_type,
+                         replica_row.second_replica_type,
+                );
             }
         }
     }

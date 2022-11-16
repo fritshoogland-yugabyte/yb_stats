@@ -470,6 +470,7 @@ This shows the physical IO statistics:
 The simplest way to install `yb_stats` is to use an RPM release: https://github.com/fritshoogland-yugabyte/yb_stats/releases
 
 For example:
+(the example installs yb_stats version 0.8.1, please look at the [releases overview](https://github.com/fritshoogland-yugabyte/yb_stats/releases) and take the latest version)
 ```shell
 $ sudo yum install https://github.com/fritshoogland-yugabyte/yb_stats/releases/download/v0.8.1/yb_stats-0.8.1-1.el7.x86_64.rpm
 Loaded plugins: fastestmirror

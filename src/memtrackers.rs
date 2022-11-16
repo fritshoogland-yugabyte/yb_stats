@@ -175,7 +175,7 @@ pub fn print_memtrackers_data(
                 println!("--------------------------------------------------------------------------------------------------------------------------------------");
                 previous_hostname_port = row.hostname_port.to_string();
             }
-            println!("{:20} {:50} {:>20} {:>20} {:>20}", row.hostname_port, row.id, row.current_consumption, row.peak_consumption, row.limit)
+            println!("{:20} {:50} {:>20} {:>20} {:>20}", row.hostname_port, row.id.replace("&gt;", ">"), row.current_consumption, row.peak_consumption, row.limit)
         }
     }
 }

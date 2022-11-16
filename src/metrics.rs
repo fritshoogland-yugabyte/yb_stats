@@ -859,6 +859,10 @@ impl AllStoredMetrics {
         detail_snapshot_time: DateTime<Local>,
         allstoredmetrics: &mut AllStoredMetrics,
     ) {
+        // Thesee are the lookup tables for value statistics and countsum statistics
+        let value_statistics = value_statistic_details::ValueStatistics::create();
+        let countsum_statistics = countsum_statistic_details::CountSumStatistics::create();
+
         for metric in data_parsed_from_json {
             // This takes the option from attributes via as_ref(), and then the option of namespace_name/table_name via as_deref().
             let metric_attribute_namespace_name = metric.attributes.as_ref().map(|x| x.namespace_name.as_deref().unwrap_or("-")).unwrap_or("-").to_string();
@@ -867,6 +871,7 @@ impl AllStoredMetrics {
             for statistic in &metric.metrics {
                 match statistic {
                     Metrics::MetricValue { name, value } => {
+                        let _ = value_statistics.lookup(name);
                         /*
                          * Important! Any value that is 0 is never used.
                          * These values are skipped!
@@ -876,6 +881,7 @@ impl AllStoredMetrics {
                         }
                     },
                     Metrics::MetricCountSum { name, total_count, min, mean, percentile_75, percentile_95, percentile_99, percentile_99_9, percentile_99_99, max, total_sum } => {
+                        let _ = countsum_statistics.lookup(name);
                         /*
                          * Important! Any total_count that is 0 is never used.
                          * These values are skipped!

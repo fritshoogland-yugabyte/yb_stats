@@ -60,70 +60,70 @@ struct Opts {
     /// Output filter for hostname or ports as regex
     #[structopt(long, value_name = "regex")]
     hostname_match: Option<String>,
-    /// Add statistics that are not counters to output
+    /// Output setting to add statistics that are not counters
     #[structopt(short, long)]
     gauges_enable: bool,
-    /// Increase output detail, such as report each table and tablet individually
+    /// Output setting to increase detail, such as report each table and tablet individually
     #[structopt(short, long)]
     details_enable: bool,
-    /// During snapshot, be as silent as possible, only errors are printed
+    /// Snapshot setting to be as silent as possible, only errors are printed
     #[structopt(long)]
     silent: bool,
-    /// Perform a CSV (stored) snapshot
+    /// Perform a snapshot (creates stored CSV files)
     #[structopt(long)]
     snapshot: bool,
-    /// Comment to be added with the snapshot
+    /// Snapshot add comment in snapshot overview
     #[structopt(long, value_name = "\"comment\"")]
     snapshot_comment: Option<String>,
-    /// this lists the snapshots, and allows you to select a begin and end snapshot for a diff report
+    /// Create a performance diff report using a begin and an end snapshot number.
     #[structopt(long)]
     snapshot_diff: bool,
-    /// this lists the snapshots, and allows you to select a begin and end snapshot for a entity diff
+    /// Create an entity diff report using a begin and end snapshot number.
     #[structopt(long)]
     entity_diff: bool,
-    /// this lists the snapshots
+    /// Lists the snapshots in the yb_stats.snapshots in the current directory.
     #[structopt(short = "l", long)]
     snapshot_list: bool,
-    /// begin snapshot number for snapshot diff
+    /// Output setting to specify the begin snapshot number for diff report.
     #[structopt(short = "b", long)]
     begin: Option<i32>,
-    /// end snapshot number for snapshot diff
+    /// Output setting to specify the end snapshot number for diff report.
     #[structopt(short = "e", long)]
     end: Option<i32>,
-    /// print memtrackers data for the given snapshot
+    /// Print memtrackers data for the given snapshot number
     #[structopt(long, value_name = "snapshot number")]
     print_memtrackers: Option<String>,
-    /// print log data for the given snapshot
+    /// Print log data for the given snapshot number
     #[structopt(long, value_name = "snapshot number")]
     print_log: Option<String>,
-    /// print entity data for the given snapshot
+    /// Print entity data for the given snapshot number
     #[structopt(long, value_name = "snapshot number")]
     print_entities: Option<String>,
-    /// print master info for the given snapshot
+    /// Print master info for the given snapshot number
     #[structopt(long, value_name = "snapshot number")]
     print_masters: Option<String>,
-    /// print version data for the given snapshot
+    /// Print version data for the given snapshot number
     #[structopt(long, value_name = "snapshot number")]
     print_version: Option<String>,
-    /// print rpcs for the given snapshot
+    /// Print rpcs for the given snapshot number
     #[structopt(long, value_name = "snapshot number")]
     print_rpcs: Option<String>,
-    /// print threads data for the given snapshot
+    /// Print threads data for the given snapshot number
     #[structopt(long, value_name = "snapshot number")]
     print_threads: Option<String>,
-    /// print gflags for the given snapshot
+    /// Print gflags for the given snapshot number
     #[structopt(long, value_name = "snapshot number")]
     print_gflags: Option<String>,
-    /// log data severity to include: optional: I
+    /// Output log data severity to include: optional: I (use with --print_log)
     #[structopt(long, default_value = "WEF")]
     log_severity: String,
-    /// how much threads to use in parallel for fetching data (default 1)
+    /// Snapshot capture parallelism (default 1)
     #[structopt(long, value_name = "nr")]
     parallel: Option<String>,
-    /// disable gathering of thread stacks from /threadz
+    /// Snapshot disable gathering of thread stacks from /threadz
     #[structopt(long)]
     disable_threads: bool,
-    /// the length of the SQL text display
+    /// Output setting for the length of the SQL text to display
     #[structopt(long, value_name = "nr", default_value = "80")]
     sql_length: usize,
 }

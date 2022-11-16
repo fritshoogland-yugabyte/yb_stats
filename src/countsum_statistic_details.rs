@@ -22,7 +22,6 @@ impl CountSumStatistics {
         match self.countsumstatisticsdetails.get(&argument.to_string()) {
             Some(lookup) => lookup,
             None => {
-                info!("The metric {} is not found!", argument);
                 Self::lookup(self, "?")
             },
         }
@@ -381,18 +380,17 @@ impl CountSumStatistics {
     /// This also helps to document the known statistic types.
     fn suffix_lookup_countsum(unit: &str) -> String {
         let suffix = HashMap::from( [
-            ("?", "?"),
-            ("microseconds", "us"),
-            ("operations", "ops"),
-            ("bytes", "bytes"),
-            ("files", "files"),
-            ("tasks", "tasks"),
-            ("requests", "reqs"),
+            ("microseconds",    "us"),
+            ("operations",      "ops"),
+            ("bytes",           "bytes"),
+            ("files",           "files"),
+            ("tasks",           "tasks"),
+            ("requests",        "reqs"),
         ]);
         match suffix.get(unit) {
             Some(x) => x.to_string(),
             None => {
-                info!("The suffix for {} does not exist, please add to suffix_lookup_countsum!", unit);
+                info!("The suffix for {} does not exist.", unit);
                 "?".to_string()
             },
         }
@@ -401,18 +399,17 @@ impl CountSumStatistics {
     /// Please mind this is currently not used.
     fn divisor_lookup_countsum(unit: &str) -> i64 {
         let divisor = HashMap::from( [
-            ("?", 0_i64),
             ("microseconds", 1000000_i64),
-            ("operations", 1_i64),
-            ("bytes", 1_i64),
-            ("files", 1_i64),
-            ("tasks", 1_i64),
-            ("requests", 1_i64),
+            ("operations",         1_i64),
+            ("bytes",              1_i64),
+            ("files",              1_i64),
+            ("tasks",              1_i64),
+            ("requests",           1_i64),
         ]);
         match divisor.get(unit) {
             Some(x) => *x,
             None => {
-                info!("The divisor for {} does not exist, please add to divisor_lookup_countsum!", unit);
+                info!("The divisor for {} does not exist.", unit);
                 0_i64
             },
         }

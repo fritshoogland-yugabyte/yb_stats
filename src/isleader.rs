@@ -63,7 +63,7 @@ impl AllStoredIsLeader {
         info!("end snapshot: {:?}", timer.elapsed())
     }
     /// This function requires a snapshot number, and returns the hostname_port of the master leader.
-    pub fn return_leader (
+    pub fn return_leader_snapshot (
        snapshot_number: &String
     ) -> String
     {
@@ -73,6 +73,16 @@ impl AllStoredIsLeader {
                process::exit(1);
            });
         stored_isleader.stored_isleader.iter().filter(|r| r.status == "OK").map(|r| r.hostname_port.to_string()).next().unwrap()
+    }
+    pub fn return_leader_http (
+        hosts: &Vec<&str>,
+        ports: &Vec<&str>,
+        parallel: usize,
+    ) -> String
+    {
+        let allstoredisleader = AllStoredIsLeader::read_isleader(hosts, ports, parallel);
+        allstoredisleader.stored_isleader.iter().filter(|r| r.status == "OK").map(|r| r.hostname_port.to_string()).next().unwrap_or_default()
+        //Ok(result)
     }
     /// This function takes a vector of hosts and ports, and the allowed parallellism to (try to) read /api/v1/is-leader.
     /// It creates a threadpool based on parallel, and spawns a task for reading and parsing for all host-port combinations.

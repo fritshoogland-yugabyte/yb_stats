@@ -15,6 +15,7 @@ use chrono::Local;
 use dotenv::dotenv;
 use log::*;
 use crate::entities::AllStoredEntities;
+use crate::masters::AllStoredMasters;
 
 mod snapshot;
 mod value_statistic_details;
@@ -81,6 +82,9 @@ struct Opts {
     /// Create an entity diff report using a begin and end snapshot number.
     #[structopt(long)]
     entity_diff: bool,
+    /// Create a masters diff report using a begin and end snapshot number.
+    #[structopt(long)]
+    masters_diff: bool,
     /// Lists the snapshots in the yb_stats.snapshots in the current directory.
     #[structopt(short = "l", long)]
     snapshot_list: bool,
@@ -254,6 +258,8 @@ fn main() {
         statements_diff.print(&hostname_filter, options.sql_length);
         let nodeexporter_diff = node_exporter::SnapshotDiffBTreeMapNodeExporter::snapshot_diff(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp);
         nodeexporter_diff.print(&hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
+        //let masters_diff = masters::SnapshotDiffBTreeMapsMasters::snapshot_diff(&begin_snapshot, &end_snapshot);
+        //masters_diff.print();
 
     } else if options.entity_diff {
         info!("entity_diff");
@@ -266,6 +272,18 @@ fn main() {
         let (begin_snapshot, end_snapshot, _begin_snapshot_row) = snapshot::Snapshot::read_begin_end_snapshot_from_user(options.begin, options.end);
         let entity_diff = entities::SnapshotDiffBTreeMapsEntities::snapshot_diff(&begin_snapshot, &end_snapshot, &options.details_enable);
         entity_diff.print();
+
+    } else if options.masters_diff {
+        info!("masters_diff");
+
+        if options.begin.is_none() || options.end.is_none() {
+            snapshot::Snapshot::print();
+        }
+        if options.snapshot_list { process::exit(0) };
+
+        let (begin_snapshot, end_snapshot, _begin_snapshot_row) = snapshot::Snapshot::read_begin_end_snapshot_from_user(options.begin, options.end);
+        let masters_diff = masters::SnapshotDiffBTreeMapsMasters::snapshot_diff(&begin_snapshot, &end_snapshot);
+        masters_diff.print();
 
     } else if options.print_memtrackers.is_some() {
 
@@ -302,7 +320,15 @@ fn main() {
 
     } else if options.print_masters.is_some() {
 
-        masters::print_masters(&options.print_masters.unwrap(), &yb_stats_directory, &hostname_filter);
+        let snapshot_number = &options.print_masters.unwrap();
+        //masters::print_masters(&options.print_masters.unwrap(), &yb_stats_directory, &hostname_filter);
+        let masters = AllStoredMasters::read_snapshot(snapshot_number)
+            .unwrap_or_else(|e| {
+                error!("Error loading snapshot: {}", e);
+                process::exit(1);
+            });
+
+        masters.print(snapshot_number, &options.details_enable);
 
     } else if options.print_rpcs.is_some() {
 
@@ -315,6 +341,8 @@ fn main() {
         let mut metrics_diff = metrics::SnapshotDiffBTreeMapsMetrics::adhoc_read_first_snapshot(&hosts, &ports, parallel);
         let mut statements_diff = statements::SnapshotDiffBTreeMapStatements::adhoc_read_first_snapshot(&hosts, &ports, parallel);
         let mut node_exporter_diff = node_exporter::SnapshotDiffBTreeMapNodeExporter::adhoc_read_first_snapshot(&hosts, &ports, parallel);
+        let mut entities_diff = entities::SnapshotDiffBTreeMapsEntities::adhoc_read_first_snapshot(&hosts, &ports, parallel);
+        let mut masters_diff = masters::SnapshotDiffBTreeMapsMasters::adhoc_read_first_snapshot(&hosts, &ports, parallel);
 
         println!("Begin metrics snapshot created, press enter to create end snapshot for difference calculation.");
         let mut input = String::new();
@@ -324,11 +352,15 @@ fn main() {
         metrics_diff.adhoc_read_second_snapshot(&hosts, &ports, parallel, &first_snapshot_time);
         statements_diff.adhoc_read_second_snapshot(&hosts, &ports, parallel, &first_snapshot_time);
         node_exporter_diff.adhoc_read_second_snapshot(&hosts, &ports, parallel, &first_snapshot_time);
+        entities_diff.adhoc_read_second_snapshot(&hosts, &ports, parallel);
+        masters_diff.adhoc_read_second_snapshot(&hosts, &ports, parallel);
 
         println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time-first_snapshot_time).num_milliseconds() as f64/1000_f64);
         metrics_diff.print(&hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable);
         statements_diff.print(&hostname_filter, options.sql_length);
         node_exporter_diff.print(&hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
+        entities_diff.print();
+        masters_diff.print();
 
     }
 
@@ -421,6 +453,12 @@ fn perform_snapshot(
 
         let arc_hosts_clone = arc_hosts.clone();
         let arc_ports_clone = arc_ports.clone();
+        mps.spawn(move |_| {
+            masters::AllStoredMasters::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel);
+        });
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
         let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
         mps.spawn(move |_| {
             gflags::perform_gflags_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
@@ -456,12 +494,6 @@ fn perform_snapshot(
             versions::perform_versions_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
         });
 
-        let arc_hosts_clone = arc_hosts.clone();
-        let arc_ports_clone = arc_ports.clone();
-        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-        mps.spawn(move |_| {
-            masters::perform_masters_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
-        });
 
         let arc_hosts_clone = arc_hosts.clone();
         let arc_ports_clone = arc_ports.clone();

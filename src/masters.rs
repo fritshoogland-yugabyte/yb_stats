@@ -38,7 +38,7 @@ impl AllStoredMasters {
 
         info!("end snapshot: {:?}", timer.elapsed())
     }
-    fn read_masters(
+    pub fn read_masters(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize,
@@ -326,7 +326,68 @@ impl AllStoredMasters {
                 };
             }
         }
+    }
+    pub fn print_adhoc(
+        &self,
+        details_enable: &bool,
+        hosts: &Vec<&str>,
+        ports: &Vec<&str>,
+        parallel: usize,
+    )
+    {
+        info!("print adhoc masters");
 
+        let leader_hostname = AllStoredIsLeader::return_leader_http(hosts, ports, parallel);
+
+        for row in &self.stored_masters {
+            if row.hostname_port == leader_hostname
+                && !*details_enable {
+                println!("{} {:8} Cloud: {}, Region: {}, Zone: {}", row.instance_permanent_uuid, row.role, row.registration_cloud_placement_cloud, row.registration_cloud_placement_region, row.registration_cloud_placement_zone);
+                println!("{} Seqno: {} Start time: {}", " ".repeat(32), row.instance_instance_seqno, row.start_time_us);
+                print!("{} RPC addresses: ( ", " ".repeat(32));
+                for rpc_address in self.stored_rpc_addresses.iter()
+                    .filter(|x| x.hostname_port == row.hostname_port)
+                    .filter(|x| x.instance_permanent_uuid == row.instance_permanent_uuid) {
+                    print!("{}:{} ", rpc_address.host, rpc_address.port);
+                };
+                println!(" )");
+                print!("{} HTTP addresses: ( ", " ".repeat(32));
+                for http_address in self.stored_http_addresses.iter()
+                    .filter(|x| x.hostname_port == row.hostname_port)
+                    .filter(|x| x.instance_permanent_uuid == row.instance_permanent_uuid) {
+                    print!("{}:{} ", http_address.host, http_address.port);
+                };
+                println!(" )");
+                for error in self.stored_master_error.iter()
+                    .filter(|x| x.hostname_port == row.hostname_port)
+                    .filter(|x| x.instance_permanent_uuid == row.instance_permanent_uuid) {
+                    println!("{:#?}", error);
+                };
+            }
+            if *details_enable {
+                println!("{} {} {:8} Cloud: {}, Region: {}, Zone: {}", row.hostname_port, row.instance_permanent_uuid, row.role, row.registration_cloud_placement_cloud, row.registration_cloud_placement_region, row.registration_cloud_placement_zone);
+                println!("{} {} Seqno: {} Start time: {}", row.hostname_port, " ".repeat(32), row.instance_instance_seqno, row.start_time_us);
+                print!("{} {} RPC addresses: ( ", row.hostname_port, " ".repeat(32));
+                for rpc_address in self.stored_rpc_addresses.iter()
+                    .filter(|x| x.hostname_port == row.hostname_port)
+                    .filter(|x| x.instance_permanent_uuid == row.instance_permanent_uuid) {
+                    print!("{}:{} ", rpc_address.host, rpc_address.port);
+                };
+                println!(" )");
+                print!("{} {} HTTP addresses: ( ", row.hostname_port, " ".repeat(32));
+                for http_address in self.stored_http_addresses.iter()
+                    .filter(|x| x.hostname_port == row.hostname_port)
+                    .filter(|x| x.instance_permanent_uuid == row.instance_permanent_uuid) {
+                    print!("{}:{} ", http_address.host, http_address.port);
+                };
+                println!(" )");
+                for error in self.stored_master_error.iter()
+                    .filter(|x| x.hostname_port == row.hostname_port)
+                    .filter(|x| x.instance_permanent_uuid == row.instance_permanent_uuid) {
+                    println!("{} {:#?}", row.hostname_port, error);
+                };
+            }
+        }
     }
 }
 

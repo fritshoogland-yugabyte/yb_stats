@@ -102,10 +102,10 @@ struct Opts {
     print_log: Option<String>,
     /// Print entity data for the given snapshot number
     #[structopt(long, value_name = "snapshot number")]
-    print_entities: Option<String>,
+    print_entities: Option<Option<String>>,
     /// Print master info for the given snapshot number
     #[structopt(long, value_name = "snapshot number")]
-    print_masters: Option<String>,
+    print_masters: Option<Option<String>>,
     /// Print version data for the given snapshot number
     #[structopt(long, value_name = "snapshot number")]
     print_version: Option<String>,
@@ -258,8 +258,8 @@ fn main() {
         statements_diff.print(&hostname_filter, options.sql_length);
         let nodeexporter_diff = node_exporter::SnapshotDiffBTreeMapNodeExporter::snapshot_diff(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp);
         nodeexporter_diff.print(&hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
-        //let masters_diff = masters::SnapshotDiffBTreeMapsMasters::snapshot_diff(&begin_snapshot, &end_snapshot);
-        //masters_diff.print();
+        let masters_diff = masters::SnapshotDiffBTreeMapsMasters::snapshot_diff(&begin_snapshot, &end_snapshot);
+        masters_diff.print();
 
     } else if options.entity_diff {
         info!("entity_diff");
@@ -307,28 +307,37 @@ fn main() {
 
     } else if options.print_entities.is_some() {
 
-        let snapshot_number = &options.print_entities.unwrap();
-
-        //let entities = AllStoredEntities::read_snapshot(&options.print_entities.unwrap())
-        let entities = AllStoredEntities::read_snapshot(snapshot_number)
-            .unwrap_or_else(|e| {
-                error!("Error loading snapshot: {}", e);
-                process::exit(1);
-            });
-
-        entities.print(snapshot_number, &table_name_filter, &options.details_enable);
+        match options.print_entities.unwrap() {
+            Some(snapshot_number) => {
+                let entities = AllStoredEntities::read_snapshot(&snapshot_number)
+                    .unwrap_or_else(|e| {
+                        error!("Error loading snapshot: {}", e);
+                        process::exit(1);
+                    });
+                entities.print(&snapshot_number, &table_name_filter, &options.details_enable);
+            },
+            None => {
+                let allstoredentities = AllStoredEntities::read_entities(&hosts, &ports, parallel);
+                allstoredentities.print_adhoc(&table_name_filter, &options.details_enable, &hosts, &ports, parallel);
+            },
+        }
 
     } else if options.print_masters.is_some() {
 
-        let snapshot_number = &options.print_masters.unwrap();
-        //masters::print_masters(&options.print_masters.unwrap(), &yb_stats_directory, &hostname_filter);
-        let masters = AllStoredMasters::read_snapshot(snapshot_number)
-            .unwrap_or_else(|e| {
-                error!("Error loading snapshot: {}", e);
-                process::exit(1);
-            });
-
-        masters.print(snapshot_number, &options.details_enable);
+        match options.print_masters.unwrap() {
+            Some(snapshot_number) => {
+                let masters = AllStoredMasters::read_snapshot(&snapshot_number)
+                    .unwrap_or_else(|e| {
+                        error!("Error loading snapshot: {}", e);
+                        process::exit(1);
+                    });
+                masters.print(&snapshot_number, &options.details_enable);
+            },
+            None => {
+                let allstoredmasters = AllStoredMasters::read_masters(&hosts, &ports, parallel);
+                allstoredmasters.print_adhoc(&options.details_enable, &hosts, &ports, parallel);
+            },
+        }
 
     } else if options.print_rpcs.is_some() {
 

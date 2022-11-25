@@ -1064,7 +1064,7 @@ impl SnapshotDiffBTreeMapsMetrics {
         let mut snapshotdiff_btreemaps = SnapshotDiffBTreeMapsMetrics { btreemap_snapshotdiff_values: BTreeMap::new(), btreemap_snapshotdiff_countsum: BTreeMap::new(), btreemap_snapshotdiff_countsumrows: BTreeMap::new() };
         // values
         for row in allstoredmetrics.stored_values {
-            if row.metric_type == "table" || row.metric_type == "tablet" || row.metric_type == "cdc" {
+            if row.metric_type == "table" || row.metric_type == "tablet" || row.metric_type == "cdc" || row.metric_type == "cdcsdk" {
                 match snapshotdiff_btreemaps.btreemap_snapshotdiff_values.get_mut( &(row.hostname_port.clone(), row.metric_type.clone(), row.metric_id.clone(), row.metric_name.clone())) {
                     // If we encounter a match, it means we found another row of the combination of hostname_port, metric_type (table, tablet or cdc), metric_id and metric_name, which is supposed to be unique.
                     // Therefore we tell the user the exact details and quit.
@@ -1099,7 +1099,7 @@ impl SnapshotDiffBTreeMapsMetrics {
         }
         // countsum
         for row in allstoredmetrics.stored_countsum {
-            if row.metric_type == "table" || row.metric_type == "tablet" || row.metric_type == "cdc" {
+            if row.metric_type == "table" || row.metric_type == "tablet" || row.metric_type == "cdc" || row.metric_type == "cdcsdk" {
                 match snapshotdiff_btreemaps.btreemap_snapshotdiff_countsum.get_mut( &(row.hostname_port.clone(), row.metric_type.clone(), row.metric_id.clone(), row.metric_name.clone())) {
                     // If we encounter a match, it means we found another row of the combination of hostname_port, metric_type (table, tablet or cdc), metric_id and metric_name, which is supposed to be unique.
                     // Therefore we tell the user the exact details and quit.
@@ -1163,7 +1163,7 @@ impl SnapshotDiffBTreeMapsMetrics {
     {
         // values
         for row in allstoredmetrics.stored_values {
-            if row.metric_type == "table" || row.metric_type == "tablet" || row.metric_type == "cdc" {
+            if row.metric_type == "table" || row.metric_type == "tablet" || row.metric_type == "cdc" || row.metric_type == "cdcsdk" {
                 match self.btreemap_snapshotdiff_values.get_mut( &(row.hostname_port.clone(), row.metric_type.clone(), row.metric_id.clone(), row.metric_name.clone())) {
                     Some(value_row) => {
                         *value_row = SnapshotDiffValues::second_snapshot_existing(value_row, row);
@@ -1191,7 +1191,7 @@ impl SnapshotDiffBTreeMapsMetrics {
         }
         // countsum
         for row in allstoredmetrics.stored_countsum {
-            if row.metric_type == "table" || row.metric_type == "tablet" || row.metric_type == "cdc" {
+            if row.metric_type == "table" || row.metric_type == "tablet" || row.metric_type == "cdc" || row.metric_type == "cdcsdk" {
                 match self.btreemap_snapshotdiff_countsum.get_mut( &(row.hostname_port.clone(), row.metric_type.clone(), row.metric_id.clone(), row.metric_name.clone())) {
                     Some(countsum_row) => {
                         *countsum_row = SnapshotDiffCountSum::second_snapshot_existing(countsum_row, row);
@@ -1237,7 +1237,7 @@ impl SnapshotDiffBTreeMapsMetrics {
     /// Inside it, it first reads
     /// - [BTreeMapSnapshotDiffValues] for hostname_port, metric_type, metrid_id and metric_name as key and the struct [SnapshotDiffValues] as value, and then
     /// - [BTreeMapSnapshotDiffCountSum] for hostname_port, metric_type, metric_id and metric_name as key and the struct [SnapshotDiffCountSum] as value.
-    /// If details are not enabled, it loops over them and for the types of "cdc", "table" and "tablet" adds up the values.
+    /// If details are not enabled, it loops over them and for the types of "cdc", "table" and "tablet" adds up the values. // FIXME: cdcsdk
     /// It then prints out the values in the new summed BTreeMap if details are not enabled, or the original BTreeMap.
     /// The last thing is to print out the values in [BTreeMapSnapshotDiffCountSumRows].
     pub fn print(
@@ -1361,7 +1361,7 @@ impl SnapshotDiffBTreeMapsMetrics {
             let value_statistics = value_statistic_details::ValueStatistics::create();
             let mut sum_value_diff: BTreeMap<(String, String, String, String), SnapshotDiffValues> = BTreeMap::new();
             for ((hostname_port, metric_type, _metric_id, metric_name), value_diff_row) in &self.btreemap_snapshotdiff_values {
-                if metric_type == "table" || metric_type == "tablet" || metric_type == "cdc"{
+                if metric_type == "table" || metric_type == "tablet" || metric_type == "cdc" || metric_type == "cdcsdk" {
                     /*
                      * If a table and thus its tablets have been deleted between the first and second snapshot, the second_snapshot_value is 0.
                      * However, the first_snapshot_value is > 0, it means it can make the subtraction between the second and the first snapshot get negative, and a summary overview be incorrect.
@@ -1453,7 +1453,7 @@ impl SnapshotDiffBTreeMapsMetrics {
             let countsum_statistics = countsum_statistic_details::CountSumStatistics::create();
             let mut sum_countsum_diff: BTreeMap<(String, String, String, String), SnapshotDiffCountSum> = BTreeMap::new();
             for ((hostname_port, metric_type, _metric_id, metric_name), countsum_diff_row) in &self.btreemap_snapshotdiff_countsum {
-                if metric_type == "table" || metric_type == "tablet" || metric_type == "cdc" {
+                if metric_type == "table" || metric_type == "tablet" || metric_type == "cdc" || metric_type == "cdcsdk" {
                     /*
                      * If a table and thus its tablets have been deleted between the first and second snapshot, the second_snapshot_value is 0.
                      * However, the first_snapshot_value is > 0, it means it can make the subtraction between the second and the first snapshot get negative, and a summary overview be incorrect.
@@ -1541,6 +1541,38 @@ impl SnapshotDiffBTreeMapsMetrics {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    /// cdcsdk (change data capture ...) metrics value FIXME
+    /// Please mind type cdc has an extra, unique, attribute: stream_id. This is currently not parsed.
+    fn unit_parse_metrics_cdcsdk_value() {
+        let json = r#"
+[
+    {
+        "type": "cdc",
+        "id": ":face4edb05934e77b564857878cf5015:4457a26b28a64393ac626504aba5f571",
+        "attributes": {
+            "stream_id": "face4edb05934e77b564857878cf5015",
+            "table_name": "table0",
+            "namespace_name": "test",
+            "table_id": "c70ffbbe28f14e84b0559c405ae20197"
+        },
+        "metrics": [
+            {
+                "name": "async_replication_sent_lag_micros",
+                "value": 0
+            }
+        ]
+    }
+]"#.to_string();
+        let result = AllStoredMetrics::parse_metrics(json, "", "");
+        assert_eq!(result[0].metrics_type,"cdc");
+        let statistic_value = match &result[0].metrics[0] {
+            Metrics::MetricValue { name, value} => format!("{}, {}",name, value),
+            _ => String::from("")
+        };
+        assert_eq!(statistic_value, "async_replication_sent_lag_micros, 0");
+    }
 
     #[test]
     /// cdc (change data capture) metrics value

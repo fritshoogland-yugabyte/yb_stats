@@ -1543,13 +1543,13 @@ mod tests {
     use super::*;
 
     #[test]
-    /// cdcsdk (change data capture ...) metrics value FIXME
+    /// cdcsdk (change data capture software development kit) metrics value
     /// Please mind type cdc has an extra, unique, attribute: stream_id. This is currently not parsed.
     fn unit_parse_metrics_cdcsdk_value() {
         let json = r#"
 [
     {
-        "type": "cdc",
+        "type": "cdcdk,
         "id": ":face4edb05934e77b564857878cf5015:4457a26b28a64393ac626504aba5f571",
         "attributes": {
             "stream_id": "face4edb05934e77b564857878cf5015",

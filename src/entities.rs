@@ -1232,17 +1232,32 @@ impl SnapshotDiffBTreeMapsEntities {
             }
             else
             {
-                println!("{} Tablet:   {}.{}.{}.{} state: {}->{}, leader: {}->{}",
+                print!("{} Tablet:   {}.{}.{}.{} ",
                          "*".to_string().yellow(),
                          self.keyspace_id_lookup.get(self.table_keyspace_lookup.get(&tablet_row.first_table_id).unwrap()).unwrap().0,
                          self.keyspace_id_lookup.get(self.table_keyspace_lookup.get(&tablet_row.first_table_id).unwrap()).unwrap().1,
                          self.table_id_lookup.get(&tablet_row.first_table_id).unwrap(),
-                         tablet_id,
-                         tablet_row.first_tablet_state,
-                         tablet_row.second_tablet_state,
-                         self.server_id_lookup.get(&tablet_row.first_leader).unwrap(),
-                         self.server_id_lookup.get(&tablet_row.second_leader).unwrap(),
+                         tablet_id
                 );
+                if tablet_row.first_tablet_state != tablet_row.second_tablet_state
+                {
+                    print!("state: {}->{} ", tablet_row.first_tablet_state.yellow(), tablet_row.second_tablet_state.yellow());
+                }
+                else
+                {
+                    print!("state: {} ", tablet_row.second_tablet_state);
+                };
+                if self.server_id_lookup.get(&tablet_row.first_leader).unwrap() != self.server_id_lookup.get(&tablet_row.second_leader).unwrap()
+                {
+                    println!("leader: {}->{}",
+                        self.server_id_lookup.get(&tablet_row.first_leader).unwrap().yellow(),
+                        self.server_id_lookup.get(&tablet_row.second_leader).unwrap().yellow(),
+                    );
+                }
+                else
+                {
+                        println!("leader: {}", self.server_id_lookup.get(&tablet_row.second_leader).unwrap());
+                };
             }
         }
         for ((tablet_id, _server_uuid), replica_row) in &self.btreemap_snapshotdiff_replicas {
@@ -1269,7 +1284,7 @@ impl SnapshotDiffBTreeMapsEntities {
                          self.table_id_lookup.get(self.tablet_table_lookup.get(tablet_id).unwrap()).unwrap(),
                          tablet_id,
                          replica_row.first_addr,
-                         replica_row.first_replica_type,
+                         replica_row.first_replica_type
                 );
             }
             else
@@ -1282,7 +1297,7 @@ impl SnapshotDiffBTreeMapsEntities {
                          tablet_id,
                          replica_row.first_addr,
                          replica_row.first_replica_type,
-                         replica_row.second_replica_type,
+                         replica_row.second_replica_type
                 );
             }
         }

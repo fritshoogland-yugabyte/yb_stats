@@ -224,7 +224,7 @@ File not found
 
     #[test]
     fn unit_fetch_master_from_snapshot() {
-        let hostname_port = AllStoredIsLeader::return_leader(&"22".to_string());
+        let hostname_port = AllStoredIsLeader::return_leader_snapshot(&"22".to_string());
         //let hostname_port = String::from("haha");
         //let stored_isleader = AllStoredIsLeader::read_snapshot(&"22".to_string())
         //    .unwrap_or_else(|e| {

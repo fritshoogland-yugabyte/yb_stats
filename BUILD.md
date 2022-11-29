@@ -1,4 +1,5 @@
-This file describes how to build yb_stats.
+This file describes how to build yb_stats.  
+Important: for production/general use versions of yb_stats, use the RPM or brew tap version.
 
 # build from source
 In order to build yb_stats from source you need cargo, which contains the rust compiler.

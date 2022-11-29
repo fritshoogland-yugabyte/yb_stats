@@ -706,7 +706,7 @@ impl SnapshotDiffBTreeMapsMasters {
     {
         let allstoredmasters = AllStoredMasters::read_masters(hosts, ports, parallel);
         let master_leader= AllStoredIsLeader::return_leader_http(hosts, ports, parallel);
-        self.second_snapshot(allstoredmasters, master_leader) ;
+        self.second_snapshot(allstoredmasters, master_leader);
     }
 }
 #[derive(Debug)]

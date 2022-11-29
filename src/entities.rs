@@ -1213,7 +1213,7 @@ impl SnapshotDiffBTreeMapsEntities {
                          self.table_id_lookup.get(&tablet_row.second_table_id).unwrap(),
                          tablet_id,
                          tablet_row.second_tablet_state,
-                         self.server_id_lookup.get(&tablet_row.second_leader).unwrap(),
+                         self.server_id_lookup.get(&tablet_row.second_leader).unwrap_or(&"?".to_string()),
                 );
             }
             else if tablet_row.second_table_id.is_empty()
@@ -1227,7 +1227,7 @@ impl SnapshotDiffBTreeMapsEntities {
                          self.table_id_lookup.get(&tablet_row.first_table_id).unwrap(),
                          tablet_id,
                          tablet_row.first_tablet_state,
-                         self.server_id_lookup.get(&tablet_row.first_leader).unwrap(),
+                         self.server_id_lookup.get(&tablet_row.first_leader).unwrap_or(&"?".to_string()),
                 );
             }
             else

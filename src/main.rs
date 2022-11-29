@@ -17,6 +17,8 @@ use log::*;
 use crate::entities::AllStoredEntities;
 use crate::masters::AllStoredMasters;
 use crate::tservers::AllStoredTabletServers;
+use crate::vars::AllStoredVars;
+use crate::versions::AllStoredVersions;
 
 mod snapshot;
 mod value_statistic_details;
@@ -39,6 +41,7 @@ mod metrics;
 mod utility;
 mod isleader;
 mod tservers;
+mod vars;
 
 const DEFAULT_HOSTS: &str = "192.168.66.80,192.168.66.81,192.168.66.82";
 const DEFAULT_PORTS: &str = "7000,9000,12000,13000,9300";
@@ -102,18 +105,21 @@ struct Opts {
     /// Print log data for the given snapshot number
     #[structopt(long, value_name = "snapshot number")]
     print_log: Option<String>,
-    /// Print entity data for the given snapshot number
+    /// Print entity data for snapshot number, or get current.
     #[structopt(long, value_name = "snapshot number")]
     print_entities: Option<Option<String>>,
-    /// Print master info for the given snapshot number
+    /// Print master server data for snapshot number, or get current.
     #[structopt(long, value_name = "snapshot number")]
     print_masters: Option<Option<String>>,
-    /// Print tablet server info for the given snapshot number
+    /// Print tablet server data for snapshot number, or get current.
     #[structopt(long, value_name = "snapshot number")]
     print_tablet_servers: Option<Option<String>>,
-    /// Print version data for the given snapshot number
+    /// Print vars for snapshot number, or get current
     #[structopt(long, value_name = "snapshot number")]
-    print_version: Option<String>,
+    print_vars: Option<Option<String>>,
+    /// Print version data for snapshot number, or get current.
+    #[structopt(long, value_name = "snapshot number")]
+    print_version: Option<Option<String>>,
     /// Print rpcs for the given snapshot number
     #[structopt(long, value_name = "snapshot number")]
     print_rpcs: Option<String>,
@@ -269,6 +275,10 @@ fn main() {
         masters_diff.print();
         let tabletservers_diff = tservers::SnapshotDiffBTreeMapsTabletServers::snapshot_diff(&begin_snapshot, &end_snapshot);
         tabletservers_diff.print();
+        let vars_diff = vars::SnapshotDiffBTreeMapsVars::snapshot_diff(&begin_snapshot, &end_snapshot);
+        vars_diff.print();
+        let versions_diff = versions::SnapshotDiffBTreeMapsVersions::snapshot_diff(&begin_snapshot, &end_snapshot);
+        versions_diff.print();
 
     } else if options.entity_diff {
         info!("entity_diff");
@@ -304,7 +314,20 @@ fn main() {
 
     } else if options.print_version.is_some() {
 
-        versions::print_version_data(&options.print_version.unwrap(), &yb_stats_directory, &hostname_filter);
+        match options.print_version.unwrap() {
+            Some(snapshot_number) => {
+                let versions = AllStoredVersions::read_snapshot(&snapshot_number)
+                    .unwrap_or_else(|e| {
+                        error!("Error loading snapshot: {}", e);
+                        process::exit(1);
+                    });
+                versions.print(&hostname_filter);
+            },
+            None => {
+                let allstoredversions = AllStoredVersions::read_versions(&hosts, &ports, parallel);
+                allstoredversions.print(&hostname_filter);
+            }
+        }
 
     } else if options.print_threads.is_some() {
 
@@ -365,6 +388,23 @@ fn main() {
             },
         }
 
+    } else if options.print_vars.is_some() {
+
+        match options.print_vars.unwrap() {
+            Some(snapshot_number) => {
+                let allstoredvars = AllStoredVars::read_snapshot(&snapshot_number)
+                    .unwrap_or_else(|e| {
+                        error!("Error loading snapshot: {}", e);
+                        process::exit(1);
+                    });
+                allstoredvars.print(&options.details_enable, &hostname_filter, &stat_name_filter);
+            },
+            None => {
+                let allstoredvars = AllStoredVars::read_vars(&hosts, &ports, parallel);
+                allstoredvars.print(&options.details_enable, &hostname_filter, &stat_name_filter);
+            },
+        }
+
     } else if options.print_rpcs.is_some() {
 
         rpcs::print_rpcs(&options.print_rpcs.unwrap(), &yb_stats_directory, &hostname_filter, &options.details_enable);
@@ -379,6 +419,8 @@ fn main() {
         let mut entities_diff = entities::SnapshotDiffBTreeMapsEntities::adhoc_read_first_snapshot(&hosts, &ports, parallel);
         let mut masters_diff = masters::SnapshotDiffBTreeMapsMasters::adhoc_read_first_snapshot(&hosts, &ports, parallel);
         let mut tabletservers_diff = tservers::SnapshotDiffBTreeMapsTabletServers::adhoc_read_first_snapshot(&hosts, &ports, parallel);
+        let mut vars_diff = vars::SnapshotDiffBTreeMapsVars::adhoc_read_first_snapshot(&hosts, &ports, parallel);
+        let mut versions_diff = versions::SnapshotDiffBTreeMapsVersions::adhoc_read_first_snapshot(&hosts, &ports, parallel);
 
         println!("Begin metrics snapshot created, press enter to create end snapshot for difference calculation.");
         let mut input = String::new();
@@ -391,6 +433,8 @@ fn main() {
         entities_diff.adhoc_read_second_snapshot(&hosts, &ports, parallel);
         masters_diff.adhoc_read_second_snapshot(&hosts, &ports, parallel);
         tabletservers_diff.adhoc_read_second_snapshot(&hosts, &ports, parallel);
+        vars_diff.adhoc_read_second_snapshot(&hosts, &ports, parallel);
+        versions_diff.adhoc_read_second_snapshot(&hosts, &ports, parallel);
 
         println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time-first_snapshot_time).num_milliseconds() as f64/1000_f64);
         metrics_diff.print(&hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable);
@@ -399,6 +443,8 @@ fn main() {
         entities_diff.print();
         masters_diff.print();
         tabletservers_diff.print();
+        vars_diff.print();
+        versions_diff.print();
 
     }
 
@@ -503,6 +549,18 @@ fn perform_snapshot(
 
         let arc_hosts_clone = arc_hosts.clone();
         let arc_ports_clone = arc_ports.clone();
+        mps.spawn(move |_| {
+            vars::AllStoredVars::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel);
+        });
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
+        mps.spawn(move |_| {
+            versions::AllStoredVersions::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel);
+        });
+
+        let arc_hosts_clone = arc_hosts.clone();
+        let arc_ports_clone = arc_ports.clone();
         let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
         mps.spawn(move |_| {
             gflags::perform_gflags_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
@@ -535,14 +593,6 @@ fn perform_snapshot(
         let arc_ports_clone = arc_ports.clone();
         let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
         mps.spawn(move |_| {
-            versions::perform_versions_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
-        });
-
-
-        let arc_hosts_clone = arc_hosts.clone();
-        let arc_ports_clone = arc_ports.clone();
-        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-        mps.spawn(move |_| {
             rpcs::perform_rpcs_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
         });
 
@@ -560,78 +610,6 @@ fn perform_snapshot(
             mems::perform_mems_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
         });
     });
-
-    /*
-     * No threadpool
-     * The rpcs function didn't seem to work reliably with threads, but it turned out to be a JSON parsing problem.
-     * probably this should be removed in the future.
-     *
-        let arc_hosts = Arc::new(hosts);
-        let arc_ports = Arc::new(ports);
-        let arc_yb_stats_directory = Arc::new(yb_stats_directory);
-
-        let arc_hosts_clone = arc_hosts.clone();
-        let arc_ports_clone = arc_ports.clone();
-        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-            metrics::perform_metrics_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
-
-        let arc_hosts_clone = arc_hosts.clone();
-        let arc_ports_clone = arc_ports.clone();
-        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-            gflags::perform_gflags_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
-
-        if !disable_threads {
-            let arc_hosts_clone = arc_hosts.clone();
-            let arc_ports_clone = arc_ports.clone();
-            let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-                threads::perform_threads_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel)
-        };
-
-        let arc_hosts_clone = arc_hosts.clone();
-        let arc_ports_clone = arc_ports.clone();
-        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-            memtrackers::perform_memtrackers_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
-
-        let arc_hosts_clone = arc_hosts.clone();
-        let arc_ports_clone = arc_ports.clone();
-        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-            loglines::perform_loglines_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
-
-        let arc_hosts_clone = arc_hosts.clone();
-        let arc_ports_clone = arc_ports.clone();
-        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-            versions::perform_versions_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
-
-        let arc_hosts_clone = arc_hosts.clone();
-        let arc_ports_clone = arc_ports.clone();
-        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-            statements::perform_statements_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
-
-        let arc_hosts_clone = arc_hosts.clone();
-        let arc_ports_clone = arc_ports.clone();
-        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-            node_exporter::perform_nodeexporter_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
-
-        let arc_hosts_clone = arc_hosts.clone();
-        let arc_ports_clone = arc_ports.clone();
-        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-            entities::perform_entities_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
-
-        let arc_hosts_clone = arc_hosts.clone();
-        let arc_ports_clone = arc_ports.clone();
-        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-            masters::perform_masters_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
-
-        let arc_hosts_clone = arc_hosts.clone();
-        let arc_ports_clone = arc_ports.clone();
-        let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
-            rpcs::perform_rpcs_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
-
-        let arc_hosts_clone = arc_hosts.clone();
-        let arc_ports_clone = arc_ports.clone();
-        let arc_yb_stats_directory_clone = arc_yb_stats_directory;
-            pprof::perform_pprof_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel);
-     */
 
     info!("end snapshot: {:?}", timer.elapsed());
     snapshot_number

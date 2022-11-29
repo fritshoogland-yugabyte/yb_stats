@@ -123,3 +123,18 @@ end
 brew tap fritshoogland-yugabyte/yb_stats
 brew install yb_stats
 ```
+
+# git promote dev to main
+1. switch to main 
+```shell
+git checkout main
+```
+2. merge dev 
+```shell
+git merge dev
+```
+3. commit changes and push to remotes
+```shell
+git 
+```
+4. 

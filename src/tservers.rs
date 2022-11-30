@@ -127,7 +127,7 @@ impl AllStoredTabletServers {
                     s.spawn(move |_| {
                         let detail_snapshot_time = Local::now();
                         let tablet_servers = AllStoredTabletServers::read_http(host, port);
-                        tx.send((format!("{}:{}", host, port), detail_snapshot_time, tablet_servers)).expect("error sending data via tx (tabletservers)");
+                        tx.send((format!("{}:{}", host, port), detail_snapshot_time, tablet_servers)).expect("error sending data via tx");
                     });
                 }
             }

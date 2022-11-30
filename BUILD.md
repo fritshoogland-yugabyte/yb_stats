@@ -77,11 +77,11 @@ cargo build --release
 ```
 2. Create a gzipped tarball
 ```
-tar czf ~/Downloads/yb_stats.tar.gz -C target/release/ yb_stats
+tar czf ~/Downloads/yb_stats-osx-intel-v0.8.8-1.tar.gz -C target/release/ yb_stats
 ```
 3. Obtain sha256 hash of the tarball
 ```
-shasum -a 256 ~/Downloads/yb_stats.tar.gz
+shasum -a 256 ~/Downloads/yb_stats-osx-intel-v0.8.8-1.tar.gz
 ```
 4. Upload to a github release
 Save the full path.
@@ -108,9 +108,9 @@ vi Formula/yb_stats.rb
 class yb_stats < Formula
   desc "A utility to read all available meta-data that should be present in a standard YugabyteDB cluster"
   homepage "https://github.com/fritshoogland-yugabyte/yb_stats"
-  url "https://github.com/fritshoogland-yugabyte/yb_stats/releases/latest/download/yb_stats.tar.gz"
-  sha256 "480c978c8ba5c27a096523a22e74b2a389121538ab89fee8468a294a80dbbbd2"
-  version "v0.8.7"
+  url "https://github.com/fritshoogland-yugabyte/yb_stats/releases/latest/download/yb_stats-osx-intel-v0.8.8-1.tar.gz"
+  sha256 "12ad48c1894b6d943f036388a088d49a24e9362040280381a6d908790a415c36"
+  version "v0.8.8"
 
   def install
     bin.install "yb_stats"

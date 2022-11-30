@@ -495,7 +495,7 @@ impl AllStoredEntities
                 print!("{} ", &row.hostname_port);
             }
             //println!("{} {} {} {}", keyspace_type, keyspace_name, row.table_name, row.table_state);
-            println!("Table:    {}.{}.{}, state: {}, id: {}", keyspace_type, keyspace_name, row.table_name, row.table_state, row.table_id );
+            println!("Object:   {}.{}.{}, state: {}, id: {}", keyspace_type, keyspace_name, row.table_name, row.table_state, row.table_id );
 
             for tablet in self.stored_tablets
                 .iter()
@@ -604,7 +604,7 @@ impl AllStoredEntities
                 print!("{} ", &row.hostname_port);
             }
             //println!("{} {} {} {}", keyspace_type, keyspace_name, row.table_name, row.table_state);
-            println!("Table:    {}.{}.{}, state: {}, id: {}", keyspace_type, keyspace_name, row.table_name, row.table_state, row.table_id );
+            println!("Object:    {}.{}.{}, state: {}, id: {}", keyspace_type, keyspace_name, row.table_name, row.table_state, row.table_id );
 
             for tablet in self.stored_tablets
                 .iter()
@@ -1178,7 +1178,7 @@ impl SnapshotDiffBTreeMapsEntities {
             && table_row.first_table_state.is_empty()
             && table_row.first_keyspace_id.is_empty()
             {
-                println!("{} Table:    {}.{}.{}, state: {}, id: {}",
+                println!("{} Object:   {}.{}.{}, state: {}, id: {}",
                          "+".to_string().green(),
                          &self.keyspace_id_lookup.get(&table_row.second_keyspace_id).unwrap().0,
                          &self.keyspace_id_lookup.get(&table_row.second_keyspace_id).unwrap().1,
@@ -1191,7 +1191,7 @@ impl SnapshotDiffBTreeMapsEntities {
             && table_row.second_table_state.is_empty()
             && table_row.second_keyspace_id.is_empty()
             {
-                println!("{} Table:    {}.{}.{}, state: {}, id: {}",
+                println!("{} Object:   {}.{}.{}, state: {}, id: {}",
                          "-".to_string().red(),
                          &self.keyspace_id_lookup.get(&table_row.first_keyspace_id).unwrap().0,
                          &self.keyspace_id_lookup.get(&table_row.first_keyspace_id).unwrap().1,

@@ -424,9 +424,11 @@ impl SnapshotDiffBTreeMapsVersions {
     {
         for (hostname, row) in self.btreemap_snapshotdiff_versions.iter() {
             if row.first_git_hash.is_empty() {
-                println!("{} {:20} Versions: {:15} {:10} {:10} {:24} {:10}", "+".to_string().green(), hostname, row.second_version_number, row.second_build_number, row.second_build_type, row.second_build_timestamp, row.second_git_hash);
+                //println!("{} {:20} Versions: {:15} {:10} {:10} {:24} {:10}", "+".to_string().green(), hostname, row.second_version_number, row.second_build_number, row.second_build_type, row.second_build_timestamp, row.second_git_hash);
+                continue;
             } else if row.second_git_hash.is_empty() {
-                println!("{} {:20} Versions: {:15} {:10} {:10} {:24} {:10}", "-".to_string().red(), hostname, row.first_version_number, row.first_build_number, row.first_build_type, row.first_build_timestamp, row.first_git_hash);
+                //println!("{} {:20} Versions: {:15} {:10} {:10} {:24} {:10}", "-".to_string().red(), hostname, row.first_version_number, row.first_build_number, row.first_build_type, row.first_build_timestamp, row.first_git_hash);
+                continue;
             } else {
                 print!("{} {:20} Versions: ", "*".to_string().yellow(), hostname);
                 if row.first_version_number != row.second_version_number {

@@ -314,10 +314,14 @@ impl SnapshotDiffBTreeMapsVars {
     )
     {
         for ((hostname_port, name), row) in self.btreemap_snapshotdiff_vars.iter() {
+            // first value empty means a server started/became available during the snapshot. Do not report
             if row.first_value.is_empty() {
-                println!("{} {:20} Vars: {:50} {:40} {}", "+".to_string().green(), hostname_port, name, row.second_value, row.second_vars_type);
+                //println!("{} {:20} Vars: {:50} {:40} {}", "+".to_string().green(), hostname_port, name, row.second_value, row.second_vars_type);
+                continue;
+            // second value empty means a server stopped during the snapshot. Do not report
             } else if row.second_value.is_empty() {
-                println!("{} {:20} Vars: {:50} {:40} {}", "-".to_string().green(), hostname_port, name, row.first_value, row.first_vars_type);
+               //println!("{} {:20} Vars: {:50} {:40} {}", "-".to_string().red(), hostname_port, name, row.first_value, row.first_vars_type);
+                continue;
             } else {
                 print!("{} {:20} Vars: {:50} ", "*".to_string().yellow(), hostname_port, name);
                 if row.first_value != row.second_value {

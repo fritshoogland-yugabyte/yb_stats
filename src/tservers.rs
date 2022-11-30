@@ -311,7 +311,7 @@ impl AllStoredTabletServers {
                 for pathmetric in self.stored_pathmetrics.iter()
                     .filter(|x| x.hostname_port == row.hostname_port)
                     .filter(|x| x.tserver_hostname_port == row.tserver_hostname_port) {
-                    println!("{} {} Path: {}, total: {}, used: {} ({:.2}%)", row.hostname_port, " ".repeat(20), pathmetric.path, pathmetric.total_space_size, pathmetric.space_used, (pathmetric.space_used/pathmetric.total_space_size)*100);
+                    println!("{} {} Path: {}, total: {}, used: {} ({:.2}%)", row.hostname_port, " ".repeat(20), pathmetric.path, pathmetric.total_space_size, pathmetric.space_used, (pathmetric.space_used as f64/pathmetric.total_space_size as f64)*100.0);
                 }
             }
         }
@@ -339,7 +339,7 @@ impl AllStoredTabletServers {
                 for pathmetric in self.stored_pathmetrics.iter()
                     .filter(|x| x.hostname_port == row.hostname_port)
                     .filter(|x| x.tserver_hostname_port == row.tserver_hostname_port) {
-                    println!("{} Path: {}, total: {}, used: {} ({:.2}%)", " ".repeat(20), pathmetric.path, pathmetric.total_space_size, pathmetric.space_used, (pathmetric.space_used/pathmetric.total_space_size)*100);
+                    println!("{} Path: {}, total: {}, used: {} ({:.2}%)", " ".repeat(20), pathmetric.path, pathmetric.total_space_size, pathmetric.space_used, (pathmetric.space_used as f64/pathmetric.total_space_size as f64)*100.0);
                 }
             }
             if *details_enable {
@@ -351,7 +351,7 @@ impl AllStoredTabletServers {
                 for pathmetric in self.stored_pathmetrics.iter()
                     .filter(|x| x.hostname_port == row.hostname_port)
                     .filter(|x| x.tserver_hostname_port == row.tserver_hostname_port) {
-                    println!("{} {} Path: {}, total: {}, used: {} ({:.2}%)", row.hostname_port, " ".repeat(20), pathmetric.path, pathmetric.total_space_size, pathmetric.space_used, (pathmetric.space_used/pathmetric.total_space_size)*100);
+                    println!("{} {} Path: {}, total: {}, used: {} ({:.2}%)", row.hostname_port, " ".repeat(20), pathmetric.path, pathmetric.total_space_size, pathmetric.space_used, (pathmetric.space_used as f64/pathmetric.total_space_size as f64)*100.0);
                 }
             }
         }

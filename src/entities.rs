@@ -447,6 +447,53 @@ impl AllStoredEntities
             }
         };
 
+        for row in self.stored_keyspaces.iter() {
+            if !*details_enable && row.hostname_port.ne(&leader_hostname) {
+                continue;
+            }
+            if !*details_enable && is_system_keyspace(row.keyspace_id.as_str()) {
+                continue;
+            }
+            let colocation = if self.stored_tablets.iter()
+                .any(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id)) {
+                "[colocated]"
+            } else {
+                ""
+            };
+            if *details_enable {
+                print!("{} ", &row.hostname_port);
+            }
+            println!("Keyspace: {}.{} id: {} {}", row.keyspace_type, row.keyspace_name, row.keyspace_id, colocation);
+
+            if colocation == "[colocated]" {
+                for tablet in self.stored_tablets
+                    .iter()
+                    .filter(|r| r.hostname_port == leader_hostname)
+                    .filter(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id))
+                {
+                    if *details_enable {
+                        print!("{} ", &row.hostname_port);
+                    }
+
+                    println!("Tablet:   {}.{}.{} state: {}", row.keyspace_type, row.keyspace_name, tablet.tablet_id, tablet.tablet_state);
+
+                    if *details_enable {
+                        print!("{} ", &row.hostname_port);
+                    }
+                    print!("            ( ");
+                    for replica in self.stored_replicas
+                        .iter()
+                        .filter(|r| r.hostname_port == leader_hostname)
+                        .filter(|r| r.tablet_id == tablet.tablet_id)
+                    {
+                        let replica_state = if replica.server_uuid == tablet.leader { "LEADER" } else { "FOLLOWER" };
+                        print!("{},{},{} ", replica.replica_type, replica.addr, replica_state);
+                    };
+                    println!(")");
+                }
+            }
+        }
+
         for row in self.stored_tables.iter() {
             if !*details_enable && row.hostname_port.ne(&leader_hostname) {
                continue
@@ -494,8 +541,20 @@ impl AllStoredEntities
             if *details_enable {
                 print!("{} ", &row.hostname_port);
             }
-            //println!("{} {} {} {}", keyspace_type, keyspace_name, row.table_name, row.table_state);
-            println!("Object:   {}.{}.{}, state: {}, id: {}", keyspace_type, keyspace_name, row.table_name, row.table_state, row.table_id );
+
+            // determine colocation of an object
+            // 1. an object id must be higher than 16384
+            // 2. an object must have one or more tablets
+            // 3. an object must be in a database of type "ysql"
+            let colocation = if row.keyspace_type == "ysql"
+                && object_oid_number(row.table_id.as_str()) >= 16384
+                && self.stored_tablets.iter().filter(|r| r.hostname_port == leader_hostname).filter(|r| r.table_id == row.table_id).count() > 0 {
+                ""
+            } else {
+                "[colocated]"
+            };
+
+            println!("Object:   {}.{}.{}, state: {}, id: {} {}", keyspace_type, keyspace_name, row.table_name, row.table_state, row.table_id, colocation);
 
             for tablet in self.stored_tablets
                 .iter()
@@ -506,7 +565,6 @@ impl AllStoredEntities
                     print!("{} ", &row.hostname_port);
                 }
 
-                //print!(" {} {} ( ", tablet.tablet_id, tablet.tablet_state);
                 println!("Tablet:   {}.{}.{}.{} state: {}", keyspace_type, keyspace_name, row.table_name, tablet.tablet_id, tablet.tablet_state);
 
                 print!("            ( ");
@@ -556,6 +614,53 @@ impl AllStoredEntities
             }
         };
 
+        for row in self.stored_keyspaces.iter() {
+            if !*details_enable && row.hostname_port.ne(&leader_hostname) {
+                continue;
+            }
+            if !*details_enable && is_system_keyspace(row.keyspace_id.as_str()) {
+                continue;
+            }
+            let colocation = if self.stored_tablets.iter()
+                .any(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id)) {
+                "[colocated]"
+            } else {
+                ""
+            };
+            if *details_enable {
+                print!("{} ", &row.hostname_port);
+            }
+            println!("Keyspace: {}.{} id: {} {}", row.keyspace_type, row.keyspace_name, row.keyspace_id, colocation);
+
+            if colocation == "[colocated]" {
+                for tablet in self.stored_tablets
+                    .iter()
+                    .filter(|r| r.hostname_port == leader_hostname)
+                    .filter(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id))
+                {
+                    if *details_enable {
+                        print!("{} ", &row.hostname_port);
+                    }
+
+                    println!("Tablet:   {}.{}.{} state: {}", row.keyspace_type, row.keyspace_name, tablet.tablet_id, tablet.tablet_state);
+
+                    if *details_enable {
+                        print!("{} ", &row.hostname_port);
+                    }
+                    print!("            ( ");
+                    for replica in self.stored_replicas
+                        .iter()
+                        .filter(|r| r.hostname_port == leader_hostname)
+                        .filter(|r| r.tablet_id == tablet.tablet_id)
+                    {
+                        let replica_state = if replica.server_uuid == tablet.leader { "LEADER" } else { "FOLLOWER" };
+                        print!("{},{},{} ", replica.replica_type, replica.addr, replica_state);
+                    };
+                    println!(")");
+                }
+            }
+        }
+
         for row in self.stored_tables.iter() {
             if !*details_enable && row.hostname_port.ne(&leader_hostname) {
                 continue
@@ -603,8 +708,20 @@ impl AllStoredEntities
             if *details_enable {
                 print!("{} ", &row.hostname_port);
             }
-            //println!("{} {} {} {}", keyspace_type, keyspace_name, row.table_name, row.table_state);
-            println!("Object:    {}.{}.{}, state: {}, id: {}", keyspace_type, keyspace_name, row.table_name, row.table_state, row.table_id );
+
+            // determine colocation of an object
+            // 1. an object id must be higher than 16384
+            // 2. an object must have one or more tablets
+            // 3. an object must be in a database of type "ysql"
+            let colocation = if row.keyspace_type == "ysql"
+                && object_oid_number(row.table_id.as_str()) >= 16384
+                && self.stored_tablets.iter().filter(|r| r.hostname_port == leader_hostname).filter(|r| r.table_id == row.table_id).count() > 0 {
+                ""
+            } else {
+                "[colocated]"
+            };
+
+            println!("Object:   {}.{}.{}, state: {}, id: {} {}", keyspace_type, keyspace_name, row.table_name, row.table_state, row.table_id, colocation);
 
             for tablet in self.stored_tablets
                 .iter()
@@ -615,9 +732,11 @@ impl AllStoredEntities
                     print!("{} ", &row.hostname_port);
                 }
 
-                //print!(" {} {} ( ", tablet.tablet_id, tablet.tablet_state);
                 println!("Tablet:   {}.{}.{}.{} state: {}", keyspace_type, keyspace_name, row.table_name, tablet.tablet_id, tablet.tablet_state);
 
+                if *details_enable {
+                    print!("{} ", &row.hostname_port);
+                }
                 print!("            ( ");
                 for replica in self.stored_replicas
                     .iter()

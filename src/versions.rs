@@ -147,7 +147,7 @@ impl AllStoredVersions {
     {
         if ! scan_port_addr(format!("{}:{}", host, port)) {
             warn!("hostname: port {}:{} cannot be reached, skipping", host, port);
-            return AllStoredVersions::parse_version(String::from(""), "", "")
+            return AllStoredVersions::parse_version(String::from(""), host, port)
         };
         let data_from_http = reqwest::blocking::get(format!("http://{}:{}/api/v1/version", host, port))
             .unwrap_or_else(|e| {
@@ -165,7 +165,7 @@ impl AllStoredVersions {
     {
         serde_json::from_str(&versions_data)
             .unwrap_or_else( |e| {
-                info!("({}:{}) cloud not parse /api/v1/versions json data for versions, error: {}", host, port ,e);
+                info!("({}:{}) could not parse /api/v1/versions json data for versions, error: {}", host, port ,e);
                 Version::empty()
             })
     }
@@ -276,7 +276,7 @@ impl SnapshotDiffStoredVersions {
             first_build_id: storedversion.build_id.to_string(),
             first_build_type: storedversion.build_type.to_string(),
             first_version_number: storedversion.version_number.to_string(),
-            first_build_number: storedversion.build_number.to_string(),
+            first_build_number: storedversion.build_number,
             second_git_hash: "".to_string(),
             second_build_hostname: "".to_string(),
             second_build_timestamp: "".to_string(),
@@ -308,7 +308,7 @@ impl SnapshotDiffStoredVersions {
             second_build_id: storedversion.build_id.to_string(),
             second_build_type: storedversion.build_type.to_string(),
             second_version_number: storedversion.version_number.to_string(),
-            second_build_number: storedversion.build_number.to_string(),
+            second_build_number: storedversion.build_number,
         }
     }
     fn second_snapshot_existing( storedversion_diff_row: &mut SnapshotDiffStoredVersions, storedversion: StoredVersion ) -> Self
@@ -331,7 +331,7 @@ impl SnapshotDiffStoredVersions {
             second_build_id: storedversion.build_id.to_string(),
             second_build_type: storedversion.build_type.to_string(),
             second_version_number: storedversion.version_number.to_string(),
-            second_build_number: storedversion.build_number.to_string(),
+            second_build_number: storedversion.build_number,
         }
     }
 }
@@ -423,12 +423,12 @@ impl SnapshotDiffBTreeMapsVersions {
     )
     {
         for (hostname, row) in self.btreemap_snapshotdiff_versions.iter() {
-            if row.first_git_hash.is_empty() {
+            if row.first_git_hash.is_empty() || row.second_git_hash.is_empty() {
                 //println!("{} {:20} Versions: {:15} {:10} {:10} {:24} {:10}", "+".to_string().green(), hostname, row.second_version_number, row.second_build_number, row.second_build_type, row.second_build_timestamp, row.second_git_hash);
                 continue;
-            } else if row.second_git_hash.is_empty() {
-                //println!("{} {:20} Versions: {:15} {:10} {:10} {:24} {:10}", "-".to_string().red(), hostname, row.first_version_number, row.first_build_number, row.first_build_type, row.first_build_timestamp, row.first_git_hash);
-                continue;
+            //} else if row.second_git_hash.is_empty() {
+            //    //println!("{} {:20} Versions: {:15} {:10} {:10} {:24} {:10}", "-".to_string().red(), hostname, row.first_version_number, row.first_build_number, row.first_build_type, row.first_build_timestamp, row.first_git_hash);
+            //    continue;
             } else {
                 print!("{} {:20} Versions: ", "*".to_string().yellow(), hostname);
                 if row.first_version_number != row.second_version_number {

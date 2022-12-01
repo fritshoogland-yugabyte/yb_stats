@@ -185,7 +185,7 @@ impl AllStoredVars {
             if hostname_filter.is_match(&row.hostname_port.clone())
                 && stat_name_filter.is_match( &row.name.clone())
             {
-                if row.vars_type == "Default".to_string() && ! *details_enable {
+                if row.vars_type == *"Default" && ! *details_enable {
                     continue;
                 };
                 println!("{:20} {:50} {:40} {}", row.hostname_port, row.name, row.value, row.vars_type);
@@ -208,7 +208,7 @@ impl SnapshotDiffStoredVars {
         Self
         {
             first_value: storedvars.value.to_string(),
-            first_vars_type: storedvars.vars_type.to_string(),
+            first_vars_type: storedvars.vars_type,
             second_value: "".to_string(),
             second_vars_type: "".to_string(),
         }
@@ -220,7 +220,7 @@ impl SnapshotDiffStoredVars {
             first_value: "".to_string(),
             first_vars_type: "".to_string(),
             second_value: storedvars.value.to_string(),
-            second_vars_type: storedvars.vars_type.to_string(),
+            second_vars_type: storedvars.vars_type,
         }
     }
     fn second_snapshot_existing( storedvars_diff_row: &mut SnapshotDiffStoredVars, storedvars: StoredVars ) -> Self
@@ -230,7 +230,7 @@ impl SnapshotDiffStoredVars {
             first_value: storedvars_diff_row.first_value.to_string(),
             first_vars_type: storedvars_diff_row.first_vars_type.to_string(),
             second_value: storedvars.value.to_string(),
-            second_vars_type: storedvars.vars_type.to_string(),
+            second_vars_type: storedvars.vars_type,
         }
     }
 }
@@ -315,13 +315,13 @@ impl SnapshotDiffBTreeMapsVars {
     {
         for ((hostname_port, name), row) in self.btreemap_snapshotdiff_vars.iter() {
             // first value empty means a server started/became available during the snapshot. Do not report
-            if row.first_value.is_empty() {
+            if row.first_value.is_empty() || row.second_value.is_empty() {
                 //println!("{} {:20} Vars: {:50} {:40} {}", "+".to_string().green(), hostname_port, name, row.second_value, row.second_vars_type);
                 continue;
             // second value empty means a server stopped during the snapshot. Do not report
-            } else if row.second_value.is_empty() {
-               //println!("{} {:20} Vars: {:50} {:40} {}", "-".to_string().red(), hostname_port, name, row.first_value, row.first_vars_type);
-                continue;
+            //} else if row.second_value.is_empty() {
+            //   //println!("{} {:20} Vars: {:50} {:40} {}", "-".to_string().red(), hostname_port, name, row.first_value, row.first_vars_type);
+            //    continue;
             } else {
                 print!("{} {:20} Vars: {:50} ", "*".to_string().yellow(), hostname_port, name);
                 if row.first_value != row.second_value {

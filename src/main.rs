@@ -90,6 +90,9 @@ struct Opts {
     /// Create a masters diff report using a begin and end snapshot number.
     #[structopt(long)]
     masters_diff: bool,
+    /// Create an adhoc diff report only for metrics
+    #[structopt(long)]
+    adhoc_metrics_diff: bool,
     /// Lists the snapshots in the yb_stats.snapshots in the current directory.
     #[structopt(short = "l", long)]
     snapshot_list: bool,
@@ -409,6 +412,28 @@ fn main() {
 
         rpcs::print_rpcs(&options.print_rpcs.unwrap(), &yb_stats_directory, &hostname_filter, &options.details_enable);
 
+    } else if options.adhoc_metrics_diff {
+
+        info!("ad-hoc metrics diff");
+        let first_snapshot_time = Local::now();
+        let mut metrics_diff = metrics::SnapshotDiffBTreeMapsMetrics::adhoc_read_first_snapshot(&hosts, &ports, parallel);
+        let mut statements_diff = statements::SnapshotDiffBTreeMapStatements::adhoc_read_first_snapshot(&hosts, &ports, parallel);
+        let mut node_exporter_diff = node_exporter::SnapshotDiffBTreeMapNodeExporter::adhoc_read_first_snapshot(&hosts, &ports, parallel);
+
+        println!("Begin ad-hoc in-memory metrics snapshot created, press enter to create end snapshot for difference calculation.");
+        let mut input = String::new();
+        stdin().read_line(&mut input).expect("failed");
+
+        let second_snapshot_time = Local::now();
+        metrics_diff.adhoc_read_second_snapshot(&hosts, &ports, parallel, &first_snapshot_time);
+        statements_diff.adhoc_read_second_snapshot(&hosts, &ports, parallel, &first_snapshot_time);
+        node_exporter_diff.adhoc_read_second_snapshot(&hosts, &ports, parallel, &first_snapshot_time);
+
+        println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time-first_snapshot_time).num_milliseconds() as f64/1000_f64);
+        metrics_diff.print(&hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable);
+        statements_diff.print(&hostname_filter, options.sql_length);
+        node_exporter_diff.print(&hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
+
     } else {
 
         info!("ad-hoc mode");
@@ -422,7 +447,7 @@ fn main() {
         let mut vars_diff = vars::SnapshotDiffBTreeMapsVars::adhoc_read_first_snapshot(&hosts, &ports, parallel);
         let mut versions_diff = versions::SnapshotDiffBTreeMapsVersions::adhoc_read_first_snapshot(&hosts, &ports, parallel);
 
-        println!("Begin metrics snapshot created, press enter to create end snapshot for difference calculation.");
+        println!("Begin ad-hoc in-memory snapshot created, press enter to create end snapshot for difference calculation.");
         let mut input = String::new();
         stdin().read_line(&mut input).expect("failed");
 

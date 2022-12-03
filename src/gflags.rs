@@ -71,7 +71,7 @@ pub fn perform_gflags_snapshot(
     let file = fs::OpenOptions::new()
         .create(true)
         .write(true)
-        .open(&gflags_file)
+        .open(gflags_file)
         .unwrap_or_else(|e| {
             error!("Fatal: error writing gflags data in snapshot directory {}: {}", &gflags_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
@@ -113,7 +113,7 @@ fn parse_gflags( gflags_data: String ) -> Vec<GFlag> {
 fn read_gflags_snapshot(snapshot_number: &String, yb_stats_directory: &PathBuf) -> Vec<StoredGFlags> {
     let mut stored_gflags: Vec<StoredGFlags> = Vec::new();
     let gflags_file = &yb_stats_directory.join(snapshot_number).join("gflags");
-    let file = fs::File::open(&gflags_file)
+    let file = fs::File::open(gflags_file)
         .unwrap_or_else(|e| {
             error!("Fatal: error reading file: {}: {}", &gflags_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);

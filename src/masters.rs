@@ -175,7 +175,7 @@ impl AllStoredMasters {
         let file = fs::OpenOptions::new()
             .create(true)
             .write(true)
-            .open(&masters_file)?;
+            .open(masters_file)?;
         let mut writer = csv::Writer::from_writer(file);
         for row in self.stored_masters {
             writer.serialize(row)?;
@@ -186,7 +186,7 @@ impl AllStoredMasters {
         let file = fs::OpenOptions::new()
             .create(true)
             .write(true)
-            .open(&master_rpc_addresses_file)?;
+            .open(master_rpc_addresses_file)?;
         let mut writer = csv::Writer::from_writer(file);
         for row in self.stored_rpc_addresses {
             writer.serialize(row)?;
@@ -197,7 +197,7 @@ impl AllStoredMasters {
         let file = fs::OpenOptions::new()
             .create(true)
             .write(true)
-            .open(&master_http_addresses_file)?;
+            .open(master_http_addresses_file)?;
         let mut writer = csv::Writer::from_writer(file);
         for row in self.stored_http_addresses {
             writer.serialize(row)?;
@@ -208,7 +208,7 @@ impl AllStoredMasters {
         let file = fs::OpenOptions::new()
             .create(true)
             .write(true)
-            .open(&master_errors_file)?;
+            .open(master_errors_file)?;
         let mut writer = csv::Writer::from_writer(file);
         for row in self.stored_master_error {
             writer.serialize(row)?;
@@ -227,10 +227,10 @@ impl AllStoredMasters {
         };
 
         let current_directory = env::current_dir()?;
-        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(&snapshot_number);
+        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number);
 
         let masters_file = &current_snapshot_directory.join("masters");
-        let file = fs::File::open(&masters_file)?;
+        let file = fs::File::open(masters_file)?;
 
         let mut reader = csv::Reader::from_reader(file);
         for row in reader.deserialize() {
@@ -239,7 +239,7 @@ impl AllStoredMasters {
         };
 
         let masters_rpc_addresses_file = &current_snapshot_directory.join("master_rpc_addresses");
-        let file = fs::File::open(&masters_rpc_addresses_file)?;
+        let file = fs::File::open(masters_rpc_addresses_file)?;
 
         let mut reader = csv::Reader::from_reader(file);
         for row in reader.deserialize() {
@@ -248,7 +248,7 @@ impl AllStoredMasters {
         };
 
         let masters_http_addresses_file = &current_snapshot_directory.join("master_http_addresses");
-        let file = fs::File::open(&masters_http_addresses_file)?;
+        let file = fs::File::open(masters_http_addresses_file)?;
 
         let mut reader = csv::Reader::from_reader(file);
         for row in reader.deserialize() {
@@ -257,7 +257,7 @@ impl AllStoredMasters {
         };
 
         let masters_error_file = &current_snapshot_directory.join("master_errors");
-        let file = fs::File::open(&masters_error_file)?;
+        let file = fs::File::open(masters_error_file)?;
 
         let mut reader = csv::Reader::from_reader(file);
         for row in reader.deserialize() {

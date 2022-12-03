@@ -8,7 +8,7 @@ extern crate serde_json;
 extern crate serde_derive;
 extern crate csv;
 
-use structopt::StructOpt;
+use clap::Parser;
 use std::{process, env, fs, collections::HashMap, io::{stdin, Write}, sync::Arc, time::Instant};
 use regex::Regex;
 use chrono::Local;
@@ -49,100 +49,100 @@ const DEFAULT_PARALLEL: &str = "1";
 const WRITE_DOTENV: bool = true;
 
 /// Struct that holds the commandline options.
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 struct Opts {
     /// Snapshot input hostnames (comma separated)
-    #[structopt(short, long, value_name = "hostname,hostname")]
+    #[arg(short, long, value_name = "hostname,hostname")]
     hosts: Option<String>,
     /// Snapshot input port numbers (comma separated)
-    #[structopt(short, long, value_name = "port,port")]
+    #[arg(short, long, value_name = "port,port")]
     ports: Option<String>,
     /// Output filter for statistic names as regex
-    #[structopt(short, long, value_name = "regex")]
+    #[arg(short, long, value_name = "regex")]
     stat_name_match: Option<String>,
     /// Output filter for table names as regex (requires --details-enable)
-    #[structopt(short, long, value_name = "regex")]
+    #[arg(short, long, value_name = "regex")]
     table_name_match: Option<String>,
     /// Output filter for hostname or ports as regex
-    #[structopt(long, value_name = "regex")]
+    #[arg(long, value_name = "regex")]
     hostname_match: Option<String>,
     /// Output setting to add statistics that are not counters
-    #[structopt(short, long)]
+    #[arg(short, long)]
     gauges_enable: bool,
     /// Output setting to increase detail, such as report each table and tablet individually
-    #[structopt(short, long)]
+    #[arg(short, long)]
     details_enable: bool,
     /// Snapshot setting to be as silent as possible, only errors are printed
-    #[structopt(long)]
+    #[arg(long)]
     silent: bool,
     /// Perform a snapshot (creates stored CSV files)
-    #[structopt(long)]
+    #[arg(long)]
     snapshot: bool,
     /// Snapshot add comment in snapshot overview
-    #[structopt(long, value_name = "\"comment\"")]
+    #[arg(long, value_name = "\"comment\"")]
     snapshot_comment: Option<String>,
     /// Create a performance diff report using a begin and an end snapshot number.
-    #[structopt(long)]
+    #[arg(long)]
     snapshot_diff: bool,
     /// Create an entity diff report using a begin and end snapshot number.
-    #[structopt(long)]
+    #[arg(long)]
     entity_diff: bool,
     /// Create a masters diff report using a begin and end snapshot number.
-    #[structopt(long)]
+    #[arg(long)]
     masters_diff: bool,
     /// Create an adhoc diff report only for metrics
-    #[structopt(long)]
+    #[arg(long)]
     adhoc_metrics_diff: bool,
     /// Lists the snapshots in the yb_stats.snapshots in the current directory.
-    #[structopt(short = "l", long)]
+    #[arg(short = 'l', long)]
     snapshot_list: bool,
     /// Output setting to specify the begin snapshot number for diff report.
-    #[structopt(short = "b", long)]
+    #[arg(short = 'b', long)]
     begin: Option<i32>,
     /// Output setting to specify the end snapshot number for diff report.
-    #[structopt(short = "e", long)]
+    #[arg(short = 'e', long)]
     end: Option<i32>,
     /// Print memtrackers data for the given snapshot number
-    #[structopt(long, value_name = "snapshot number")]
+    #[arg(long, value_name = "snapshot number")]
     print_memtrackers: Option<String>,
     /// Print log data for the given snapshot number
-    #[structopt(long, value_name = "snapshot number")]
+    #[arg(long, value_name = "snapshot number")]
     print_log: Option<String>,
     /// Print entity data for snapshot number, or get current.
-    #[structopt(long, value_name = "snapshot number")]
+    #[arg(long, value_name = "snapshot number")]
     print_entities: Option<Option<String>>,
     /// Print master server data for snapshot number, or get current.
-    #[structopt(long, value_name = "snapshot number")]
+    #[arg(long, value_name = "snapshot number")]
     print_masters: Option<Option<String>>,
     /// Print tablet server data for snapshot number, or get current.
-    #[structopt(long, value_name = "snapshot number")]
+    #[arg(long, value_name = "snapshot number")]
     print_tablet_servers: Option<Option<String>>,
     /// Print vars for snapshot number, or get current
-    #[structopt(long, value_name = "snapshot number")]
+    #[arg(long, value_name = "snapshot number")]
     print_vars: Option<Option<String>>,
     /// Print version data for snapshot number, or get current.
-    #[structopt(long, value_name = "snapshot number")]
+    #[arg(long, value_name = "snapshot number")]
     print_version: Option<Option<String>>,
     /// Print rpcs for the given snapshot number
-    #[structopt(long, value_name = "snapshot number")]
+    #[arg(long, value_name = "snapshot number")]
     print_rpcs: Option<String>,
     /// Print threads data for the given snapshot number
-    #[structopt(long, value_name = "snapshot number")]
+    #[arg(long, value_name = "snapshot number")]
     print_threads: Option<String>,
     /// Print gflags for the given snapshot number
-    #[structopt(long, value_name = "snapshot number")]
+    #[arg(long, value_name = "snapshot number")]
     print_gflags: Option<String>,
     /// Output log data severity to include: optional: I (use with --print_log)
-    #[structopt(long, default_value = "WEF")]
+    #[arg(long, default_value = "WEF")]
     log_severity: String,
     /// Snapshot capture parallelism (default 1)
-    #[structopt(long, value_name = "nr")]
+    #[arg(long, value_name = "nr")]
     parallel: Option<String>,
     /// Snapshot disable gathering of thread stacks from /threadz
-    #[structopt(long)]
+    #[arg(long)]
     disable_threads: bool,
     /// Output setting for the length of the SQL text to display
-    #[structopt(long, value_name = "nr", default_value = "80")]
+    #[arg(long, value_name = "nr", default_value = "80")]
     sql_length: usize,
 }
 
@@ -151,7 +151,7 @@ fn main() {
     env_logger::init();
     let mut changed_options = HashMap::new();
     dotenv().ok();
-    let options = Opts::from_args();
+    let options = Opts::parse();
 
     /*
      * Hosts

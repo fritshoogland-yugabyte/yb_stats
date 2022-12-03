@@ -65,7 +65,7 @@ pub fn perform_threads_snapshot(
     let file = fs::OpenOptions::new()
         .create(true)
         .write(true)
-        .open(&threads_file)
+        .open(threads_file)
         .unwrap_or_else(|e| {
             error!("Fatal: error writing threads data in snapshots directory {}: {}", &threads_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
@@ -204,7 +204,7 @@ fn read_threads_snapshot(
 ) -> Vec<StoredThreads> {
     let mut stored_threads: Vec<StoredThreads> = Vec::new();
     let threads_file = &yb_stats_directory.join(snapshot_number).join("threads");
-    let file = fs::File::open(&threads_file)
+    let file = fs::File::open(threads_file)
         .unwrap_or_else(|e| {
             eprintln!("Fatal: error reading file: {}: {}", &threads_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);

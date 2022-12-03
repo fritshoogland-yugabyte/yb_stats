@@ -51,7 +51,7 @@ pub fn perform_pprof_snapshot(
             let mut file = fs::OpenOptions::new()
                 .create(true)
                 .write(true)
-                .open(&pprof_file)
+                .open(pprof_file)
                 .unwrap_or_else(|e| {
                     error!("Fatal: error writing pprof growth data in snapshot directory {}: {}", &pprof_file.clone().into_os_string().into_string().unwrap(), e);
                     process::exit(1);

@@ -104,7 +104,7 @@ impl AllStoredNodeExporterValues {
         let file = fs::OpenOptions::new()
             .create(true)
             .write(true)
-            .open(&nodeexporter_file)?;
+            .open(nodeexporter_file)?;
         let mut writer = csv::Writer::from_writer(file);
         for row in self.stored_nodeexportervalues {
             writer.serialize(row)?;
@@ -118,10 +118,10 @@ impl AllStoredNodeExporterValues {
         let mut allstorednodeexportervalues = AllStoredNodeExporterValues { stored_nodeexportervalues: Vec::new() };
 
         let current_directory = env::current_dir()?;
-        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(&snapshot_number);
+        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number);
 
         let nodeexporter_file = &current_snapshot_directory.join("nodeexporter");
-        let file = fs::File::open(&nodeexporter_file)?;
+        let file = fs::File::open(nodeexporter_file)?;
 
         let mut reader = csv::Reader::from_reader(file);
         for  row in reader.deserialize() {

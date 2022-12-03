@@ -328,7 +328,7 @@ impl AllStoredEntities
         let file = fs::OpenOptions::new()
             .create(true)
             .write(true)
-            .open(&tables_file)?;
+            .open(tables_file)?;
         let mut writer = csv::Writer::from_writer(file);
         for row in self.stored_tables {
             writer.serialize(row)?;
@@ -339,7 +339,7 @@ impl AllStoredEntities
         let file = fs::OpenOptions::new()
             .create(true)
             .write(true)
-            .open(&tablets_file)?;
+            .open(tablets_file)?;
         let mut writer = csv::Writer::from_writer(file);
         for row in self.stored_tablets {
             writer.serialize(row)?;
@@ -350,7 +350,7 @@ impl AllStoredEntities
         let file = fs::OpenOptions::new()
             .create(true)
             .write(true)
-            .open(&replicas_file)?;
+            .open(replicas_file)?;
         let mut writer = csv::Writer::from_writer(file);
         for row in self.stored_replicas {
             writer.serialize(row)?;
@@ -361,7 +361,7 @@ impl AllStoredEntities
         let file = fs::OpenOptions::new()
             .create(true)
             .write(true)
-            .open(&keyspaces_file)?;
+            .open(keyspaces_file)?;
         let mut writer = csv::Writer::from_writer(file);
         for row in self.stored_keyspaces {
             writer.serialize(row)?;
@@ -375,10 +375,10 @@ impl AllStoredEntities
         let mut allstoredentities = AllStoredEntities { stored_keyspaces: Vec::new(), stored_tables: Vec::new(), stored_tablets: Vec::new(), stored_replicas: Vec::new() };
 
         let current_directory = env::current_dir()?;
-        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(&snapshot_number);
+        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number);
 
         let keyspaces_file = &current_snapshot_directory.join("keyspaces");
-        let file = fs::File::open(&keyspaces_file)?;
+        let file = fs::File::open(keyspaces_file)?;
 
         let mut reader = csv::Reader::from_reader(file);
         for row in reader.deserialize() {
@@ -387,7 +387,7 @@ impl AllStoredEntities
         };
 
         let tables_file = &current_snapshot_directory.join("tables");
-        let file = fs::File::open(&tables_file)?;
+        let file = fs::File::open(tables_file)?;
 
         let mut reader = csv::Reader::from_reader(file);
         for row in reader.deserialize() {
@@ -396,7 +396,7 @@ impl AllStoredEntities
         };
 
         let tablets_file = &current_snapshot_directory.join("tablets");
-        let file = fs::File::open(&tablets_file)?;
+        let file = fs::File::open(tablets_file)?;
 
         let mut reader = csv::Reader::from_reader(file);
         for row in reader.deserialize() {
@@ -405,7 +405,7 @@ impl AllStoredEntities
         };
 
         let replicas_file = &current_snapshot_directory.join("replicas");
-        let file = fs::File::open(&replicas_file)?;
+        let file = fs::File::open(replicas_file)?;
 
         let mut reader = csv::Reader::from_reader(file);
         for row in reader.deserialize() {

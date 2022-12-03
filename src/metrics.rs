@@ -921,7 +921,7 @@ impl AllStoredMetrics {
         let file = fs::OpenOptions::new()
             .create(true)
             .write(true)
-            .open(&values_file)?;
+            .open(values_file)?;
         let mut writer = csv::Writer::from_writer(file);
         for row in self.stored_values {
             writer.serialize(row)?;
@@ -932,7 +932,7 @@ impl AllStoredMetrics {
         let file = fs::OpenOptions::new()
             .create(true)
             .write(true)
-            .open(&countsum_file)?;
+            .open(countsum_file)?;
         let mut writer = csv::Writer::from_writer(file);
         for row in self.stored_countsum {
             writer.serialize(row)?;
@@ -943,7 +943,7 @@ impl AllStoredMetrics {
         let file = fs::OpenOptions::new()
             .create(true)
             .write(true)
-            .open(&countsumrows_file)?;
+            .open(countsumrows_file)?;
         let mut writer = csv::Writer::from_writer(file);
         for row in self.stored_countsumrows {
             writer.serialize(row)?;
@@ -960,10 +960,10 @@ impl AllStoredMetrics {
         let mut allstoredmetrics = AllStoredMetrics { stored_values: Vec::new(), stored_countsum: Vec::new(), stored_countsumrows: Vec::new() };
 
         let current_directory = env::current_dir()?;
-        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(&snapshot_number);
+        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number);
 
         let values_file = &current_snapshot_directory.join("values");
-        let file = fs::File::open(&values_file)?;
+        let file = fs::File::open(values_file)?;
 
         let mut reader = csv::Reader::from_reader(file);
         for row in reader.deserialize() {
@@ -972,7 +972,7 @@ impl AllStoredMetrics {
         };
 
         let countsum_file = &current_snapshot_directory.join("countsum");
-        let file = fs::File::open(&countsum_file)?;
+        let file = fs::File::open(countsum_file)?;
 
         let mut reader = csv::Reader::from_reader(file);
         for row in reader.deserialize() {
@@ -981,7 +981,7 @@ impl AllStoredMetrics {
         };
 
         let countsumrows_file = &current_snapshot_directory.join("countsumrows");
-        let file = fs::File::open(&countsumrows_file)?;
+        let file = fs::File::open(countsumrows_file)?;
 
         let mut reader = csv::Reader::from_reader(file);
         for row in reader.deserialize() {

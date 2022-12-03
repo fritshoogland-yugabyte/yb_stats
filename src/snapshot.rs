@@ -50,7 +50,7 @@ impl Snapshot {
         Snapshot::write_snapshots(snapshots);
         // Create the snapshot number directory in the &yb_stats_directory
         let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
-        fs::create_dir_all(&current_snapshot_directory)
+        fs::create_dir_all(current_snapshot_directory)
             .unwrap_or_else(|e| {
                 error!("Fatal: error creating directory {}: {}", &current_snapshot_directory.clone().into_os_string().into_string().unwrap(), e);
                 process::exit(1);
@@ -65,7 +65,7 @@ impl Snapshot {
         let yb_stats_directory = current_directory.join("yb_stats.snapshots");
         let snapshot_index = &yb_stats_directory.join("snapshot.index");
 
-        let file = fs::File::open(&snapshot_index)
+        let file = fs::File::open(snapshot_index)
             .unwrap_or_else(|e| {
                 error!("Fatal: error opening file {}: {}", &snapshot_index.clone().into_os_string().into_string().unwrap(), e);
                 process::exit(1);
@@ -89,7 +89,7 @@ impl Snapshot {
             .create(true)
             .write(true)
             .truncate(true)
-            .open(&snapshot_index)
+            .open(snapshot_index)
             .unwrap_or_else(|e| {
                 error!("Fatal: error writing {}: {}", &snapshot_index.clone().into_os_string().into_string().unwrap(), e);
                 process::exit(1);

@@ -228,7 +228,7 @@ impl AllStoredTabletServers {
         let file = fs::OpenOptions::new()
             .create(true)
             .write(true)
-            .open(&tablet_servers_file)?;
+            .open(tablet_servers_file)?;
         let mut writer = csv::Writer::from_writer(file);
         for row in self.stored_tabletservers {
             writer.serialize(row)?;
@@ -239,7 +239,7 @@ impl AllStoredTabletServers {
         let file = fs::OpenOptions::new()
             .create(true)
             .write(true)
-            .open(&tablet_servers_pathmetrics_file)?;
+            .open(tablet_servers_pathmetrics_file)?;
         let mut writer = csv::Writer::from_writer(file);
         for row in self.stored_pathmetrics {
             writer.serialize(row)?;
@@ -256,10 +256,10 @@ impl AllStoredTabletServers {
         };
 
         let current_directory = env::current_dir()?;
-        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(&snapshot_number);
+        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number);
 
         let tablet_servers_file = &current_snapshot_directory.join("tablet_servers");
-        let file = fs::File::open(&tablet_servers_file)?;
+        let file = fs::File::open(tablet_servers_file)?;
 
         let mut reader = csv::Reader::from_reader(file);
         for row in reader.deserialize() {
@@ -268,7 +268,7 @@ impl AllStoredTabletServers {
         };
 
         let tablet_servers_pathmetrics_file = &current_snapshot_directory.join("tablet_servers_pathmetrics");
-        let file = fs::File::open(&tablet_servers_pathmetrics_file)?;
+        let file = fs::File::open(tablet_servers_pathmetrics_file)?;
 
         let mut reader = csv::Reader::from_reader(file);
         for row in reader.deserialize() {

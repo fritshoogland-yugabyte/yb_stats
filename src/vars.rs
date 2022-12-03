@@ -143,7 +143,7 @@ impl AllStoredVars {
         let file = fs::OpenOptions::new()
             .create(true)
             .write(true)
-            .open(&vars_file)?;
+            .open(vars_file)?;
         let mut writer = csv::Writer::from_writer(file);
         for row in self.stored_vars {
             writer.serialize(row)?;
@@ -159,10 +159,10 @@ impl AllStoredVars {
         };
 
         let current_directory = env::current_dir()?;
-        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(&snapshot_number);
+        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number);
 
         let vars_file = &current_snapshot_directory.join("vars");
-        let file = fs::File::open(&vars_file)?;
+        let file = fs::File::open(vars_file)?;
 
         let mut reader = csv::Reader::from_reader(file);
         for row in reader.deserialize() {

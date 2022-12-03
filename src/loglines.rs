@@ -62,7 +62,7 @@ fn read_loglines_snapshot(snapshot_number: &String, yb_stats_directory: &&PathBu
 
     let mut stored_loglines: Vec<StoredLogLines> = Vec::new();
     let loglines_file = &yb_stats_directory.join(snapshot_number).join("loglines");
-    let file = fs::File::open(&loglines_file)
+    let file = fs::File::open(loglines_file)
         .unwrap_or_else(|e| {
             error!("Fatal: error reading file: {}: {}", &loglines_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
@@ -107,7 +107,7 @@ pub fn perform_loglines_snapshot(
     let file = fs::OpenOptions::new()
         .create(true)
         .write(true)
-        .open(&loglines_file)
+        .open(loglines_file)
         .unwrap_or_else(|e| {
             error!("Fatal: error writing loglines data in snapshot directory {}: {}", &loglines_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);

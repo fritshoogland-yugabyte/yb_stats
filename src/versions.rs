@@ -181,7 +181,7 @@ impl AllStoredVersions {
         let file = fs::OpenOptions::new()
             .create(true)
             .write(true)
-            .open(&versions_file)?;
+            .open(versions_file)?;
         let mut writer = csv::Writer::from_writer(file);
         for row in self.stored_versions {
             writer.serialize(row)?;
@@ -199,10 +199,10 @@ impl AllStoredVersions {
         };
 
         let current_directory = env::current_dir()?;
-        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(&snapshot_number);
+        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number);
 
         let versions_file = &current_snapshot_directory.join("versions");
-        let file = fs::File::open(&versions_file)?;
+        let file = fs::File::open(versions_file)?;
 
         let mut reader = csv::Reader::from_reader(file);
         for row in reader.deserialize() {

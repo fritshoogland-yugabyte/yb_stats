@@ -136,7 +136,7 @@ pub fn perform_memtrackers_snapshot(
     let file = fs::OpenOptions::new()
         .create(true)
         .write(true)
-        .open(&memtrackers_file)
+        .open(memtrackers_file)
         .unwrap_or_else(|e| {
             error!("Fatal: error writing memtrackers data in snapshot directory {}: {}", &memtrackers_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
@@ -188,7 +188,7 @@ fn read_memtrackers_snapshot(
 ) -> Vec<StoredMemTrackers> {
     let mut stored_memtrackers: Vec<StoredMemTrackers> = Vec::new();
     let memtrackers_file = &yb_stats_directory.join(snapshot_number).join("memtrackers");
-    let file = fs::File::open(&memtrackers_file)
+    let file = fs::File::open(memtrackers_file)
         .unwrap_or_else(|e| {
             error!("Fatal: error reading file: {}: {}", &memtrackers_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);

@@ -336,7 +336,7 @@ impl AllStoredStatements {
         let file = fs::OpenOptions::new()
             .create(true)
             .write(true)
-            .open(&statements_file)?;
+            .open(statements_file)?;
         let mut writer = csv::Writer::from_writer(file);
         for row in self.stored_statements {
             writer.serialize(row)?;
@@ -350,10 +350,10 @@ impl AllStoredStatements {
         let mut allstoredstatements = AllStoredStatements { stored_statements: Vec::new() };
 
         let current_directory = env::current_dir()?;
-        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(&snapshot_number);
+        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number);
 
         let statements_file = &current_snapshot_directory.join("statements");
-        let file = fs::File::open(&statements_file)?;
+        let file = fs::File::open(statements_file)?;
 
         let mut reader = csv::Reader::from_reader(file);
         for  row in reader.deserialize() {

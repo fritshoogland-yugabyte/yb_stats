@@ -51,7 +51,7 @@ pub fn perform_mems_snapshot(
             let mut file = fs::OpenOptions::new()
                 .create(true)
                 .write(true)
-                .open(&mems_file)
+                .open(mems_file)
                 .unwrap_or_else(|e| {
                     error!("Fatal: error writing mems data in snapshot directory {}: {}", &mems_file.clone().into_os_string().into_string().unwrap(), e);
                     process::exit(1);

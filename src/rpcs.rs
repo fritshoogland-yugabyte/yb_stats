@@ -444,7 +444,7 @@ pub fn perform_rpcs_snapshot(
     let file = fs::OpenOptions::new()
         .create(true)
         .write(true)
-        .open(&ysqlrpc_file)
+        .open(ysqlrpc_file)
         .unwrap_or_else(|e| {
             error!("Fatal: error writing ysqlrpc data in snapshot directory {}: {}", &ysqlrpc_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
@@ -460,7 +460,7 @@ pub fn perform_rpcs_snapshot(
     let file = fs::OpenOptions::new()
         .create(true)
         .write(true)
-        .open(&inboundrpc_file)
+        .open(inboundrpc_file)
         .unwrap_or_else(|e| {
             error!("Fatal: error writing inboundrpc data in snapshot directory {}: {}", &inboundrpc_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
@@ -476,7 +476,7 @@ pub fn perform_rpcs_snapshot(
     let file = fs::OpenOptions::new()
         .create(true)
         .write(true)
-        .open(&outboundrpc_file)
+        .open(outboundrpc_file)
         .unwrap_or_else(|e| {
             error!("Fatal: error writing outboundrpc data in snapshot directory {}: {}", &outboundrpc_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
@@ -492,7 +492,7 @@ pub fn perform_rpcs_snapshot(
     let file = fs::OpenOptions::new()
         .create(true)
         .write(true)
-        .open(&cqldetails_file)
+        .open(cqldetails_file)
         .unwrap_or_else(|e| {
             error!("Fatal: error writing cqldetails data in snapshot directory {}: {}", &cqldetails_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
@@ -508,7 +508,7 @@ pub fn perform_rpcs_snapshot(
     let file = fs::OpenOptions::new()
         .create(true)
         .write(true)
-        .open(&headers_file)
+        .open(headers_file)
         .unwrap_or_else(|e| {
             error!("Fatal: error writing headers data in snapshot directory {}: {}", &headers_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
@@ -528,7 +528,7 @@ pub fn read_ysqlrpc_snapshot(
 {
     let mut stored_ysqlrpc: Vec<StoredYsqlRpc> = Vec::new();
     let ysqlrpc_file = &yb_stats_directory.join(snapshot_number).join("ysqlrpc");
-    let file = fs::File::open( &ysqlrpc_file )
+    let file = fs::File::open( ysqlrpc_file )
         .unwrap_or_else(|e| {
             error!("Fatal: error reading file: {}: {}", &ysqlrpc_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
@@ -549,7 +549,7 @@ pub fn read_inboundrpc_snapshot(
 {
     let mut stored_inboundrpc: Vec<StoredInboundRpc> = Vec::new();
     let inboundrpc_file = &yb_stats_directory.join(snapshot_number).join("inboundrpc");
-    let file = fs::File::open( &inboundrpc_file )
+    let file = fs::File::open( inboundrpc_file )
         .unwrap_or_else(|e| {
             error!("Fatal: error reading file: {}: {}", &inboundrpc_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
@@ -570,7 +570,7 @@ pub fn read_outboundrpc_snapshot(
 {
     let mut stored_outboundrpc: Vec<StoredOutboundRpc> = Vec::new();
     let outboundrpc_file = &yb_stats_directory.join(snapshot_number).join("outboundrpc");
-    let file = fs::File::open( &outboundrpc_file )
+    let file = fs::File::open( outboundrpc_file )
         .unwrap_or_else(|e| {
             error!("Fatal: error reading file: {}: {}", &outboundrpc_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
@@ -591,7 +591,7 @@ pub fn read_cqldetails_snapshot(
 {
     let mut stored_cqldetails: Vec<StoredCqlDetails> = Vec::new();
     let cqldetails_file = &yb_stats_directory.join(snapshot_number).join("cqldetails");
-    let file = fs::File::open( &cqldetails_file )
+    let file = fs::File::open( cqldetails_file )
         .unwrap_or_else(|e| {
             error!("Fatal: error reading file: {}: {}", &cqldetails_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);
@@ -612,7 +612,7 @@ pub fn read_headers_snapshot(
 {
     let mut stored_headers: Vec<StoredHeaders> = Vec::new();
     let headers_file = &yb_stats_directory.join(snapshot_number).join("headers");
-    let file = fs::File::open( &headers_file )
+    let file = fs::File::open( headers_file )
         .unwrap_or_else(|e| {
             error!("Fatal: error reading file: {}: {}", &headers_file.clone().into_os_string().into_string().unwrap(), e);
             process::exit(1);

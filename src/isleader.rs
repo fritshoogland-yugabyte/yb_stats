@@ -157,7 +157,7 @@ impl AllStoredIsLeader {
         let file = fs::OpenOptions::new()
             .create(true)
             .write(true)
-            .open(&isleader_file)?;
+            .open(isleader_file)?;
         let mut writer = csv::Writer::from_writer(file);
         for row in self.stored_isleader {
             writer.serialize(row)?;
@@ -172,10 +172,10 @@ impl AllStoredIsLeader {
         let mut allstoredisleader = AllStoredIsLeader { stored_isleader: Vec::new() };
 
         let current_directory = env::current_dir()?;
-        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(&snapshot_number);
+        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number);
 
         let isleader_file = &current_snapshot_directory.join("isleader");
-        let file = fs::File::open(&isleader_file)?;
+        let file = fs::File::open(isleader_file)?;
 
         let mut reader = csv::Reader::from_reader(file);
         for row in reader.deserialize() {

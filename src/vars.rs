@@ -34,7 +34,7 @@ pub struct StoredVars {
 }
 
 impl AllStoredVars {
-    pub fn perform_snapshot(
+    pub async fn perform_snapshot(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         snapshot_number: i32,
@@ -46,7 +46,7 @@ impl AllStoredVars {
 
         let allvars = AllStoredVars::read_vars(hosts, ports, parallel);
 
-        allvars.save_snapshot(snapshot_number)
+        allvars.await.save_snapshot(snapshot_number)
             .unwrap_or_else(|e| {
                 error!("error saving snapshot: {}", e);
                 process::exit(1);
@@ -54,7 +54,7 @@ impl AllStoredVars {
 
         info!("end snapshot: {:?}", timer.elapsed())
     }
-    pub fn read_vars(
+    pub async fn read_vars(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize,
@@ -130,7 +130,7 @@ impl AllStoredVars {
     {
         serde_json::from_str( &vars_data )
             .unwrap_or_else( |e| {
-                info!("({}:{}) could not parse /api/v1/varz json data for varz, error: {}", host, port, e);
+                debug!("({}:{}) could not parse /api/v1/varz json data for varz, error: {}", host, port, e);
                 AllVars { flags: Vec::new() }
             })
     }
@@ -172,7 +172,7 @@ impl AllStoredVars {
 
         Ok(allstoredvars)
     }
-    pub fn print(
+    pub async fn print(
         &self,
         details_enable: &bool,
         hostname_filter: &Regex,
@@ -236,9 +236,11 @@ impl SnapshotDiffStoredVars {
 }
 type BTreeMapSnapshotDiffVars = BTreeMap<(String, String), SnapshotDiffStoredVars>;
 
+#[derive(Default)]
 pub struct SnapshotDiffBTreeMapsVars {
     pub btreemap_snapshotdiff_vars: BTreeMapSnapshotDiffVars,
 }
+
 impl SnapshotDiffBTreeMapsVars {
     pub fn snapshot_diff(
         begin_snapshot: &String,
@@ -260,6 +262,9 @@ impl SnapshotDiffBTreeMapsVars {
         vars_snapshot_diff.second_snapshot(allstoredvars);
 
         vars_snapshot_diff
+    }
+    pub fn new() -> Self {
+        Default::default()
     }
     fn first_snapshot(
         allstoredvars: AllStoredVars,
@@ -337,23 +342,24 @@ impl SnapshotDiffBTreeMapsVars {
             };
         }
     }
-    pub fn adhoc_read_first_snapshot(
-        hosts: &Vec<&str>,
-        ports: &Vec<&str>,
-        parallel: usize,
-    ) -> SnapshotDiffBTreeMapsVars
-    {
-        let allstoredvars = AllStoredVars::read_vars(hosts, ports, parallel);
-        SnapshotDiffBTreeMapsVars::first_snapshot(allstoredvars)
-    }
-    pub fn adhoc_read_second_snapshot(
+    pub async fn adhoc_read_first_snapshot(
         &mut self,
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize,
     )
     {
-        let allstoredvars = AllStoredVars::read_vars(hosts, ports, parallel);
+        let allstoredvars = AllStoredVars::read_vars(hosts, ports, parallel).await;
+        SnapshotDiffBTreeMapsVars::first_snapshot(allstoredvars);
+    }
+    pub async fn adhoc_read_second_snapshot(
+        &mut self,
+        hosts: &Vec<&str>,
+        ports: &Vec<&str>,
+        parallel: usize,
+    )
+    {
+        let allstoredvars = AllStoredVars::read_vars(hosts, ports, parallel).await;
         self.second_snapshot(allstoredvars);
     }
 }

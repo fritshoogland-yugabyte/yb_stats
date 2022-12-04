@@ -23,7 +23,7 @@ pub fn read_mems(
 }
 
 #[allow(clippy::ptr_arg)]
-pub fn perform_mems_snapshot(
+pub async fn perform_mems_snapshot(
     hosts: &Vec<&str>,
     ports: &Vec<&str>,
     snapshot_number: i32,

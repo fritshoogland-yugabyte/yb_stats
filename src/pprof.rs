@@ -23,7 +23,7 @@ pub fn read_pprof(
 }
 
 #[allow(clippy::ptr_arg)]
-pub fn perform_pprof_snapshot(
+pub async fn perform_pprof_snapshot(
     hosts: &Vec<&str>,
     ports: &Vec<&str>,
     snapshot_number: i32,

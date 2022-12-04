@@ -210,7 +210,7 @@ impl StoredReplicas
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct AllStoredEntities {
     pub stored_keyspaces: Vec<StoredKeyspaces>,
     pub stored_tables: Vec<StoredTables>,
@@ -221,7 +221,7 @@ pub struct AllStoredEntities {
 
 impl AllStoredEntities
 {
-    pub fn perform_snapshot(
+    pub async fn perform_snapshot(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         snapshot_number: i32,
@@ -232,7 +232,7 @@ impl AllStoredEntities
         let timer = Instant::now();
 
         let allstoredentities = AllStoredEntities::read_entities(hosts, ports, parallel);
-        allstoredentities.save_snapshot(snapshot_number)
+        allstoredentities.await.save_snapshot(snapshot_number)
             .unwrap_or_else(|e| {
                 error!("error saving snasphot: {}", e);
                 process::exit(1);
@@ -240,7 +240,10 @@ impl AllStoredEntities
 
         info!("end snapshot: {:?}", timer.elapsed());
     }
-    pub fn read_entities (
+    pub fn new() -> Self {
+        Default::default()
+    }
+    pub async fn read_entities (
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize,
@@ -293,7 +296,7 @@ impl AllStoredEntities
     fn parse_entities( entities_data: String, host: &str, port: &str ) -> Entities {
         serde_json::from_str(&entities_data )
             .unwrap_or_else(|e| {
-                info!("({}:{}) could not parse /dump-entities json data for entities, error: {}", host, port, e);
+                debug!("({}:{}) could not parse /dump-entities json data for entities, error: {}", host, port, e);
                 Entities { keyspaces: Vec::<Keyspaces>::new(), tables: Vec::<Tables>::new(), tablets: Vec::<Tablets>::new() }
             })
     }
@@ -372,7 +375,8 @@ impl AllStoredEntities
     }
     pub fn read_snapshot( snapshot_number: &String, ) -> Result<AllStoredEntities, Box<dyn Error>>
     {
-        let mut allstoredentities = AllStoredEntities { stored_keyspaces: Vec::new(), stored_tables: Vec::new(), stored_tablets: Vec::new(), stored_replicas: Vec::new() };
+        //let mut allstoredentities = AllStoredEntities { stored_keyspaces: Vec::new(), stored_tables: Vec::new(), stored_tablets: Vec::new(), stored_replicas: Vec::new() };
+        let mut allstoredentities = AllStoredEntities::new();
 
         let current_directory = env::current_dir()?;
         let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number);
@@ -591,7 +595,7 @@ impl AllStoredEntities
             }
         }
     }
-    pub fn print_adhoc(
+    pub async fn print_adhoc(
         &self,
         table_name_filter: &Regex,
         details_enable: &bool,
@@ -602,7 +606,7 @@ impl AllStoredEntities
     {
         info!("print_entities");
 
-        let leader_hostname = AllStoredIsLeader::return_leader_http(hosts, ports, parallel);
+        let leader_hostname = AllStoredIsLeader::return_leader_http(hosts, ports, parallel).await;
 
         let mut tables_btreemap: BTreeMap<(String, String, String), StoredTables> = BTreeMap::new();
 
@@ -960,6 +964,7 @@ type BTreeMapSnapshotDiffTables = BTreeMap<String, SnapshotDiffTables>;
 // String = keyspace_id
 type BTreeMapSnapshotDiffKeyspaces = BTreeMap<String, SnapshotDiffKeyspaces>;
 
+#[derive(Default)]
 pub struct SnapshotDiffBTreeMapsEntities {
     pub btreemap_snapshotdiff_replicas: BTreeMapSnapshotDiffReplicas,
     pub btreemap_snapshotdiff_tablets: BTreeMapSnapshotDiffTablets,
@@ -986,7 +991,8 @@ impl SnapshotDiffBTreeMapsEntities {
                 process::exit(1);
             });
         let master_leader = AllStoredIsLeader::return_leader_snapshot(begin_snapshot);
-        let mut entities_snapshot_diff = SnapshotDiffBTreeMapsEntities::first_snapshot(allstoredentities, master_leader, details_enable);
+        let mut entities_snapshot_diff = SnapshotDiffBTreeMapsEntities::new();
+        entities_snapshot_diff.first_snapshot(allstoredentities, master_leader, details_enable);
 
         let allstoredentities = AllStoredEntities::read_snapshot(end_snapshot)
             .unwrap_or_else(|e| {
@@ -998,27 +1004,24 @@ impl SnapshotDiffBTreeMapsEntities {
 
         entities_snapshot_diff
     }
+    pub fn new() -> Self {
+        Default::default()
+    }
     fn first_snapshot(
+        &mut self,
         allstoredentities: AllStoredEntities,
         master_leader: String,
         details_enable: &bool,
-    ) -> SnapshotDiffBTreeMapsEntities {
-        let mut snapshotdiff_btreemaps = SnapshotDiffBTreeMapsEntities {
-            btreemap_snapshotdiff_replicas: Default::default(),
-            btreemap_snapshotdiff_tablets: Default::default(),
-            btreemap_snapshotdiff_tables: Default::default(),
-            btreemap_snapshotdiff_keyspaces: Default::default(),
-            keyspace_id_lookup: HashMap::new(),
-            table_keyspace_lookup: HashMap::new(),
-            table_id_lookup: HashMap::new(),
-            server_id_lookup: HashMap::new(),
-            tablet_table_lookup: HashMap::new(),
-            master_found: true,
-        };
+    )
+    {
         if master_leader == *"" {
-            snapshotdiff_btreemaps.master_found = false;
-            return snapshotdiff_btreemaps;
+            self.master_found = false;
+            return;
+        } else {
+            self.master_found = true;
         };
+        trace!("first snapshot: master_leader: {}, found: {}", master_leader, self.master_found);
+
         let object_oid_number = |oid: &str| -> u32 {
             // The oid entry normally is a 32 byte UUID for both ycql and ysql, which only contains hexadecimal numbers.
             // However, there is a single entry in system_schema that has a table_id that is 'sys.catalog.uuid'
@@ -1031,14 +1034,15 @@ impl SnapshotDiffBTreeMapsEntities {
         };
         //replicas
         for row in allstoredentities.stored_replicas.into_iter().filter(|r| r.hostname_port == master_leader.clone() ) {
-            snapshotdiff_btreemaps.server_id_lookup.entry(row.server_uuid.to_string()).or_insert_with(|| row.addr.to_string());
+            self.server_id_lookup.entry(row.server_uuid.to_string()).or_insert_with(|| row.addr.to_string());
 
-            match snapshotdiff_btreemaps.btreemap_snapshotdiff_replicas.get_mut( &(row.tablet_id.clone(), row.server_uuid.clone())) {
+            match self.btreemap_snapshotdiff_replicas.get_mut( &(row.tablet_id.clone(), row.server_uuid.clone())) {
                 Some( _replica_row ) => {
                     error!("Found second entry for first entry of replica, hostname: {}, tablet_id: {}, server_uuid: {}", &row.hostname_port.clone(), &row.tablet_id.clone(), &row.server_uuid.clone());
                 },
                 None => {
-                    snapshotdiff_btreemaps.btreemap_snapshotdiff_replicas.insert(
+                    trace!("first snapshot: add replica: {}, {}", row.tablet_id.to_string(), row.server_uuid.to_string() );
+                    self.btreemap_snapshotdiff_replicas.insert(
                         (row.tablet_id.to_string(), row.server_uuid.to_string()),
                         SnapshotDiffReplica::first_snapshot(row)
                     );
@@ -1047,13 +1051,14 @@ impl SnapshotDiffBTreeMapsEntities {
         };
         //tablets
         for row in allstoredentities.stored_tablets.into_iter().filter(|r| r.hostname_port == master_leader.clone() ) {
-            snapshotdiff_btreemaps.tablet_table_lookup.entry(row.tablet_id.to_string()).or_insert_with(|| row.table_id.to_string());
-            match snapshotdiff_btreemaps.btreemap_snapshotdiff_tablets.get_mut( &(row.tablet_id.clone())) {
+            self.tablet_table_lookup.entry(row.tablet_id.to_string()).or_insert_with(|| row.table_id.to_string());
+            match self.btreemap_snapshotdiff_tablets.get_mut( &(row.tablet_id.clone())) {
                 Some( _tablet_row ) => {
                     error!("Found second entry for first entry of tablet, hostname: {}, tablet_id: {}", &row.hostname_port.clone(), &row.tablet_id.clone());
                 },
                 None => {
-                    snapshotdiff_btreemaps.btreemap_snapshotdiff_tablets.insert(
+                    trace!("first snapshot: add tablet: {}", row.tablet_id.to_string() );
+                    self.btreemap_snapshotdiff_tablets.insert(
                         row.tablet_id.to_string(),
                         SnapshotDiffTablets::first_snapshot(row)
                     );
@@ -1073,20 +1078,21 @@ impl SnapshotDiffBTreeMapsEntities {
         }
         // tables
         for row in allstoredentities.stored_tables.into_iter().filter(|r| r.hostname_port == master_leader.clone() ) {
-            snapshotdiff_btreemaps.table_id_lookup.entry(row.table_id.to_string()).or_insert_with(|| row.table_name.to_string());
-            snapshotdiff_btreemaps.table_keyspace_lookup.entry(row.table_id.to_string()).or_insert_with(|| row.keyspace_id.to_string());
+            self.table_id_lookup.entry(row.table_id.to_string()).or_insert_with(|| row.table_name.to_string());
+            self.table_keyspace_lookup.entry(row.table_id.to_string()).or_insert_with(|| row.keyspace_id.to_string());
             if allstoredentities.stored_keyspaces.iter().find(|r| r.keyspace_id == row.keyspace_id).map(|r| &r.keyspace_type).unwrap() == "ysql"
             && object_oid_number(row.table_id.as_str()) < 16384
             && !*details_enable
             {
                 continue
             }
-            match snapshotdiff_btreemaps.btreemap_snapshotdiff_tables.get_mut( &row.table_id.clone() ) {
+            match self.btreemap_snapshotdiff_tables.get_mut( &row.table_id.clone() ) {
                 Some( _table_row ) => {
                     error!("Found second entry for first entry of table, hostname: {}, table_id: {}", &row.hostname_port.clone(), &row.table_id.clone());
                 },
                 None => {
-                    snapshotdiff_btreemaps.btreemap_snapshotdiff_tables.insert(
+                    trace!("first snapshot: add table: {}", row.table_id.to_string() );
+                    self.btreemap_snapshotdiff_tables.insert(
                         row.table_id.to_string(),
                         SnapshotDiffTables::first_snapshot(row)
                     );
@@ -1095,17 +1101,18 @@ impl SnapshotDiffBTreeMapsEntities {
         };
         // keyspaces
         for row in allstoredentities.stored_keyspaces.into_iter().filter(|r| r.hostname_port == master_leader.clone() ) {
-            snapshotdiff_btreemaps.keyspace_id_lookup.entry(row.keyspace_id.to_string()).or_insert_with(|| (row.keyspace_type.to_string(), row.keyspace_name.to_string()));
+            self.keyspace_id_lookup.entry(row.keyspace_id.to_string()).or_insert_with(|| (row.keyspace_type.to_string(), row.keyspace_name.to_string()));
 
             // if the keyspace is not in table_counts_hashmap it's not a ysql keyspace, and then gets the value 1 to pass.
             // if the keyspace is in the table_counts_hashmap it must have more than one table to be a non-dropped database.
             if table_counts_hashmap.get(&row.keyspace_id.to_string()).unwrap_or( &1_usize ) > &0_usize {
-                match snapshotdiff_btreemaps.btreemap_snapshotdiff_keyspaces.get_mut(&row.keyspace_id.clone()) {
+                match self.btreemap_snapshotdiff_keyspaces.get_mut(&row.keyspace_id.clone()) {
                     Some(_keyspace_row) => {
                         error!("Found second entry for first entry of keyspace, hostname: {}, keyspace_id: {}", &row.hostname_port.clone(), &row.keyspace_id.clone());
                     },
                     None => {
-                        snapshotdiff_btreemaps.btreemap_snapshotdiff_keyspaces.insert(
+                        trace!("first snapshot: add keyspace: {}", row.keyspace_id.to_string() );
+                        self.btreemap_snapshotdiff_keyspaces.insert(
                             row.keyspace_id.to_string(),
                             SnapshotDiffKeyspaces::first_snapshot(row)
                         );
@@ -1113,7 +1120,6 @@ impl SnapshotDiffBTreeMapsEntities {
                 }
             }
         };
-        snapshotdiff_btreemaps
     }
     /// The second snapshot function checks the entries in
     fn second_snapshot(
@@ -1126,7 +1132,11 @@ impl SnapshotDiffBTreeMapsEntities {
         if master_leader == *"" {
             self.master_found = false;
             return;
-        };
+        } else {
+            self.master_found = true;
+        }
+        trace!("second snapshot: master_leader: {}, found: {}", master_leader, self.master_found);
+
         let object_oid_number = |oid: &str| -> u32 {
             // The oid entry normally is a 32 byte UUID for both ycql and ysql, which only contains hexadecimal numbers.
             // However, there is a single entry in system_schema that has a table_id that is 'sys.catalog.uuid'
@@ -1173,15 +1183,18 @@ impl SnapshotDiffBTreeMapsEntities {
                     && tablet_row.first_leader == row.leader
                     {
                         // second snapshot contains identical values, so we remove it.
+                        trace!("second snapshot: tablet idential:remove: {}", row.tablet_id.to_string() );
                         self.btreemap_snapshotdiff_tablets.remove( &(row.tablet_id.clone()) );
                     }
                     else
                     {
                         // second snapshot has the same key, but contains different values (?)
+                        trace!("second snapshot: tablet CHANGED: {}", row.tablet_id.to_string() );
                         *tablet_row = SnapshotDiffTablets::second_snapshot_existing(tablet_row, row);
                     };
                 },
                 None => {
+                    trace!("second snapshot: new tablet: {}", row.tablet_id.to_string() );
                     self.btreemap_snapshotdiff_tablets.insert(
                         row.tablet_id.to_string(),
                         SnapshotDiffTablets::second_snapshot_new(row)
@@ -1217,14 +1230,17 @@ impl SnapshotDiffBTreeMapsEntities {
                     && table_row.first_keyspace_id == row.keyspace_id
                     {
                         // second snapshot contains identical values, so we remove it.
+                        trace!("second snapshot: table idential:remove: {}", row.table_id.to_string() );
                         self.btreemap_snapshotdiff_tables.remove( &(row.table_id.clone()) );
                     }
                     else {
                         // second snapshot has the same key, but contains different values.
+                        trace!("second snapshot: table CHANGED: {}", row.table_id.to_string() );
                         *table_row = SnapshotDiffTables::second_snapshot_existing(table_row, row);
                     };
                 },
                 None => {
+                    trace!("second snapshot: new table: {}", row.table_id.to_string() );
                     self.btreemap_snapshotdiff_tables.insert(
                         row.table_id.to_string(),
                         SnapshotDiffTables::second_snapshot_new(row)
@@ -1244,13 +1260,16 @@ impl SnapshotDiffBTreeMapsEntities {
                             && keyspace_row.first_keyspace_type == row.keyspace_type
                         {
                             // second snapshot contains identical values, so we remove it.
+                            trace!("second snapshot: keyspace idential:remove: {}", row.keyspace_id.to_string() );
                             self.btreemap_snapshotdiff_keyspaces.remove(&(row.keyspace_id.clone()));
                         } else {
                             // second snapshot has the same key, but contains different values.
+                            trace!("second snapshot: keyspace CHANGED: {}", row.keyspace_id.to_string() );
                             *keyspace_row = SnapshotDiffKeyspaces::second_snapshot_existing(keyspace_row, row);
                         };
                     },
                     None => {
+                        trace!("second snapshot: new keyspace: {}", row.keyspace_id.to_string() );
                         self.btreemap_snapshotdiff_keyspaces.insert(
                             row.keyspace_id.to_string(),
                             SnapshotDiffKeyspaces::second_snapshot_new(row)
@@ -1260,25 +1279,26 @@ impl SnapshotDiffBTreeMapsEntities {
             }
         }
     }
-    pub fn adhoc_read_first_snapshot(
-        hosts: &Vec<&str>,
-        ports: &Vec<&str>,
-        parallel: usize,
-    ) -> SnapshotDiffBTreeMapsEntities
-    {
-        let allstoredentities = AllStoredEntities::read_entities(hosts, ports, parallel);
-        let master_leader= AllStoredIsLeader::return_leader_http(hosts, ports, parallel);
-        SnapshotDiffBTreeMapsEntities::first_snapshot(allstoredentities, master_leader, &false )
-    }
-    pub fn adhoc_read_second_snapshot(
+    pub async fn adhoc_read_first_snapshot(
         &mut self,
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize,
     )
     {
-        let allstoredentities = AllStoredEntities::read_entities(hosts, ports, parallel);
-        let master_leader= AllStoredIsLeader::return_leader_http(hosts, ports, parallel);
+        let allstoredentities = AllStoredEntities::read_entities(hosts, ports, parallel).await;
+        let master_leader= AllStoredIsLeader::return_leader_http(hosts, ports, parallel).await;
+        self.first_snapshot(allstoredentities, master_leader, &false );
+    }
+    pub async fn adhoc_read_second_snapshot(
+        &mut self,
+        hosts: &Vec<&str>,
+        ports: &Vec<&str>,
+        parallel: usize,
+    )
+    {
+        let allstoredentities = AllStoredEntities::read_entities(hosts, ports, parallel).await;
+        let master_leader= AllStoredIsLeader::return_leader_http(hosts, ports, parallel).await;
         self.second_snapshot(allstoredentities, master_leader, &false);
     }
     pub fn print(

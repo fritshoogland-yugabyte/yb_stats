@@ -77,7 +77,7 @@ pub struct AllStoredNodeExporterValues {
     pub stored_nodeexportervalues: Vec<StoredNodeExporterValues>,
 }
 impl AllStoredNodeExporterValues {
-    pub fn perform_snapshot(
+    pub async fn perform_snapshot(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         snapshot_number: i32,
@@ -87,7 +87,7 @@ impl AllStoredNodeExporterValues {
         let timer = Instant::now();
 
         let allstorednodeexportervalues = AllStoredNodeExporterValues::read_nodeexporter(hosts, ports, parallel);
-        allstorednodeexportervalues.save_snapshot(snapshot_number)
+        allstorednodeexportervalues.await.save_snapshot(snapshot_number)
             .unwrap_or_else(|e| {
                 error!("error saving snapshot: {}", e);
                 process::exit(1);
@@ -131,7 +131,7 @@ impl AllStoredNodeExporterValues {
 
         Ok(allstorednodeexportervalues)
     }
-    pub fn read_nodeexporter(
+    pub async fn read_nodeexporter(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize
@@ -284,6 +284,7 @@ impl AllStoredNodeExporterValues {
 
 type BTreeMapSnapshotDiffNodeExporter = BTreeMap<(String, String), SnapshotDiffNodeExporter>;
 
+#[derive(Default)]
 pub struct SnapshotDiffBTreeMapNodeExporter {
     pub btreemap_snapshotdiff_nodeexporter: BTreeMapSnapshotDiffNodeExporter,
 }
@@ -301,7 +302,8 @@ impl SnapshotDiffBTreeMapNodeExporter {
                 process::exit(1);
             });
 
-        let mut nodeexporter_snapshot_diff = SnapshotDiffBTreeMapNodeExporter::first_snapshot(allstorednodeexportervalues);
+        let mut node_exporter_snapshot_diff = SnapshotDiffBTreeMapNodeExporter::new();
+        node_exporter_snapshot_diff.first_snapshot(allstorednodeexportervalues);
 
         let allstorednodeexportervalues = AllStoredNodeExporterValues::read_snapshot(end_snapshot)
             .unwrap_or_else(|e| {
@@ -309,31 +311,36 @@ impl SnapshotDiffBTreeMapNodeExporter {
                 process::exit(1);
             });
 
-        nodeexporter_snapshot_diff.second_snapshot(allstorednodeexportervalues, begin_snapshot_time);
+        node_exporter_snapshot_diff.second_snapshot(allstorednodeexportervalues, begin_snapshot_time);
 
-        nodeexporter_snapshot_diff
+        node_exporter_snapshot_diff
     }
-    pub fn adhoc_read_first_snapshot (
+    pub fn new() -> Self {
+        Default::default()
+    }
+    pub async fn adhoc_read_first_snapshot (
+        &mut self,
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize,
-    ) -> SnapshotDiffBTreeMapNodeExporter
+    )
     {
-        let allstorednodeexportervalues = AllStoredNodeExporterValues::read_nodeexporter(hosts, ports, parallel);
-        SnapshotDiffBTreeMapNodeExporter::first_snapshot(allstorednodeexportervalues)
+        let allstorednodeexportervalues = AllStoredNodeExporterValues::read_nodeexporter(hosts, ports, parallel).await;
+        self.first_snapshot(allstorednodeexportervalues);
     }
-    fn first_snapshot(allstorednodeexportervalues: AllStoredNodeExporterValues) -> SnapshotDiffBTreeMapNodeExporter
+    fn first_snapshot(
+        &mut self,
+        allstorednodeexportervalues: AllStoredNodeExporterValues
+    )
     {
-        let mut nodeexporter_diff_btreemap = SnapshotDiffBTreeMapNodeExporter { btreemap_snapshotdiff_nodeexporter: BTreeMap::new() };
         for row in allstorednodeexportervalues.stored_nodeexportervalues {
-            nodeexporter_diff_btreemap.btreemap_snapshotdiff_nodeexporter.insert(
+            self.btreemap_snapshotdiff_nodeexporter.insert(
                 (row.hostname_port.to_string(), format!("{}{}", row.node_exporter_name, row.node_exporter_labels)),
                 SnapshotDiffNodeExporter::first_snapshot(row)
             );
         }
-        nodeexporter_diff_btreemap
     }
-    pub fn adhoc_read_second_snapshot(
+    pub async fn adhoc_read_second_snapshot(
         &mut self,
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
@@ -341,7 +348,7 @@ impl SnapshotDiffBTreeMapNodeExporter {
         first_snapshot_time: &DateTime<Local>,
     )
     {
-        let allstorednodeexporter = AllStoredNodeExporterValues::read_nodeexporter(hosts, ports, parallel);
+        let allstorednodeexporter = AllStoredNodeExporterValues::read_nodeexporter(hosts, ports, parallel).await;
         self.second_snapshot(allstorednodeexporter, first_snapshot_time);
     }
     fn second_snapshot(

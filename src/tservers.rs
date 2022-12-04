@@ -90,7 +90,7 @@ pub struct AllStoredTabletServers {
 }
 
 impl AllStoredTabletServers {
-    pub fn perform_snapshot(
+    pub async fn perform_snapshot(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         snapshot_number: i32,
@@ -101,7 +101,7 @@ impl AllStoredTabletServers {
 
         let alltabletservers = AllStoredTabletServers::read_tabletservers(hosts, ports, parallel);
 
-        alltabletservers.save_snapshot(snapshot_number)
+        alltabletservers.await.save_snapshot(snapshot_number)
             .unwrap_or_else(|e| {
                 error!("error saving snapshot: {}", e);
                 process::exit(1);
@@ -109,7 +109,7 @@ impl AllStoredTabletServers {
 
         info!("end snapshot: {:?}", timer.elapsed())
     }
-    pub fn read_tabletservers(
+    pub async fn read_tabletservers(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize,
@@ -215,7 +215,7 @@ impl AllStoredTabletServers {
     ) -> AllTabletServers {
         serde_json::from_str(&tabletservers_data)
             .unwrap_or_else(|e| {
-                info!("({}:{}) could not parse /api/v1/tablet-servers json data for masters, error: {}", host, port, e);
+                debug!("({}:{}) could not parse /api/v1/tablet-servers json data for masters, error: {}", host, port, e);
                 AllTabletServers { tabletservers: HashMap::new() }
             })
     }
@@ -316,7 +316,7 @@ impl AllStoredTabletServers {
             }
         }
     }
-    pub fn print_adhoc(
+    pub async fn print_adhoc(
         &self,
         details_enable: &bool,
         hosts: &Vec<&str>,
@@ -326,7 +326,7 @@ impl AllStoredTabletServers {
     {
         info!("print adhoc tablet servers");
 
-        let leader_hostname = AllStoredIsLeader::return_leader_http(hosts, ports, parallel);
+        let leader_hostname = AllStoredIsLeader::return_leader_http(hosts, ports, parallel).await;
 
         for row in &self.stored_tabletservers {
             if row.hostname_port == leader_hostname
@@ -395,7 +395,10 @@ impl SnapshotDiffStoredTabletServers {
         }
     }
 }
+
 type BTreeMapSnapshotDiffTabletServers = BTreeMap<String, SnapshotDiffStoredTabletServers>;
+
+#[derive(Default)]
 pub struct SnapshotDiffBTreeMapsTabletServers {
     pub btreemap_snapshotdiff_tabletservers: BTreeMapSnapshotDiffTabletServers,
     pub master_found: bool,
@@ -413,7 +416,8 @@ impl SnapshotDiffBTreeMapsTabletServers {
                 process::exit(1);
             });
         let master_leader = AllStoredIsLeader::return_leader_snapshot(begin_snapshot);
-        let mut tabletservers_snapshot_diff = SnapshotDiffBTreeMapsTabletServers::first_snapshot(allstoredtabletservers, master_leader);
+        let mut tabletservers_snapshot_diff = SnapshotDiffBTreeMapsTabletServers::new();
+        tabletservers_snapshot_diff.first_snapshot(allstoredtabletservers, master_leader);
 
         let allstoredtabletservers = AllStoredTabletServers::read_snapshot(end_snapshot)
             .unwrap_or_else(|e| {
@@ -425,33 +429,37 @@ impl SnapshotDiffBTreeMapsTabletServers {
 
         tabletservers_snapshot_diff
     }
+    pub fn new() -> Self {
+        Default::default()
+    }
     fn first_snapshot(
+        &mut self,
         allstoredtabletservers: AllStoredTabletServers,
         master_leader: String,
-    ) -> SnapshotDiffBTreeMapsTabletServers
+    )
     {
-        let mut snapshotdiff_btreemaps = SnapshotDiffBTreeMapsTabletServers {
-            btreemap_snapshotdiff_tabletservers: Default::default(),
-            master_found: true,
-        };
         if master_leader == *"" {
-            snapshotdiff_btreemaps.master_found = false;
-            return snapshotdiff_btreemaps;
+            self.master_found = false;
+            return;
+        } else {
+            self.master_found = true;
         };
+        trace!("first snapshot: master_leader: {}, found: {}", master_leader, self.master_found);
+
         for row in allstoredtabletservers.stored_tabletservers.into_iter().filter(|r| r.hostname_port == master_leader.clone()) {
-            match snapshotdiff_btreemaps.btreemap_snapshotdiff_tabletservers.get_mut( &row.tserver_hostname_port ) {
+            match self.btreemap_snapshotdiff_tabletservers.get_mut( &row.tserver_hostname_port ) {
                 Some( _tabletserver_row ) => {
                     error!("Found second entry for first entry of tablet server, based on tablet server hostname:port: {}", &row.tserver_hostname_port);
                 },
                 None => {
-                    snapshotdiff_btreemaps.btreemap_snapshotdiff_tabletservers.insert(
+                    trace!("first snapshot: add tablet server: {}", row.tserver_hostname_port.to_string() );
+                    self.btreemap_snapshotdiff_tabletservers.insert(
                         row.tserver_hostname_port.to_string(),
                         SnapshotDiffStoredTabletServers::first_snapshot(row)
                     );
                 },
             }
         };
-        snapshotdiff_btreemaps
     }
     fn second_snapshot(
         &mut self,
@@ -462,19 +470,26 @@ impl SnapshotDiffBTreeMapsTabletServers {
         if master_leader == *"" {
             self.master_found = false;
             return;
-        }
+        } else {
+            self.master_found = true;
+        };
+        trace!("second snapshot: master_leader: {}, found: {}", master_leader, self.master_found);
+
         for row in allstoredtabletserver.stored_tabletservers.into_iter().filter(|r| r.hostname_port == master_leader.clone()) {
             match self.btreemap_snapshotdiff_tabletservers.get_mut( &row.tserver_hostname_port ) {
                 Some( tabletserver_row ) => {
                     if tabletserver_row.first_status == row.status
                         && tabletserver_row.first_uptime_seconds <= row.uptime_seconds
                     {
+                        trace!("second snapshot: tablet server idential:remove: {}", row.tserver_hostname_port.to_string() );
                         self.btreemap_snapshotdiff_tabletservers.remove( &row.tserver_hostname_port.clone() );
                     } else  {
+                        trace!("second snapshot: tablet server CHANGED: {}", row.tserver_hostname_port.to_string() );
                         *tabletserver_row = SnapshotDiffStoredTabletServers::second_snapshot_existing(tabletserver_row, row);
                     }
                 },
                 None => {
+                    trace!("second snapshot: new tablet server: {}", row.tserver_hostname_port.to_string() );
                     self.btreemap_snapshotdiff_tabletservers.insert( row.tserver_hostname_port.clone(), SnapshotDiffStoredTabletServers::second_snapshot_new(row));
                 },
             }
@@ -490,11 +505,11 @@ impl SnapshotDiffBTreeMapsTabletServers {
        }
         for (hostname, status) in self.btreemap_snapshotdiff_tabletservers.iter() {
             if status.second_status == *"" {
-                println!("{} Tserver: {}, status: {}, uptime: {} s", "-".to_string().red(), hostname, status.first_status, status.first_uptime_seconds);
+                println!("{} Tserver:  {}, status: {}, uptime: {} s", "-".to_string().red(), hostname, status.first_status, status.first_uptime_seconds);
             } else if status.first_status == *"" {
-                println!("{} Tserver: {}, status: {}, uptime: {} s", "+".to_string().green(), hostname, status.second_status, status.second_uptime_seconds);
+                println!("{} Tserver:  {}, status: {}, uptime: {} s", "+".to_string().green(), hostname, status.second_status, status.second_uptime_seconds);
             } else {
-                print!("{} Tserver: {}, ", "*".to_string().yellow(), hostname);
+                print!("{} Tserver:  {}, ", "*".to_string().yellow(), hostname);
                 if status.first_status != status.second_status {
                     print!("status: {}->{}, ", status.first_status.to_string().yellow(), status.second_status.to_string().yellow());
                 } else {
@@ -508,25 +523,26 @@ impl SnapshotDiffBTreeMapsTabletServers {
             };
         }
     }
-    pub fn adhoc_read_first_snapshot(
-        hosts: &Vec<&str>,
-        ports: &Vec<&str>,
-        parallel: usize,
-    ) -> SnapshotDiffBTreeMapsTabletServers
-    {
-        let allstoredtabletservers = AllStoredTabletServers::read_tabletservers(hosts, ports, parallel);
-        let master_leader = AllStoredIsLeader::return_leader_http(hosts, ports, parallel);
-        SnapshotDiffBTreeMapsTabletServers::first_snapshot(allstoredtabletservers, master_leader)
-    }
-    pub fn adhoc_read_second_snapshot(
+    pub async fn adhoc_read_first_snapshot(
         &mut self,
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize,
     )
     {
-        let allstoredtabletservers = AllStoredTabletServers::read_tabletservers(hosts, ports, parallel);
-        let master_leader = AllStoredIsLeader::return_leader_http(hosts, ports, parallel);
+        let allstoredtabletservers = AllStoredTabletServers::read_tabletservers(hosts, ports, parallel).await;
+        let master_leader = AllStoredIsLeader::return_leader_http(hosts, ports, parallel).await;
+        self.first_snapshot(allstoredtabletservers, master_leader);
+    }
+    pub async fn adhoc_read_second_snapshot(
+        &mut self,
+        hosts: &Vec<&str>,
+        ports: &Vec<&str>,
+        parallel: usize,
+    )
+    {
+        let allstoredtabletservers = AllStoredTabletServers::read_tabletservers(hosts, ports, parallel).await;
+        let master_leader = AllStoredIsLeader::return_leader_http(hosts, ports, parallel).await;
         self.second_snapshot(allstoredtabletservers, master_leader);
     }
 }

@@ -32,7 +32,7 @@ pub struct StoredThreads {
 
 #[allow(dead_code)]
 #[allow(clippy::ptr_arg)]
-pub fn perform_threads_snapshot(
+pub async fn perform_threads_snapshot(
     hosts: &Vec<&str>,
     ports: &Vec<&str>,
     snapshot_number: i32,

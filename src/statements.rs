@@ -200,6 +200,7 @@ impl SnapshotDiffStatements {
 
 type BTreeMapSnapshotDiffStatements = BTreeMap<(String, String), SnapshotDiffStatements>;
 
+#[derive(Default)]
 pub struct SnapshotDiffBTreeMapStatements {
     pub btreemap_snapshotdiff_statements: BTreeMapSnapshotDiffStatements,
 }
@@ -216,8 +217,8 @@ impl SnapshotDiffBTreeMapStatements {
                 error!("Fatal: error reading snapshot: {}", e);
                 process::exit(1);
             });
-
-        let mut statements_snapshot_diff = SnapshotDiffBTreeMapStatements::first_snapshot(allstoredstatements);
+        let mut statements_snapshot_diff = SnapshotDiffBTreeMapStatements::new();
+        statements_snapshot_diff.first_snapshot(allstoredstatements);
 
         let allstoredstatements = AllStoredStatements::read_snapshot(end_snapshot)
             .unwrap_or_else(|e| {
@@ -229,18 +230,20 @@ impl SnapshotDiffBTreeMapStatements {
 
         statements_snapshot_diff
     }
+    pub fn new() -> Self {
+        Default::default()
+    }
     fn first_snapshot(
+        &mut self,
         allstoredstatements: AllStoredStatements,
-    ) -> SnapshotDiffBTreeMapStatements
+    )
     {
-        let mut statements_diff_btreemap = SnapshotDiffBTreeMapStatements { btreemap_snapshotdiff_statements: BTreeMap::new() };
         for statement in allstoredstatements.stored_statements {
-            statements_diff_btreemap.btreemap_snapshotdiff_statements.insert(
+            self.btreemap_snapshotdiff_statements.insert(
                 (statement.hostname_port.to_string(), statement.query.to_string()),
                SnapshotDiffStatements::first_snapshot(statement)
             );
         }
-        statements_diff_btreemap
     }
     fn second_snapshot(
         &mut self,
@@ -260,16 +263,17 @@ impl SnapshotDiffBTreeMapStatements {
             }
         }
     }
-    pub fn adhoc_read_first_snapshot(
+    pub async fn adhoc_read_first_snapshot(
+        &mut self,
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize,
-    ) -> SnapshotDiffBTreeMapStatements
+    )
     {
-        let allstoredstatements = AllStoredStatements::read_statements(hosts, ports, parallel);
-        SnapshotDiffBTreeMapStatements::first_snapshot(allstoredstatements)
+        let allstoredstatements = AllStoredStatements::read_statements(hosts, ports, parallel).await;
+        self.first_snapshot(allstoredstatements);
     }
-    pub fn adhoc_read_second_snapshot(
+    pub async fn adhoc_read_second_snapshot(
         &mut self,
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
@@ -277,10 +281,10 @@ impl SnapshotDiffBTreeMapStatements {
         first_snapshot_time: &DateTime<Local>,
     )
     {
-        let allstoredstatements = AllStoredStatements::read_statements(hosts, ports, parallel);
+        let allstoredstatements = AllStoredStatements::read_statements(hosts, ports, parallel).await;
         self.second_snapshot(allstoredstatements, first_snapshot_time);
     }
-    pub fn print(
+    pub async fn print(
         &self,
         hostname_filter: &Regex,
         sql_length: usize,
@@ -290,6 +294,7 @@ impl SnapshotDiffBTreeMapStatements {
             if hostname_filter.is_match(hostname)
                 && statements_row.second_calls - statements_row.first_calls != 0 {
                 let adaptive_length = if query.len() < sql_length { query.len() } else { sql_length };
+                trace!("PRINT {}: second_calls: {}, first_calls: {}, query: {}", hostname, statements_row.second_calls, statements_row.first_calls, query.substring(0,adaptive_length).escape_default());
                 println!("{:20} {:10} avg: {:15.3} tot: {:15.3} ms avg: {:10} tot: {:10} rows: {:0adaptive_length$}",
                          hostname,
                          statements_row.second_calls - statements_row.first_calls,
@@ -299,6 +304,8 @@ impl SnapshotDiffBTreeMapStatements {
                          statements_row.second_rows - statements_row.first_rows,
                          query.substring(0, adaptive_length).escape_default()
                 );
+            } else {
+                trace!("SKIP {}: second_calls: {}, first_calls: {}, query: {}", hostname, statements_row.second_calls, statements_row.first_calls, query.escape_default());
             }
         }
     }
@@ -309,7 +316,7 @@ pub struct AllStoredStatements {
     pub stored_statements: Vec<StoredStatements>
 }
 impl AllStoredStatements {
-    pub fn perform_snapshot(
+    pub async fn perform_snapshot(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         snapshot_number: i32,
@@ -319,7 +326,7 @@ impl AllStoredStatements {
         let timer = Instant::now();
 
         let allstoredstatements = AllStoredStatements::read_statements(hosts, ports, parallel);
-        allstoredstatements.save_snapshot(snapshot_number)
+        allstoredstatements.await.save_snapshot(snapshot_number)
             .unwrap_or_else(|e| {
                 error!("error saving snapshot: {}", e);
                 process::exit(1);
@@ -363,7 +370,7 @@ impl AllStoredStatements {
 
         Ok(allstoredstatements)
     }
-    pub fn read_statements (
+    pub async fn read_statements (
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize

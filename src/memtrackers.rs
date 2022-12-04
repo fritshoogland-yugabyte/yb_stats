@@ -103,7 +103,7 @@ fn find_table(http_data: &str) -> Option<(Vec<String>, Vec<Vec<String>>)> {
 
 #[allow(dead_code)]
 #[allow(clippy::ptr_arg)]
-pub fn perform_memtrackers_snapshot(
+pub async fn perform_memtrackers_snapshot(
     hosts: &Vec<&str>,
     ports: &Vec<&str>,
     snapshot_number: i32,

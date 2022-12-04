@@ -386,6 +386,7 @@ impl CountSumStatistics {
             ("files",           "files"),
             ("tasks",           "tasks"),
             ("requests",        "reqs"),
+            ("?",               "?"),
         ]);
         match suffix.get(unit) {
             Some(x) => x.to_string(),
@@ -405,6 +406,7 @@ impl CountSumStatistics {
             ("files",              1_i64),
             ("tasks",              1_i64),
             ("requests",           1_i64),
+            ("?",                  1_i64),
         ]);
         match divisor.get(unit) {
             Some(x) => *x,

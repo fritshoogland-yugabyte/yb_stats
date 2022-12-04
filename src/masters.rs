@@ -20,7 +20,7 @@ pub struct AllStoredMasters {
 }
 
 impl AllStoredMasters {
-    pub fn perform_snapshot(
+    pub async fn perform_snapshot(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         snapshot_number: i32,
@@ -30,7 +30,7 @@ impl AllStoredMasters {
         let timer = Instant::now();
 
         let allmasters = AllStoredMasters::read_masters(hosts, ports, parallel);
-        allmasters.save_snapshot(snapshot_number)
+        allmasters.await.save_snapshot(snapshot_number)
             .unwrap_or_else(|e| {
                 error!("error saving snapshot: {}", e);
                 process::exit(1);
@@ -38,7 +38,7 @@ impl AllStoredMasters {
 
         info!("end snapshot: {:?}", timer.elapsed())
     }
-    pub fn read_masters(
+    pub async fn read_masters(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize,
@@ -162,7 +162,7 @@ impl AllStoredMasters {
     ) -> AllMasters {
         serde_json::from_str(&masters_data )
             .unwrap_or_else(|e| {
-                info!("({}:{}) could not parse /api/v1/masters json data for masters, error: {}", host, port, e);
+                debug!("({}:{}) could not parse /api/v1/masters json data for masters, error: {}", host, port, e);
                 AllMasters { masters: Vec::<Masters>::new() }
             })
     }
@@ -327,7 +327,7 @@ impl AllStoredMasters {
             }
         }
     }
-    pub fn print_adhoc(
+    pub async fn print_adhoc(
         &self,
         details_enable: &bool,
         hosts: &Vec<&str>,
@@ -337,7 +337,7 @@ impl AllStoredMasters {
     {
         info!("print adhoc masters");
 
-        let leader_hostname = AllStoredIsLeader::return_leader_http(hosts, ports, parallel);
+        let leader_hostname = AllStoredIsLeader::return_leader_http(hosts, ports, parallel).await;
 
         for row in &self.stored_masters {
             if row.hostname_port == leader_hostname
@@ -481,6 +481,7 @@ pub struct PermanentUuidRpcAddress {
     pub hostname_port: String,
 }
 
+#[derive(Default)]
 pub struct SnapshotDiffBTreeMapsMasters {
     pub btreemap_snapshotdiff_masters: BTreeMapSnapshotDiffMasters,
     pub btreemap_snapshotdiff_httpaddresses: BTreeMapSnapshotDiffHttpAddresses, // currently no diff for http addresses
@@ -504,7 +505,8 @@ impl SnapshotDiffBTreeMapsMasters {
                 process::exit(1);
             });
         let master_leader = AllStoredIsLeader::return_leader_snapshot(begin_snapshot);
-        let mut masters_snapshot_diff = SnapshotDiffBTreeMapsMasters::first_snapshot(allstoredmasters, master_leader);
+        let mut masters_snapshot_diff = SnapshotDiffBTreeMapsMasters::new();
+        masters_snapshot_diff.first_snapshot(allstoredmasters, master_leader);
 
         let allstoredmasters = AllStoredMasters::read_snapshot(end_snapshot)
             .unwrap_or_else(|e| {
@@ -516,32 +518,31 @@ impl SnapshotDiffBTreeMapsMasters {
 
         masters_snapshot_diff
     }
+    pub fn new() -> Self {
+        Default::default()
+    }
     fn first_snapshot(
+        &mut self,
         allstoredmasters: AllStoredMasters,
         master_leader: String,
-    ) -> SnapshotDiffBTreeMapsMasters
+    )
     {
-        let mut snapshotdiff_btreemaps = SnapshotDiffBTreeMapsMasters {
-            btreemap_snapshotdiff_masters: Default::default(),
-            btreemap_snapshotdiff_httpaddresses: Default::default(),
-            btreemap_snapshotdiff_rpcaddresses: Default::default(),
-            first_http_addresses: Default::default(),
-            second_http_addresses: Default::default(),
-            first_rpc_addresses: Default::default(),
-            second_rpc_addresses: Default::default(),
-            master_found: true,
-        };
         if master_leader == *"" {
-            snapshotdiff_btreemaps.master_found = false;
-            return snapshotdiff_btreemaps;
+            self.master_found = false;
+            return;
+        } else {
+            self.master_found = true;
         };
+        trace!("first snapshot: master_leader: {}, found: {}", master_leader, self.master_found);
+
         for row in allstoredmasters.stored_masters.into_iter().filter(|r| r.hostname_port == master_leader.clone()) {
-            match snapshotdiff_btreemaps.btreemap_snapshotdiff_masters.get_mut( &row.instance_permanent_uuid ) {
+            match self.btreemap_snapshotdiff_masters.get_mut( &row.instance_permanent_uuid ) {
                 Some( _master_row ) => {
                     error!("Found second entry for first entry of masters based on instance permanent uuid: {}", &row.instance_permanent_uuid);
                 },
                 None => {
-                    snapshotdiff_btreemaps.btreemap_snapshotdiff_masters.insert(
+                    trace!("first snapshot: add master permanent uuid: {}", row.instance_permanent_uuid.to_string() );
+                    self.btreemap_snapshotdiff_masters.insert(
                         row.instance_permanent_uuid.to_string(),
                         SnapshotDiffStoredMasters::first_snapshot(row)
                     );
@@ -549,16 +550,17 @@ impl SnapshotDiffBTreeMapsMasters {
             };
         }
         for row in allstoredmasters.stored_http_addresses.into_iter().filter(|r| r.hostname_port == master_leader.clone()) {
-            if snapshotdiff_btreemaps.first_http_addresses.iter().filter(|r| r.permanent_uuid == row.instance_permanent_uuid && r.hostname_port == format!("{}:{}", row.host, row.port)).count() == 0 {
-                snapshotdiff_btreemaps.first_http_addresses.push( PermanentUuidHttpAddress { permanent_uuid: row.instance_permanent_uuid.to_string(), hostname_port: format!("{}:{}", row.host, row.port) });
+            if self.first_http_addresses.iter().filter(|r| r.permanent_uuid == row.instance_permanent_uuid && r.hostname_port == format!("{}:{}", row.host, row.port)).count() == 0 {
+                trace!("first snapshot: add http address: {}:{}", row.host.to_string(), row.port.to_string() );
+                self.first_http_addresses.push( PermanentUuidHttpAddress { permanent_uuid: row.instance_permanent_uuid.to_string(), hostname_port: format!("{}:{}", row.host, row.port) });
             }
         }
         for row in allstoredmasters.stored_rpc_addresses.into_iter().filter(|r| r.hostname_port == master_leader.clone()) {
-            if snapshotdiff_btreemaps.first_rpc_addresses.iter().filter(|r| r.permanent_uuid == row.instance_permanent_uuid && r.hostname_port == format!("{}:{}", row.host, row.port)).count() == 0 {
-                snapshotdiff_btreemaps.first_rpc_addresses.push( PermanentUuidRpcAddress { permanent_uuid: row.instance_permanent_uuid.to_string(), hostname_port: format!("{}:{}", row.host, row.port) });
+            if self.first_rpc_addresses.iter().filter(|r| r.permanent_uuid == row.instance_permanent_uuid && r.hostname_port == format!("{}:{}", row.host, row.port)).count() == 0 {
+                trace!("first snapshot: add rpc address: {}:{}", row.host.to_string(), row.port.to_string() );
+                self.first_rpc_addresses.push( PermanentUuidRpcAddress { permanent_uuid: row.instance_permanent_uuid.to_string(), hostname_port: format!("{}:{}", row.host, row.port) });
             }
         }
-        snapshotdiff_btreemaps
     }
     fn second_snapshot(
         &mut self,
@@ -569,7 +571,11 @@ impl SnapshotDiffBTreeMapsMasters {
         if master_leader == *"" {
             self.master_found = false;
             return;
+        } else {
+            self.master_found = true;
         };
+        trace!("second snapshot: master_leader: {}, found: {}", master_leader, self.master_found);
+
         for row in allstoredmasters.stored_masters.into_iter().filter(|r| r.hostname_port == master_leader.clone()) {
             match self.btreemap_snapshotdiff_masters.get_mut( &row.instance_permanent_uuid.clone() ) {
                 Some( master_row) => {
@@ -581,24 +587,29 @@ impl SnapshotDiffBTreeMapsMasters {
                         && master_row.first_role == row.role
                     {
                         // the second snapshot contains identicial values, so we remove it.
+                        trace!("second snapshot: idential:remove: {}", row.instance_permanent_uuid.to_string() );
                         self.btreemap_snapshotdiff_masters.remove( &row.instance_permanent_uuid.clone() );
                     }
                     else {
+                        trace!("second snapshot: CHANGED: {}", row.instance_permanent_uuid.to_string() );
                         *master_row = SnapshotDiffStoredMasters::second_snapshot_existing(master_row, row);
                     }
                 },
                 None => {
+                    trace!("second snapshot: new: {}", row.instance_permanent_uuid.to_string() );
                     self.btreemap_snapshotdiff_masters.insert( row.instance_permanent_uuid.clone(), SnapshotDiffStoredMasters::second_snapshot_new(row));
                 }
             }
         }
         for row in allstoredmasters.stored_http_addresses.into_iter().filter(|r| r.hostname_port == master_leader.clone()) {
             if self.second_http_addresses.iter().filter(|r| r.permanent_uuid == row.instance_permanent_uuid && r.hostname_port == format!("{}:{}", row.host, row.port)).count() == 0 {
+                trace!("second snapshot: new http address: {}:{}", row.host.to_string(), row.port.to_string() );
                 self.second_http_addresses.push( PermanentUuidHttpAddress { permanent_uuid: row.instance_permanent_uuid.to_string(), hostname_port: format!("{}:{}", row.host, row.port) });
             }
         }
         for row in allstoredmasters.stored_rpc_addresses.into_iter().filter(|r| r.hostname_port == master_leader.clone()) {
             if self.second_rpc_addresses.iter().filter(|r| r.permanent_uuid == row.instance_permanent_uuid && r.hostname_port == format!("{}:{}", row.host, row.port)).count() == 0 {
+                trace!("second snapshot: new rpc address: {}:{}", row.host.to_string(), row.port.to_string() );
                 self.second_rpc_addresses.push( PermanentUuidRpcAddress { permanent_uuid: row.instance_permanent_uuid.to_string(), hostname_port: format!("{}:{}", row.host, row.port) });
             }
         }
@@ -687,25 +698,26 @@ impl SnapshotDiffBTreeMapsMasters {
             };
         };
     }
-    pub fn adhoc_read_first_snapshot(
-        hosts: &Vec<&str>,
-        ports: &Vec<&str>,
-        parallel: usize,
-    ) -> SnapshotDiffBTreeMapsMasters
-    {
-        let allstoredmasters = AllStoredMasters::read_masters(hosts, ports, parallel);
-        let master_leader= AllStoredIsLeader::return_leader_http(hosts, ports, parallel);
-        SnapshotDiffBTreeMapsMasters::first_snapshot(allstoredmasters, master_leader)
-    }
-    pub fn adhoc_read_second_snapshot(
+    pub async fn adhoc_read_first_snapshot(
         &mut self,
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize,
     )
     {
-        let allstoredmasters = AllStoredMasters::read_masters(hosts, ports, parallel);
-        let master_leader= AllStoredIsLeader::return_leader_http(hosts, ports, parallel);
+        let allstoredmasters = AllStoredMasters::read_masters(hosts, ports, parallel).await;
+        let master_leader= AllStoredIsLeader::return_leader_http(hosts, ports, parallel).await;
+        self.first_snapshot(allstoredmasters, master_leader);
+    }
+    pub async fn adhoc_read_second_snapshot(
+        &mut self,
+        hosts: &Vec<&str>,
+        ports: &Vec<&str>,
+        parallel: usize,
+    )
+    {
+        let allstoredmasters = AllStoredMasters::read_masters(hosts, ports, parallel).await;
+        let master_leader= AllStoredIsLeader::return_leader_http(hosts, ports, parallel).await;
         self.second_snapshot(allstoredmasters, master_leader);
     }
 }

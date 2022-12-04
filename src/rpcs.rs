@@ -283,7 +283,7 @@ fn parse_rpcs(
     port: &str,
 ) -> AllConnections {
     serde_json::from_str(&rpcs_data).unwrap_or_else(|e| {
-        info!("Could not parse {}:{}/rpcz json data for rpcs, error: {}", host, port, e);
+        debug!("Could not parse {}:{}/rpcz json data for rpcs, error: {}", host, port, e);
         AllConnections::Empty {}
     })
 }
@@ -428,7 +428,7 @@ pub fn add_to_rpcs_vectors(
 
 #[allow(dead_code)]
 #[allow(clippy::ptr_arg)]
-pub fn perform_rpcs_snapshot(
+pub async fn perform_rpcs_snapshot(
     hosts: &Vec<&str>,
     ports: &Vec<&str>,
     snapshot_number: i32,

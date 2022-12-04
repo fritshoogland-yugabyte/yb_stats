@@ -77,7 +77,7 @@ fn read_loglines_snapshot(snapshot_number: &String, yb_stats_directory: &&PathBu
 
 #[allow(dead_code)]
 #[allow(clippy::ptr_arg)]
-pub fn perform_loglines_snapshot(
+pub async fn perform_loglines_snapshot(
     hosts: &Vec<&str>,
     ports: &Vec<&str>,
     snapshot_number: i32,

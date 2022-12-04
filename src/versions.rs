@@ -68,13 +68,13 @@ impl StoredVersion {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct AllStoredVersions {
    stored_versions: Vec<StoredVersion>,
 }
 
 impl AllStoredVersions {
-    pub fn perform_snapshot(
+    pub async fn perform_snapshot(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         snapshot_number: i32,
@@ -86,7 +86,7 @@ impl AllStoredVersions {
 
         let allstoredversions = AllStoredVersions::read_versions(hosts, ports, parallel);
 
-        allstoredversions.save_snapshot(snapshot_number)
+        allstoredversions.await.save_snapshot(snapshot_number)
             .unwrap_or_else(|e| {
                 error!("error saving snapshot: {}", e);
                 process::exit(1);
@@ -94,7 +94,10 @@ impl AllStoredVersions {
 
         info!("end snapshot: {:?}", timer.elapsed())
     }
-    pub fn read_versions(
+    pub fn new() -> Self {
+        Default::default()
+    }
+    pub async fn read_versions(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize,
@@ -120,24 +123,22 @@ impl AllStoredVersions {
 
         info!("end parallel http read {:?}", timer.elapsed());
 
-        let mut allstoredversions = AllStoredVersions {
-            stored_versions: Vec::new(),
-        };
-        for (hostname_port, detail_snapshot_time, versions) in rx {
-            AllStoredVersions::split_into_vectors(versions, &hostname_port, detail_snapshot_time, &mut allstoredversions);
-        }
+        let mut allstoredversions = AllStoredVersions::new();
 
+        for (hostname_port, detail_snapshot_time, versions) in rx {
+            allstoredversions.split_into_vectors(versions, &hostname_port, detail_snapshot_time);
+        }
         allstoredversions
     }
     fn split_into_vectors(
+        &mut self,
         version: Version,
         hostname_port: &str,
         detail_snapshot_time: DateTime<Local>,
-        allstoredversions: &mut AllStoredVersions,
     )
     {
         if !version.git_hash.is_empty() {
-            allstoredversions.stored_versions.push(StoredVersion::new_from_version(hostname_port, detail_snapshot_time, version));
+            self.stored_versions.push(StoredVersion::new_from_version(hostname_port, detail_snapshot_time, version));
         }
     }
     pub fn read_http(
@@ -165,7 +166,7 @@ impl AllStoredVersions {
     {
         serde_json::from_str(&versions_data)
             .unwrap_or_else( |e| {
-                info!("({}:{}) could not parse /api/v1/versions json data for versions, error: {}", host, port ,e);
+                debug!("({}:{}) could not parse /api/v1/versions json data for versions, error: {}", host, port ,e);
                 Version::empty()
             })
     }
@@ -338,6 +339,7 @@ impl SnapshotDiffStoredVersions {
 
 type BTreeMapSnapshotDiffVersions = BTreeMap<String, SnapshotDiffStoredVersions>;
 
+#[derive(Default)]
 pub struct SnapshotDiffBTreeMapsVersions {
     pub btreemap_snapshotdiff_versions: BTreeMapSnapshotDiffVersions,
 }
@@ -363,6 +365,9 @@ impl SnapshotDiffBTreeMapsVersions {
         versions_snapshot_diff.second_snapshot(allstoredversions);
 
         versions_snapshot_diff
+    }
+    pub fn new() -> Self {
+        Default::default()
     }
     fn first_snapshot(
         allstoredversions: AllStoredVersions,
@@ -459,23 +464,24 @@ impl SnapshotDiffBTreeMapsVersions {
             }
         }
     }
-    pub fn adhoc_read_first_snapshot(
-        hosts: &Vec<&str>,
-        ports: &Vec<&str>,
-        parallel: usize,
-    ) -> SnapshotDiffBTreeMapsVersions
-    {
-        let allstoredversions = AllStoredVersions::read_versions(hosts, ports, parallel);
-        SnapshotDiffBTreeMapsVersions::first_snapshot(allstoredversions)
-    }
-    pub fn adhoc_read_second_snapshot(
+    pub async fn adhoc_read_first_snapshot(
         &mut self,
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize,
     )
     {
-        let allstoredversions = AllStoredVersions::read_versions(hosts, ports, parallel);
+        let allstoredversions = AllStoredVersions::read_versions(hosts, ports, parallel).await;
+        SnapshotDiffBTreeMapsVersions::first_snapshot(allstoredversions);
+    }
+    pub async fn adhoc_read_second_snapshot(
+        &mut self,
+        hosts: &Vec<&str>,
+        ports: &Vec<&str>,
+        parallel: usize,
+    )
+    {
+        let allstoredversions = AllStoredVersions::read_versions(hosts, ports, parallel).await;
         self.second_snapshot(allstoredversions);
     }
 }
@@ -498,7 +504,7 @@ mod tests {
     "version_number": "2.11.2.0",
     "build_number": "89"
 }"#.to_string();
-        let result = parse_version(version);
+        let result = AllStoredVersions::parse_version(version, "", "");
         assert_eq!(result.git_hash, "d142556567b5e1c83ea5c915ec7b9964492b2321");
     }
 
@@ -506,26 +512,26 @@ mod tests {
 
     #[test]
     fn integration_parse_versiondata_master() {
-        let mut stored_versiondata: Vec<StoredVersionData> = Vec::new();
-        let detail_snapshot_time = Local::now();
         let hostname = utility::get_hostname_master();
         let port = utility::get_port_master();
 
-        let data_parsed_from_json = read_version(hostname.as_str(), port.as_str());
-        add_to_version_vector(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_versiondata);
+        let mut allstoredversions = AllStoredVersions::new();
+        let data_parsed_from_json = AllStoredVersions::read_http(hostname.as_str(), port.as_str());
+        allstoredversions.split_into_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now());
+
         // each daemon should return one row.
-        assert!(stored_versiondata.len() == 1);
+        assert!(allstoredversions.stored_versions.len() == 1);
     }
     #[test]
     fn integration_parse_versiondata_tserver() {
-        let mut stored_versiondata: Vec<StoredVersionData> = Vec::new();
-        let detail_snapshot_time = Local::now();
         let hostname = utility::get_hostname_tserver();
         let port = utility::get_port_tserver();
 
-        let data_parsed_from_json = read_version(hostname.as_str(), port.as_str());
-        add_to_version_vector(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_versiondata);
+        let mut allstoredversions = AllStoredVersions::new();
+        let data_parsed_from_json = AllStoredVersions::read_http(hostname.as_str(), port.as_str());
+        allstoredversions.split_into_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now());
+
         // each daemon should return one row.
-        assert!(stored_versiondata.len() == 1);
+        assert!(allstoredversions.stored_versions.len() == 1);
     }
 }

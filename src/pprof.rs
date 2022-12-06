@@ -1,24 +1,19 @@
 use std::path::PathBuf;
-//use chrono::{DateTime, Local};
-use port_scanner::scan_port_addr;
 use std::fs;
 use std::io::Write;
 use std::process;
 use std::sync::mpsc::channel;
 use log::*;
+use crate::utility::{scan_host_port, http_get};
 
 pub fn read_pprof(
     host: &str,
     port: &str,
 ) -> String {
-    if ! scan_port_addr( format!("{}:{}", host, port)) {
-        warn!("hostname:port {}:{} cannot be reached, skipping (pprof)",host ,port);
-        return String::from("");
-    }
-    if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}:{}/pprof/growth", host, port)) {
-        data_from_http.text().unwrap()
+    if scan_host_port( host, port) {
+        http_get(host, port, "pprof/growth")
     } else {
-        String::from("")
+        String::new()
     }
 }
 

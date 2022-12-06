@@ -1,12 +1,12 @@
 use std::process;
 use chrono::{DateTime, Local, TimeZone};
-use port_scanner::scan_port_addr;
 use std::path::PathBuf;
 use regex::{Regex,Captures};
 use std::fs;
 use serde_derive::{Serialize,Deserialize};
 use std::sync::mpsc::channel;
 use log::*;
+use crate::utility::{scan_host_port, http_get};
 
 #[derive(Debug)]
 pub struct LogLine {
@@ -44,16 +44,36 @@ impl StoredLogLines {
 pub fn read_loglines(
     host: &str,
     port: &str,
-) -> Vec<LogLine> {
+) -> Vec<LogLine>
+{
+    let data_from_http = if scan_host_port( host, port) {
+        http_get(host, port, "logs?raw")
+    } else {
+        String::new()
+    };
+    parse_loglines(data_from_http)
+    /*
     if ! scan_port_addr( format!("{}:{}", host, port)) {
         warn!("Warning: hostname:port {}:{} cannot be reached, skipping (logs)", host, port);
         return Vec::new();
-    }
+    };
+    let data_from_http = reqwest::blocking::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()
+        .unwrap()
+        .get(format!("http://{}:{}/logs?raw", host, port))
+        .send()
+        .unwrap()
+        .text()
+        .unwrap();
     if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}:{}/logs?raw", host, port)) {
         parse_loglines(data_from_http.text().unwrap())
     } else {
         parse_loglines(String::from(""))
     }
+
+    parse_loglines(data_from_http)
+    */
 }
 
 #[allow(dead_code)]

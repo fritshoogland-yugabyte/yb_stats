@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::time::Instant;
 use chrono::{DateTime, Local};
 use port_scanner::scan_port_addr;
 use regex::Regex;
@@ -31,11 +32,24 @@ pub fn read_gflags(
         warn!("hostname:port {}:{} cannot be reached, skipping (gflags)",host ,port);
         return Vec::new();
     }
+    /*
     if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}:{}/varz?raw",host ,port)) {
         parse_gflags(data_from_http.text().unwrap())
     } else {
         parse_gflags(String::from(""))
     }
+
+     */
+    let data_from_http = reqwest::blocking::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()
+        .unwrap()
+        .get(format!("http://{}:{}/varz?raw", host, port))
+        .send()
+        .unwrap()
+        .text()
+        .unwrap();
+    parse_gflags(data_from_http)
 }
 
 #[allow(dead_code)]
@@ -47,7 +61,9 @@ pub async fn perform_gflags_snapshot(
     yb_stats_directory: &PathBuf,
     parallel: usize
 ) {
-    info!("perform_gflags_snapshot");
+    info!("begin parallel http read");
+    let timer = Instant::now();
+
     let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
     let (tx, rx) = channel();
     pool.scope(move |s| {
@@ -61,6 +77,8 @@ pub async fn perform_gflags_snapshot(
                 });
             }}
     });
+    info!("end parallel http read {:?}", timer.elapsed());
+
     let mut stored_gflags: Vec<StoredGFlags> = Vec::new();
     for (hostname_port, detail_snapshot_time, gflags) in rx {
         add_to_gflags_vector(gflags, &hostname_port, detail_snapshot_time, &mut stored_gflags);

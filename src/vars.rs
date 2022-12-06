@@ -1,10 +1,10 @@
 use chrono::{DateTime, Local};
-use port_scanner::scan_port_addr;
 use regex::Regex;
 use std::{fs, process, sync::mpsc::channel, time::Instant, error::Error, env, collections::BTreeMap};
 use serde_derive::{Serialize,Deserialize};
 use log::*;
 use colored::*;
+use crate::utility::{scan_host_port, http_get};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AllVars {
@@ -109,7 +109,16 @@ impl AllStoredVars {
     pub fn read_http(
         host: &str,
         port: &str,
-    ) -> AllVars {
+    ) -> AllVars
+    {
+        let data_from_http = if scan_host_port( host, port) {
+            http_get(host, port, "api/v1/varz")
+        } else {
+            String::new()
+        };
+        AllStoredVars::parse_vars(data_from_http, host, port)
+
+/*
         if ! scan_port_addr(format!("{}:{}", host, port)) {
             warn!("hostname: port {}:{} cannot be reached, skipping", host, port);
             return AllStoredVars::parse_vars(String::from(""), "", "")
@@ -121,6 +130,8 @@ impl AllStoredVars {
             })
             .text().unwrap();
         AllStoredVars::parse_vars(data_from_http, host, port)
+
+ */
     }
     fn parse_vars(
         vars_data: String,

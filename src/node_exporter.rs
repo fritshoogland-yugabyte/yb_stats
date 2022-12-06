@@ -3,9 +3,9 @@ use std::{collections::BTreeMap, process, sync::mpsc::channel, fs, env, time::In
 use chrono::{DateTime, Local, Utc};
 use prometheus_parse::Value;
 use serde_derive::{Serialize,Deserialize};
-use port_scanner::scan_port_addr;
 use regex::Regex;
 use log::*;
+use crate::utility::{scan_host_port, http_get};
 
 #[derive(Debug)]
 pub struct NodeExporterValues {
@@ -166,17 +166,13 @@ impl AllStoredNodeExporterValues {
     pub fn read_http(
         host: &str,
         port: &str,
-    ) -> Vec<NodeExporterValues> {
-        if ! scan_port_addr(format!("{}:{}", host, port)) {
-            warn!("Warning! hostname:port {}:{} cannot be reached, skipping (node_exporter)", host, port);
-            return AllStoredNodeExporterValues::parse_nodeexporter(String::from(""))
+    ) -> Vec<NodeExporterValues>
+    {
+        let data_from_http = if scan_host_port( host, port) {
+            http_get(host, port, "metrics")
+        } else {
+            String::new()
         };
-        let data_from_http = reqwest::blocking::get(format!("http://{}:{}/metrics", host, port))
-            .unwrap_or_else(|e| {
-                error!("Fatal: error reading from URL: {}", e);
-                process::exit(1);
-            })
-            .text().unwrap();
         AllStoredNodeExporterValues::parse_nodeexporter(data_from_http)
     }
     fn parse_nodeexporter( node_exporter_data: String ) -> Vec<NodeExporterValues>

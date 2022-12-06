@@ -1,10 +1,10 @@
 use serde_derive::{Serialize,Deserialize};
-use port_scanner::scan_port_addr;
 use chrono::{DateTime, Local};
 use std::{fs, process, sync::mpsc::channel, time::Instant, env, error::Error, collections::{HashMap, BTreeMap}};
 use log::*;
 use colored::*;
 use crate::isleader::AllStoredIsLeader;
+use crate::utility::{scan_host_port, http_get};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct StoredTabletServers {
@@ -83,7 +83,7 @@ pub struct TabletServers {
     pub zone: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct AllStoredTabletServers {
     stored_tabletservers: Vec<StoredTabletServers>,
     stored_pathmetrics: Vec<StoredPathMetrics>,
@@ -108,6 +108,9 @@ impl AllStoredTabletServers {
             });
 
         info!("end snapshot: {:?}", timer.elapsed())
+    }
+    fn new() -> Self {
+        Default::default()
     }
     pub async fn read_tabletservers(
         hosts: &Vec<&str>,
@@ -135,25 +138,23 @@ impl AllStoredTabletServers {
 
         info!("end parallel http read {:?}", timer.elapsed());
 
-        let mut allstoredtabletservers = AllStoredTabletServers {
-            stored_tabletservers: Vec::new(),
-            stored_pathmetrics: Vec::new(),
-        };
+        let mut allstoredtabletservers = AllStoredTabletServers::new();
+
         for (hostname_port, detail_snapshot_time, tablet_servers) in rx {
-            AllStoredTabletServers::split_into_vectors(tablet_servers, &hostname_port, detail_snapshot_time, &mut allstoredtabletservers);
+            allstoredtabletservers.split_into_vectors(tablet_servers, &hostname_port, detail_snapshot_time);
         }
 
         allstoredtabletservers
     }
     fn split_into_vectors(
+        &mut self,
         alltabletservers: AllTabletServers,
         hostname_port: &str,
         detail_snapshot_time: DateTime<Local>,
-        allstoredtabletservers: &mut AllStoredTabletServers,
     )
     {
         for (servername, serverstatus) in alltabletservers.tabletservers.iter() {
-            allstoredtabletservers.stored_tabletservers.push( StoredTabletServers {
+            self.stored_tabletservers.push( StoredTabletServers {
                 hostname_port: hostname_port.to_string(),
                 timestamp: detail_snapshot_time,
                 tserver_hostname_port: servername.to_string(),
@@ -180,7 +181,7 @@ impl AllStoredTabletServers {
                 zone: serverstatus.zone.to_string(),
             });
             for pathmetrics in serverstatus.path_metrics.iter() {
-                allstoredtabletservers.stored_pathmetrics.push( StoredPathMetrics {
+                self.stored_pathmetrics.push( StoredPathMetrics {
                     hostname_port: hostname_port.to_string(),
                     timestamp: detail_snapshot_time,
                     tserver_hostname_port: servername.to_string(),
@@ -194,7 +195,16 @@ impl AllStoredTabletServers {
     pub fn read_http(
         host: &str,
         port: &str,
-    ) -> AllTabletServers {
+    ) -> AllTabletServers
+    {
+        let data_from_http = if scan_host_port( host, port) {
+            http_get(host, port, "api/v1/tablet-servers")
+        } else {
+            String::new()
+        };
+        AllStoredTabletServers::parse_tabletservers(data_from_http, host, port)
+
+/*
         if ! scan_port_addr(format!("{}:{}", host, port)) {
             warn!("hostname: port {}:{} cannot be reached, skipping", host, port);
             return AllStoredTabletServers::parse_tabletservers(String::from(""), "", "")
@@ -207,6 +217,8 @@ impl AllStoredTabletServers {
             })
             .text().unwrap();
         AllStoredTabletServers::parse_tabletservers(data_from_http, host, port)
+
+ */
     }
     fn parse_tabletservers(
         tabletservers_data: String,
@@ -598,25 +610,22 @@ mod tests {
         }
     }
 
-    /*
     use crate::utility;
 
     #[test]
-    fn integration_parse_masters() {
-        let mut stored_masters: Vec<StoredMasters> = Vec::new();
-        let mut stored_rpc_addresses: Vec<StoredRpcAddresses> = Vec::new();
-        let mut stored_http_addresses: Vec<StoredHttpAddresses> = Vec::new();
-        let mut stored_master_errors: Vec<StoredMasterError> = Vec::new();
+    fn integration_parse_tabletserver() {
+        let mut allstoredtabletservers = AllStoredTabletServers::new();
+
         let hostname = utility::get_hostname_master();
         let port = utility::get_port_master();
 
-        let data_parsed_from_json = read_masters(hostname.as_str(), port.as_str());
-        add_to_master_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now(), &mut stored_masters, &mut stored_rpc_addresses, &mut stored_http_addresses, &mut stored_master_errors);
-        // a MASTER only will generate entities on each master (!)
-        assert!(!stored_masters.is_empty());
-        assert!(!stored_rpc_addresses.is_empty());
-        assert!(!stored_http_addresses.is_empty());
-    }
-     */
+        let data_parsed_from_json = AllStoredTabletServers::read_http(&hostname, &port);
+        allstoredtabletservers.split_into_vectors(data_parsed_from_json, format!("{}:{}",hostname, port).as_ref(), Local::now());
 
+        println!("{:?}", allstoredtabletservers);
+
+        assert!(!allstoredtabletservers.stored_tabletservers.is_empty());
+        assert!(!allstoredtabletservers.stored_pathmetrics.is_empty());
+
+    }
 }

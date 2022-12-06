@@ -1,10 +1,10 @@
 use chrono::{DateTime, Local};
-use port_scanner::scan_port_addr;
 use std::{fs, process, sync::mpsc::channel, time::Instant, error::Error, env, collections::BTreeMap};
 use colored::Colorize;
 use regex::Regex;
 use serde_derive::{Serialize,Deserialize};
 use log::*;
+use crate::utility::{scan_host_port, http_get};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Version {
@@ -146,6 +146,14 @@ impl AllStoredVersions {
         port: &str,
     ) -> Version
     {
+        let data_from_http = if scan_host_port( host, port) {
+            http_get(host, port, "api/v1/version")
+        } else {
+            String::new()
+        };
+        AllStoredVersions::parse_version(data_from_http, host, port)
+
+/*
         if ! scan_port_addr(format!("{}:{}", host, port)) {
             warn!("hostname: port {}:{} cannot be reached, skipping", host, port);
             return AllStoredVersions::parse_version(String::from(""), host, port)
@@ -157,6 +165,8 @@ impl AllStoredVersions {
             })
             .text().unwrap();
         AllStoredVersions::parse_version(data_from_http, host, port)
+
+ */
     }
     fn parse_version(
         versions_data: String,
@@ -519,6 +529,7 @@ mod tests {
         let data_parsed_from_json = AllStoredVersions::read_http(hostname.as_str(), port.as_str());
         allstoredversions.split_into_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now());
 
+        println!("{:?}", allstoredversions);
         // each daemon should return one row.
         assert!(allstoredversions.stored_versions.len() == 1);
     }

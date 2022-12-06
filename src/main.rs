@@ -15,6 +15,7 @@ use regex::Regex;
 use chrono::Local;
 use dotenv::dotenv;
 use log::*;
+//use anyhow::{Context, Result};
 //use scraper::node;
 use tokio::{fs, io::AsyncWriteExt, sync::Mutex};
 use crate::entities::{AllStoredEntities, SnapshotDiffBTreeMapsEntities};
@@ -58,7 +59,7 @@ const WRITE_DOTENV: bool = true;
 #[derive(Debug, Parser)]
 struct Opts {
     /// Snapshot input hostnames (comma separated)
-    #[arg(short, long, value_name = "hostname,hostname")]
+    #[arg(long, value_name = "hostname,hostname")]
     hosts: Option<String>,
     /// Snapshot input port numbers (comma separated)
     #[arg(short, long, value_name = "port,port")]

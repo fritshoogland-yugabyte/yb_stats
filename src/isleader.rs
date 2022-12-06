@@ -6,10 +6,10 @@
 //!
 //! This function has no public display function, it is only used to store the and retrieve the master leader.
 use chrono::{DateTime, Local};
-use port_scanner::scan_port_addr;
 use std::{env, fs, error::Error, process, time::Instant, sync::mpsc::channel};
 use serde_derive::{Serialize,Deserialize};
 use log::*;
+use crate::utility::{scan_host_port, http_get};
 /// The struct that is used to parse the JSON returned from /api/v1/is-leader using serde.
 ///
 /// Please mind that only the leader shows:
@@ -128,15 +128,32 @@ impl AllStoredIsLeader {
         port: &str,
     ) -> IsLeader
     {
+        let data_from_http = if scan_host_port( host, port) {
+            http_get(host, port, "api/v1/is-leader")
+        } else {
+            String::new()
+        };
+        AllStoredIsLeader::parse_isleader(data_from_http)
+        /*
         if ! scan_port_addr( format!("{}:{}", host, port) ) {
             warn!("Warning: hostname:port {}:{} cannot be reached, skipping", host, port);
             return AllStoredIsLeader::parse_isleader(String::from(""))
         }
+        let data_from_http = reqwest::blocking::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .build()
+            .unwrap()
+            .get(format!("http://{}:{}/api/v1/is-leader", host, port))
+            .send()
+            .unwrap()
+            .text()
+            .unwrap();
         if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}:{}/api/v1/is-leader", host, port)) {
             AllStoredIsLeader::parse_isleader(data_from_http.text().unwrap())
         } else {
             AllStoredIsLeader::parse_isleader(String::from(""))
         }
+         */
     }
     /// This function parses the http output.
     /// This is a separate function in order to allow integration tests to use it.
@@ -222,10 +239,17 @@ File not found
         assert_eq!(result.status, "");
     }
 
-    /*
-    #[test]
-    fn unit_fetch_master_from_snapshot() {
-        let hostname_port = AllStoredIsLeader::return_leader_snapshot(&"22".to_string());
+    use crate::utility;
+
+    #[tokio::test]
+    async fn integration_find_master_leader() {
+
+        let hostname = utility::get_hostname_master();
+        let port = utility::get_port_master();
+
+        let leader = AllStoredIsLeader::return_leader_http(&vec![&hostname], &vec![&port], 1_usize).await;
+        //let hostname_port = AllStoredIsLeader::return_leader_snapshot(&"22".to_string());
+        println!("{}", leader);
         //let hostname_port = String::from("haha");
         //let stored_isleader = AllStoredIsLeader::read_snapshot(&"22".to_string())
         //    .unwrap_or_else(|e| {
@@ -235,7 +259,7 @@ File not found
         //println!("{:?}", stored_isleader);
         //let leader = stored_isleader.stored_isleader.iter().filter(|r| r.status == "OK").map(|r| r.hostname_port.to_string()).next().unwrap();
         //let h = stored_isleader.stored_isleader.iter().filter(|r| r.status == "OK").map(|r| r.hostname_port.to_string()).next().unwrap();
-        println!("{:?}", hostname_port);
+        //println!("{:?}", hostname_port);
         //assert_eq!(hostname_port, "192.168.66.82:7000");
         /*
         let snapshot_number = "22".to_string();
@@ -255,5 +279,4 @@ File not found
 
          */
     }
-     */
 }

@@ -1,5 +1,4 @@
 use serde_derive::{Serialize,Deserialize};
-use port_scanner::scan_port_addr;
 use chrono::{DateTime, Local};
 use std::{fs, process};
 use log::*;
@@ -8,6 +7,7 @@ use std::path::PathBuf;
 use regex::Regex;
 use std::collections::BTreeMap;
 use crate::rpcs::AllConnections::{Connections, InAndOutboundConnections};
+use crate::utility::{scan_host_port, http_get};
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
@@ -25,7 +25,7 @@ pub enum AllConnections {
      * Please mind that YEDIS is not verified at this moment!
      */
     InAndOutboundConnections {
-            inbound_connections: Vec<InboundConnection>,
+            inbound_connections: Option<Vec<InboundConnection>>,
             outbound_connections: Option<Vec<OutboundConnection>>,
     },
     /*
@@ -263,17 +263,12 @@ pub fn read_rpcs(
     port: &str,
 ) -> AllConnections
 {
-    if scan_port_addr(format!("{}:{}", host, port)) {
-        let http_data = reqwest::blocking::get(format!("http://{}:{}/rpcz", host, port))
-            .unwrap()
-            .text()
-            .unwrap();
-        debug!("host: {}:{} http_data: {}", host, port, &http_data);
-        parse_rpcs(http_data, host, port)
+    let data_from_http = if scan_host_port( host, port) {
+        http_get(host, port, "rpcz")
     } else {
-        warn!("hostname: port {}:{} cannot be reached, skipping", host, port);
-        parse_rpcs( String::from(""), "", "")
-    }
+        String::new()
+    };
+    parse_rpcs(data_from_http, host, port)
 }
 
 // this function is split from the read_rpcs function so we can use it with the tests.
@@ -308,7 +303,7 @@ pub fn add_to_rpcs_vectors(
             }
         },
         InAndOutboundConnections { inbound_connections, outbound_connections } => {
-            for (serial_number, inboundrpc) in (0_u32..).zip(inbound_connections.into_iter()) {
+            for (serial_number, inboundrpc) in (0_u32..).zip(inbound_connections.unwrap_or_default().into_iter()) {
                 trace!("add_to_rpcs_vectors inboundrpc, hostname: {}, {:?}", hostname, inboundrpc);
                 stored_inboundrpc.push(StoredInboundRpc::new(hostname, detail_snapshot_time, serial_number, &inboundrpc));
                 let keyspace = match inboundrpc.connection_details.as_ref() {
@@ -334,27 +329,6 @@ pub fn add_to_rpcs_vectors(
                             });
                         }
                     };
-                    /*
-                    match calls_in_flight.cql_details {
-                        Some ( cql_details ) => {
-                            for call_detail in cql_details.call_details {
-                                stored_cqldetails.push(StoredCqlDetails {
-                                    hostname_port: hostname.to_string(),
-                                    timestamp: detail_snapshot_time,
-                                    remote_ip: inboundrpc.remote_ip.to_string(),
-                                    keyspace: keyspace.to_owned(),
-                                    elapsed_millis: calls_in_flight.elapsed_millis,
-                                    cql_details_type: cql_details.call_type.clone(),
-                                    sql_id: call_detail.sql_id.unwrap_or_default(),
-                                    sql_string: call_detail.sql_string,
-                                    params: call_detail.params.unwrap_or_default(),
-                                    serial_nr: serial_number,
-                                });
-                            }
-                        },
-                        None => {},
-                    }
-                     */
                     if let Some ( header) = calls_in_flight.header {
                         stored_headers.push( StoredHeaders {
                             hostname_port: hostname.to_string(),
@@ -369,25 +343,6 @@ pub fn add_to_rpcs_vectors(
                             serial_nr: serial_number,
                         });
                     };
-                    /*
-                    match calls_in_flight.header {
-                        Some ( header) => {
-                            stored_headers.push( StoredHeaders {
-                                hostname_port: hostname.to_string(),
-                                timestamp: detail_snapshot_time,
-                                remote_ip: inboundrpc.remote_ip.to_string(),
-                                call_id: header.call_id,
-                                remote_method_service_name: header.remote_method.service_name.to_string(),
-                                remote_method_method_name: header.remote_method.method_name.to_string(),
-                                timeout_millis: header.timeout_millis,
-                                elapsed_millis: calls_in_flight.elapsed_millis,
-                                state: calls_in_flight.state.unwrap_or_default(),
-                                serial_nr: serial_number,
-                            });
-                        },
-                        None => {},
-                    }
-                     */
                 }
             };
 
@@ -1060,6 +1015,80 @@ mod tests {
     }
 
     #[test]
+    fn unit_parse_outboundrpc_simple_tabletserver() {
+        /*
+         * This is the simple, most usual form of outbound connections for tablet server and master.
+         * The entries can have a more verbose form when they are active.
+         */
+        let json = r#"
+{
+    "outbound_connections": [
+        {
+            "remote_ip": "192.168.66.80:7100",
+            "state": "OPEN",
+            "processed_call_count": 3526,
+            "sending_bytes": 0
+        },
+        {
+            "remote_ip": "192.168.66.80:7100",
+            "state": "OPEN",
+            "processed_call_count": 3527,
+            "sending_bytes": 0
+        },
+        {
+            "remote_ip": "192.168.66.80:7100",
+            "state": "OPEN",
+            "processed_call_count": 3526,
+            "sending_bytes": 0
+        },
+        {
+            "remote_ip": "192.168.66.80:7100",
+            "state": "OPEN",
+            "processed_call_count": 3527,
+            "sending_bytes": 0
+        },
+        {
+            "remote_ip": "192.168.66.80:7100",
+            "state": "OPEN",
+            "processed_call_count": 3527,
+            "sending_bytes": 0
+        },
+        {
+            "remote_ip": "192.168.66.80:7100",
+            "state": "OPEN",
+            "processed_call_count": 3527,
+            "sending_bytes": 0
+        },
+        {
+            "remote_ip": "192.168.66.80:7100",
+            "state": "OPEN",
+            "processed_call_count": 3527,
+            "sending_bytes": 0
+        },
+        {
+            "remote_ip": "192.168.66.80:7100",
+            "state": "OPEN",
+            "processed_call_count": 3527,
+            "sending_bytes": 0
+        }
+    ]
+}
+        "#.to_string();
+        let result = parse_rpcs(json, "", "");
+        let mut stored_ysqlrpc: Vec<StoredYsqlRpc> = Vec::new();
+        let mut stored_inboundrpc: Vec<StoredInboundRpc> = Vec::new();
+        let mut stored_outboundrpc: Vec<StoredOutboundRpc> = Vec::new();
+        let mut stored_cqldetails: Vec<StoredCqlDetails> = Vec::new();
+        let mut stored_headers: Vec<StoredHeaders> = Vec::new();
+        add_to_rpcs_vectors(result, "", Local::now(), &mut stored_ysqlrpc, &mut stored_inboundrpc, &mut stored_outboundrpc, &mut stored_cqldetails, &mut stored_headers);
+        // outbound
+        assert_eq!(stored_outboundrpc[0].remote_ip, "192.168.66.80:7100");
+        assert_eq!(stored_outboundrpc[0].state, "OPEN");
+        assert_eq!(stored_outboundrpc[0].processed_call_count, 3526);
+        assert_eq!(stored_outboundrpc[0].sending_bytes, 0);
+    }
+
+    #[test]
     fn unit_parse_inboundrpc_only_simple_tabletserver() {
         /*
          * This is the simple, most usual form of inbound connections for tablet server and master.
@@ -1304,8 +1333,8 @@ mod tests {
         add_to_rpcs_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now(), &mut stored_ysqlrpc, &mut stored_inboundrpc, &mut stored_outboundrpc, &mut stored_cqldetails, &mut stored_header);
         // a tserver / port 9000 does not have YSQL rpcs, port 13000 has.
         assert!(stored_ysqlrpc.is_empty());
-        // a tserver will have inbound RPCs, even RF=1 / 1 tserver.
-        assert!(!stored_inboundrpc.is_empty());
+        // a tserver will have inbound RPCs, even RF=1 / 1 tserver. NOPE, no inbound RPCS for tserver with RF1
+        //assert!(!stored_inboundrpc.is_empty());
         // a tserver will have outbound RPCs, even RF=1 / 1 tserver.
         assert!(!stored_outboundrpc.is_empty());
     }

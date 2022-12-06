@@ -1,16 +1,22 @@
 use std::path::PathBuf;
-//use chrono::{DateTime, Local};
-use port_scanner::scan_port_addr;
 use std::fs;
 use std::io::Write;
 use std::process;
 use std::sync::mpsc::channel;
 use log::*;
+use crate::utility::{scan_host_port, http_get};
 
 pub fn read_mems(
     host: &str,
     port: &str,
-) -> String {
+) -> String
+{
+    if scan_host_port( host, port) {
+        http_get(host, port, "memz?raw=true")
+    } else {
+        String::new()
+    }
+    /*
     if ! scan_port_addr( format!("{}:{}", host, port)) {
         warn!("hostname:port {}:{} cannot be reached, skipping (mems)",host ,port);
         return String::from("");
@@ -20,6 +26,17 @@ pub fn read_mems(
     } else {
         String::from("")
     }
+
+    reqwest::blocking::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()
+        .unwrap()
+        .get(format!("http://{}:{}/memz?raw=true", host, port))
+        .send()
+        .unwrap()
+        .text()
+        .unwrap()
+     */
 }
 
 #[allow(clippy::ptr_arg)]

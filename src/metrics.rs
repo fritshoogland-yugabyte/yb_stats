@@ -63,15 +63,15 @@
 /// This imports extrnal crates
 use std::{process, fs, env, error::Error, sync::mpsc::channel, collections::BTreeMap, time::Instant};
 use chrono::{DateTime, Local};
-//use csv::Trim::All;
-use port_scanner::scan_port_addr;
 use serde_derive::{Serialize,Deserialize};
 use regex::Regex;
 use substring::Substring;
 use log::*;
+//use anyhow::{Context, Result}
 /// This imports two utility crates
 use crate::value_statistic_details;
 use crate::countsum_statistic_details;
+use crate::utility::{scan_host_port, http_get};
 ///
 /// Struct to represent the metric entities found in the YugabyteDB master and tserver metrics endpoint.
 ///
@@ -783,12 +783,14 @@ impl AllStoredMetrics {
         info!("begin snapshot");
         let timer = Instant::now();
 
-        let allstoredmetrics = AllStoredMetrics::read_metrics(hosts, ports, parallel);
-        allstoredmetrics.await.save_snapshot(snapshot_number)
+        let allstoredmetrics = AllStoredMetrics::read_metrics(hosts, ports, parallel).await;
+        allstoredmetrics.save_snapshot(snapshot_number)
             .unwrap_or_else(|e| {
                 error!("error saving snapshot: {}",e);
                 process::exit(1);
             });
+
+           // .with_context(|| format("Error saving snapshot: {}", snapshot_number ))?;
 
         info!("end snapshot: {:?}", timer.elapsed());
     }
@@ -834,18 +836,38 @@ impl AllStoredMetrics {
     pub fn read_http(
         host: &str,
         port: &str,
-    ) -> Vec<MetricEntity> {
+    ) -> Vec<MetricEntity>
+    {
+        let data_from_http = if scan_host_port( host, port) {
+            http_get(host, port, "metrics")
+        } else {
+            String::new()
+        };
+        AllStoredMetrics::parse_metrics(data_from_http, host, port)
+
+        /*
         if ! scan_port_addr(format!("{}:{}", host, port)) {
             warn!("hostname: port {}:{} cannot be reached, skipping", host, port);
             return AllStoredMetrics::parse_metrics(String::from(""), "", "")
         };
+
         let data_from_http = reqwest::blocking::get(format!("http://{}:{}/metrics", host, port))
             .unwrap_or_else(|e| {
                 error!("Fatal: error reading from URL: {}", e);
                 process::exit(1);
             })
             .text().unwrap();
-        AllStoredMetrics::parse_metrics(data_from_http, host, port)
+
+        let data_from_http = reqwest::blocking::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .build()
+            .unwrap()
+            .get(format!("http://{}:{}/metrics", host, port))
+            .send()
+            .unwrap()
+            .text()
+            .unwrap();
+         */
     }
     /// This function takes the metrics data as String, and tries to parse the JSON in it to a vector [MetricEntity].
     fn parse_metrics(metrics_data: String, host: &str, port: &str) -> Vec<MetricEntity> {

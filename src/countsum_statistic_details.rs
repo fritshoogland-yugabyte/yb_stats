@@ -406,7 +406,7 @@ impl CountSumStatistics {
             ("files",              1_i64),
             ("tasks",              1_i64),
             ("requests",           1_i64),
-            ("?",                  1_i64),
+            ("?",                  0_i64),
         ]);
         match divisor.get(unit) {
             Some(x) => *x,

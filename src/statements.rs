@@ -55,13 +55,13 @@
 //!
 //! 4. [SnapshotDiffBTreeMapStatements::print]
 //!
-use port_scanner::scan_port_addr;
 use chrono::{DateTime, Local};
 use serde_derive::{Serialize,Deserialize};
 use std::{fs, process, error::Error, collections::BTreeMap, env, sync::mpsc::channel, time::Instant};
 use regex::Regex;
 use substring::Substring;
 use log::*;
+use crate::utility::{scan_host_port, http_get};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Statement {
@@ -434,7 +434,15 @@ impl AllStoredStatements {
     pub fn read_http(
         host: &str,
         port: &str,
-    ) -> Statement {
+    ) -> Statement
+    {
+        let data_from_http = if scan_host_port( host, port) {
+            http_get(host, port, "statements")
+        } else {
+            String::new()
+        };
+        AllStoredStatements::parse_statements(data_from_http)
+/*
         if ! scan_port_addr( format!("{}:{}", host, port) ) {
             warn!("Warning: hostname:port {}:{} cannot be reached, skipping (statements)", host, port);
             return AllStoredStatements::parse_statements(String::from(""))
@@ -444,6 +452,8 @@ impl AllStoredStatements {
         } else {
             AllStoredStatements::parse_statements(String::from(""))
         }
+
+ */
     }
     fn parse_statements( statements_data: String ) -> Statement {
         serde_json::from_str( &statements_data )

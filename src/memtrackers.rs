@@ -1,5 +1,4 @@
 use chrono::{DateTime, Local};
-use port_scanner::scan_port_addr;
 use std::path::PathBuf;
 use regex::Regex;
 use std::fs;
@@ -9,6 +8,7 @@ use serde_derive::{Serialize,Deserialize};
 use std::sync::mpsc::channel;
 use scraper::{ElementRef, Html, Selector};
 use log::*;
+use crate::utility::{scan_host_port, http_get};
 
 #[derive(Debug)]
 pub struct MemTrackers {
@@ -32,7 +32,18 @@ pub struct StoredMemTrackers {
 pub fn read_memtrackers(
     host: &str,
     port: &str,
-) -> Vec<MemTrackers> {
+) -> Vec<MemTrackers>
+{
+    let data_from_http = if scan_host_port( host, port) {
+        http_get(host, port, "mem-trackers")
+    } else {
+        debug!("hostname port found not available");
+        String::new()
+    };
+    parse_memtrackers(data_from_http)
+
+
+    /*
     if ! scan_port_addr( format!("{}:{}", host, port)) {
         warn!("Warning: hostname:port {}:{} cannot be reached, skipping (memtrackers)", host, port);
         return Vec::new();
@@ -42,6 +53,18 @@ pub fn read_memtrackers(
     } else {
         parse_memtrackers(String::from(""))
     }
+
+    let data_from_http = reqwest::blocking::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()
+        .unwrap()
+        .get(format!("http://{}:{}/mem-trackers", host, port))
+        .send()
+        .unwrap()
+        .text()
+        .unwrap();
+    parse_memtrackers(data_from_http)
+     */
 }
 
 #[allow(dead_code)]

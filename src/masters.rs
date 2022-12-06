@@ -1,17 +1,18 @@
 use serde_derive::{Serialize,Deserialize};
-use port_scanner::scan_port_addr;
 use chrono::{DateTime, Local};
 use std::{fs, process, sync::mpsc::channel, time::Instant, env, error::Error};
 use std::collections::BTreeMap;
 use log::*;
 use colored::*;
 use crate::isleader::AllStoredIsLeader;
+use crate::utility::{scan_host_port, http_get};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AllMasters {
     pub masters: Vec<Masters>,
 }
 
+#[derive(Default)]
 pub struct AllStoredMasters {
     stored_masters: Vec<StoredMasters>,
     stored_rpc_addresses: Vec<StoredRpcAddresses>,
@@ -37,6 +38,9 @@ impl AllStoredMasters {
             });
 
         info!("end snapshot: {:?}", timer.elapsed())
+    }
+    pub fn new() -> Self {
+        Default::default()
     }
     pub async fn read_masters(
         hosts: &Vec<&str>,
@@ -64,23 +68,19 @@ impl AllStoredMasters {
 
         info!("end parallel http read {:?}", timer.elapsed());
 
-        let mut allstoredmasters = AllStoredMasters {
-            stored_masters: Vec::new(),
-            stored_rpc_addresses: Vec::new(),
-            stored_http_addresses: Vec::new(),
-            stored_master_error: Vec::new(),
-        };
+        let mut allstoredmasters = AllStoredMasters::new();
+
         for (hostname_port, detail_snapshot_time, masters) in rx {
-            AllStoredMasters::split_into_vectors(masters, &hostname_port, detail_snapshot_time, &mut allstoredmasters);
+            allstoredmasters.split_into_vectors(masters, &hostname_port, detail_snapshot_time);
         }
 
         allstoredmasters
     }
     fn split_into_vectors(
+        &mut self,
         masters: AllMasters,
         hostname_port: &str,
         detail_snapshot_time: DateTime<Local>,
-        allstoredmasters: &mut AllStoredMasters,
     )
     {
         for master in masters.masters {
@@ -92,7 +92,7 @@ impl AllStoredMasters {
                 placement_region = cloud_info.placement_region;
                 placement_zone = cloud_info.placement_zone;
             };
-            allstoredmasters.stored_masters.push( StoredMasters {
+            self.stored_masters.push( StoredMasters {
                 hostname_port: hostname_port.to_string(),
                 timestamp: detail_snapshot_time,
                 instance_permanent_uuid: master.instance_id.permanent_uuid.to_string(),
@@ -105,7 +105,7 @@ impl AllStoredMasters {
                 role: master.role.unwrap_or_else(|| "Unnknown".to_string()).to_string(),
             });
             if let Some(error) = master.error {
-                allstoredmasters.stored_master_error.push(StoredMasterError {
+                self.stored_master_error.push(StoredMasterError {
                     hostname_port: hostname_port.to_string(),
                     timestamp: detail_snapshot_time,
                     instance_permanent_uuid: master.instance_id.permanent_uuid.to_string(),
@@ -118,7 +118,7 @@ impl AllStoredMasters {
                 });
             }
             for rpc_address in master.registration.private_rpc_addresses {
-                allstoredmasters.stored_rpc_addresses.push( StoredRpcAddresses {
+                self.stored_rpc_addresses.push( StoredRpcAddresses {
                     hostname_port: hostname_port.to_string(),
                     timestamp: detail_snapshot_time,
                     instance_permanent_uuid: master.instance_id.permanent_uuid.to_string(),
@@ -128,7 +128,7 @@ impl AllStoredMasters {
             };
             if let Some(http_addresses) = master.registration.http_addresses {
                 for http_address in http_addresses {
-                    allstoredmasters.stored_http_addresses.push(StoredHttpAddresses {
+                    self.stored_http_addresses.push(StoredHttpAddresses {
                         hostname_port: hostname_port.to_string(),
                         timestamp: detail_snapshot_time,
                         instance_permanent_uuid: master.instance_id.permanent_uuid.to_string(),
@@ -142,7 +142,15 @@ impl AllStoredMasters {
     pub fn read_http(
         host: &str,
         port: &str,
-    ) -> AllMasters {
+    ) -> AllMasters
+    {
+        let data_from_http = if scan_host_port( host, port) {
+            http_get(host, port, "api/v1/masters")
+        } else {
+            String::new()
+        };
+        AllStoredMasters::parse_masters(data_from_http, host, port)
+        /*
         if ! scan_port_addr(format!("{}:{}", host, port)) {
             warn!("hostname: port {}:{} cannot be reached, skipping", host, port);
             return AllStoredMasters::parse_masters(String::from(""), "", "")
@@ -153,7 +161,18 @@ impl AllStoredMasters {
                 process::exit(1);
             })
             .text().unwrap();
-        AllStoredMasters::parse_masters(data_from_http, host, port)
+
+        let data_from_http = reqwest::blocking::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .build()
+            .unwrap()
+            .get(format!("http://{}:{}/api/v1/masters", host, port))
+            .send()
+            .unwrap()
+            .text()
+            .unwrap();
+         */
+
     }
     fn parse_masters(
         masters_data: String,
@@ -939,17 +958,12 @@ mod tests {
 
     #[test]
     fn integration_parse_masters() {
-        let mut allstoredmasters = AllStoredMasters {
-            stored_masters: Vec::new(),
-            stored_rpc_addresses: Vec::new(),
-            stored_http_addresses: Vec::new(),
-            stored_master_error: Vec::new(),
-        };
+        let mut allstoredmasters = AllStoredMasters::new();
         let hostname = utility::get_hostname_master();
         let port = utility::get_port_master();
 
         let data_parsed_from_json = AllStoredMasters::read_http(hostname.as_ref(), port.as_ref());
-        AllStoredMasters::split_into_vectors(data_parsed_from_json, format!("{}:{}", &hostname, &port).as_ref(), Local::now(), &mut allstoredmasters);
+        allstoredmasters.split_into_vectors(data_parsed_from_json, format!("{}:{}", &hostname, &port).as_ref(), Local::now());
 
         // a MASTER only will generate entities on each master (!)
         assert!(!allstoredmasters.stored_masters.is_empty());

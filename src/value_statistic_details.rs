@@ -1473,6 +1473,7 @@ impl ValueStatistics {
         table.insert("threads_started_tablet_split_manager", "threads","counter");
         table.insert("threads_started_thread_pool", "threads","counter");
         table.insert("transaction_conflicts", "transactions","counter");
+        table.insert("transaction_load_attempts", "transactions","counter");
         table.insert("transaction_not_found", "transactions","counter");
         table.insert("transaction_pool_cache_hits", "hits","counter");
         table.insert("transaction_pool_cache_queries", "queries","counter");

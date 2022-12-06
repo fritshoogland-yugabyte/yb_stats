@@ -1,5 +1,4 @@
 use chrono::{DateTime, Local};
-use port_scanner::scan_port_addr;
 use std::path::PathBuf;
 use std::fs;
 use std::process;
@@ -9,6 +8,7 @@ use regex::Regex;
 use std::sync::mpsc::channel;
 use scraper::{ElementRef, Html, Selector};
 use log::*;
+use crate::utility::{scan_host_port, http_get};
 
 #[derive(Debug)]
 pub struct Threads {
@@ -81,7 +81,15 @@ pub async fn perform_threads_snapshot(
 pub fn read_threads(
     host: &str,
     port: &str,
-) -> Vec<Threads> {
+) -> Vec<Threads>
+{
+    let data_from_http = if scan_host_port( host, port) {
+        http_get(host, port, "threadz?group=all")
+    } else {
+        String::new()
+    };
+    parse_threads(data_from_http)
+        /*
     if ! scan_port_addr( format!("{}:{}", host, port) ) {
         warn!("Warning: hostname:port {}:{} cannot be reached, skipping (threads)", host, port);
         return Vec::new();
@@ -92,6 +100,8 @@ pub fn read_threads(
     } else {
         parse_threads(String::from(""))
     }
+
+         */
 }
 
 #[allow(dead_code)]

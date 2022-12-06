@@ -54,19 +54,25 @@
 //! will be stored in the tablets that are part of the database.
 //! 
 use serde_derive::{Serialize,Deserialize};
-use port_scanner::scan_port_addr;
 use chrono::{DateTime, Local};
-use std::{fs, process, collections::{BTreeMap, HashMap}, sync::mpsc::channel, time::Instant, env, error::Error};
+use std::{fs, process, collections::{BTreeMap, HashMap}, time::Instant, env, error::Error, sync::mpsc::channel};
 use log::*;
 use regex::Regex;
 use colored::*;
 use crate::isleader::AllStoredIsLeader;
+use crate::utility::{scan_host_port, http_get};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Entities {
     pub keyspaces: Vec<Keyspaces>,
     pub tables: Vec<Tables>,
     pub tablets: Vec<Tablets>,
+}
+
+impl Entities {
+    fn new() -> Self {
+        Default::default()
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -251,6 +257,37 @@ impl AllStoredEntities
     {
         info!("begin parallel http read");
         let timer = Instant::now();
+        //let (tx, rx) = channel();
+
+        /*
+        let mut host = String::new();
+        let mut port = String::new();
+        for ref_host in hosts {
+            for ref_port in ports {
+                let tx = tx.clone();
+                host = ref_host.to_string();
+                port = ref_port.to_string();
+                let handle = tokio::task::spawn_blocking(|| async move {
+                    info!("before time");
+                    let detail_snapshot_time = Local::now();
+                    debug!("before read http");
+                    let entities = AllStoredEntities::read_http(host.clone(), port.clone()).await;
+                    //tx.send((format!("{}:{}", host, port), detail_snapshot_time, entities)).await.expect("error sending data via tx (entities)");
+                    debug!("before send");
+                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, entities)).unwrap();
+                });
+                handles.push(handle);
+                /*
+                s.spawn(move |_| {
+                    let detail_snapshot_time = Local::now();
+                    let entities = AllStoredEntities::read_http(host, port);
+                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, entities)).expect("error sending data via tx (entities)");
+                });
+                 */
+            }
+        }
+
+         */
 
         let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
         let (tx, rx) = channel();
@@ -258,7 +295,7 @@ impl AllStoredEntities
             for host in hosts {
                 for port in ports {
                     let tx = tx.clone();
-                    s.spawn(move |_| {
+                    s.spawn(move |_|  {
                         let detail_snapshot_time = Local::now();
                         let entities = AllStoredEntities::read_http(host, port);
                         tx.send((format!("{}:{}", host, port), detail_snapshot_time, entities)).expect("error sending data via tx (entities)");
@@ -269,9 +306,10 @@ impl AllStoredEntities
 
         info!("end parallel http read {:?}", timer.elapsed());
 
-        let mut allstoredentities = AllStoredEntities { stored_keyspaces: Vec::new(), stored_tables: Vec::new(), stored_tablets: Vec::new(), stored_replicas: Vec::new() };
+        let mut allstoredentities = AllStoredEntities::new();
+
         for (hostname_port, detail_snapshot_time, entities) in rx {
-            AllStoredEntities::split_into_vectors(entities, &hostname_port, detail_snapshot_time, &mut allstoredentities);
+            allstoredentities.split_into_vectors(entities, &hostname_port, detail_snapshot_time);
         }
 
         allstoredentities
@@ -281,43 +319,44 @@ impl AllStoredEntities
         port: &str,
     ) -> Entities
     {
-        if ! scan_port_addr(format!("{}:{}", host, port)) {
-            warn!("hostname: port {}:{} cannot be reached, skipping", host, port);
-            return AllStoredEntities::parse_entities(String::from(""), "", "")
+        let data_from_http = if scan_host_port( host, port) {
+            http_get(host, port, "dump-entities")
+        } else {
+            String::new()
         };
-        let data_from_http = reqwest::blocking::get(format!("http://{}:{}/dump-entities", host, port))
-            .unwrap_or_else(|e| {
-                error!("Fatal: error reading from URL: {}", e);
-                process::exit(1);
-            })
-            .text().unwrap();
         AllStoredEntities::parse_entities(data_from_http, host, port)
     }
-    fn parse_entities( entities_data: String, host: &str, port: &str ) -> Entities {
+    fn parse_entities(
+        entities_data: String,
+        host: &str,
+        port: &str,
+    ) -> Entities
+    {
         serde_json::from_str(&entities_data )
             .unwrap_or_else(|e| {
                 debug!("({}:{}) could not parse /dump-entities json data for entities, error: {}", host, port, e);
-                Entities { keyspaces: Vec::<Keyspaces>::new(), tables: Vec::<Tables>::new(), tablets: Vec::<Tablets>::new() }
+                Entities::new()
             })
     }
     fn split_into_vectors(
+        &mut self,
         entities: Entities,
         hostname_port: &str,
         detail_snapshot_time: DateTime<Local>,
-        allstoredentities: &mut AllStoredEntities,
     )
     {
+        debug!("split_into_vectors");
         for keyspace in entities.keyspaces {
-            allstoredentities.stored_keyspaces.push(StoredKeyspaces::new(hostname_port, detail_snapshot_time, &keyspace) );
+            self.stored_keyspaces.push(StoredKeyspaces::new(hostname_port, detail_snapshot_time, &keyspace) );
         }
         for table in entities.tables {
-            allstoredentities.stored_tables.push( StoredTables::new(hostname_port, detail_snapshot_time, table) );
+            self.stored_tables.push( StoredTables::new(hostname_port, detail_snapshot_time, table) );
         }
         for tablet in entities.tablets {
-            allstoredentities.stored_tablets.push( StoredTablets::new(hostname_port, detail_snapshot_time, &tablet) );
+            self.stored_tablets.push( StoredTablets::new(hostname_port, detail_snapshot_time, &tablet) );
             if let Some(replicas) = tablet.replicas {
                 for replica in replicas {
-                    allstoredentities.stored_replicas.push(StoredReplicas::new(hostname_port, detail_snapshot_time, &tablet.tablet_id, replica));
+                    self.stored_replicas.push(StoredReplicas::new(hostname_port, detail_snapshot_time, &tablet.tablet_id, replica));
                 }
             }
         }
@@ -1466,6 +1505,7 @@ impl SnapshotDiffBTreeMapsEntities {
 
 #[cfg(test)]
 mod tests {
+    //use itertools::all;
     use super::*;
 
     #[test]
@@ -1532,13 +1572,13 @@ mod tests {
 
     #[test]
     fn integration_parse_entities() {
-        let mut allstoredentities = AllStoredEntities { stored_keyspaces: Vec::new(), stored_tables: Vec::new(), stored_tablets: Vec::new(), stored_replicas: Vec::new() };
+        let mut allstoredentities = AllStoredEntities::new();
 
         let hostname = utility::get_hostname_master();
         let port = utility::get_port_master();
 
-        let json = AllStoredEntities::read_http(hostname.as_str(), port.as_str());
-        AllStoredEntities::split_into_vectors(json, format!("{}:{}", hostname, port).as_str(), Local::now(), &mut allstoredentities);
+        let json = AllStoredEntities::read_http(&hostname, &port);
+        allstoredentities.split_into_vectors(json, format!("{}:{}", hostname, port).as_str(), Local::now());
 
         assert!(!allstoredentities.stored_tables.is_empty());
         assert!(!allstoredentities.stored_tablets.is_empty());

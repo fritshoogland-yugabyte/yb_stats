@@ -107,13 +107,24 @@ pub fn http_get(
     url: &str,
 ) -> String
 {
-    reqwest::blocking::Client::builder()
+    if let Ok(data_from_web_request) = reqwest::blocking::Client::builder()
         .danger_accept_invalid_certs(true)
         .build()
         .unwrap()
         .get(format!("http://{}:{}/{}", host, port, url))
         .send()
-        .unwrap()
-        .text()
-        .unwrap()
+    {
+        if ! &data_from_web_request.status().is_success()
+        {
+            debug!("Non success response: {}:{}/{} = {}", host, port, url, &data_from_web_request.status());
+        }
+        else
+        {
+           debug!("Success response: {}:{}/{} = {}", host, port, url, &data_from_web_request.status());
+        }
+        data_from_web_request.text().unwrap()
+    } else {
+        debug!("Non-Ok success response: {}:{}/{}", host, port, url);
+        String::new()
+    }
 }

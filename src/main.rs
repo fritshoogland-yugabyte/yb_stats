@@ -54,16 +54,21 @@ const DEFAULT_HOSTS: &str = "192.168.66.80,192.168.66.81,192.168.66.82";
 const DEFAULT_PORTS: &str = "7000,9000,12000,13000,9300";
 const DEFAULT_PARALLEL: &str = "1";
 const WRITE_DOTENV: bool = true;
+//#[clap(version, about="A utility to extract all information from a YugabyteDB cluster")]
 
-/// Struct that holds the commandline options.
+/// yb_stats switches
 #[derive(Debug, Parser)]
+#[clap(version, about, long_about = None)]
 struct Opts {
     /// Snapshot input hostnames (comma separated)
-    #[arg(long, value_name = "hostname,hostname")]
+    #[arg(short = 'H', long, value_name = "hostname,hostname")]
     hosts: Option<String>,
     /// Snapshot input port numbers (comma separated)
     #[arg(short, long, value_name = "port,port")]
     ports: Option<String>,
+    /// Snapshot capture parallelism (default 1)
+    #[arg(long, value_name = "nr")]
+    parallel: Option<String>,
     /// Output filter for statistic names as regex
     #[arg(short, long, value_name = "regex")]
     stat_name_match: Option<String>,
@@ -104,10 +109,10 @@ struct Opts {
     #[arg(short = 'l', long)]
     snapshot_list: bool,
     /// Output setting to specify the begin snapshot number for diff report.
-    #[arg(short = 'b', long)]
+    #[arg(short = 'b', long, value_name = "snapshot nr")]
     begin: Option<i32>,
     /// Output setting to specify the end snapshot number for diff report.
-    #[arg(short = 'e', long)]
+    #[arg(short = 'e', long, value_name = "snapshot nr")]
     end: Option<i32>,
     /// Print memtrackers data for the given snapshot number
     #[arg(long, value_name = "snapshot number")]
@@ -115,6 +120,9 @@ struct Opts {
     /// Print log data for the given snapshot number
     #[arg(long, value_name = "snapshot number")]
     print_log: Option<String>,
+    /// Output log data severity to include: optional: I (use with --print_log)
+    #[arg(long, default_value = "WEF")]
+    log_severity: String,
     /// Print entity data for snapshot number, or get current.
     #[arg(long, value_name = "snapshot number")]
     print_entities: Option<Option<String>>,
@@ -139,12 +147,6 @@ struct Opts {
     /// Print gflags for the given snapshot number
     #[arg(long, value_name = "snapshot number")]
     print_gflags: Option<String>,
-    /// Output log data severity to include: optional: I (use with --print_log)
-    #[arg(long, default_value = "WEF")]
-    log_severity: String,
-    /// Snapshot capture parallelism (default 1)
-    #[arg(long, value_name = "nr")]
-    parallel: Option<String>,
     /// Snapshot disable gathering of thread stacks from /threadz
     #[arg(long)]
     disable_threads: bool,

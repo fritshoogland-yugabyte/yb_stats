@@ -1,3 +1,5 @@
 target
 yb_stats.snapshots
 /.env
+.DS_Store
+.idea

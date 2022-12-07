@@ -54,7 +54,8 @@ const DEFAULT_HOSTS: &str = "192.168.66.80,192.168.66.81,192.168.66.82";
 const DEFAULT_PORTS: &str = "7000,9000,12000,13000,9300";
 const DEFAULT_PARALLEL: &str = "1";
 const WRITE_DOTENV: bool = true;
-//#[clap(version, about="A utility to extract all information from a YugabyteDB cluster")]
+
+const ACCEPT_INVALID_CERTS: bool = true;
 
 /// yb_stats switches
 #[derive(Debug, Parser)]

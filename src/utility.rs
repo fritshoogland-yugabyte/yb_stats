@@ -2,6 +2,7 @@
 use std::env;
 use port_scanner::scan_port_addr;
 use log::*;
+use crate::ACCEPT_INVALID_CERTS;
 
 #[allow(dead_code)]
 pub fn get_hostname_master() -> String {
@@ -94,7 +95,7 @@ pub fn scan_host_port(
 ) -> bool
 {
     if ! scan_port_addr( format!("{}:{}", host, port)) {
-        warn!("hostname:port {}:{} cannot be reached, skipping",host ,port);
+        warn!("Port scanner: hostname:port {}:{} cannot be reached, skipping",host ,port);
         false
     } else {
         true
@@ -108,7 +109,7 @@ pub fn http_get(
 ) -> String
 {
     if let Ok(data_from_web_request) = reqwest::blocking::Client::builder()
-        .danger_accept_invalid_certs(true)
+        .danger_accept_invalid_certs(ACCEPT_INVALID_CERTS)
         .build()
         .unwrap()
         .get(format!("http://{}:{}/{}", host, port, url))

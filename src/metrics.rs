@@ -61,17 +61,18 @@
 //! 4. [SnapshotDiffBTreeMapsMetrics::print]
 //!
 /// This imports extrnal crates
-use std::{process, fs, env, error::Error, sync::mpsc::channel, collections::BTreeMap, time::Instant};
+use std::{sync::mpsc::channel, collections::BTreeMap, time::Instant};
 use chrono::{DateTime, Local};
 use serde_derive::{Serialize,Deserialize};
 use regex::Regex;
 use substring::Substring;
 use log::*;
-//use anyhow::{Context, Result}
+use anyhow::Result;
 /// This imports two utility crates
 use crate::value_statistic_details;
 use crate::countsum_statistic_details;
 use crate::utility::{scan_host_port, http_get};
+use crate::snapshot::{save_snapshot, read_snapshot};
 ///
 /// Struct to represent the metric entities found in the YugabyteDB master and tserver metrics endpoint.
 ///
@@ -778,21 +779,18 @@ impl AllStoredMetrics {
         ports: &Vec<&str>,
         snapshot_number: i32,
         parallel: usize,
-    )
+    ) -> Result<()>
     {
         info!("begin snapshot");
         let timer = Instant::now();
 
         let allstoredmetrics = AllStoredMetrics::read_metrics(hosts, ports, parallel).await;
-        allstoredmetrics.save_snapshot(snapshot_number)
-            .unwrap_or_else(|e| {
-                error!("error saving snapshot: {}",e);
-                process::exit(1);
-            });
-
-           // .with_context(|| format("Error saving snapshot: {}", snapshot_number ))?;
+        save_snapshot(snapshot_number, "values", allstoredmetrics.stored_values)?;
+        save_snapshot(snapshot_number, "countsum", allstoredmetrics.stored_countsum)?;
+        save_snapshot(snapshot_number, "countsumrows", allstoredmetrics.stored_countsumrows)?;
 
         info!("end snapshot: {:?}", timer.elapsed());
+        Ok(())
     }
     pub fn new() -> Self{
         Default::default()
@@ -910,10 +908,12 @@ impl AllStoredMetrics {
             }
         }
     }
+    /*
     /// This function takes the [AllStoredMetrics] struct vectors and saves these as CSV files.
     /// The vectors this struct holds are of structs of [StoredValues], [StoredCountSum] and [StoredCountSumRows].
     /// The directory with the snapshot number must exist already.
     /// This function returns a Result.
+    ///
     fn save_snapshot ( self, snapshot_number: i32, ) -> Result<(), Box<dyn Error>>
     {
         let current_directory = env::current_dir()?;
@@ -954,6 +954,9 @@ impl AllStoredMetrics {
 
         Ok(())
     }
+
+     */
+    /*
     /// This function takes a snapshot number, and reads the CSV data from a snapshut number directory into the vectors in [AllStoredMetrics].
     /// The vectors this struct holds are of structs of [StoredValues], [StoredCountSum] and [StoredCountSumRows].
     /// This function returns a Result that contains the struct [AllStoredMetrics] or an Error.
@@ -993,6 +996,8 @@ impl AllStoredMetrics {
 
         Ok(allstoredmetrics)
     }
+
+     */
 }
 
 type BTreeMapSnapshotDiffValues = BTreeMap<(String, String, String, String), SnapshotDiffValues>;
@@ -1020,24 +1025,39 @@ impl SnapshotDiffBTreeMapsMetrics {
         begin_snapshot: &String,
         end_snapshot: &String,
         begin_snapshot_timestamp: &DateTime<Local>,
-    ) -> SnapshotDiffBTreeMapsMetrics {
+    ) -> Result<SnapshotDiffBTreeMapsMetrics>
+    {
+        let mut allstoredmetrics = AllStoredMetrics::new();
+        allstoredmetrics.stored_values = read_snapshot(begin_snapshot, "values")?;
+        allstoredmetrics.stored_countsum= read_snapshot(begin_snapshot, "countsum")?;
+        allstoredmetrics.stored_countsumrows = read_snapshot(begin_snapshot, "countsumrows")?;
+        /*
         let allstoredmetrics = AllStoredMetrics::read_snapshot(begin_snapshot)
             .unwrap_or_else(|e| {
                 error!("Fatal: error reading snapshot: {}", e);
                 process::exit(1);
             });
+
+         */
         let mut metrics_snapshot_diff = SnapshotDiffBTreeMapsMetrics::new();
         metrics_snapshot_diff.first_snapshot(allstoredmetrics);
 
+        let mut allstoredmetrics = AllStoredMetrics::new();
+        allstoredmetrics.stored_values = read_snapshot(end_snapshot, "values")?;
+        allstoredmetrics.stored_countsum= read_snapshot(end_snapshot, "countsum")?;
+        allstoredmetrics.stored_countsumrows = read_snapshot(end_snapshot, "countsumrows")?;
+        /*
         let allstoredmetrics = AllStoredMetrics::read_snapshot(end_snapshot)
             .unwrap_or_else(|e| {
                 error!("Fatal: error reading snapshot: {}", e);
                 process::exit(1);
             });
 
+         */
+
         metrics_snapshot_diff.second_snapshot(allstoredmetrics, begin_snapshot_timestamp);
 
-        metrics_snapshot_diff
+        Ok(metrics_snapshot_diff)
     }
     pub fn new() -> Self {
         Default::default()

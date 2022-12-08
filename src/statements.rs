@@ -57,11 +57,13 @@
 //!
 use chrono::{DateTime, Local};
 use serde_derive::{Serialize,Deserialize};
-use std::{fs, process, error::Error, collections::BTreeMap, env, sync::mpsc::channel, time::Instant};
+use std::{collections::BTreeMap, sync::mpsc::channel, time::Instant};
 use regex::Regex;
 use substring::Substring;
 use log::*;
+use anyhow::Result;
 use crate::utility::{scan_host_port, http_get};
+use crate::snapshot::{save_snapshot, read_snapshot};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Statement {
@@ -210,25 +212,35 @@ impl SnapshotDiffBTreeMapStatements {
         begin_snapshot: &String,
         end_snapshot: &String,
         begin_snapshot_time: &DateTime<Local>,
-    ) -> SnapshotDiffBTreeMapStatements
+    ) -> Result<SnapshotDiffBTreeMapStatements>
     {
+        let mut allstoredstatements = AllStoredStatements::new();
+        allstoredstatements.stored_statements = read_snapshot(begin_snapshot, "statements")?;
+        /*
         let allstoredstatements = AllStoredStatements::read_snapshot(begin_snapshot)
             .unwrap_or_else(|e| {
                 error!("Fatal: error reading snapshot: {}", e);
                 process::exit(1);
             });
+
+         */
         let mut statements_snapshot_diff = SnapshotDiffBTreeMapStatements::new();
         statements_snapshot_diff.first_snapshot(allstoredstatements);
 
+        let mut allstoredstatements = AllStoredStatements::new();
+        allstoredstatements.stored_statements = read_snapshot(end_snapshot, "statements")?;
+        /*
         let allstoredstatements = AllStoredStatements::read_snapshot(end_snapshot)
             .unwrap_or_else(|e| {
                 error!("Fatal: error reading snapshot: {}", e);
                 process::exit(1);
             });
 
+         */
+
         statements_snapshot_diff.second_snapshot(allstoredstatements, begin_snapshot_time);
 
-        statements_snapshot_diff
+        Ok(statements_snapshot_diff)
     }
     pub fn new() -> Self {
         Default::default()
@@ -311,7 +323,7 @@ impl SnapshotDiffBTreeMapStatements {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct AllStoredStatements {
     pub stored_statements: Vec<StoredStatements>
 }
@@ -321,19 +333,30 @@ impl AllStoredStatements {
         ports: &Vec<&str>,
         snapshot_number: i32,
         parallel: usize
-    ) {
+    ) -> Result<()>
+    {
         info!("begin snapshot");
         let timer = Instant::now();
 
-        let allstoredstatements = AllStoredStatements::read_statements(hosts, ports, parallel);
+        let allstoredstatements = AllStoredStatements::read_statements(hosts, ports, parallel).await;
+        save_snapshot(snapshot_number, "statements", allstoredstatements.stored_statements)?;
+       /*
         allstoredstatements.await.save_snapshot(snapshot_number)
             .unwrap_or_else(|e| {
                 error!("error saving snapshot: {}", e);
                 process::exit(1);
             });
 
-        info!("end snapshot: {:?}", timer.elapsed())
+        */
+
+        info!("end snapshot: {:?}", timer.elapsed());
+
+        Ok(())
     }
+    pub fn new() -> Self {
+        Default::default()
+    }
+    /*
     fn save_snapshot ( self, snapshot_number: i32 ) -> Result<(), Box<dyn Error>>
     {
         let current_directory = env::current_dir()?;
@@ -352,6 +375,7 @@ impl AllStoredStatements {
 
         Ok(())
     }
+
     fn read_snapshot( snapshot_number: &String, ) -> Result<AllStoredStatements, Box<dyn Error>>
     {
         let mut allstoredstatements = AllStoredStatements { stored_statements: Vec::new() };
@@ -370,6 +394,7 @@ impl AllStoredStatements {
 
         Ok(allstoredstatements)
     }
+     */
     pub async fn read_statements (
         hosts: &Vec<&str>,
         ports: &Vec<&str>,

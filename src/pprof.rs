@@ -1,9 +1,6 @@
-use std::path::PathBuf;
-use std::fs;
-use std::io::Write;
-use std::process;
-use std::sync::mpsc::channel;
+use std::{path::PathBuf, fs, io::Write, sync::mpsc::channel};
 use log::*;
+use anyhow::{Result, Context};
 use crate::utility::{scan_host_port, http_get};
 
 pub fn read_pprof(
@@ -24,7 +21,8 @@ pub async fn perform_pprof_snapshot(
     snapshot_number: i32,
     yb_stats_directory: &PathBuf,
     parallel: usize
-) {
+)  -> Result<()>
+{
     info!("perform_pprof_snapshot");
     let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
     let (tx, rx) = channel();
@@ -47,18 +45,22 @@ pub async fn perform_pprof_snapshot(
                 .create(true)
                 .write(true)
                 .open(pprof_file)
-                .unwrap_or_else(|e| {
-                    error!("Fatal: error writing pprof growth data in snapshot directory {}: {}", &pprof_file.clone().into_os_string().into_string().unwrap(), e);
-                    process::exit(1);
-                });
+                .with_context(|| format!("Cannot create file: {}", pprof_file.display()))?;
+
+            file.write_all(pprof.as_bytes())
+                .with_context(|| format!("Error writing file: {}", pprof_file.display()))?;
             //let mut writer = csv::Writer::from_writer(file);
+            /*
             file.write_all(pprof.as_bytes()).unwrap_or_else(|e| {
-                error!("Fatal: error pprof growth data in snapshot directory {:?}: {}", &file, e);
+                error!("Fatal: error write pprof growth data in snapshot directory {:?}: {}", &file, e);
                 process::exit(1);
             });
+
+             */
         };
 
     }
+    Ok(())
 }
 
 #[cfg(test)]

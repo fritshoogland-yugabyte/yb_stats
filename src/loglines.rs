@@ -6,7 +6,9 @@ use std::fs;
 use serde_derive::{Serialize,Deserialize};
 use std::sync::mpsc::channel;
 use log::*;
+use crate::snapshot::{save_snapshot, read_snapshot};
 use crate::utility::{scan_host_port, http_get};
+use anyhow::Result;
 
 #[derive(Debug)]
 pub struct LogLine {
@@ -101,9 +103,9 @@ pub async fn perform_loglines_snapshot(
     hosts: &Vec<&str>,
     ports: &Vec<&str>,
     snapshot_number: i32,
-    yb_stats_directory: &PathBuf,
     parallel: usize
-) {
+) -> Result<()>
+{
     info!("perform_loglines_snapshot");
     let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
     let (tx, rx) = channel();
@@ -122,6 +124,8 @@ pub async fn perform_loglines_snapshot(
         add_to_loglines_vector(loglines, &hostname_port, &mut stored_loglines);
     }
 
+    save_snapshot(snapshot_number, "loglines", stored_loglines)?;
+    /*
     let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
     let loglines_file = &current_snapshot_directory.join("loglines");
     let file = fs::OpenOptions::new()
@@ -137,17 +141,20 @@ pub async fn perform_loglines_snapshot(
         writer.serialize(row).unwrap();
     }
     writer.flush().unwrap();
+
+     */
+    Ok(())
 }
 
 #[allow(dead_code)]
 pub fn print_loglines(
     snapshot_number: &str,
-    yb_stats_directory: &PathBuf,
     hostname_filter: &Regex,
     log_severity: &str
-) {
+) -> Result<()>
+{
     info!("print_log");
-    let stored_loglines: Vec<StoredLogLines> = read_loglines_snapshot(&snapshot_number.to_string(), &yb_stats_directory);
+    let stored_loglines: Vec<StoredLogLines> = read_snapshot(&snapshot_number.to_string(), "loglines")?;
     let mut previous_hostname_port = String::from("");
     for row in stored_loglines {
         if hostname_filter.is_match(&row.hostname_port)
@@ -161,6 +168,8 @@ pub fn print_loglines(
             println!("{:20} {:33} {:1} {:20} {:50}", row.hostname_port, row.timestamp, row.severity, row.sourcefile_nr, row.message)
         }
     }
+
+    Ok(())
 }
 
 #[allow(dead_code)]

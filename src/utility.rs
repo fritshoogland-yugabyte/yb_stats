@@ -2,6 +2,7 @@
 use std::env;
 use port_scanner::scan_port_addr;
 use log::*;
+
 use crate::ACCEPT_INVALID_CERTS;
 
 #[allow(dead_code)]
@@ -129,3 +130,4 @@ pub fn http_get(
         String::new()
     }
 }
+

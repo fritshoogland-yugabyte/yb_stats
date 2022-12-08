@@ -55,12 +55,14 @@
 //! 
 use serde_derive::{Serialize,Deserialize};
 use chrono::{DateTime, Local};
-use std::{fs, process, collections::{BTreeMap, HashMap}, time::Instant, env, error::Error, sync::mpsc::channel};
+use std::{collections::{BTreeMap, HashMap}, time::Instant, sync::mpsc::channel};
 use log::*;
 use regex::Regex;
 use colored::*;
+use anyhow::Result;
 use crate::isleader::AllStoredIsLeader;
 use crate::utility::{scan_host_port, http_get};
+use crate::snapshot::{save_snapshot, read_snapshot};
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Entities {
@@ -232,19 +234,20 @@ impl AllStoredEntities
         ports: &Vec<&str>,
         snapshot_number: i32,
         parallel: usize,
-    )
+    ) -> Result<()>
     {
         info!("begin snapshot");
         let timer = Instant::now();
 
-        let allstoredentities = AllStoredEntities::read_entities(hosts, ports, parallel);
-        allstoredentities.await.save_snapshot(snapshot_number)
-            .unwrap_or_else(|e| {
-                error!("error saving snasphot: {}", e);
-                process::exit(1);
-            });
+        let allstoredentities = AllStoredEntities::read_entities(hosts, ports, parallel).await;
+        save_snapshot(snapshot_number, "keyspaces", allstoredentities.stored_keyspaces)?;
+        save_snapshot(snapshot_number, "tables", allstoredentities.stored_tables)?;
+        save_snapshot(snapshot_number, "tablets", allstoredentities.stored_tablets)?;
+        save_snapshot(snapshot_number, "replicas", allstoredentities.stored_replicas)?;
 
         info!("end snapshot: {:?}", timer.elapsed());
+
+        Ok(())
     }
     pub fn new() -> Self {
         Default::default()
@@ -361,113 +364,16 @@ impl AllStoredEntities
             }
         }
     }
-    fn save_snapshot ( self, snapshot_number: i32 ) -> Result<(), Box<dyn Error>>
-    {
-        let current_directory = env::current_dir()?;
-        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(&snapshot_number.to_string());
-
-        let tables_file = &current_snapshot_directory.join("tables");
-        let file = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(tables_file)?;
-        let mut writer = csv::Writer::from_writer(file);
-        for row in self.stored_tables {
-            writer.serialize(row)?;
-        }
-        writer.flush()?;
-
-        let tablets_file = &current_snapshot_directory.join("tablets");
-        let file = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(tablets_file)?;
-        let mut writer = csv::Writer::from_writer(file);
-        for row in self.stored_tablets {
-            writer.serialize(row)?;
-        }
-        writer.flush()?;
-
-        let replicas_file = &current_snapshot_directory.join("replicas");
-        let file = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(replicas_file)?;
-        let mut writer = csv::Writer::from_writer(file);
-        for row in self.stored_replicas {
-            writer.serialize(row)?;
-        }
-        writer.flush()?;
-
-        let keyspaces_file = &current_snapshot_directory.join("keyspaces");
-        let file = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(keyspaces_file)?;
-        let mut writer = csv::Writer::from_writer(file);
-        for row in self.stored_keyspaces {
-            writer.serialize(row)?;
-        }
-        writer.flush()?;
-
-        Ok(())
-    }
-    pub fn read_snapshot( snapshot_number: &String, ) -> Result<AllStoredEntities, Box<dyn Error>>
-    {
-        //let mut allstoredentities = AllStoredEntities { stored_keyspaces: Vec::new(), stored_tables: Vec::new(), stored_tablets: Vec::new(), stored_replicas: Vec::new() };
-        let mut allstoredentities = AllStoredEntities::new();
-
-        let current_directory = env::current_dir()?;
-        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number);
-
-        let keyspaces_file = &current_snapshot_directory.join("keyspaces");
-        let file = fs::File::open(keyspaces_file)?;
-
-        let mut reader = csv::Reader::from_reader(file);
-        for row in reader.deserialize() {
-            let data: StoredKeyspaces = row?;
-            allstoredentities.stored_keyspaces.push(data);
-        };
-
-        let tables_file = &current_snapshot_directory.join("tables");
-        let file = fs::File::open(tables_file)?;
-
-        let mut reader = csv::Reader::from_reader(file);
-        for row in reader.deserialize() {
-            let data: StoredTables = row?;
-            allstoredentities.stored_tables.push(data);
-        };
-
-        let tablets_file = &current_snapshot_directory.join("tablets");
-        let file = fs::File::open(tablets_file)?;
-
-        let mut reader = csv::Reader::from_reader(file);
-        for row in reader.deserialize() {
-            let data: StoredTablets = row?;
-            allstoredentities.stored_tablets.push(data);
-        };
-
-        let replicas_file = &current_snapshot_directory.join("replicas");
-        let file = fs::File::open(replicas_file)?;
-
-        let mut reader = csv::Reader::from_reader(file);
-        for row in reader.deserialize() {
-            let data: StoredReplicas = row?;
-            allstoredentities.stored_replicas.push(data);
-        };
-
-        Ok(allstoredentities)
-    }
     pub fn print(
         &self,
         snapshot_number: &String,
         table_name_filter: &Regex,
         details_enable: &bool,
-    )
+    ) -> Result<()>
     {
         info!("print_entities");
 
-        let leader_hostname = AllStoredIsLeader::return_leader_snapshot(snapshot_number);
+        let leader_hostname = AllStoredIsLeader::return_leader_snapshot(snapshot_number)?;
 
         let mut tables_btreemap: BTreeMap<(String, String, String), StoredTables> = BTreeMap::new();
 
@@ -633,6 +539,7 @@ impl AllStoredEntities
                 println!(")");
             }
         }
+        Ok(())
     }
     pub async fn print_adhoc(
         &self,
@@ -1022,26 +929,28 @@ impl SnapshotDiffBTreeMapsEntities {
         begin_snapshot: &String,
         end_snapshot: &String,
         details_enable: &bool,
-    ) -> SnapshotDiffBTreeMapsEntities
+    ) -> Result<SnapshotDiffBTreeMapsEntities>
     {
-        let allstoredentities = AllStoredEntities::read_snapshot(begin_snapshot)
-            .unwrap_or_else(|e| {
-                error!("Fatal: error reading snapshot: {}", e);
-                process::exit(1);
-            });
-        let master_leader = AllStoredIsLeader::return_leader_snapshot(begin_snapshot);
+        let mut allstoredentities = AllStoredEntities::new();
+        allstoredentities.stored_keyspaces = read_snapshot(begin_snapshot, "keyspaces")?;
+        allstoredentities.stored_tables = read_snapshot(begin_snapshot, "tables")?;
+        allstoredentities.stored_tablets = read_snapshot(begin_snapshot, "tablets")?;
+        allstoredentities.stored_replicas = read_snapshot(begin_snapshot, "replicas")?;
+
+        let master_leader = AllStoredIsLeader::return_leader_snapshot(begin_snapshot)?;
         let mut entities_snapshot_diff = SnapshotDiffBTreeMapsEntities::new();
         entities_snapshot_diff.first_snapshot(allstoredentities, master_leader, details_enable);
 
-        let allstoredentities = AllStoredEntities::read_snapshot(end_snapshot)
-            .unwrap_or_else(|e| {
-                error!("Fatal: error reading snapshot: {}", e);
-                process::exit(1);
-            });
-        let master_leader = AllStoredIsLeader::return_leader_snapshot(end_snapshot);
+        let mut allstoredentities = AllStoredEntities::new();
+        allstoredentities.stored_keyspaces = read_snapshot(end_snapshot, "keyspaces")?;
+        allstoredentities.stored_tables = read_snapshot(end_snapshot, "tables")?;
+        allstoredentities.stored_tablets = read_snapshot(end_snapshot, "tablets")?;
+        allstoredentities.stored_replicas = read_snapshot(end_snapshot, "replicas")?;
+
+        let master_leader = AllStoredIsLeader::return_leader_snapshot(end_snapshot)?;
         entities_snapshot_diff.second_snapshot(allstoredentities, master_leader, details_enable);
 
-        entities_snapshot_diff
+        Ok(entities_snapshot_diff)
     }
     pub fn new() -> Self {
         Default::default()

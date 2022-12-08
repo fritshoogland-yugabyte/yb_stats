@@ -1,14 +1,12 @@
 use chrono::{DateTime, Local};
-use std::path::PathBuf;
-use std::fs;
-use std::process;
+use std::{sync::mpsc::channel};
 use serde_derive::{Serialize,Deserialize};
 use regex::Regex;
-//use rayon;
-use std::sync::mpsc::channel;
 use scraper::{ElementRef, Html, Selector};
 use log::*;
+use anyhow::Result;
 use crate::utility::{scan_host_port, http_get};
+use crate::snapshot::{save_snapshot, read_snapshot};
 
 #[derive(Debug)]
 pub struct Threads {
@@ -36,9 +34,9 @@ pub async fn perform_threads_snapshot(
     hosts: &Vec<&str>,
     ports: &Vec<&str>,
     snapshot_number: i32,
-    yb_stats_directory: &PathBuf,
     parallel: usize
-) {
+) -> Result<()>
+{
     info!("perform_threads_snapshot");
     let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
     let (tx, rx) = channel();
@@ -59,7 +57,10 @@ pub async fn perform_threads_snapshot(
     for (hostname_port, detail_snapshot_time, threads) in rx {
         add_to_threads_vector(threads, &hostname_port, detail_snapshot_time, &mut stored_threads);
     }
+    save_snapshot(snapshot_number, "threads", stored_threads)?;
 
+    Ok(())
+    /*
     let current_snapshot_directory = &yb_stats_directory.join( &snapshot_number.to_string());
     let threads_file = &current_snapshot_directory.join("threads");
     let file = fs::OpenOptions::new()
@@ -75,6 +76,8 @@ pub async fn perform_threads_snapshot(
         writer.serialize(row).unwrap();
     }
     writer.flush().unwrap();
+
+     */
 }
 
 #[allow(dead_code)]
@@ -179,11 +182,12 @@ fn find_table(http_data: &str) -> Option<(Vec<String>, Vec<Vec<String>>)> {
 #[allow(dead_code)]
 pub fn print_threads_data(
     snapshot_number: &String,
-    yb_stats_directory: &PathBuf,
     hostname_filter: &Regex
-) {
+) -> Result<()>
+{
     info!("print_threads");
-    let stored_threads: Vec<StoredThreads> = read_threads_snapshot(snapshot_number, yb_stats_directory);
+    //let stored_threads: Vec<StoredThreads> = read_threads_snapshot(snapshot_number, yb_stats_directory);
+    let stored_threads: Vec<StoredThreads> = read_snapshot(snapshot_number, "threads")?;
     let mut previous_hostname_port = String::from("");
     for row in stored_threads {
         if hostname_filter.is_match(&row.hostname_port) {
@@ -204,8 +208,10 @@ pub fn print_threads_data(
             println!("{:20} {:30} {:>20} {:>20} {:>20} {:50}", row.hostname_port, row.thread_name, row.cumulative_user_cpu_s, row.cumulative_kernel_cpu_s, row.cumulative_iowait_cpu_s, row.stack.replace('\n', ""));
         }
     }
+    Ok(())
 }
 
+/*
 #[allow(dead_code)]
 #[allow(clippy::ptr_arg)]
 fn read_threads_snapshot(
@@ -226,6 +232,8 @@ fn read_threads_snapshot(
     }
     stored_threads
 }
+
+ */
 
 #[allow(dead_code)]
 pub fn add_to_threads_vector(threadsdata: Vec<Threads>,

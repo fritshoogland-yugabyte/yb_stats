@@ -1,10 +1,12 @@
 use chrono::{DateTime, Local};
 use regex::Regex;
-use std::{fs, process, sync::mpsc::channel, time::Instant, error::Error, env, collections::BTreeMap};
+use std::{sync::mpsc::channel, time::Instant, collections::BTreeMap};
 use serde_derive::{Serialize,Deserialize};
 use log::*;
 use colored::*;
+use anyhow::Result;
 use crate::utility::{scan_host_port, http_get};
+use crate::snapshot::{read_snapshot, save_snapshot};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AllVars {
@@ -19,9 +21,9 @@ pub struct Vars {
     pub vars_type: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct AllStoredVars {
-    stored_vars: Vec<StoredVars>,
+    pub stored_vars: Vec<StoredVars>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -39,20 +41,29 @@ impl AllStoredVars {
         ports: &Vec<&str>,
         snapshot_number: i32,
         parallel: usize,
-    )
+    ) -> Result<()>
     {
         info!("begin snapshot");
         let timer = Instant::now();
 
-        let allvars = AllStoredVars::read_vars(hosts, ports, parallel);
+        let allvars = AllStoredVars::read_vars(hosts, ports, parallel).await;
+        save_snapshot(snapshot_number, "vars", allvars.stored_vars)?;
 
+        /*
         allvars.await.save_snapshot(snapshot_number)
             .unwrap_or_else(|e| {
                 error!("error saving snapshot: {}", e);
                 process::exit(1);
             });
 
-        info!("end snapshot: {:?}", timer.elapsed())
+         */
+
+        info!("end snapshot: {:?}", timer.elapsed());
+
+        Ok(())
+    }
+    pub fn new() -> Self {
+        Default::default()
     }
     pub async fn read_vars(
         hosts: &Vec<&str>,
@@ -145,6 +156,7 @@ impl AllStoredVars {
                 AllVars { flags: Vec::new() }
             })
     }
+    /*
     fn save_snapshot ( self, snapshot_number: i32 ) -> Result<(), Box<dyn Error>>
     {
         let current_directory = env::current_dir()?;
@@ -163,6 +175,7 @@ impl AllStoredVars {
 
         Ok(())
     }
+
     pub fn read_snapshot( snapshot_number: &String ) -> Result<AllStoredVars, Box<dyn Error>>
     {
         let mut allstoredvars = AllStoredVars {
@@ -183,6 +196,7 @@ impl AllStoredVars {
 
         Ok(allstoredvars)
     }
+     */
     pub async fn print(
         &self,
         details_enable: &bool,
@@ -256,23 +270,34 @@ impl SnapshotDiffBTreeMapsVars {
     pub fn snapshot_diff(
         begin_snapshot: &String,
         end_snapshot: &String,
-    ) -> SnapshotDiffBTreeMapsVars
+    ) -> Result<SnapshotDiffBTreeMapsVars>
     {
+        let mut allstoredvars = AllStoredVars::new();
+        allstoredvars.stored_vars = read_snapshot(begin_snapshot, "vars")?;
+
+        /*
         let allstoredvars = AllStoredVars::read_snapshot(begin_snapshot)
             .unwrap_or_else(|e| {
                 error!("Fatal: error reading snapshot: {}", e);
                 process::exit(1);
             });
+
+         */
         let mut vars_snapshot_diff = SnapshotDiffBTreeMapsVars::first_snapshot(allstoredvars);
 
+        let mut allstoredvars = AllStoredVars::new();
+        allstoredvars.stored_vars = read_snapshot(end_snapshot, "vars")?;
+        /*
         let allstoredvars = AllStoredVars::read_snapshot(end_snapshot)
             .unwrap_or_else(|e| {
                 error!("Fatal: error reading snapshot: {}", e);
                 process::exit(1);
             });
+
+         */
         vars_snapshot_diff.second_snapshot(allstoredvars);
 
-        vars_snapshot_diff
+        Ok(vars_snapshot_diff)
     }
     pub fn new() -> Self {
         Default::default()

@@ -1,11 +1,13 @@
 use serde_derive::{Serialize,Deserialize};
 use chrono::{DateTime, Local};
-use std::{fs, process, sync::mpsc::channel, time::Instant, env, error::Error};
+use std::{sync::mpsc::channel, time::Instant};
 use std::collections::BTreeMap;
 use log::*;
 use colored::*;
+use anyhow::Result;
 use crate::isleader::AllStoredIsLeader;
 use crate::utility::{scan_host_port, http_get};
+use crate::snapshot::{save_snapshot, read_snapshot};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AllMasters {
@@ -14,10 +16,10 @@ pub struct AllMasters {
 
 #[derive(Default)]
 pub struct AllStoredMasters {
-    stored_masters: Vec<StoredMasters>,
-    stored_rpc_addresses: Vec<StoredRpcAddresses>,
-    stored_http_addresses: Vec<StoredHttpAddresses>,
-    stored_master_error: Vec<StoredMasterError>,
+    pub stored_masters: Vec<StoredMasters>,
+    pub stored_rpc_addresses: Vec<StoredRpcAddresses>,
+    pub stored_http_addresses: Vec<StoredHttpAddresses>,
+    pub stored_master_error: Vec<StoredMasterError>,
 }
 
 impl AllStoredMasters {
@@ -26,18 +28,19 @@ impl AllStoredMasters {
         ports: &Vec<&str>,
         snapshot_number: i32,
         parallel: usize,
-    ) {
+    ) -> Result<()>
+    {
         info!("begin snapshot");
         let timer = Instant::now();
 
-        let allmasters = AllStoredMasters::read_masters(hosts, ports, parallel);
-        allmasters.await.save_snapshot(snapshot_number)
-            .unwrap_or_else(|e| {
-                error!("error saving snapshot: {}", e);
-                process::exit(1);
-            });
+        let allmasters = AllStoredMasters::read_masters(hosts, ports, parallel).await;
+        save_snapshot(snapshot_number, "masters", allmasters.stored_masters)?;
+        save_snapshot(snapshot_number, "master_rpc_addresses", allmasters.stored_rpc_addresses)?;
+        save_snapshot(snapshot_number, "master_http_addresses", allmasters.stored_http_addresses)?;
+        save_snapshot(snapshot_number, "masters_errors", allmasters.stored_master_error)?;
 
-        info!("end snapshot: {:?}", timer.elapsed())
+        info!("end snapshot: {:?}", timer.elapsed());
+        Ok(())
     }
     pub fn new() -> Self {
         Default::default()
@@ -150,29 +153,6 @@ impl AllStoredMasters {
             String::new()
         };
         AllStoredMasters::parse_masters(data_from_http, host, port)
-        /*
-        if ! scan_port_addr(format!("{}:{}", host, port)) {
-            warn!("hostname: port {}:{} cannot be reached, skipping", host, port);
-            return AllStoredMasters::parse_masters(String::from(""), "", "")
-        };
-        let data_from_http = reqwest::blocking::get(format!("http://{}:{}/api/v1/masters", host, port))
-            .unwrap_or_else(|e| {
-                error!("Fatal: error reading from URL: {}", e);
-                process::exit(1);
-            })
-            .text().unwrap();
-
-        let data_from_http = reqwest::blocking::Client::builder()
-            .danger_accept_invalid_certs(true)
-            .build()
-            .unwrap()
-            .get(format!("http://{}:{}/api/v1/masters", host, port))
-            .send()
-            .unwrap()
-            .text()
-            .unwrap();
-         */
-
     }
     fn parse_masters(
         masters_data: String,
@@ -185,6 +165,7 @@ impl AllStoredMasters {
                 AllMasters { masters: Vec::<Masters>::new() }
             })
     }
+    /*
     fn save_snapshot ( self, snapshot_number: i32 ) -> Result<(), Box<dyn Error>>
     {
         let current_directory = env::current_dir()?;
@@ -236,6 +217,7 @@ impl AllStoredMasters {
 
         Ok(())
     }
+
     pub fn read_snapshot( snapshot_number: &String, ) -> Result<AllStoredMasters, Box<dyn Error>>
     {
         let mut allstoredmasters = AllStoredMasters {
@@ -286,15 +268,17 @@ impl AllStoredMasters {
 
         Ok(allstoredmasters)
     }
+
+     */
     pub fn print(
         &self,
         snapshot_number: &String,
         details_enable: &bool,
-    )
+    ) -> Result<()>
     {
         info!("print masters");
 
-        let leader_hostname = AllStoredIsLeader::return_leader_snapshot(snapshot_number);
+        let leader_hostname = AllStoredIsLeader::return_leader_snapshot(snapshot_number)?;
 
         for row in &self.stored_masters {
             if row.hostname_port == leader_hostname
@@ -345,6 +329,7 @@ impl AllStoredMasters {
                 };
             }
         }
+        Ok(())
     }
     pub async fn print_adhoc(
         &self,
@@ -516,26 +501,42 @@ impl SnapshotDiffBTreeMapsMasters {
     pub fn snapshot_diff(
         begin_snapshot: &String,
         end_snapshot: &String,
-    ) -> SnapshotDiffBTreeMapsMasters
+    ) -> Result<SnapshotDiffBTreeMapsMasters>
     {
+        let mut allstoredmasters = AllStoredMasters::new();
+        allstoredmasters.stored_masters = read_snapshot(begin_snapshot, "masters")?;
+        allstoredmasters.stored_rpc_addresses = read_snapshot(begin_snapshot, "master_rpc_addresses")?;
+        allstoredmasters.stored_http_addresses = read_snapshot(begin_snapshot, "master_http_addresses")?;
+        allstoredmasters.stored_master_error = read_snapshot(begin_snapshot, "master_errors")?;
+        /*
         let allstoredmasters = AllStoredMasters::read_snapshot(begin_snapshot)
             .unwrap_or_else(|e| {
                 error!("Fatal: error reading snapshot: {}", e);
                 process::exit(1);
             });
-        let master_leader = AllStoredIsLeader::return_leader_snapshot(begin_snapshot);
+
+         */
+        let master_leader = AllStoredIsLeader::return_leader_snapshot(begin_snapshot)?;
         let mut masters_snapshot_diff = SnapshotDiffBTreeMapsMasters::new();
         masters_snapshot_diff.first_snapshot(allstoredmasters, master_leader);
 
+        let mut allstoredmasters = AllStoredMasters::new();
+        allstoredmasters.stored_masters = read_snapshot(end_snapshot, "masters")?;
+        allstoredmasters.stored_rpc_addresses = read_snapshot(end_snapshot, "master_rpc_addresses")?;
+        allstoredmasters.stored_http_addresses = read_snapshot(end_snapshot, "master_http_addresses")?;
+        allstoredmasters.stored_master_error = read_snapshot(end_snapshot, "master_errors")?;
+        /*
         let allstoredmasters = AllStoredMasters::read_snapshot(end_snapshot)
             .unwrap_or_else(|e| {
                 error!("Fatal: error reading snapshot: {}", e);
                 process::exit(1);
             });
-        let master_leader = AllStoredIsLeader::return_leader_snapshot(begin_snapshot);
+
+         */
+        let master_leader = AllStoredIsLeader::return_leader_snapshot(begin_snapshot)?;
         masters_snapshot_diff.second_snapshot(allstoredmasters, master_leader);
 
-        masters_snapshot_diff
+        Ok(masters_snapshot_diff)
     }
     pub fn new() -> Self {
         Default::default()

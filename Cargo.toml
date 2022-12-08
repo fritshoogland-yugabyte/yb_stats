@@ -1,6 +1,6 @@
 [package]
 name = "yb_stats"
-version = "0.8.9"
+version = "0.8.10"
 edition = "2021"
 license = "apache-2.0"
 description = "A utility to read all available metadata that should be present in a standard YugabyteDB cluster"

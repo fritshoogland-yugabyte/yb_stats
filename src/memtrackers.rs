@@ -1,14 +1,13 @@
 use chrono::{DateTime, Local};
-use std::path::PathBuf;
 use regex::Regex;
-use std::fs;
-use std::process;
 use serde_derive::{Serialize,Deserialize};
 //use rayon;
 use std::sync::mpsc::channel;
 use scraper::{ElementRef, Html, Selector};
 use log::*;
+use anyhow::Result;
 use crate::utility::{scan_host_port, http_get};
+use crate::snapshot::{save_snapshot, read_snapshot};
 
 #[derive(Debug)]
 pub struct MemTrackers {
@@ -41,30 +40,6 @@ pub fn read_memtrackers(
         String::new()
     };
     parse_memtrackers(data_from_http)
-
-
-    /*
-    if ! scan_port_addr( format!("{}:{}", host, port)) {
-        warn!("Warning: hostname:port {}:{} cannot be reached, skipping (memtrackers)", host, port);
-        return Vec::new();
-    }
-    if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}:{}/mem-trackers", host, port)) {
-        parse_memtrackers(data_from_http.text().unwrap())
-    } else {
-        parse_memtrackers(String::from(""))
-    }
-
-    let data_from_http = reqwest::blocking::Client::builder()
-        .danger_accept_invalid_certs(true)
-        .build()
-        .unwrap()
-        .get(format!("http://{}:{}/mem-trackers", host, port))
-        .send()
-        .unwrap()
-        .text()
-        .unwrap();
-    parse_memtrackers(data_from_http)
-     */
 }
 
 #[allow(dead_code)]
@@ -93,19 +68,6 @@ fn parse_memtrackers(
         }
     }
     memtrackers
-    /*
-    if let Some ( table ) = table_extract::Table::find_first(&http_data) {
-        for row in &table {
-            memtrackers.push(MemTrackers {
-                id: row.get("Id").unwrap_or("<Missing>").to_string(),
-                current_consumption: row.get("Current Consumption").unwrap_or("<Missing>").to_string(),
-                // mind 'consumption': it doesn't start with a capital, which is different from 'Current Consumption' above.
-                peak_consumption: row.get("Peak consumption").unwrap_or("<Missing>").to_string(),
-                limit: row.get("Limit").unwrap_or("<Missing>").to_string()
-            });
-        }
-    }
-     */
 }
 
 fn find_table(http_data: &str) -> Option<(Vec<String>, Vec<Vec<String>>)> {
@@ -130,9 +92,9 @@ pub async fn perform_memtrackers_snapshot(
     hosts: &Vec<&str>,
     ports: &Vec<&str>,
     snapshot_number: i32,
-    yb_stats_directory: &PathBuf,
     parallel: usize
-) {
+)  -> Result<()>
+{
     info!("perform_memtrackers_snapshot");
     let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
     let (tx, rx) = channel();
@@ -154,6 +116,10 @@ pub async fn perform_memtrackers_snapshot(
         add_to_memtrackers_vector(memtrackers, &hostname_port, detail_snapshot_time, &mut stored_memtrackers);
     }
 
+    save_snapshot(snapshot_number, "memtrackers", stored_memtrackers)?;
+
+    Ok(())
+    /*
     let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
     let memtrackers_file = &current_snapshot_directory.join("memtrackers");
     let file = fs::OpenOptions::new()
@@ -169,18 +135,21 @@ pub async fn perform_memtrackers_snapshot(
         writer.serialize(row).unwrap();
     }
     writer.flush().unwrap();
+
+     */
 }
 
 
 #[allow(dead_code)]
 pub fn print_memtrackers_data(
     snapshot_number: &String,
-    yb_stats_directory: &PathBuf,
     hostname_filter: &Regex,
     stat_name_filter: &Regex
-) {
+) -> Result<()>
+{
     info!("print_memtrackers");
-    let stored_memtrackers: Vec<StoredMemTrackers> = read_memtrackers_snapshot(snapshot_number, yb_stats_directory);
+    let stored_memtrackers: Vec<StoredMemTrackers> = read_snapshot(snapshot_number, "memtrackers")?;
+    //let stored_memtrackers: Vec<StoredMemTrackers> = read_memtrackers_snapshot(snapshot_number, yb_stats_directory);
     let mut previous_hostname_port = String::from("");
     for row in stored_memtrackers {
         if hostname_filter.is_match(&row.hostname_port)
@@ -201,8 +170,10 @@ pub fn print_memtrackers_data(
             println!("{:20} {:50} {:>20} {:>20} {:>20}", row.hostname_port, row.id.replace("&gt;", ">"), row.current_consumption, row.peak_consumption, row.limit)
         }
     }
+    Ok(())
 }
 
+/*
 #[allow(dead_code)]
 #[allow(clippy::ptr_arg)]
 fn read_memtrackers_snapshot(
@@ -223,6 +194,8 @@ fn read_memtrackers_snapshot(
     }
     stored_memtrackers
 }
+
+ */
 
 #[allow(dead_code)]
 pub fn add_to_memtrackers_vector(memtrackersdata: Vec<MemTrackers>,

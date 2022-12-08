@@ -1,13 +1,12 @@
 use serde_derive::{Serialize,Deserialize};
 use chrono::{DateTime, Local};
-use std::{fs, process};
+use std::{sync::mpsc::channel, collections::BTreeMap};
 use log::*;
-use std::sync::mpsc::channel;
-use std::path::PathBuf;
 use regex::Regex;
-use std::collections::BTreeMap;
+use anyhow::Result;
 use crate::rpcs::AllConnections::{Connections, InAndOutboundConnections};
 use crate::utility::{scan_host_port, http_get};
+use crate::snapshot::{save_snapshot, read_snapshot};
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
@@ -387,13 +386,22 @@ pub async fn perform_rpcs_snapshot(
     hosts: &Vec<&str>,
     ports: &Vec<&str>,
     snapshot_number: i32,
-    yb_stats_directory: &PathBuf,
     parallel: usize,
-) {
+)  -> Result<()>
+{
     info!("perform_rpcs_snapshot");
 
     let (stored_ysqlrpc, stored_inboundrpc, stored_outboundrpc, stored_cqldetails, stored_headers) = read_rpcs_into_vectors(hosts, ports, parallel);
 
+    save_snapshot(snapshot_number, "ysqlrpc", stored_ysqlrpc)?;
+    save_snapshot(snapshot_number, "inboundrpc", stored_inboundrpc)?;
+    save_snapshot(snapshot_number, "outboundrpc", stored_outboundrpc)?;
+    save_snapshot(snapshot_number, "cqldetails", stored_cqldetails)?;
+    save_snapshot(snapshot_number, "headers", stored_headers)?;
+
+    Ok(())
+
+    /*
     let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
     let ysqlrpc_file = &current_snapshot_directory.join("ysqlrpc");
     let file = fs::OpenOptions::new()
@@ -410,6 +418,9 @@ pub async fn perform_rpcs_snapshot(
     }
     writer.flush().unwrap();
 
+     */
+
+    /*
     let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
     let inboundrpc_file = &current_snapshot_directory.join("inboundrpc");
     let file = fs::OpenOptions::new()
@@ -426,6 +437,9 @@ pub async fn perform_rpcs_snapshot(
     }
     writer.flush().unwrap();
 
+     */
+
+    /*
     let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
     let outboundrpc_file = &current_snapshot_directory.join("outboundrpc");
     let file = fs::OpenOptions::new()
@@ -442,6 +456,9 @@ pub async fn perform_rpcs_snapshot(
     }
     writer.flush().unwrap();
 
+     */
+
+    /*
     let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
     let cqldetails_file = &current_snapshot_directory.join("cqldetails");
     let file = fs::OpenOptions::new()
@@ -458,6 +475,9 @@ pub async fn perform_rpcs_snapshot(
     }
     writer.flush().unwrap();
 
+     */
+
+    /*
     let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
     let headers_file = &current_snapshot_directory.join("headers");
     let file = fs::OpenOptions::new()
@@ -473,6 +493,7 @@ pub async fn perform_rpcs_snapshot(
         writer.serialize(row).unwrap();
     }
     writer.flush().unwrap();
+
 }
 
 #[allow(clippy::ptr_arg)]
@@ -578,20 +599,29 @@ pub fn read_headers_snapshot(
         let _ = &stored_headers.push(data);
     }
     stored_headers
+     */
 }
 
 pub fn print_rpcs(
     snapshot_number: &String,
-    yb_stats_directory: &PathBuf,
     hostname_filter: &Regex,
     details_enable: &bool,
-) {
+) -> Result<()>
+{
     info!("print_rpcs");
+    let stored_ysqlrpc: Vec<StoredYsqlRpc> = read_snapshot(snapshot_number, "ysqlrpc")?;
+    let stored_inboundrpcs: Vec<StoredInboundRpc> = read_snapshot(snapshot_number, "inboundrpc")?;
+    let stored_outboundrpcs: Vec<StoredOutboundRpc> = read_snapshot(snapshot_number, "outboundrpc")?;
+    let stored_cqldetails: Vec<StoredCqlDetails> = read_snapshot(snapshot_number, "cqldetails")?;
+    let stored_headers: Vec<StoredHeaders> = read_snapshot(snapshot_number, "headers")?;
+    /*
     let stored_ysqlrpc: Vec<StoredYsqlRpc> = read_ysqlrpc_snapshot(snapshot_number, yb_stats_directory);
     let stored_inboundrpcs: Vec<StoredInboundRpc> = read_inboundrpc_snapshot(snapshot_number, yb_stats_directory);
     let stored_outboundrpcs: Vec<StoredOutboundRpc> = read_outboundrpc_snapshot(snapshot_number, yb_stats_directory);
     let stored_cqldetails: Vec<StoredCqlDetails> = read_cqldetails_snapshot(snapshot_number, yb_stats_directory);
     let stored_headers: Vec<StoredHeaders> = read_headers_snapshot(snapshot_number, yb_stats_directory);
+
+     */
     let mut endpoint_count: BTreeMap<String, usize> = BTreeMap::new();
     for row in &stored_ysqlrpc {
         *endpoint_count.entry(row.hostname_port.clone()).or_default() += 1;
@@ -621,6 +651,7 @@ pub fn print_rpcs(
     }
     println!("\n{}", "-".repeat(100));
     print_details(details_enable, &mut endpoints_collector, &stored_ysqlrpc, &stored_inboundrpcs, &stored_outboundrpcs, &stored_cqldetails, &stored_headers);
+    Ok(())
 }
 
 fn print_details(
@@ -631,13 +662,18 @@ fn print_details(
     stored_outboundrpcs: &[StoredOutboundRpc],
     stored_cqldetails: &[StoredCqlDetails],
     stored_headers: &[StoredHeaders],
-) {
-    if *details_enable {
-        for hostname_port in endpoints_collector.drain(..) {
-            for ysql in stored_ysqlrpc.iter().filter(|x| x.hostname_port == hostname_port) {
+)
+{
+    if *details_enable
+    {
+        for hostname_port in endpoints_collector.drain(..)
+        {
+            for ysql in stored_ysqlrpc.iter().filter(|x| x.hostname_port == hostname_port)
+            {
                 println!("{} {} {} {} {} {} {}", ysql.hostname_port, ysql.backend_status, ysql.db_name, ysql.backend_type, ysql.application_name, ysql.host, ysql.query);
             }
-            for inbound in stored_inboundrpcs.iter().filter(|x| x.hostname_port == hostname_port) {
+            for inbound in stored_inboundrpcs.iter().filter(|x| x.hostname_port == hostname_port)
+            {
                 println!("{} {} {} {}", inbound.hostname_port, inbound.state, inbound.remote_ip, inbound.processed_call_count);
                 for cqldetail in stored_cqldetails.iter().filter(|x| x.hostname_port == hostname_port && x.remote_ip == inbound.remote_ip && x.serial_nr == inbound.serial_nr) {
                     println!(" Key:{} ela_ms:{} type:{} sql_id:{} sql_str:{}", cqldetail.keyspace, cqldetail.elapsed_millis, cqldetail.cql_details_type, cqldetail.sql_id, cqldetail.sql_string);
@@ -646,7 +682,8 @@ fn print_details(
                     println!(" State:{} ela_ms:{} tmout_ms:{} method:{} service:{}", header.state, header.elapsed_millis, header.timeout_millis, header.remote_method_method_name, header.remote_method_service_name);
                 }
             }
-            for outbound in stored_outboundrpcs.iter().filter(|x| x.hostname_port == hostname_port) {
+            for outbound in stored_outboundrpcs.iter().filter(|x| x.hostname_port == hostname_port)
+            {
                 println!("{} {} {} {} {}", outbound.hostname_port, outbound.state, outbound.remote_ip, outbound.processed_call_count, outbound.sending_bytes);
                 for header in stored_headers.iter().filter(|x| x.hostname_port == hostname_port && x.remote_ip == outbound.remote_ip && x.serial_nr == outbound.serial_nr) {
                     println!(" State:{} ela_ms:{} tmout_ms:{} method:{} service:{}", header.state, header.elapsed_millis, header.timeout_millis, header.remote_method_method_name, header.remote_method_service_name);
@@ -661,7 +698,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn unit_parse_ysqlrpc_only_checkpointer() {
+    fn unit_parse_ysqlrpc_only_checkpointer()
+    {
         let json = r#"
 {
     "connections": [
@@ -687,7 +725,8 @@ mod tests {
     }
 
     #[test]
-    fn unit_parse_ysqlrpc_active_transaction() {
+    fn unit_parse_ysqlrpc_active_transaction()
+    {
         let json = r#"
 {
     "connections":

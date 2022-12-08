@@ -6,10 +6,12 @@
 //!
 //! This function has no public display function, it is only used to store the and retrieve the master leader.
 use chrono::{DateTime, Local};
-use std::{env, fs, error::Error, process, time::Instant, sync::mpsc::channel};
+use std::{time::Instant, sync::mpsc::channel};
 use serde_derive::{Serialize,Deserialize};
 use log::*;
+use anyhow::Result;
 use crate::utility::{scan_host_port, http_get};
+use crate::snapshot::{save_snapshot, read_snapshot};
 /// The struct that is used to parse the JSON returned from /api/v1/is-leader using serde.
 ///
 /// Please mind that only the leader shows:
@@ -36,7 +38,7 @@ pub struct StoredIsLeader {
 /// This struct is used to handle the [StoredIsLeader] struct.
 ///
 /// In this way, the struct can be using the impl functions.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct AllStoredIsLeader {
     pub stored_isleader: Vec<StoredIsLeader>
 }
@@ -48,31 +50,29 @@ impl AllStoredIsLeader {
         ports: &Vec<&str>,
         snapshot_number: i32,
         parallel: usize
-    )
+    ) -> Result<()>
     {
         info!("begin snapshot");
         let timer = Instant::now();
 
-        let allstoredisleader = AllStoredIsLeader::read_isleader(hosts, ports, parallel);
-        allstoredisleader.await.save_snapshot(snapshot_number)
-            .unwrap_or_else(|e| {
-                error!("error saving snapshot: {}", e);
-                process::exit(1);
-            });
+        let allstoredisleader = AllStoredIsLeader::read_isleader(hosts, ports, parallel).await;
+        save_snapshot(snapshot_number, "isleader", allstoredisleader.stored_isleader)?;
 
-        info!("end snapshot: {:?}", timer.elapsed())
+        info!("end snapshot: {:?}", timer.elapsed());
+
+        Ok(())
+    }
+    fn new() -> Self {
+        Default::default()
     }
     /// This function requires a snapshot number, and returns the hostname_port of the master leader.
     pub fn return_leader_snapshot (
        snapshot_number: &String
-    ) -> String
+    ) -> Result<String>
     {
-       let stored_isleader = AllStoredIsLeader::read_snapshot(snapshot_number)
-           .unwrap_or_else(|e| {
-               error!("error reading snapshot: {}", e);
-               process::exit(1);
-           });
-        stored_isleader.stored_isleader.iter().filter(|r| r.status == "OK").map(|r| r.hostname_port.to_string()).next().unwrap()
+        let mut stored_isleader = AllStoredIsLeader::new();
+        stored_isleader.stored_isleader = read_snapshot(snapshot_number, "isleader")?;
+        Ok(stored_isleader.stored_isleader.iter().filter(|r| r.status == "OK").map(|r| r.hostname_port.to_string()).next().unwrap())
     }
     pub async fn return_leader_http (
         hosts: &Vec<&str>,
@@ -80,9 +80,8 @@ impl AllStoredIsLeader {
         parallel: usize,
     ) -> String
     {
-        let allstoredisleader = AllStoredIsLeader::read_isleader(hosts, ports, parallel);
-        allstoredisleader.await.stored_isleader.iter().filter(|r| r.status == "OK").map(|r| r.hostname_port.to_string()).next().unwrap_or_default()
-        //Ok(result)
+        let allstoredisleader = AllStoredIsLeader::read_isleader(hosts, ports, parallel).await;
+        allstoredisleader.stored_isleader.iter().filter(|r| r.status == "OK").map(|r| r.hostname_port.to_string()).next().unwrap_or_default()
     }
     /// This function takes a vector of hosts and ports, and the allowed parallellism to (try to) read /api/v1/is-leader.
     /// It creates a threadpool based on parallel, and spawns a task for reading and parsing for all host-port combinations.
@@ -134,26 +133,6 @@ impl AllStoredIsLeader {
             String::new()
         };
         AllStoredIsLeader::parse_isleader(data_from_http)
-        /*
-        if ! scan_port_addr( format!("{}:{}", host, port) ) {
-            warn!("Warning: hostname:port {}:{} cannot be reached, skipping", host, port);
-            return AllStoredIsLeader::parse_isleader(String::from(""))
-        }
-        let data_from_http = reqwest::blocking::Client::builder()
-            .danger_accept_invalid_certs(true)
-            .build()
-            .unwrap()
-            .get(format!("http://{}:{}/api/v1/is-leader", host, port))
-            .send()
-            .unwrap()
-            .text()
-            .unwrap();
-        if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}:{}/api/v1/is-leader", host, port)) {
-            AllStoredIsLeader::parse_isleader(data_from_http.text().unwrap())
-        } else {
-            AllStoredIsLeader::parse_isleader(String::from(""))
-        }
-         */
     }
     /// This function parses the http output.
     /// This is a separate function in order to allow integration tests to use it.
@@ -164,6 +143,7 @@ impl AllStoredIsLeader {
                 IsLeader { status: "".to_string() }
             })
     }
+   /*
     /// This function takes the rows in the vector StoredIsLeader, and saves it as CSV in the snapshot directory indicated by the snapshot number.
     fn save_snapshot ( self, snapshot_number: i32 ) -> Result<(), Box<dyn Error>>
     {
@@ -183,6 +163,7 @@ impl AllStoredIsLeader {
 
         Ok(())
     }
+
     /// This function takes a snapshot number and reads the isleader CSV and loads it into the vector stored_isleader in [AllStoredIsLeader].
     fn read_snapshot( snapshot_number: &String, ) -> Result<AllStoredIsLeader, Box<dyn Error>>
     {
@@ -202,6 +183,7 @@ impl AllStoredIsLeader {
 
         Ok(allstoredisleader)
     }
+    */
 }
 
 #[cfg(test)]
@@ -248,35 +230,6 @@ File not found
         let port = utility::get_port_master();
 
         let leader = AllStoredIsLeader::return_leader_http(&vec![&hostname], &vec![&port], 1_usize).await;
-        //let hostname_port = AllStoredIsLeader::return_leader_snapshot(&"22".to_string());
         println!("{}", leader);
-        //let hostname_port = String::from("haha");
-        //let stored_isleader = AllStoredIsLeader::read_snapshot(&"22".to_string())
-        //    .unwrap_or_else(|e| {
-        //        error!("error reading snapshot: {}", e);
-        //        process::exit(1);
-        //    });
-        //println!("{:?}", stored_isleader);
-        //let leader = stored_isleader.stored_isleader.iter().filter(|r| r.status == "OK").map(|r| r.hostname_port.to_string()).next().unwrap();
-        //let h = stored_isleader.stored_isleader.iter().filter(|r| r.status == "OK").map(|r| r.hostname_port.to_string()).next().unwrap();
-        //println!("{:?}", hostname_port);
-        //assert_eq!(hostname_port, "192.168.66.82:7000");
-        /*
-        let snapshot_number = "22".to_string();
-        let mut allstoredisleader = AllStoredIsLeader { stored_isleader: Vec::new() };
-
-        let current_directory = env::current_dir().unwrap();
-        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(&snapshot_number);
-
-        let isleader_file = &current_snapshot_directory.join("isleader");
-        let file = fs::File::open(&isleader_file).unwrap();
-
-        let mut reader = csv::Reader::from_reader(file);
-        for row in reader.deserialize() {
-            let data: StoredIsLeader = row.unwrap();
-            allstoredisleader.stored_isleader.push(data);
-        };
-
-         */
     }
 }

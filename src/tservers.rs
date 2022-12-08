@@ -1,10 +1,12 @@
 use serde_derive::{Serialize,Deserialize};
 use chrono::{DateTime, Local};
-use std::{fs, process, sync::mpsc::channel, time::Instant, env, error::Error, collections::{HashMap, BTreeMap}};
+use std::{sync::mpsc::channel, time::Instant, collections::{HashMap, BTreeMap}};
 use log::*;
 use colored::*;
+use anyhow::Result;
 use crate::isleader::AllStoredIsLeader;
 use crate::utility::{scan_host_port, http_get};
+use crate::snapshot::{read_snapshot, save_snapshot};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct StoredTabletServers {
@@ -85,8 +87,8 @@ pub struct TabletServers {
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct AllStoredTabletServers {
-    stored_tabletservers: Vec<StoredTabletServers>,
-    stored_pathmetrics: Vec<StoredPathMetrics>,
+    pub stored_tabletservers: Vec<StoredTabletServers>,
+    pub stored_pathmetrics: Vec<StoredPathMetrics>,
 }
 
 impl AllStoredTabletServers {
@@ -95,21 +97,28 @@ impl AllStoredTabletServers {
         ports: &Vec<&str>,
         snapshot_number: i32,
         parallel: usize,
-    ) {
+    ) -> Result<()>
+    {
         info!("begin snapshot");
         let timer = Instant::now();
 
-        let alltabletservers = AllStoredTabletServers::read_tabletservers(hosts, ports, parallel);
-
+        let alltabletservers = AllStoredTabletServers::read_tabletservers(hosts, ports, parallel).await;
+        save_snapshot(snapshot_number,"tablet_servers", alltabletservers.stored_tabletservers)?;
+        save_snapshot(snapshot_number,"tablet_servers_pathmetrics", alltabletservers.stored_pathmetrics)?;
+        /*
         alltabletservers.await.save_snapshot(snapshot_number)
             .unwrap_or_else(|e| {
                 error!("error saving snapshot: {}", e);
                 process::exit(1);
             });
 
-        info!("end snapshot: {:?}", timer.elapsed())
+         */
+
+        info!("end snapshot: {:?}", timer.elapsed());
+
+        Ok(())
     }
-    fn new() -> Self {
+    pub fn new() -> Self {
         Default::default()
     }
     pub async fn read_tabletservers(
@@ -231,6 +240,7 @@ impl AllStoredTabletServers {
                 AllTabletServers { tabletservers: HashMap::new() }
             })
     }
+    /*
     fn save_snapshot ( self, snapshot_number: i32 ) -> Result<(), Box<dyn Error>>
     {
         let current_directory = env::current_dir()?;
@@ -260,6 +270,7 @@ impl AllStoredTabletServers {
 
         Ok(())
     }
+
     pub fn read_snapshot( snapshot_number: &String, ) -> Result<AllStoredTabletServers, Box<dyn Error>>
     {
         let mut allstoredtabletservers = AllStoredTabletServers {
@@ -290,15 +301,16 @@ impl AllStoredTabletServers {
 
         Ok(allstoredtabletservers)
     }
+     */
     pub fn print(
         &self,
         snapshot_number: &String,
         details_enable: &bool,
-    )
+    ) -> Result<()>
     {
         info!("print tablet servers");
 
-        let leader_hostname = AllStoredIsLeader::return_leader_snapshot(snapshot_number);
+        let leader_hostname = AllStoredIsLeader::return_leader_snapshot(snapshot_number)?;
 
         for row in &self.stored_tabletservers {
             if row.hostname_port == leader_hostname
@@ -327,6 +339,7 @@ impl AllStoredTabletServers {
                 }
             }
         }
+        Ok(())
     }
     pub async fn print_adhoc(
         &self,
@@ -420,26 +433,39 @@ impl SnapshotDiffBTreeMapsTabletServers {
     pub fn snapshot_diff(
         begin_snapshot: &String,
         end_snapshot: &String,
-    ) -> SnapshotDiffBTreeMapsTabletServers
+    ) -> Result<SnapshotDiffBTreeMapsTabletServers>
     {
+        let mut allstoredtabletservers = AllStoredTabletServers::new();
+        allstoredtabletservers.stored_tabletservers = read_snapshot(begin_snapshot, "tablet_servers")?;
+        allstoredtabletservers.stored_pathmetrics = read_snapshot(begin_snapshot, "tablet_servers_pathmetrics")?;
+        /*
         let allstoredtabletservers = AllStoredTabletServers::read_snapshot(begin_snapshot)
             .unwrap_or_else(|e| {
                 error!("Fatal: error reading snapshot: {}", e);
                 process::exit(1);
             });
-        let master_leader = AllStoredIsLeader::return_leader_snapshot(begin_snapshot);
+
+         */
+        let master_leader = AllStoredIsLeader::return_leader_snapshot(begin_snapshot)?;
         let mut tabletservers_snapshot_diff = SnapshotDiffBTreeMapsTabletServers::new();
         tabletservers_snapshot_diff.first_snapshot(allstoredtabletservers, master_leader);
 
+
+        let mut allstoredtabletservers = AllStoredTabletServers::new();
+        allstoredtabletservers.stored_tabletservers = read_snapshot(end_snapshot, "tablet_servers")?;
+        allstoredtabletservers.stored_pathmetrics = read_snapshot(end_snapshot, "tablet_servers_pathmetrics")?;
+        /*
         let allstoredtabletservers = AllStoredTabletServers::read_snapshot(end_snapshot)
             .unwrap_or_else(|e| {
                 error!("Fatal: error reading snapshot: {}", e);
                 process::exit(1);
             });
-        let master_leader = AllStoredIsLeader::return_leader_snapshot(end_snapshot);
+
+         */
+        let master_leader = AllStoredIsLeader::return_leader_snapshot(end_snapshot)?;
         tabletservers_snapshot_diff.second_snapshot(allstoredtabletservers, master_leader);
 
-        tabletservers_snapshot_diff
+        Ok(tabletservers_snapshot_diff)
     }
     pub fn new() -> Self {
         Default::default()

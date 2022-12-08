@@ -1,9 +1,6 @@
-use std::path::PathBuf;
-use std::fs;
-use std::io::Write;
-use std::process;
-use std::sync::mpsc::channel;
+use std::{path::PathBuf, fs, io::Write, sync::mpsc::channel};
 use log::*;
+use anyhow::{Result, Context};
 use crate::utility::{scan_host_port, http_get};
 
 pub fn read_mems(
@@ -16,27 +13,6 @@ pub fn read_mems(
     } else {
         String::new()
     }
-    /*
-    if ! scan_port_addr( format!("{}:{}", host, port)) {
-        warn!("hostname:port {}:{} cannot be reached, skipping (mems)",host ,port);
-        return String::from("");
-    }
-    if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}:{}/memz?raw=true", host, port)) {
-        data_from_http.text().unwrap()
-    } else {
-        String::from("")
-    }
-
-    reqwest::blocking::Client::builder()
-        .danger_accept_invalid_certs(true)
-        .build()
-        .unwrap()
-        .get(format!("http://{}:{}/memz?raw=true", host, port))
-        .send()
-        .unwrap()
-        .text()
-        .unwrap()
-     */
 }
 
 #[allow(clippy::ptr_arg)]
@@ -46,7 +22,8 @@ pub async fn perform_mems_snapshot(
     snapshot_number: i32,
     yb_stats_directory: &PathBuf,
     parallel: usize
-) {
+) -> Result<()>
+{
     info!("perform_mems_snapshot");
     let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
     let (tx, rx) = channel();
@@ -69,16 +46,15 @@ pub async fn perform_mems_snapshot(
                 .create(true)
                 .write(true)
                 .open(mems_file)
-                .unwrap_or_else(|e| {
-                    error!("Fatal: error writing mems data in snapshot directory {}: {}", &mems_file.clone().into_os_string().into_string().unwrap(), e);
-                    process::exit(1);
-                });
-            file.write_all(mems.as_bytes()).unwrap_or_else(|e| {
-                error!("Fatal: error mems data in snapshot directory {:?}: {}", &file, e);
-                process::exit(1);
-            });
+                .with_context(|| format!("Cannot create file: {}", mems_file.display()))?;
+
+            file.write_all(mems.as_bytes())
+                .with_context(|| format!("Error writing file: {}", mems_file.display()))?;
         };
+
     }
+    Ok(())
+
 }
 
 #[cfg(test)]

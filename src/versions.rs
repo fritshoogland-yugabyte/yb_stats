@@ -1,10 +1,12 @@
 use chrono::{DateTime, Local};
-use std::{fs, process, sync::mpsc::channel, time::Instant, error::Error, env, collections::BTreeMap};
+use std::{sync::mpsc::channel, time::Instant, collections::BTreeMap};
 use colored::Colorize;
 use regex::Regex;
 use serde_derive::{Serialize,Deserialize};
 use log::*;
+use anyhow::Result;
 use crate::utility::{scan_host_port, http_get};
+use crate::snapshot::{read_snapshot, save_snapshot};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Version {
@@ -70,7 +72,7 @@ impl StoredVersion {
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct AllStoredVersions {
-   stored_versions: Vec<StoredVersion>,
+   pub stored_versions: Vec<StoredVersion>,
 }
 
 impl AllStoredVersions {
@@ -79,20 +81,26 @@ impl AllStoredVersions {
         ports: &Vec<&str>,
         snapshot_number: i32,
         parallel: usize,
-    )
+    ) -> Result<()>
     {
         info!("begin snapshot");
         let timer = Instant::now();
 
-        let allstoredversions = AllStoredVersions::read_versions(hosts, ports, parallel);
+        let allstoredversions = AllStoredVersions::read_versions(hosts, ports, parallel).await;
+        save_snapshot(snapshot_number, "versions", allstoredversions.stored_versions)?;
 
+        /*
         allstoredversions.await.save_snapshot(snapshot_number)
             .unwrap_or_else(|e| {
                 error!("error saving snapshot: {}", e);
                 process::exit(1);
             });
 
-        info!("end snapshot: {:?}", timer.elapsed())
+         */
+
+        info!("end snapshot: {:?}", timer.elapsed());
+
+        Ok(())
     }
     pub fn new() -> Self {
         Default::default()
@@ -180,6 +188,7 @@ impl AllStoredVersions {
                 Version::empty()
             })
     }
+    /*
     fn save_snapshot(
         self,
         snapshot_number: i32
@@ -201,6 +210,7 @@ impl AllStoredVersions {
 
         Ok(())
     }
+
     pub fn read_snapshot(
         snapshot_number: &String
     ) -> Result<AllStoredVersions, Box<dyn Error>>
@@ -223,6 +233,8 @@ impl AllStoredVersions {
 
         Ok(allstoredversions)
     }
+
+     */
     pub fn print(
         &self,
         hostname_filter: &Regex,
@@ -358,23 +370,33 @@ impl SnapshotDiffBTreeMapsVersions {
     pub fn snapshot_diff(
         begin_snapshot: &String,
         end_snapshot: &String,
-    ) -> SnapshotDiffBTreeMapsVersions
+    ) -> Result<SnapshotDiffBTreeMapsVersions>
     {
+        let mut allstoredversions = AllStoredVersions::new();
+        allstoredversions.stored_versions = read_snapshot(begin_snapshot, "versions")?;
+        /*
         let allstoredversions = AllStoredVersions::read_snapshot(begin_snapshot)
             .unwrap_or_else(|e| {
                 error!("Fatal: error reading snapshot: {}", e);
                 process::exit(1);
             });
+
+         */
         let mut versions_snapshot_diff = SnapshotDiffBTreeMapsVersions::first_snapshot(allstoredversions);
 
+        let mut allstoredversions = AllStoredVersions::new();
+        allstoredversions.stored_versions = read_snapshot(end_snapshot, "versions")?;
+        /*
         let allstoredversions = AllStoredVersions::read_snapshot(end_snapshot)
             .unwrap_or_else(|e| {
                 error!("Fatal: error reading snapshot: {}", e);
                 process::exit(1);
             });
+
+         */
         versions_snapshot_diff.second_snapshot(allstoredversions);
 
-        versions_snapshot_diff
+        Ok(versions_snapshot_diff)
     }
     pub fn new() -> Self {
         Default::default()

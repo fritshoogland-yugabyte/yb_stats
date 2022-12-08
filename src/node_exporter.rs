@@ -1,11 +1,13 @@
 //! The module for prometheus metrics from /metrics endpoint of node-exporter.
-use std::{collections::BTreeMap, process, sync::mpsc::channel, fs, env, time::Instant, error::Error};
+use std::{collections::BTreeMap, sync::mpsc::channel, time::Instant};
 use chrono::{DateTime, Local, Utc};
 use prometheus_parse::Value;
 use serde_derive::{Serialize,Deserialize};
 use regex::Regex;
 use log::*;
+use anyhow::Result;
 use crate::utility::{scan_host_port, http_get};
+use crate::snapshot::{save_snapshot, read_snapshot};
 
 #[derive(Debug)]
 pub struct NodeExporterValues {
@@ -73,28 +75,39 @@ impl SnapshotDiffNodeExporter {
     }
 }
 
+#[derive(Debug, Default)]
 pub struct AllStoredNodeExporterValues {
     pub stored_nodeexportervalues: Vec<StoredNodeExporterValues>,
 }
 impl AllStoredNodeExporterValues {
+    pub fn new() -> Self {
+        Default::default()
+    }
     pub async fn perform_snapshot(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         snapshot_number: i32,
         parallel: usize,
-    ) {
+    )  -> Result<()>
+    {
         info!("begin snapshot");
         let timer = Instant::now();
 
-        let allstorednodeexportervalues = AllStoredNodeExporterValues::read_nodeexporter(hosts, ports, parallel);
-        allstorednodeexportervalues.await.save_snapshot(snapshot_number)
+        let allstorednodeexportervalues = AllStoredNodeExporterValues::read_nodeexporter(hosts, ports, parallel).await;
+        save_snapshot(snapshot_number, "nodeexporter", allstorednodeexportervalues.stored_nodeexportervalues)?;
+        /*
+        allstorednodeexportervalues.save_snapshot(snapshot_number)
             .unwrap_or_else(|e| {
                 error!("error saving snapshot: {}", e);
                 process::exit(1);
             });
 
-        info!("end snapshot: {:?}", timer.elapsed())
+         */
+
+        info!("end snapshot: {:?}", timer.elapsed());
+        Ok(())
     }
+    /*
     fn save_snapshot(self, snapshot_number: i32) -> Result<(), Box<dyn Error>>
     {
         let current_directory = env::current_dir()?;
@@ -113,6 +126,7 @@ impl AllStoredNodeExporterValues {
 
         Ok(())
     }
+
     fn read_snapshot( snapshot_number: &String, ) -> Result<AllStoredNodeExporterValues, Box<dyn Error>>
     {
         let mut allstorednodeexportervalues = AllStoredNodeExporterValues { stored_nodeexportervalues: Vec::new() };
@@ -131,6 +145,8 @@ impl AllStoredNodeExporterValues {
 
         Ok(allstorednodeexportervalues)
     }
+
+     */
     pub async fn read_nodeexporter(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
@@ -157,7 +173,8 @@ impl AllStoredNodeExporterValues {
 
         info!("end parallel http read {:?}", timer.elapsed());
 
-        let mut allstorednodeexportervalues = AllStoredNodeExporterValues { stored_nodeexportervalues: Vec::new() };
+        //let mut allstorednodeexportervalues = AllStoredNodeExporterValues { stored_nodeexportervalues: Vec::new() };
+        let mut allstorednodeexportervalues = AllStoredNodeExporterValues::new();
         for (hostname_port, _detail_snapshot_time, node_exporter_values) in rx {
             AllStoredNodeExporterValues::add_to_vector(node_exporter_values, &hostname_port, &mut allstorednodeexportervalues);
         }
@@ -290,26 +307,36 @@ impl SnapshotDiffBTreeMapNodeExporter {
         begin_snapshot: &String,
         end_snapshot: &String,
         begin_snapshot_time: &DateTime<Local>,
-    ) -> SnapshotDiffBTreeMapNodeExporter
+    ) -> Result<SnapshotDiffBTreeMapNodeExporter>
     {
+        let mut allstorednodeexportervalues = AllStoredNodeExporterValues::new();
+        allstorednodeexportervalues.stored_nodeexportervalues = read_snapshot(begin_snapshot, "nodeexporter")?;
+        /*
         let allstorednodeexportervalues = AllStoredNodeExporterValues::read_snapshot(begin_snapshot)
             .unwrap_or_else(|e| {
                 error!("Fatal: error reading snapshot: {}", e);
                 process::exit(1);
             });
 
+         */
+
         let mut node_exporter_snapshot_diff = SnapshotDiffBTreeMapNodeExporter::new();
         node_exporter_snapshot_diff.first_snapshot(allstorednodeexportervalues);
 
+        let mut allstorednodeexportervalues = AllStoredNodeExporterValues::new();
+        allstorednodeexportervalues.stored_nodeexportervalues = read_snapshot(end_snapshot, "nodeexporter")?;
+        /*
         let allstorednodeexportervalues = AllStoredNodeExporterValues::read_snapshot(end_snapshot)
             .unwrap_or_else(|e| {
                 error!("Fatal: error reading snapshot: {}", e);
                 process::exit(1);
             });
 
+         */
+
         node_exporter_snapshot_diff.second_snapshot(allstorednodeexportervalues, begin_snapshot_time);
 
-        node_exporter_snapshot_diff
+        Ok(node_exporter_snapshot_diff)
     }
     pub fn new() -> Self {
         Default::default()

@@ -25,6 +25,7 @@ use crate::tservers::{AllStoredTabletServers, SnapshotDiffBTreeMapsTabletServers
 use crate::vars::{AllStoredVars, SnapshotDiffBTreeMapsVars};
 use crate::versions::{AllStoredVersions, SnapshotDiffBTreeMapsVersions};
 use crate::snapshot::read_snapshot;
+use crate::threads::AllStoredThreads;
 
 mod snapshot;
 mod value_statistic_details;
@@ -143,7 +144,7 @@ struct Opts {
     print_rpcs: Option<String>,
     /// Print threads data for the given snapshot number
     #[arg(long, value_name = "snapshot number")]
-    print_threads: Option<String>,
+    print_threads: Option<Option<String>>,
     /// Print gflags for the given snapshot number
     #[arg(long, value_name = "snapshot number")]
     print_gflags: Option<String>,
@@ -329,11 +330,24 @@ async fn main() -> Result<()>
         }
     } else if options.print_threads.is_some() {
 
-        threads::print_threads_data(&options.print_threads.unwrap(), &hostname_filter)?;
+        match options.print_threads.unwrap() {
+            Some(snapshot_number) => {
+                let mut allstoredthreads = AllStoredThreads::new();
+                allstoredthreads.stored_threads = read_snapshot(&snapshot_number, "threads")?;
+                allstoredthreads.print(&hostname_filter)?;
+            },
+            None => {
+                let allstoredthreads = AllStoredThreads::read_threads(&hosts, &ports, parallel).await;
+                allstoredthreads.print(&hostname_filter)?;
+            }
+        }
 
     } else if options.print_gflags.is_some() {
+
         gflags::print_gflags_data(&options.print_gflags.unwrap(), &yb_stats_directory, &hostname_filter, &stat_name_filter);
+
     } else if options.print_entities.is_some() {
+
         match options.print_entities.unwrap() {
             Some(snapshot_number) => {
 
@@ -344,11 +358,11 @@ async fn main() -> Result<()>
                 allstoredentities.stored_replicas = read_snapshot(&snapshot_number, "replicas")?;
 
                 allstoredentities.print(&snapshot_number, &table_name_filter, &options.details_enable)?;
-            }
+            },
             None => {
                 let allstoredentities = AllStoredEntities::read_entities(&hosts, &ports, parallel).await;
                 allstoredentities.print_adhoc(&table_name_filter, &options.details_enable, &hosts, &ports, parallel).await;
-            }
+            },
         }
     } else if options.print_masters.is_some() {
         match options.print_masters.unwrap() {
@@ -405,7 +419,9 @@ async fn main() -> Result<()>
 
     } else if options.adhoc_metrics_diff {
 
-        info!("ad-hoc metrics diff");
+        info!("ad-hoc metrics diff first snapshot begin");
+        let timer = Instant::now();
+
         let first_snapshot_time = Local::now();
 
         let metrics = Arc::new(Mutex::new(SnapshotDiffBTreeMapsMetrics::new()));
@@ -443,10 +459,13 @@ async fn main() -> Result<()>
         for handle in handles {
             handle.await.unwrap();
         }
+        info!("ad-hoc metrics diff first snapshot end: {:?}", timer.elapsed());
 
-        println!("Begin ad-hoc in-memory metrics snapshot created, press enter to create end snapshot for difference calculation.");
         let mut input = String::new();
         stdin().read_line(&mut input).expect("failed");
+
+        info!("ad-hoc metrics diff second snapshot begin");
+        let timer = Instant::now();
 
         let second_snapshot_time = Local::now();
 
@@ -480,13 +499,17 @@ async fn main() -> Result<()>
             handle.await.unwrap();
         }
 
+        info!("ad-hoc metrics diff second snapshot end: {:?}", timer.elapsed());
+
         println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time - first_snapshot_time).num_milliseconds() as f64 / 1000_f64);
         metrics.lock().await.print(&hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable).await;
         statements.lock().await.print(&hostname_filter, options.sql_length).await;
         node_exporter.lock().await.print(&hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
 
     } else {
-        info!("ad-hoc mode");
+        info!("ad-hoc mode first snapshot begin");
+        let timer = Instant::now();
+
         let first_snapshot_time = Local::now();
 
         let metrics = Arc::new(Mutex::new(SnapshotDiffBTreeMapsMetrics::new()));
@@ -569,10 +592,14 @@ async fn main() -> Result<()>
         for handle in handles {
             handle.await.unwrap();
         }
+        info!("ad-hoc metrics diff first snapshot end: {:?}", timer.elapsed());
 
         println!("Begin ad-hoc in-memory snapshot created, press enter to create end snapshot for difference calculation.");
         let mut input = String::new();
         stdin().read_line(&mut input).expect("failed");
+
+        info!("ad-hoc metrics diff second snapshot begin");
+        let timer = Instant::now();
 
         let second_snapshot_time = Local::now();
         let mut handles = vec![];
@@ -644,6 +671,7 @@ async fn main() -> Result<()>
         for handle in handles {
             handle.await.unwrap();
         }
+        info!("ad-hoc metrics diff second snapshot end: {:?}", timer.elapsed());
 
         println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time - first_snapshot_time).num_milliseconds() as f64 / 1000_f64);
         metrics.lock().await.print(&hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable).await;
@@ -777,7 +805,7 @@ async fn perform_snapshot(
         let arc_hosts_clone = arc_hosts.clone();
         let arc_ports_clone = arc_ports.clone();
         let handle = tokio::spawn(async move {
-            threads::perform_threads_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
+            AllStoredThreads::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
         });
         handles.push(handle);
     };

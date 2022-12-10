@@ -125,24 +125,6 @@ pub async fn perform_loglines_snapshot(
     }
 
     save_snapshot(snapshot_number, "loglines", stored_loglines)?;
-    /*
-    let current_snapshot_directory = &yb_stats_directory.join(&snapshot_number.to_string());
-    let loglines_file = &current_snapshot_directory.join("loglines");
-    let file = fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .open(loglines_file)
-        .unwrap_or_else(|e| {
-            error!("Fatal: error writing loglines data in snapshot directory {}: {}", &loglines_file.clone().into_os_string().into_string().unwrap(), e);
-            process::exit(1);
-        });
-    let mut writer = csv::Writer::from_writer(file);
-    for row in stored_loglines {
-        writer.serialize(row).unwrap();
-    }
-    writer.flush().unwrap();
-
-     */
     Ok(())
 }
 
@@ -179,15 +161,6 @@ pub fn add_to_loglines_vector(loglinedata: Vec<LogLine>,
 ) {
     for logline in loglinedata {
         stored_loglines.push( StoredLogLines::new(hostname, logline));
-        /*
-            hostname_port: hostname.to_string(),
-            timestamp: logline.timestamp,
-            severity: logline.severity.to_string(),
-            tid: logline.tid.to_string(),
-            sourcefile_nr: logline.sourcefile_nr.to_string(),
-            message: logline.message.to_string()
-        });
-         */
     }
 }
 

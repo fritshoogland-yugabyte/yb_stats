@@ -105,14 +105,6 @@ impl AllStoredTabletServers {
         let alltabletservers = AllStoredTabletServers::read_tabletservers(hosts, ports, parallel).await;
         save_snapshot(snapshot_number,"tablet_servers", alltabletservers.stored_tabletservers)?;
         save_snapshot(snapshot_number,"tablet_servers_pathmetrics", alltabletservers.stored_pathmetrics)?;
-        /*
-        alltabletservers.await.save_snapshot(snapshot_number)
-            .unwrap_or_else(|e| {
-                error!("error saving snapshot: {}", e);
-                process::exit(1);
-            });
-
-         */
 
         info!("end snapshot: {:?}", timer.elapsed());
 
@@ -212,22 +204,6 @@ impl AllStoredTabletServers {
             String::new()
         };
         AllStoredTabletServers::parse_tabletservers(data_from_http, host, port)
-
-/*
-        if ! scan_port_addr(format!("{}:{}", host, port)) {
-            warn!("hostname: port {}:{} cannot be reached, skipping", host, port);
-            return AllStoredTabletServers::parse_tabletservers(String::from(""), "", "")
-        };
-
-        let data_from_http = reqwest::blocking::get(format!("http://{}:{}/api/v1/tablet-servers", host, port))
-            .unwrap_or_else(|e| {
-                error!("Fatal: error reading from URL: {}", e);
-                process::exit(1);
-            })
-            .text().unwrap();
-        AllStoredTabletServers::parse_tabletservers(data_from_http, host, port)
-
- */
     }
     fn parse_tabletservers(
         tabletservers_data: String,
@@ -240,68 +216,6 @@ impl AllStoredTabletServers {
                 AllTabletServers { tabletservers: HashMap::new() }
             })
     }
-    /*
-    fn save_snapshot ( self, snapshot_number: i32 ) -> Result<(), Box<dyn Error>>
-    {
-        let current_directory = env::current_dir()?;
-        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(&snapshot_number.to_string());
-
-        let tablet_servers_file = &current_snapshot_directory.join("tablet_servers");
-        let file = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(tablet_servers_file)?;
-        let mut writer = csv::Writer::from_writer(file);
-        for row in self.stored_tabletservers {
-            writer.serialize(row)?;
-        }
-        writer.flush()?;
-
-        let tablet_servers_pathmetrics_file = &current_snapshot_directory.join("tablet_servers_pathmetrics");
-        let file = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(tablet_servers_pathmetrics_file)?;
-        let mut writer = csv::Writer::from_writer(file);
-        for row in self.stored_pathmetrics {
-            writer.serialize(row)?;
-        }
-        writer.flush()?;
-
-        Ok(())
-    }
-
-    pub fn read_snapshot( snapshot_number: &String, ) -> Result<AllStoredTabletServers, Box<dyn Error>>
-    {
-        let mut allstoredtabletservers = AllStoredTabletServers {
-            stored_tabletservers: Default::default(),
-            stored_pathmetrics: Default::default(),
-        };
-
-        let current_directory = env::current_dir()?;
-        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number);
-
-        let tablet_servers_file = &current_snapshot_directory.join("tablet_servers");
-        let file = fs::File::open(tablet_servers_file)?;
-
-        let mut reader = csv::Reader::from_reader(file);
-        for row in reader.deserialize() {
-            let data: StoredTabletServers = row?;
-            allstoredtabletservers.stored_tabletservers.push(data);
-        };
-
-        let tablet_servers_pathmetrics_file = &current_snapshot_directory.join("tablet_servers_pathmetrics");
-        let file = fs::File::open(tablet_servers_pathmetrics_file)?;
-
-        let mut reader = csv::Reader::from_reader(file);
-        for row in reader.deserialize() {
-            let data: StoredPathMetrics = row?;
-            allstoredtabletservers.stored_pathmetrics.push(data);
-        };
-
-        Ok(allstoredtabletservers)
-    }
-     */
     pub fn print(
         &self,
         snapshot_number: &String,
@@ -438,30 +352,15 @@ impl SnapshotDiffBTreeMapsTabletServers {
         let mut allstoredtabletservers = AllStoredTabletServers::new();
         allstoredtabletservers.stored_tabletservers = read_snapshot(begin_snapshot, "tablet_servers")?;
         allstoredtabletservers.stored_pathmetrics = read_snapshot(begin_snapshot, "tablet_servers_pathmetrics")?;
-        /*
-        let allstoredtabletservers = AllStoredTabletServers::read_snapshot(begin_snapshot)
-            .unwrap_or_else(|e| {
-                error!("Fatal: error reading snapshot: {}", e);
-                process::exit(1);
-            });
 
-         */
         let master_leader = AllStoredIsLeader::return_leader_snapshot(begin_snapshot)?;
         let mut tabletservers_snapshot_diff = SnapshotDiffBTreeMapsTabletServers::new();
         tabletservers_snapshot_diff.first_snapshot(allstoredtabletservers, master_leader);
 
-
         let mut allstoredtabletservers = AllStoredTabletServers::new();
         allstoredtabletservers.stored_tabletservers = read_snapshot(end_snapshot, "tablet_servers")?;
         allstoredtabletservers.stored_pathmetrics = read_snapshot(end_snapshot, "tablet_servers_pathmetrics")?;
-        /*
-        let allstoredtabletservers = AllStoredTabletServers::read_snapshot(end_snapshot)
-            .unwrap_or_else(|e| {
-                error!("Fatal: error reading snapshot: {}", e);
-                process::exit(1);
-            });
 
-         */
         let master_leader = AllStoredIsLeader::return_leader_snapshot(end_snapshot)?;
         tabletservers_snapshot_diff.second_snapshot(allstoredtabletservers, master_leader);
 

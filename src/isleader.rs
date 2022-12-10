@@ -49,7 +49,7 @@ impl AllStoredIsLeader {
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         snapshot_number: i32,
-        parallel: usize
+        parallel: usize,
     ) -> Result<()>
     {
         info!("begin snapshot");
@@ -143,47 +143,6 @@ impl AllStoredIsLeader {
                 IsLeader { status: "".to_string() }
             })
     }
-   /*
-    /// This function takes the rows in the vector StoredIsLeader, and saves it as CSV in the snapshot directory indicated by the snapshot number.
-    fn save_snapshot ( self, snapshot_number: i32 ) -> Result<(), Box<dyn Error>>
-    {
-        let current_directory = env::current_dir()?;
-        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(&snapshot_number.to_string());
-
-        let isleader_file = &current_snapshot_directory.join("isleader");
-        let file = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(isleader_file)?;
-        let mut writer = csv::Writer::from_writer(file);
-        for row in self.stored_isleader {
-            writer.serialize(row)?;
-        }
-        writer.flush()?;
-
-        Ok(())
-    }
-
-    /// This function takes a snapshot number and reads the isleader CSV and loads it into the vector stored_isleader in [AllStoredIsLeader].
-    fn read_snapshot( snapshot_number: &String, ) -> Result<AllStoredIsLeader, Box<dyn Error>>
-    {
-        let mut allstoredisleader = AllStoredIsLeader { stored_isleader: Vec::new() };
-
-        let current_directory = env::current_dir()?;
-        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number);
-
-        let isleader_file = &current_snapshot_directory.join("isleader");
-        let file = fs::File::open(isleader_file)?;
-
-        let mut reader = csv::Reader::from_reader(file);
-        for row in reader.deserialize() {
-            let data: StoredIsLeader = row?;
-            allstoredisleader.stored_isleader.push(data);
-        };
-
-        Ok(allstoredisleader)
-    }
-    */
 }
 
 #[cfg(test)]

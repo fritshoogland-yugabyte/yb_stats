@@ -1,12 +1,12 @@
 use chrono::{DateTime, Local};
-use std::{sync::mpsc::channel};
+use std::{sync::mpsc::channel, time::Instant};
 use serde_derive::{Serialize,Deserialize};
 use regex::Regex;
 use scraper::{ElementRef, Html, Selector};
 use log::*;
 use anyhow::Result;
 use crate::utility::{scan_host_port, http_get};
-use crate::snapshot::{save_snapshot, read_snapshot};
+use crate::snapshot::save_snapshot;
 
 #[derive(Debug)]
 pub struct Threads {
@@ -28,229 +28,180 @@ pub struct StoredThreads {
     pub stack: String,
 }
 
-#[allow(dead_code)]
-#[allow(clippy::ptr_arg)]
-pub async fn perform_threads_snapshot(
-    hosts: &Vec<&str>,
-    ports: &Vec<&str>,
-    snapshot_number: i32,
-    parallel: usize
-) -> Result<()>
-{
-    info!("perform_threads_snapshot");
-    let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
-    let (tx, rx) = channel();
+#[derive(Debug, Default)]
+pub struct AllStoredThreads {
+    pub stored_threads: Vec<StoredThreads>
+}
 
-    pool.scope(move |s| {
-        for host in hosts {
-            for port in ports {
-                let tx = tx.clone();
-                s.spawn(move |_| {
-                    let detail_snapshot_time = Local::now();
-                    let threads = read_threads(host, port);
-                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, threads)).expect("error sending data via tx (threads)");
+impl AllStoredThreads {
+    pub async fn perform_snapshot(
+        hosts: &Vec<&str>,
+        ports: &Vec<&str>,
+        snapshot_number: i32,
+        parallel: usize ,
+    ) -> Result<()>
+    {
+        info!("begin snapshot");
+        let timer = Instant::now();
+
+        let allstoredthreads = AllStoredThreads::read_threads(hosts, ports, parallel).await;
+        save_snapshot(snapshot_number, "threads", allstoredthreads.stored_threads)?;
+
+        info!("end snapshot: {:?}", timer.elapsed());
+
+        Ok(())
+    }
+    pub fn new() -> Self { Default::default() }
+    pub async fn read_threads (
+        hosts: &Vec<&str>,
+        ports: &Vec<&str>,
+        parallel: usize
+    ) -> AllStoredThreads
+    {
+        info!("begin parallel http read");
+        let timer = Instant::now();
+
+        let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
+        let (tx, rx) = channel();
+
+        pool.scope(move |s| {
+            for host in hosts {
+                for port in ports {
+                    let tx = tx.clone();
+                    s.spawn(move |_| {
+                        let detail_snapshot_time = Local::now();
+                        let threads = AllStoredThreads::read_http(host, port);
+                        tx.send((format!("{}:{}", host, port), detail_snapshot_time, threads)).expect("error sending data via tx (threads)");
+                    });
+                }
+            }
+        });
+
+        info!("end parallel http read {:?}", timer.elapsed());
+
+        let mut allstoredthreads = AllStoredThreads::new();
+
+        for (hostname_port, detail_snapshot_time, threads) in rx {
+            for thread in threads {
+                allstoredthreads.stored_threads.push(StoredThreads {
+                    hostname_port: hostname_port.to_string(),
+                    timestamp: detail_snapshot_time,
+                    thread_name: thread.thread_name.to_string(),
+                    cumulative_user_cpu_s: thread.cumulative_user_cpu_s.to_string(),
+                    cumulative_kernel_cpu_s: thread.cumulative_kernel_cpu_s.to_string(),
+                    cumulative_iowait_cpu_s: thread.cumulative_iowait_cpu_s.to_string(),
+                    stack: thread.stack.to_string(),
                 });
             }
         }
-    });
-    let mut stored_threads: Vec<StoredThreads> = Vec::new();
-    for (hostname_port, detail_snapshot_time, threads) in rx {
-        add_to_threads_vector(threads, &hostname_port, detail_snapshot_time, &mut stored_threads);
+        allstoredthreads
     }
-    save_snapshot(snapshot_number, "threads", stored_threads)?;
-
-    Ok(())
-    /*
-    let current_snapshot_directory = &yb_stats_directory.join( &snapshot_number.to_string());
-    let threads_file = &current_snapshot_directory.join("threads");
-    let file = fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .open(threads_file)
-        .unwrap_or_else(|e| {
-            error!("Fatal: error writing threads data in snapshots directory {}: {}", &threads_file.clone().into_os_string().into_string().unwrap(), e);
-            process::exit(1);
-        });
-    let mut writer = csv::Writer::from_writer(file);
-    for row in stored_threads {
-        writer.serialize(row).unwrap();
+    fn read_http(
+        host: &str,
+        port: &str,
+    ) -> Vec<Threads>
+    {
+        let data_from_http = if scan_host_port(host, port) {
+            http_get(host, port, "threadz?group=all")
+        } else {
+            String::new()
+        };
+        AllStoredThreads::parse_threads(data_from_http)
     }
-    writer.flush().unwrap();
+    fn parse_threads(
+        http_data: String
+    ) -> Vec<Threads> {
+        let mut threads: Vec<Threads> = Vec::new();
+        let function_regex = Regex::new(r"@\s+0x[[:xdigit:]]+\s+(\S+)\n").unwrap();
+        if let Some(table) = AllStoredThreads::find_table(&http_data) {
+            let (headers, rows) = table;
 
-     */
-}
+            let try_find_header = |target| headers.iter().position(|h| h == target);
+            // mind "Thread name": name doesn't start with a capital, unlike all other headings
+            let thread_name_pos = try_find_header("Thread name");
+            let cumul_user_cpus_pos = try_find_header("Cumulative User CPU(s)");
+            let cumul_kernel_cpus_pos = try_find_header("Cumulative Kernel CPU(s)");
+            let cumul_iowaits_pos = try_find_header("Cumulative IO-wait(s)");
 
-#[allow(dead_code)]
-pub fn read_threads(
-    host: &str,
-    port: &str,
-) -> Vec<Threads>
-{
-    let data_from_http = if scan_host_port( host, port) {
-        http_get(host, port, "threadz?group=all")
-    } else {
-        String::new()
-    };
-    parse_threads(data_from_http)
-        /*
-    if ! scan_port_addr( format!("{}:{}", host, port) ) {
-        warn!("Warning: hostname:port {}:{} cannot be reached, skipping (threads)", host, port);
-        return Vec::new();
-    }
-    //if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}/threadz?group=all", hostname.to_string())) {
-    if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}:{}/threadz?group=all", host, port)) {
-        parse_threads(data_from_http.text().unwrap())
-    } else {
-        parse_threads(String::from(""))
-    }
+            let take_or_missing =
+                |row: &mut [String], pos: Option<usize>| match pos.and_then(|pos| row.get_mut(pos)) {
+                    Some(value) => std::mem::take(value),
+                    None => "<Missing>".to_string(),
+                };
 
-         */
-}
-
-#[allow(dead_code)]
-fn parse_threads(
-    http_data: String
-) -> Vec<Threads> {
-    let mut threads: Vec<Threads> = Vec::new();
-    let function_regex = Regex::new(r"@\s+0x[[:xdigit:]]+\s+(\S+)\n").unwrap();
-    if let Some(table) = find_table(&http_data) {
-        let (headers, rows) = table;
-
-        let try_find_header = |target| headers.iter().position(|h| h == target);
-        // mind "Thread name": name doesn't start with a capital, unlike all other headings
-        let thread_name_pos = try_find_header("Thread name");
-        let cumul_user_cpus_pos = try_find_header("Cumulative User CPU(s)");
-        let cumul_kernel_cpus_pos = try_find_header("Cumulative Kernel CPU(s)");
-        let cumul_iowaits_pos = try_find_header("Cumulative IO-wait(s)");
-
-        let take_or_missing =
-            |row: &mut [String], pos: Option<usize>| match pos.and_then(|pos| row.get_mut(pos)) {
-                Some(value) => std::mem::take(value),
-                None => "<Missing>".to_string(),
-            };
-
-        let mut stack_from_table = String::from("Initial value: this should not be visible");
-        for mut row in rows {
-            stack_from_table = if row.len() == 5 {
-                std::mem::take(&mut row[4])
-            } else {
-                stack_from_table.to_string()
-            };
-            let stack_from_table = stack_from_table.replace("&lt;", "<");
-            let stack_from_table = stack_from_table.replace("&gt;", ">");
-            let mut st = Vec::new();
-            for c in function_regex.captures_iter(&stack_from_table) {
-                st.push(c[1].to_string().clone());
-            };
-            st.reverse();
-            let mut final_stack = String::from("");
-            for function in &st {
-                final_stack.push_str(function );
-                #[allow(clippy::single_char_add_str)]
-                final_stack.push_str(";");
+            let mut stack_from_table = String::from("Initial value: this should not be visible");
+            for mut row in rows {
+                stack_from_table = if row.len() == 5 {
+                    std::mem::take(&mut row[4])
+                } else {
+                    stack_from_table.to_string()
+                };
+                let stack_from_table = stack_from_table.replace("&lt;", "<");
+                let stack_from_table = stack_from_table.replace("&gt;", ">");
+                let mut st = Vec::new();
+                for c in function_regex.captures_iter(&stack_from_table) {
+                    st.push(c[1].to_string().clone());
+                };
+                st.reverse();
+                let mut final_stack = String::from("");
+                for function in &st {
+                    final_stack.push_str(function );
+                    final_stack.push(';');
+                }
+                final_stack.pop();
+                threads.push(Threads {
+                    thread_name: take_or_missing(&mut row, thread_name_pos),
+                    cumulative_user_cpu_s: take_or_missing(&mut row, cumul_user_cpus_pos),
+                    cumulative_kernel_cpu_s: take_or_missing(&mut row, cumul_kernel_cpus_pos),
+                    cumulative_iowait_cpu_s: take_or_missing(&mut row, cumul_iowaits_pos),
+                    stack: final_stack,
+                });
             }
-            final_stack.pop();
-            threads.push(Threads {
-                thread_name: take_or_missing(&mut row, thread_name_pos),
-                cumulative_user_cpu_s: take_or_missing(&mut row, cumul_user_cpus_pos),
-                cumulative_kernel_cpu_s: take_or_missing(&mut row, cumul_kernel_cpus_pos),
-                cumulative_iowait_cpu_s: take_or_missing(&mut row, cumul_iowaits_pos),
-                //stack: stack_from_table.clone(),
-                stack: final_stack,
-            });
         }
+        threads
     }
-    threads
-}
-
-fn find_table(http_data: &str) -> Option<(Vec<String>, Vec<Vec<String>>)> {
-    let css = |selector| Selector::parse(selector).unwrap();
-    let get_cells = |row: ElementRef, selector| {
-        row.select(&css(selector))
-            .map(|cell| cell.inner_html().trim().to_string())
-            .collect()
-    };
-    let html = Html::parse_fragment(http_data);
-    let table = html.select(&css("table")).next()?;
-    let tr = css("tr");
-    let mut rows = table.select(&tr);
-    let headers = get_cells(rows.next()?, "th");
-    let rows: Vec<_> = rows.map(|row| get_cells(row, "td")).collect();
-    Some((headers, rows))
-}
-
-#[allow(dead_code)]
-pub fn print_threads_data(
-    snapshot_number: &String,
-    hostname_filter: &Regex
-) -> Result<()>
-{
-    info!("print_threads");
-    //let stored_threads: Vec<StoredThreads> = read_threads_snapshot(snapshot_number, yb_stats_directory);
-    let stored_threads: Vec<StoredThreads> = read_snapshot(snapshot_number, "threads")?;
-    let mut previous_hostname_port = String::from("");
-    for row in stored_threads {
-        if hostname_filter.is_match(&row.hostname_port) {
-            if row.hostname_port != previous_hostname_port {
-                println!("--------------------------------------------------------------------------------------------------------------------------------------");
-                println!("Host: {}, Snapshot number: {}, Snapshot time: {}", &row.hostname_port.to_string(), &snapshot_number, row.timestamp);
-                println!("--------------------------------------------------------------------------------------------------------------------------------------");
-                println!("{:20} {:30} {:>20} {:>20} {:>20} {:50}",
-                         "hostname_port",
-                         "thread_name",
-                         "cum_user_cpu_s",
-                         "cum_kernel_cpu_s",
-                         "cum_iowait_cpu_s",
-                         "stack");
-                println!("--------------------------------------------------------------------------------------------------------------------------------------");
-                previous_hostname_port = row.hostname_port.to_string();
-            };
-            println!("{:20} {:30} {:>20} {:>20} {:>20} {:50}", row.hostname_port, row.thread_name, row.cumulative_user_cpu_s, row.cumulative_kernel_cpu_s, row.cumulative_iowait_cpu_s, row.stack.replace('\n', ""));
+    fn find_table(http_data: &str) -> Option<(Vec<String>, Vec<Vec<String>>)> {
+        let css = |selector| Selector::parse(selector).unwrap();
+        let get_cells = |row: ElementRef, selector| {
+            row.select(&css(selector))
+                .map(|cell| cell.inner_html().trim().to_string())
+                .collect()
+        };
+        let html = Html::parse_fragment(http_data);
+        let table = html.select(&css("table")).next()?;
+        let tr = css("tr");
+        let mut rows = table.select(&tr);
+        let headers = get_cells(rows.next()?, "th");
+        let rows: Vec<_> = rows.map(|row| get_cells(row, "td")).collect();
+        Some((headers, rows))
+    }
+    pub fn print(
+        &self,
+        hostname_filter: &Regex
+    ) -> Result<()>
+    {
+        info!("print hhreads");
+        let mut previous_hostname_port = String::from("");
+        for row in &self.stored_threads {
+            if hostname_filter.is_match(&row.hostname_port) {
+                if row.hostname_port != previous_hostname_port {
+                    println!("--------------------------------------------------------------------------------------------------------------------------------------");
+                    println!("Host: {}, Snapshot time: {}", &row.hostname_port.to_string(), row.timestamp);
+                    println!("--------------------------------------------------------------------------------------------------------------------------------------");
+                    println!("{:20} {:30} {:>20} {:>20} {:>20} {:50}",
+                             "hostname_port",
+                             "thread_name",
+                             "cum_user_cpu_s",
+                             "cum_kernel_cpu_s",
+                             "cum_iowait_cpu_s",
+                             "stack");
+                    println!("--------------------------------------------------------------------------------------------------------------------------------------");
+                    previous_hostname_port = row.hostname_port.to_string();
+                };
+                println!("{:20} {:30} {:>20} {:>20} {:>20} {:50}", row.hostname_port, row.thread_name, row.cumulative_user_cpu_s, row.cumulative_kernel_cpu_s, row.cumulative_iowait_cpu_s, row.stack.replace('\n', ""));
+            }
         }
-    }
-    Ok(())
-}
-
-/*
-#[allow(dead_code)]
-#[allow(clippy::ptr_arg)]
-fn read_threads_snapshot(
-    snapshot_number: &String,
-    yb_stats_directory: &PathBuf
-) -> Vec<StoredThreads> {
-    let mut stored_threads: Vec<StoredThreads> = Vec::new();
-    let threads_file = &yb_stats_directory.join(snapshot_number).join("threads");
-    let file = fs::File::open(threads_file)
-        .unwrap_or_else(|e| {
-            eprintln!("Fatal: error reading file: {}: {}", &threads_file.clone().into_os_string().into_string().unwrap(), e);
-            process::exit(1);
-        });
-    let mut reader = csv::Reader::from_reader(file);
-    for row in reader.deserialize() {
-        let data: StoredThreads = row.unwrap();
-        let _ = &stored_threads.push(data);
-    }
-    stored_threads
-}
-
- */
-
-#[allow(dead_code)]
-pub fn add_to_threads_vector(threadsdata: Vec<Threads>,
-                                 hostname: &str,
-                                 snapshot_time: DateTime<Local>,
-                                 stored_threads: &mut Vec<StoredThreads>
-) {
-    for line in threadsdata {
-        stored_threads.push( StoredThreads {
-            hostname_port: hostname.to_string(),
-            timestamp: snapshot_time,
-            thread_name: line.thread_name.to_string(),
-            cumulative_user_cpu_s: line.cumulative_user_cpu_s.to_string(),
-            cumulative_kernel_cpu_s: line.cumulative_kernel_cpu_s.to_string(),
-            cumulative_iowait_cpu_s: line.cumulative_iowait_cpu_s.to_string(),
-            stack: line.stack.to_string()
-        });
+        Ok(())
     }
 }
 

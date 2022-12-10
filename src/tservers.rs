@@ -261,7 +261,7 @@ impl AllStoredTabletServers {
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize,
-    )
+    ) -> Result<()>
     {
         info!("print adhoc tablet servers");
 
@@ -294,6 +294,7 @@ impl AllStoredTabletServers {
                 }
             }
         }
+        Ok(())
     }
 }
 

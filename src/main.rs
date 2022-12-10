@@ -26,6 +26,7 @@ use crate::vars::{AllStoredVars, SnapshotDiffBTreeMapsVars};
 use crate::versions::{AllStoredVersions, SnapshotDiffBTreeMapsVersions};
 use crate::snapshot::read_snapshot;
 use crate::threads::AllStoredThreads;
+use crate::clocks::AllStoredClocks;
 
 mod snapshot;
 mod value_statistic_details;
@@ -49,6 +50,7 @@ mod utility;
 mod isleader;
 mod tservers;
 mod vars;
+mod clocks;
 
 const DEFAULT_HOSTS: &str = "192.168.66.80,192.168.66.81,192.168.66.82";
 const DEFAULT_PORTS: &str = "7000,9000,12000,13000,9300";
@@ -142,6 +144,12 @@ struct Opts {
     /// Print rpcs for the given snapshot number
     #[arg(long, value_name = "snapshot number")]
     print_rpcs: Option<String>,
+    /// print clocks
+    #[arg(long)]
+    print_clocks: Option<Option<String>>,
+    /// print master leader tablet server latencies
+    #[arg(long)]
+    print_latencies: bool,
     /// Print threads data for the given snapshot number
     #[arg(long, value_name = "snapshot number")]
     print_threads: Option<Option<String>>,
@@ -395,24 +403,42 @@ async fn main() -> Result<()>
             }
             None => {
                 let allstoredtabletservers = AllStoredTabletServers::read_tabletservers(&hosts, &ports, parallel).await;
-                allstoredtabletservers.print_adhoc(&options.details_enable, &hosts, &ports, parallel).await;
+                allstoredtabletservers.print_adhoc(&options.details_enable, &hosts, &ports, parallel).await?;
             }
         }
     } else if options.print_vars.is_some() {
         match options.print_vars.unwrap() {
             Some(snapshot_number) => {
-
                 let mut allstoredvars = AllStoredVars::new();
                 allstoredvars.stored_vars = read_snapshot(&snapshot_number, "vars")?;
 
                 allstoredvars.print(&options.details_enable, &hostname_filter, &stat_name_filter).await;
-
             }
             None => {
                 let allstoredvars = AllStoredVars::read_vars(&hosts, &ports, parallel).await;
                 allstoredvars.print(&options.details_enable, &hostname_filter, &stat_name_filter).await;
             }
         }
+    } else if options.print_clocks.is_some() {
+
+        match options.print_clocks.unwrap() {
+            Some(snapshot_number) => {
+                let mut allstoredclocks = AllStoredClocks::new();
+                allstoredclocks.stored_clocks = read_snapshot(&snapshot_number, "clocks")?;
+
+                allstoredclocks.print(&snapshot_number, &options.details_enable)?;
+            },
+            None => {
+                let allstoredclocks = AllStoredClocks::read_clocks(&hosts, &ports, parallel).await?;
+                allstoredclocks.print_adhoc(&options.details_enable, &hosts, &ports, parallel).await?;
+            },
+        }
+
+    } else if options.print_latencies {
+
+        let allstoredclocks = AllStoredClocks::read_clocks(&hosts, &ports, parallel).await?;
+        allstoredclocks.print_adhoc_latency(&options.details_enable, &hosts, &ports, parallel).await?;
+
     } else if options.print_rpcs.is_some() {
 
         rpcs::print_rpcs(&options.print_rpcs.unwrap(), &hostname_filter, &options.details_enable)?;
@@ -844,6 +870,13 @@ async fn perform_snapshot(
     let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
     let handle = tokio::spawn(async move {
         mems::perform_mems_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel).await.unwrap();
+    });
+    handles.push(handle);
+
+    let arc_hosts_clone = arc_hosts.clone();
+    let arc_ports_clone = arc_ports.clone();
+    let handle = tokio::spawn(async move {
+        AllStoredClocks::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
     });
     handles.push(handle);
 

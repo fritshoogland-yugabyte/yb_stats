@@ -28,6 +28,7 @@ colored = "2.0.0"
 clap = { version = "4.0.29", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 anyhow = "1.0.66"
+soup = "0.5.1"
 
 [package.metadata.generate-rpm]
 assets = [

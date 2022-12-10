@@ -306,6 +306,7 @@ async fn main() -> Result<()>
         let entity_diff = entities::SnapshotDiffBTreeMapsEntities::snapshot_diff(&begin_snapshot, &end_snapshot, &options.details_enable)?;
         entity_diff.print();
     } else if options.masters_diff {
+
         info!("masters_diff");
 
         if options.begin.is_none() || options.end.is_none() {
@@ -316,12 +317,15 @@ async fn main() -> Result<()>
         let (begin_snapshot, end_snapshot, _begin_snapshot_row) = snapshot::Snapshot::read_begin_end_snapshot_from_user(options.begin, options.end)?;
         let masters_diff = masters::SnapshotDiffBTreeMapsMasters::snapshot_diff(&begin_snapshot, &end_snapshot)?;
         masters_diff.print();
+
     } else if options.print_memtrackers.is_some() {
 
         memtrackers::print_memtrackers_data(&options.print_memtrackers.unwrap(), &hostname_filter, &stat_name_filter)?;
 
     } else if options.print_log.is_some() {
+
         loglines::print_loglines(&options.print_log.unwrap(), &hostname_filter, &options.log_severity)?;
+
     } else if options.print_version.is_some() {
         match options.print_version.unwrap() {
             Some(snapshot_number) => {

@@ -37,7 +37,7 @@ impl AllStoredMasters {
         save_snapshot(snapshot_number, "masters", allmasters.stored_masters)?;
         save_snapshot(snapshot_number, "master_rpc_addresses", allmasters.stored_rpc_addresses)?;
         save_snapshot(snapshot_number, "master_http_addresses", allmasters.stored_http_addresses)?;
-        save_snapshot(snapshot_number, "masters_errors", allmasters.stored_master_error)?;
+        save_snapshot(snapshot_number, "master_errors", allmasters.stored_master_error)?;
 
         info!("end snapshot: {:?}", timer.elapsed());
         Ok(())
@@ -165,111 +165,6 @@ impl AllStoredMasters {
                 AllMasters { masters: Vec::<Masters>::new() }
             })
     }
-    /*
-    fn save_snapshot ( self, snapshot_number: i32 ) -> Result<(), Box<dyn Error>>
-    {
-        let current_directory = env::current_dir()?;
-        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(&snapshot_number.to_string());
-
-        let masters_file = &current_snapshot_directory.join("masters");
-        let file = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(masters_file)?;
-        let mut writer = csv::Writer::from_writer(file);
-        for row in self.stored_masters {
-            writer.serialize(row)?;
-        }
-        writer.flush()?;
-
-        let master_rpc_addresses_file = &current_snapshot_directory.join("master_rpc_addresses");
-        let file = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(master_rpc_addresses_file)?;
-        let mut writer = csv::Writer::from_writer(file);
-        for row in self.stored_rpc_addresses {
-            writer.serialize(row)?;
-        }
-        writer.flush()?;
-
-        let master_http_addresses_file = &current_snapshot_directory.join("master_http_addresses");
-        let file = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(master_http_addresses_file)?;
-        let mut writer = csv::Writer::from_writer(file);
-        for row in self.stored_http_addresses {
-            writer.serialize(row)?;
-        }
-        writer.flush()?;
-
-        let master_errors_file = &current_snapshot_directory.join("master_errors");
-        let file = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(master_errors_file)?;
-        let mut writer = csv::Writer::from_writer(file);
-        for row in self.stored_master_error {
-            writer.serialize(row)?;
-        }
-        writer.flush()?;
-
-        Ok(())
-    }
-
-    pub fn read_snapshot( snapshot_number: &String, ) -> Result<AllStoredMasters, Box<dyn Error>>
-    {
-        let mut allstoredmasters = AllStoredMasters {
-            stored_masters: Vec::new(),
-            stored_rpc_addresses: Vec::new(),
-            stored_http_addresses: Vec::new(),
-            stored_master_error: Vec::new(),
-        };
-
-        let current_directory = env::current_dir()?;
-        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number);
-
-        let masters_file = &current_snapshot_directory.join("masters");
-        let file = fs::File::open(masters_file)?;
-
-        let mut reader = csv::Reader::from_reader(file);
-        for row in reader.deserialize() {
-            let data: StoredMasters = row?;
-            allstoredmasters.stored_masters.push(data);
-        };
-
-        let masters_rpc_addresses_file = &current_snapshot_directory.join("master_rpc_addresses");
-        let file = fs::File::open(masters_rpc_addresses_file)?;
-
-        let mut reader = csv::Reader::from_reader(file);
-        for row in reader.deserialize() {
-            let data: StoredRpcAddresses = row?;
-            allstoredmasters.stored_rpc_addresses.push(data);
-        };
-
-        let masters_http_addresses_file = &current_snapshot_directory.join("master_http_addresses");
-        let file = fs::File::open(masters_http_addresses_file)?;
-
-        let mut reader = csv::Reader::from_reader(file);
-        for row in reader.deserialize() {
-            let data: StoredHttpAddresses = row?;
-            allstoredmasters.stored_http_addresses.push(data);
-        };
-
-        let masters_error_file = &current_snapshot_directory.join("master_errors");
-        let file = fs::File::open(masters_error_file)?;
-
-        let mut reader = csv::Reader::from_reader(file);
-        for row in reader.deserialize() {
-            let data: StoredMasterError = row?;
-            allstoredmasters.stored_master_error.push(data);
-        };
-
-        Ok(allstoredmasters)
-    }
-
-     */
     pub fn print(
         &self,
         snapshot_number: &String,
@@ -508,14 +403,7 @@ impl SnapshotDiffBTreeMapsMasters {
         allstoredmasters.stored_rpc_addresses = read_snapshot(begin_snapshot, "master_rpc_addresses")?;
         allstoredmasters.stored_http_addresses = read_snapshot(begin_snapshot, "master_http_addresses")?;
         allstoredmasters.stored_master_error = read_snapshot(begin_snapshot, "master_errors")?;
-        /*
-        let allstoredmasters = AllStoredMasters::read_snapshot(begin_snapshot)
-            .unwrap_or_else(|e| {
-                error!("Fatal: error reading snapshot: {}", e);
-                process::exit(1);
-            });
 
-         */
         let master_leader = AllStoredIsLeader::return_leader_snapshot(begin_snapshot)?;
         let mut masters_snapshot_diff = SnapshotDiffBTreeMapsMasters::new();
         masters_snapshot_diff.first_snapshot(allstoredmasters, master_leader);
@@ -525,14 +413,7 @@ impl SnapshotDiffBTreeMapsMasters {
         allstoredmasters.stored_rpc_addresses = read_snapshot(end_snapshot, "master_rpc_addresses")?;
         allstoredmasters.stored_http_addresses = read_snapshot(end_snapshot, "master_http_addresses")?;
         allstoredmasters.stored_master_error = read_snapshot(end_snapshot, "master_errors")?;
-        /*
-        let allstoredmasters = AllStoredMasters::read_snapshot(end_snapshot)
-            .unwrap_or_else(|e| {
-                error!("Fatal: error reading snapshot: {}", e);
-                process::exit(1);
-            });
 
-         */
         let master_leader = AllStoredIsLeader::return_leader_snapshot(begin_snapshot)?;
         masters_snapshot_diff.second_snapshot(allstoredmasters, master_leader);
 

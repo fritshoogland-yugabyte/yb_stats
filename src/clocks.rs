@@ -267,172 +267,90 @@ impl AllStoredClocks {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utility_test::*;
 
     #[test]
-    fn unit_parse_threads_data() {
-        // This is what /threadz?group=all returns.
-        let threads = r#"<!DOCTYPE html><html>  <head>    <title>YugabyteDB</title>    <link rel='shortcut icon' href='/favicon.ico'>    <link href='/bootstrap/css/bootstrap.min.css' rel='stylesheet' media='screen' />    <link href='/bootstrap/css/bootstrap-theme.min.css' rel='stylesheet' media='screen' />    <link href='/font-awesome/css/font-awesome.min.css' rel='stylesheet' media='screen' />    <link href='/yb.css' rel='stylesheet' media='screen' />  </head>
-<body>
-  <nav class="navbar navbar-fixed-top navbar-inverse sidebar-wrapper" role="navigation">    <ul class="nav sidebar-nav">      <li><a href='/'><img src='/logo.png' alt='YugabyteDB' class='nav-logo' /></a></li>
-<li class='nav-item'><a href='/'><div><i class='fa fa-home'aria-hidden='true'></i></div>Home</a></li>
-<li class='nav-item'><a href='/tables'><div><i class='fa fa-table'aria-hidden='true'></i></div>Tables</a></li>
-<li class='nav-item'><a href='/tablet-servers'><div><i class='fa fa-server'aria-hidden='true'></i></div>Tablet Servers</a></li>
-<li class='nav-item'><a href='/utilz'><div><i class='fa fa-wrench'aria-hidden='true'></i></div>Utilities</a></li>
-    </ul>  </nav>
-
-    <div class='yb-main container-fluid'><h2>Thread Group: all</h2>
-<h3>All Threads : </h3><table class='table table-hover table-border'><tr><th>Thread name</th><th>Cumulative User CPU(s)</th><th>Cumulative Kernel CPU(s)</th><th>Cumulative IO-wait(s)</th></tr><tr><td>Master_reactorx-6127</td><td>2.960s</td><td>0.000s</td><td>0.000s</td><td rowspan="1"><pre>    @     0x7f035af7a9f2  __GI_epoll_wait
-    @     0x7f035db7fbf7  epoll_poll
-    @     0x7f035db7ac5d  ev_run
-    @     0x7f035e02f07b  yb::rpc::Reactor::RunThread()
-    @     0x7f035de5f1d4  yb::Thread::SuperviseThread()
-    @     0x7f035b83e693  start_thread
-    @     0x7f035af7a41c  __clone
-
-Total number of threads: 1</pre></td></tr>
-<tr><td>acceptorxxxxxxx-6136</td><td>0.000s</td><td>0.000s</td><td>0.000s</td><td rowspan="1"><pre>    @     0x7f035af7a9f2  __GI_epoll_wait
-    @     0x7f035db7fbf7  epoll_poll
-    @     0x7f035db7ac5d  ev_run
-    @     0x7f035dff41d6  yb::rpc::Acceptor::RunThread()
-    @     0x7f035de5f1d4  yb::Thread::SuperviseThread()
-    @     0x7f035b83e693  start_thread
-    @     0x7f035af7a41c  __clone
-
-Total number of threads: 1</pre></td></tr>
-<tr><td>bgtasksxxxxxxxx-6435</td><td>0.630s</td><td>0.000s</td><td>0.000s</td><td rowspan="1"><pre>    @     0x7f035b8433b7  __pthread_cond_timedwait
-    @     0x7f035dd52946  yb::ConditionVariable::TimedWait()
-    @     0x7f03610c21f0  yb::master::CatalogManagerBgTasks::Wait()
-    @     0x7f03610c255b  yb::master::CatalogManagerBgTasks::Run()
-    @     0x7f035de5f1d4  yb::Thread::SuperviseThread()
-    @     0x7f035b83e693  start_thread
-    @     0x7f035af7a41c  __clone
-
-Total number of threads: 1</pre></td></tr>
-<tr><td>iotp_Master_3xx-6126</td><td>0.160s</td><td>0.000s</td><td>0.000s</td><td rowspan="3"><pre>    @     0x7f035b84300c  __pthread_cond_wait
-    @     0x7f035e00c927  yb::rpc::IoThreadPool::Impl::Execute()
-    @     0x7f035de5f1d4  yb::Thread::SuperviseThread()
-    @     0x7f035b83e693  start_thread
-    @     0x7f035af7a41c  __clone
-
-Total number of threads: 3</pre></td></tr>
-<tr><td>iotp_Master_2xx-6125</td><td>0.230s</td><td>0.000s</td><td>0.000s</td></tr>
-<tr><td>iotp_Master_0xx-6123</td><td>0.200s</td><td>0.000s</td><td>0.000s</td></tr>
-<tr><td>iotp_Master_1xx-6124</td><td>0.220s</td><td>0.000s</td><td>0.000s</td><td rowspan="1"><pre>    @     0x7f035af7a9f2  __GI_epoll_wait
-    @     0x7f035e00c9c6  yb::rpc::IoThreadPool::Impl::Execute()
-    @     0x7f035de5f1d4  yb::Thread::SuperviseThread()
-    @     0x7f035b83e693  start_thread
-    @     0x7f035af7a41c  __clone
-
-Total number of threads: 1</pre></td></tr>
-<tr><td>iotp_call_home_0-6437</td><td>0.000s</td><td>0.000s</td><td>0.000s</td><td rowspan="1"><pre>    @     0x7f035af7a9f2  __GI_epoll_wait
-    @     0x7f035e00c9c6  yb::rpc::IoThreadPool::Impl::Execute()
-    @     0x7f035de5f1d4  yb::Thread::SuperviseThread()
-    @     0x7f035b83e693  start_thread
-    @     0x7f035af7a41c  __clone
-
-Total number of threads: 1</pre></td></tr>
-<tr><td>maintenance_scheduler-6130</td><td>1.370s</td><td>0.000s</td><td>0.000s</td><td rowspan="1"><pre>    @     0x7f035b8433b7  __pthread_cond_timedwait
-    @     0x7f035c0217ea  std::__1::condition_variable::__do_timed_wait()
-    @     0x7f0360ce4cd9  yb::MaintenanceManager::RunSchedulerThread()
-    @     0x7f035de5f1d4  yb::Thread::SuperviseThread()
-    @     0x7f035b83e693  start_thread
-    @     0x7f035af7a41c  __clone
-
-Total number of threads: 1</pre></td></tr>
-<tr><td>rb-session-expx-6134</td><td>0.010s</td><td>0.000s</td><td>0.000s</td><td rowspan="1"><pre>    @     0x7f035b8433b7  __pthread_cond_timedwait
-    @     0x7f035dd5287c  yb::ConditionVariable::WaitUntil()
-    @     0x7f035dd52c46  yb::CountDownLatch::WaitFor()
-    @     0x7f03617dbae3  yb::tserver::RemoteBootstrapServiceImpl::EndExpiredSessions()
-    @     0x7f035de5f1d4  yb::Thread::SuperviseThread()
-    @     0x7f035b83e693  start_thread
-    @     0x7f035af7a41c  __clone
-
-Total number of threads: 1</pre></td></tr>
-<tr><td>rpc_tp_Master_16-6449</td><td>0.000s</td><td>0.000s</td><td>0.000s</td><td rowspan="18"><pre>    @     0x7f035b84300c  __pthread_cond_wait
-    @     0x7f035c021751  std::__1::condition_variable::wait()
-    @     0x7f035e06d1ce  yb::rpc::(anonymous namespace)::Worker::Execute()
-    @     0x7f035de5f1d4  yb::Thread::SuperviseThread()
-    @     0x7f035b83e693  start_thread
-    @     0x7f035af7a41c  __clone
-
-Total number of threads: 18</pre></td></tr>
-<tr><td>rpc_tp_Master_15-6448</td><td>0.000s</td><td>0.000s</td><td>0.000s</td></tr>
-<tr><td>rpc_tp_Master_14-6447</td><td>0.000s</td><td>0.000s</td><td>0.000s</td></tr>
-<tr><td>rpc_tp_Master_13-6446</td><td>0.000s</td><td>0.000s</td><td>0.000s</td></tr>
-<tr><td>rpc_tp_Master_12-6445</td><td>0.000s</td><td>0.000s</td><td>0.000s</td></tr>
-<tr><td>rpc_tp_Master_11-6444</td><td>0.000s</td><td>0.000s</td><td>0.000s</td></tr>
-<tr><td>rpc_tp_Master_10-6443</td><td>0.000s</td><td>0.000s</td><td>0.000s</td></tr>
-<tr><td>rpc_tp_Master_9-6442</td><td>0.000s</td><td>0.000s</td><td>0.000s</td></tr>
-<tr><td>rpc_tp_Master_5-6438</td><td>0.000s</td><td>0.000s</td><td>0.000s</td></tr>
-<tr><td>rpc_tp_Master_7-6440</td><td>0.000s</td><td>0.000s</td><td>0.000s</td></tr>
-<tr><td>rpc_tp_Master_4-6390</td><td>0.020s</td><td>0.000s</td><td>0.000s</td></tr>
-<tr><td>rpc_tp_Master_8-6441</td><td>0.000s</td><td>0.000s</td><td>0.000s</td></tr>
-<tr><td>rpc_tp_Master_3-6381</td><td>0.020s</td><td>0.000s</td><td>0.000s</td></tr>
-<tr><td>rpc_tp_Master-high-pri_0-6140</td><td>2.990s</td><td>0.000s</td><td>0.000s</td></tr>
-<tr><td>rpc_tp_Master_1-6139</td><td>0.020s</td><td>0.000s</td><td>0.000s</td></tr>
-<tr><td>rpc_tp_Master_6-6439</td><td>0.000s</td><td>0.000s</td><td>0.000s</td></tr>
-<tr><td>rpc_tp_Master_0-6137</td><td>0.020s</td><td>0.000s</td><td>0.000s</td></tr>
-<tr><td>rpc_tp_Master_2-6375</td><td>0.060s</td><td>0.000s</td><td>0.000s</td></tr>
-<tr><td>flush scheduler bgtask-6434</td><td>0.000s</td><td>0.000s</td><td>0.000s</td><td rowspan="1"><pre>    @     0x7f035b84300c  __pthread_cond_wait
-    @     0x7f035c021751  std::__1::condition_variable::wait()
-    @     0x7f035dd475ba  yb::BackgroundTask::WaitForJob()
-    @     0x7f035dd47393  yb::BackgroundTask::Run()
-    @     0x7f035de5f1d4  yb::Thread::SuperviseThread()
-    @     0x7f035b83e693  start_thread
-    @     0x7f035af7a41c  __clone
-
-Total number of threads: 1</pre></td></tr>
-<tr><td>MaintenanceMgr [worker]-6122</td><td>0.000s</td><td>0.000s</td><td>0.000s</td><td rowspan="4"><pre>    @     0x7f035b84300c  __pthread_cond_wait
-    @     0x7f035de63bf9  yb::ThreadPool::DispatchThread()
-    @     0x7f035de5f1d4  yb::Thread::SuperviseThread()
-    @     0x7f035b83e693  start_thread
-    @     0x7f035af7a41c  __clone
-
-Total number of threads: 4</pre></td></tr>
-<tr><td>log-alloc [worker]-6121</td><td>0.000s</td><td>0.000s</td><td>0.000s</td></tr>
-<tr><td>append [worker]-6120</td><td>0.090s</td><td>0.000s</td><td>0.000s</td></tr>
-<tr><td>prepare [worker]-6119</td><td>0.100s</td><td>0.000s</td><td>0.000s</td></tr>
-</table><div class='yb-bottom-spacer'></div></div>
-<footer class='footer'><div class='yb-footer container text-muted'><pre class='message'><i class="fa-lg fa fa-gift" aria-hidden="true"></i> Congratulations on installing YugabyteDB. We'd like to welcome you to the community with a free t-shirt and pack of stickers! Please claim your reward here: <a href='https://www.yugabyte.com/community-rewards/'>https://www.yugabyte.com/community-rewards/</a></pre><pre>version 2.13.0.0 build 42 revision cd3c1a4bb1cca183be824851f8158ebbffd1d3d8 build_type RELEASE built at 06 Mar 2022 03:13:49 UTC
-server uuid 4ce571a18f8c4a9a8b35246222d12025 local time 2022-03-16 12:33:37.634419</pre></div></footer></body></html>"#.to_string();
-        let result = parse_threads(threads);
+    fn unit_parse_clocks_data() {
+        // This is what /tablet-server-clocks?raw returns for an RF3 cluster.
+        let threads = r#"<h2>Tablet Servers</h2>
+<table class='table table-striped'>
+    <tr>
+      <th>Server</th>
+      <th>Time since </br>heartbeat</th>
+      <th>Status & Uptime</th>
+      <th>Physical Time (UTC)</th>
+      <th>Hybrid Time (UTC)</th>
+      <th>Heartbeat RTT</th>
+      <th>Cloud</th>
+      <th>Region</th>
+      <th>Zone</th>
+    </tr>
+  <tr>
+  <td><a href="http://yb-1.local:9000/">yb-1.local:9000</a></br>  fa8b3f29b2a54eadb73ae546454ce1bb</td><td>1.0s</td>    <td style="color:Green">ALIVE: 4:20:46</td>    <td>2022-12-13 15:29:50.817063</td>    <td>2022-12-13 15:29:50.817063</td>    <td>1.56ms</td>    <td>local</td>    <td>local</td>    <td>local1</td>  </tr>
+  <tr>
+  <td><a href="http://yb-2.local:9000/">yb-2.local:9000</a></br>  15549111cb3448359d4f34a81880eedd</td><td>0.3s</td>    <td style="color:Green">ALIVE: 4:20:46</td>    <td>2022-12-13 15:29:51.481450</td>    <td>2022-12-13 15:29:51.481450</td>    <td>1.43ms</td>    <td>local</td>    <td>local</td>    <td>local2</td>  </tr>
+  <tr>
+  <td><a href="http://yb-3.local:9000/">yb-3.local:9000</a></br>  f54d6bef7e87407597df67ba7ea59892</td><td>0.8s</td>    <td style="color:Green">ALIVE: 4:20:45</td>    <td>2022-12-13 15:29:50.983270</td>    <td>2022-12-13 15:29:50.983270</td>    <td>0.62ms</td>    <td>local</td>    <td>local</td>    <td>local3</td>  </tr>
+</table>
+<h3>Tablet-Peers by Availability Zone</h3>
+<table class='table table-striped'>
+  <tr>
+    <th>Cloud</th>
+    <th>Region</th>
+    <th>Zone</th>
+    <th>Total Nodes</th>
+    <th>User Tablet-Peers / Leaders</th>
+    <th>System Tablet-Peers / Leaders</th>
+    <th>Active Tablet-Peers</th>
+  </tr>
+<tr>
+  <td rowspan="3">local</td>
+  <td rowspan="3">local</td>
+  <td>local1</td>
+  <td>1</td>
+  <td>8 / 2</td>
+  <td>12 / 4</td>
+  <td>20</td>
+</tr>
+<tr>
+  <td>local2</td>
+  <td>1</td>
+  <td>8 / 3</td>
+  <td>12 / 4</td>
+  <td>20</td>
+</tr>
+<tr>
+  <td>local3</td>
+  <td>1</td>
+  <td>8 / 3</td>
+  <td>12 / 4</td>
+  <td>20</td>
+</tr>
+</table>"#.to_string();
+        let result = AllStoredClocks::parse_clocks(threads);
         // this results in 33 Threads
-        assert_eq!(result.len(), 33);
-        // and the thread name is Master_reactorx-6127
-        // these are all the fields, for completeness sake
-        assert_eq!(result[0].thread_name, "Master_reactorx-6127");
-        assert_eq!(result[0].cumulative_user_cpu_s, "2.960s");
-        assert_eq!(result[0].cumulative_kernel_cpu_s, "0.000s");
-        assert_eq!(result[0].cumulative_iowait_cpu_s, "0.000s");
-        //assert_eq!(result[0].stack, "<pre>    @     0x7f035af7a9f2  __GI_epoll_wait\n    @     0x7f035db7fbf7  epoll_poll\n    @     0x7f035db7ac5d  ev_run\n    @     0x7f035e02f07b  yb::rpc::Reactor::RunThread()\n    @     0x7f035de5f1d4  yb::Thread::SuperviseThread()\n    @     0x7f035b83e693  start_thread\n    @     0x7f035af7a41c  __clone\n\nTotal number of threads: 1</pre>");
-        assert_eq!(result[0].stack, "__clone;start_thread;yb::Thread::SuperviseThread();yb::rpc::Reactor::RunThread();ev_run;epoll_poll;__GI_epoll_wait");
+        assert_eq!(result.len(), 3);
+
+        assert_eq!(result[0].server, "yb-1.local:9000  fa8b3f29b2a54eadb73ae546454ce1bb");
+        assert_eq!(result[0].time_since_heartbeat, "1.0s");
+        assert_eq!(result[0].status_uptime, "ALIVE: 4:20:46");
+        assert_eq!(result[0].physical_time_utc, "2022-12-13 15:29:50.817063");
+        assert_eq!(result[0].hybrid_time_utc, "2022-12-13 15:29:50.817063");
+        assert_eq!(result[0].heartbeat_rtt, "1.56ms");
+        assert_eq!(result[0].cloud, "local");
+        assert_eq!(result[0].region, "local");
+        assert_eq!(result[0].zone, "local1");
     }
 
-    use crate::utility;
+    #[tokio::test]
+    async fn integration_parse_clocks() -> Result<()> {
+        let hostname = get_hostname_master();
+        let port = get_port_master();
 
-    #[test]
-    fn integration_parse_threadsdata_master() {
-        let mut stored_threadsdata: Vec<StoredThreads> = Vec::new();
-        let detail_snapshot_time = Local::now();
-        let hostname = utility::get_hostname_master();
-        let port = utility::get_port_master();
+        let allstoredclocks = AllStoredClocks::read_clocks(&vec![&hostname], &vec![&port], 1_usize).await?;
 
-        let data_parsed_from_json = read_threads(hostname.as_str(), port.as_str());
-        add_to_threads_vector(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_threadsdata);
-        // each daemon should return one row.
-        assert!(stored_threadsdata.len() > 1);
+        assert!(allstoredclocks.stored_clocks.len() > 0);
+
+        Ok(())
     }
-    #[test]
-    fn integration_parse_threadsdata_tserver() {
-        let mut stored_threadsdata: Vec<StoredThreads> = Vec::new();
-        let detail_snapshot_time = Local::now();
-        let hostname = utility::get_hostname_tserver();
-        let port = utility::get_port_tserver();
-
-        let data_parsed_from_json = read_threads(hostname.as_str(), port.as_str());
-        add_to_threads_vector(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_threadsdata);
-        // each daemon should return one row.
-        assert!(stored_threadsdata.len() > 1);
-    }
-
 }

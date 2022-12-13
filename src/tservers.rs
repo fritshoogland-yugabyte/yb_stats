@@ -488,6 +488,7 @@ impl SnapshotDiffBTreeMapsTabletServers {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utility_test::*;
 
     #[test]
     fn unit_parse_tabletserver_data() {
@@ -536,19 +537,12 @@ mod tests {
         }
     }
 
-    use crate::utility;
+    #[tokio::test]
+    async fn integration_parse_tabletserver() {
+        let hostname = get_hostname_master();
+        let port = get_port_master();
 
-    #[test]
-    fn integration_parse_tabletserver() {
-        let mut allstoredtabletservers = AllStoredTabletServers::new();
-
-        let hostname = utility::get_hostname_master();
-        let port = utility::get_port_master();
-
-        let data_parsed_from_json = AllStoredTabletServers::read_http(&hostname, &port);
-        allstoredtabletservers.split_into_vectors(data_parsed_from_json, format!("{}:{}",hostname, port).as_ref(), Local::now());
-
-        println!("{:?}", allstoredtabletservers);
+        let allstoredtabletservers = AllStoredTabletServers::read_tabletservers(&vec![&hostname], &vec![&port], 1).await;
 
         assert!(!allstoredtabletservers.stored_tabletservers.is_empty());
         assert!(!allstoredtabletservers.stored_pathmetrics.is_empty());

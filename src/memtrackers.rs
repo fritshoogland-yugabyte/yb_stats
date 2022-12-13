@@ -1,7 +1,6 @@
 use chrono::{DateTime, Local};
 use regex::Regex;
 use serde_derive::{Serialize,Deserialize};
-//use rayon;
 use std::sync::mpsc::channel;
 use scraper::{ElementRef, Html, Selector};
 use log::*;
@@ -173,30 +172,6 @@ pub fn print_memtrackers_data(
     Ok(())
 }
 
-/*
-#[allow(dead_code)]
-#[allow(clippy::ptr_arg)]
-fn read_memtrackers_snapshot(
-    snapshot_number: &String,
-    yb_stats_directory: &PathBuf
-) -> Vec<StoredMemTrackers> {
-    let mut stored_memtrackers: Vec<StoredMemTrackers> = Vec::new();
-    let memtrackers_file = &yb_stats_directory.join(snapshot_number).join("memtrackers");
-    let file = fs::File::open(memtrackers_file)
-        .unwrap_or_else(|e| {
-            error!("Fatal: error reading file: {}: {}", &memtrackers_file.clone().into_os_string().into_string().unwrap(), e);
-            process::exit(1);
-        });
-    let mut reader = csv::Reader::from_reader(file);
-    for row in reader.deserialize() {
-        let data: StoredMemTrackers = row.unwrap();
-        let _ = &stored_memtrackers.push(data);
-    }
-    stored_memtrackers
-}
-
- */
-
 #[allow(dead_code)]
 pub fn add_to_memtrackers_vector(memtrackersdata: Vec<MemTrackers>,
                                  hostname: &str,
@@ -218,6 +193,7 @@ pub fn add_to_memtrackers_vector(memtrackersdata: Vec<MemTrackers>,
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utility_test::*;
 
     #[test]
     fn unit_parse_memtrackers_data() {
@@ -1279,14 +1255,12 @@ server uuid 05b8d17620eb4cd79eddaddb2fbcbb42</pre></div></footer></body></html>
         assert_eq!(result.len(), 345);
     }
 
-    use crate::utility;
-
     #[test]
     fn integration_parse_memtrackers_master() {
         let mut stored_memtrackers: Vec<StoredMemTrackers> = Vec::new();
         let detail_snapshot_time = Local::now();
-        let hostname = utility::get_hostname_master();
-        let port = utility::get_port_master();
+        let hostname = get_hostname_master();
+        let port = get_port_master();
 
         let memtrackers: Vec<MemTrackers> = read_memtrackers(hostname.as_str(), port.as_str());
         add_to_memtrackers_vector(memtrackers, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_memtrackers);
@@ -1297,8 +1271,8 @@ server uuid 05b8d17620eb4cd79eddaddb2fbcbb42</pre></div></footer></body></html>
     fn parse_memtrackers_tserver() {
         let mut stored_memtrackers: Vec<StoredMemTrackers> = Vec::new();
         let detail_snapshot_time = Local::now();
-        let hostname = utility::get_hostname_tserver();
-        let port = utility::get_port_tserver();
+        let hostname = get_hostname_tserver();
+        let port = get_port_tserver();
 
         let memtrackers: Vec<MemTrackers> = read_memtrackers(hostname.as_str(), port.as_str());
         add_to_memtrackers_vector(memtrackers, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_memtrackers);

@@ -148,6 +148,7 @@ impl AllStoredIsLeader {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utility_test::*;
 
     #[test]
     fn unit_parse_status_ok() {
@@ -180,15 +181,13 @@ File not found
         assert_eq!(result.status, "");
     }
 
-    use crate::utility;
-
     #[tokio::test]
     async fn integration_find_master_leader() {
 
-        let hostname = utility::get_hostname_master();
-        let port = utility::get_port_master();
+        let hostname = get_hostname_master();
+        let port = get_port_master();
 
         let leader = AllStoredIsLeader::return_leader_http(&vec![&hostname], &vec![&port], 1_usize).await;
-        println!("{}", leader);
+        assert!(leader.is_empty())
     }
 }

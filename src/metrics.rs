@@ -1570,6 +1570,7 @@ impl SnapshotDiffBTreeMapsMetrics {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utility_test::*;
 
     #[test]
     /// cdcsdk (change data capture software development kit) metrics value
@@ -1951,8 +1952,7 @@ mod tests {
         assert_eq!(statistic_value, "is_load_balancing_enabled, false");
     }
 
-    use crate::utility;
-
+    /*
     fn test_function_read_metrics(
         hostname: String,
         port: String
@@ -1964,53 +1964,55 @@ mod tests {
         allstoredmetrics.split_into_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now());
         allstoredmetrics
     }
-    #[test]
-    fn integration_parse_metrics_master()
+
+     */
+    #[tokio::test]
+    async fn integration_parse_metrics_master()
     {
-        let hostname = utility::get_hostname_master();
-        let port = utility::get_port_master();
-        let allstoredmetrics = test_function_read_metrics(hostname, port);
+        let hostname = get_hostname_master();
+        let port = get_port_master();
+        let allstoredmetrics = AllStoredMetrics::read_metrics(&vec![&hostname], &vec![&port], 1).await;
         // a master will produce values and countsum rows, but no countsumrows rows, because that belongs to YSQL.
         assert!(!allstoredmetrics.stored_values.is_empty());
         assert!(!allstoredmetrics.stored_countsum.is_empty());
         assert!(allstoredmetrics.stored_countsumrows.is_empty());
     }
-    #[test]
-    fn integration_parse_metrics_tserver() {
-        let hostname = utility::get_hostname_tserver();
-        let port = utility::get_port_tserver();
-        let allstoredmetrics = test_function_read_metrics(hostname, port);
+    #[tokio::test]
+    async fn integration_parse_metrics_tserver() {
+        let hostname = get_hostname_tserver();
+        let port = get_port_tserver();
+        let allstoredmetrics = AllStoredMetrics::read_metrics(&vec![&hostname], &vec![&port], 1).await;
         // a tablet server will produce values and countsum rows, but no countsumrows rows, because that belongs to YSQL.
         assert!(!allstoredmetrics.stored_values.is_empty());
         assert!(!allstoredmetrics.stored_countsum.is_empty());
         assert!(allstoredmetrics.stored_countsumrows.is_empty());
     }
-    #[test]
-    fn integration_parse_metrics_ysql() {
-        let hostname = utility::get_hostname_ysql();
-        let port = utility::get_port_ysql();
-        let allstoredmetrics = test_function_read_metrics(hostname, port);
+    #[tokio::test]
+    async fn integration_parse_metrics_ysql() {
+        let hostname = get_hostname_ysql();
+        let port = get_port_ysql();
+        let allstoredmetrics = AllStoredMetrics::read_metrics(&vec![&hostname], &vec![&port], 1).await;
         // YSQL will produce countsumrows rows, but no value or countsum rows
         assert!(allstoredmetrics.stored_values.is_empty());
         assert!(allstoredmetrics.stored_countsum.is_empty());
         //assert!(!allstoredmetrics.stored_countsumrows.is_empty());
     }
-    #[test]
-    fn integration_parse_metrics_ycql() {
-        let hostname = utility::get_hostname_ycql();
-        let port = utility::get_port_ycql();
-        let allstoredmetrics = test_function_read_metrics(hostname, port);
+    #[tokio::test]
+    async fn integration_parse_metrics_ycql() {
+        let hostname = get_hostname_ycql();
+        let port = get_port_ycql();
+        let allstoredmetrics = AllStoredMetrics::read_metrics(&vec![&hostname], &vec![&port], 1).await;
         // YCQL will produce values and countsum rows, but no countsumrows rows, because that belongs to YSQL.
         // countsum rows are filtered on count == 0, which is true if it wasn't used. therefore, we do not check on countsum statistics. likely, YCQL wasn't used prior to the test.
         assert!(!allstoredmetrics.stored_values.is_empty());
         //assert!(allstoredmetrics.stored_countsum.len() > 0);
         assert!(allstoredmetrics.stored_countsumrows.is_empty());
     }
-    #[test]
-    fn integration_parse_metrics_yedis() {
-        let hostname = utility::get_hostname_yedis();
-        let port = utility::get_port_yedis();
-        let allstoredmetrics = test_function_read_metrics(hostname, port);
+    #[tokio::test]
+    async fn integration_parse_metrics_yedis() {
+        let hostname = get_hostname_yedis();
+        let port = get_port_yedis();
+        let allstoredmetrics = AllStoredMetrics::read_metrics(&vec![&hostname], &vec![&port], 1).await;
         // YEDIS will produce values and countsum rows, but no countsumrows rows, because that belongs to YSQL.
         // countsum rows are filtered on count == 0, which is true when it wasn't used. therefore, we do not check on countsum statistics. likely, YEDIS wasn't used prior to the test.
         assert!(!allstoredmetrics.stored_values.is_empty());

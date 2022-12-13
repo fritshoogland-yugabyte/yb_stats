@@ -226,6 +226,7 @@ fn parse_loglines( logs_data: String ) -> Vec<LogLine> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utility_test::*;
 
     #[test]
     fn unit_parse_regular_logline() {
@@ -414,13 +415,11 @@ properties: contain_counters: false is_transactional: true consistency_level: ST
         assert_eq!(result[0].message,"T c6099b05976f49d9b782ccbe126f9b2d P 05b8d17620eb4cd79eddaddb2fbcbb42: Alter schema from Schema [        0:ybrowid[binary NOT NULL PARTITION KEY],\n        1:dir[string NULLABLE NOT A PARTITION KEY],\n        2:dirname[string NULLABLE NOT A PARTITION KEY]\n]\nproperties: contain_counters: false is_transactional: true consistency_level: STRONG use_mangled_column_name: false is_ysql_catalog_table: false retain_delete_markers: false version 0 to Schema [\n        0:ybrowid[binary NOT NULL PARTITION KEY],\n        1:dir[string NULLABLE NOT A PARTITION KEY],\n        2:dirname[string NULLABLE NOT A PARTITION KEY]\n]\nproperties: contain_counters: false is_transactional: true consistency_level: STRONG use_mangled_column_name: false is_ysql_catalog_table: false retain_delete_markers: false version 1");
     }
 
-    use crate::utility;
-
     #[test]
     fn integration_parse_loglines_master() {
         let mut stored_loglines: Vec<StoredLogLines> = Vec::new();
-        let hostname = utility::get_hostname_master();
-        let port = utility::get_port_master();
+        let hostname = get_hostname_master();
+        let port = get_port_master();
 
         let loglines = read_loglines(hostname.as_str(), port.as_str());
         add_to_loglines_vector(loglines, format!("{}:{}", hostname, port).as_str(), &mut stored_loglines);
@@ -431,8 +430,8 @@ properties: contain_counters: false is_transactional: true consistency_level: ST
     #[test]
     fn integration_parse_loglines_tserver() {
         let mut stored_loglines: Vec<StoredLogLines> = Vec::new();
-        let hostname = utility::get_hostname_tserver();
-        let port = utility::get_port_tserver();
+        let hostname = get_hostname_tserver();
+        let port = get_port_tserver();
 
         let loglines = read_loglines(hostname.as_str(), port.as_str());
         add_to_loglines_vector(loglines, format!("{}:{}", hostname, port).as_str(), &mut stored_loglines);

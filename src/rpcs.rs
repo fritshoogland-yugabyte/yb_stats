@@ -696,6 +696,7 @@ fn print_details(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utility_test::*;
 
     #[test]
     fn unit_parse_ysqlrpc_only_checkpointer()
@@ -1357,8 +1358,6 @@ mod tests {
         assert_eq!(stored_outboundrpc[0].remote_ip, "192.168.66.80:7100");
     }
 
-    use crate::utility;
-
     #[test]
     fn integration_parse_rpcs_tserver() {
         let mut stored_ysqlrpc: Vec<StoredYsqlRpc> = Vec::new();
@@ -1366,8 +1365,8 @@ mod tests {
         let mut stored_outboundrpc: Vec<StoredOutboundRpc> = Vec::new();
         let mut stored_cqldetails: Vec<StoredCqlDetails> = Vec::new();
         let mut stored_header: Vec<StoredHeaders> = Vec::new();
-        let hostname = utility::get_hostname_tserver();
-        let port = utility::get_port_tserver();
+        let hostname = get_hostname_tserver();
+        let port = get_port_tserver();
         let data_parsed_from_json = read_rpcs( hostname.as_str(), port.as_str());
         add_to_rpcs_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now(), &mut stored_ysqlrpc, &mut stored_inboundrpc, &mut stored_outboundrpc, &mut stored_cqldetails, &mut stored_header);
         // a tserver / port 9000 does not have YSQL rpcs, port 13000 has.
@@ -1384,8 +1383,8 @@ mod tests {
         let mut stored_outboundrpc: Vec<StoredOutboundRpc> = Vec::new();
         let mut stored_cqldetails: Vec<StoredCqlDetails> = Vec::new();
         let mut stored_header: Vec<StoredHeaders> = Vec::new();
-        let hostname = utility::get_hostname_master();
-        let port = utility::get_port_master();
+        let hostname = get_hostname_master();
+        let port = get_port_master();
         let data_parsed_from_json = read_rpcs( hostname.as_str(), port.as_str());
         add_to_rpcs_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now(), &mut stored_ysqlrpc, &mut stored_inboundrpc, &mut stored_outboundrpc, &mut stored_cqldetails, &mut stored_header);
         // a master / port 7000 does not have YSQL rpcs, port 13000 has.
@@ -1395,13 +1394,14 @@ mod tests {
     }
     #[test]
     fn integration_parse_rpcs_ysql() {
+        let hostname = get_hostname_ysql();
+        let port = get_port_ysql();
+
         let mut stored_ysqlrpc: Vec<StoredYsqlRpc> = Vec::new();
         let mut stored_inboundrpc: Vec<StoredInboundRpc> = Vec::new();
         let mut stored_outboundrpc: Vec<StoredOutboundRpc> = Vec::new();
         let mut stored_cqldetails: Vec<StoredCqlDetails> = Vec::new();
         let mut stored_header: Vec<StoredHeaders> = Vec::new();
-        let hostname = utility::get_hostname_ysql();
-        let port = utility::get_port_ysql();
         let data_parsed_from_json = read_rpcs( hostname.as_str(), port.as_str());
         add_to_rpcs_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now(), &mut stored_ysqlrpc, &mut stored_inboundrpc, &mut stored_outboundrpc, &mut stored_cqldetails, &mut stored_header);
         // ysql does have a single RPC connection by default after startup, which is the checkpointer process

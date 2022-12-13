@@ -49,17 +49,7 @@ impl AllStoredVars {
         let allvars = AllStoredVars::read_vars(hosts, ports, parallel).await;
         save_snapshot(snapshot_number, "vars", allvars.stored_vars)?;
 
-        /*
-        allvars.await.save_snapshot(snapshot_number)
-            .unwrap_or_else(|e| {
-                error!("error saving snapshot: {}", e);
-                process::exit(1);
-            });
-
-         */
-
         info!("end snapshot: {:?}", timer.elapsed());
-
         Ok(())
     }
     pub fn new() -> Self {
@@ -91,24 +81,23 @@ impl AllStoredVars {
 
         info!("end parallel http read {:?}", timer.elapsed());
 
-        let mut allstoredvars = AllStoredVars {
-            stored_vars: Vec::new(),
-        };
+        let mut allstoredvars = AllStoredVars::new();
+
         for (hostname_port, detail_snapshot_time, vars) in rx {
-            AllStoredVars::split_into_vectors(vars, &hostname_port, detail_snapshot_time, &mut allstoredvars);
+            allstoredvars.split_into_vectors(vars, &hostname_port, detail_snapshot_time);
         }
 
         allstoredvars
     }
     fn split_into_vectors(
+        &mut self,
         allvars: AllVars,
         hostname_port: &str,
         detail_snapshot_time: DateTime<Local>,
-        allstoredvars: &mut AllStoredVars,
     )
     {
         for var in allvars.flags {
-            allstoredvars.stored_vars.push( StoredVars {
+            self.stored_vars.push( StoredVars {
                 hostname_port: hostname_port.to_string(),
                 timestamp: detail_snapshot_time,
                 name: var.name.to_string(),
@@ -128,21 +117,6 @@ impl AllStoredVars {
             String::new()
         };
         AllStoredVars::parse_vars(data_from_http, host, port)
-
-/*
-        if ! scan_port_addr(format!("{}:{}", host, port)) {
-            warn!("hostname: port {}:{} cannot be reached, skipping", host, port);
-            return AllStoredVars::parse_vars(String::from(""), "", "")
-        };
-        let data_from_http = reqwest::blocking::get(format!("http://{}:{}/api/v1/varz", host, port))
-            .unwrap_or_else(|e| {
-                error!("Fatal: error reading from URL: {}", e);
-                process::exit(1);
-            })
-            .text().unwrap();
-        AllStoredVars::parse_vars(data_from_http, host, port)
-
- */
     }
     fn parse_vars(
         vars_data: String,
@@ -156,47 +130,6 @@ impl AllStoredVars {
                 AllVars { flags: Vec::new() }
             })
     }
-    /*
-    fn save_snapshot ( self, snapshot_number: i32 ) -> Result<(), Box<dyn Error>>
-    {
-        let current_directory = env::current_dir()?;
-        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(&snapshot_number.to_string());
-
-        let vars_file = &current_snapshot_directory.join("vars");
-        let file = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(vars_file)?;
-        let mut writer = csv::Writer::from_writer(file);
-        for row in self.stored_vars {
-            writer.serialize(row)?;
-        }
-        writer.flush()?;
-
-        Ok(())
-    }
-
-    pub fn read_snapshot( snapshot_number: &String ) -> Result<AllStoredVars, Box<dyn Error>>
-    {
-        let mut allstoredvars = AllStoredVars {
-            stored_vars: Vec::new(),
-        };
-
-        let current_directory = env::current_dir()?;
-        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number);
-
-        let vars_file = &current_snapshot_directory.join("vars");
-        let file = fs::File::open(vars_file)?;
-
-        let mut reader = csv::Reader::from_reader(file);
-        for row in reader.deserialize() {
-            let data: StoredVars = row?;
-            allstoredvars.stored_vars.push(data);
-        };
-
-        Ok(allstoredvars)
-    }
-     */
     pub async fn print(
         &self,
         details_enable: &bool,
@@ -275,26 +208,10 @@ impl SnapshotDiffBTreeMapsVars {
         let mut allstoredvars = AllStoredVars::new();
         allstoredvars.stored_vars = read_snapshot(begin_snapshot, "vars")?;
 
-        /*
-        let allstoredvars = AllStoredVars::read_snapshot(begin_snapshot)
-            .unwrap_or_else(|e| {
-                error!("Fatal: error reading snapshot: {}", e);
-                process::exit(1);
-            });
-
-         */
         let mut vars_snapshot_diff = SnapshotDiffBTreeMapsVars::first_snapshot(allstoredvars);
 
         let mut allstoredvars = AllStoredVars::new();
         allstoredvars.stored_vars = read_snapshot(end_snapshot, "vars")?;
-        /*
-        let allstoredvars = AllStoredVars::read_snapshot(end_snapshot)
-            .unwrap_or_else(|e| {
-                error!("Fatal: error reading snapshot: {}", e);
-                process::exit(1);
-            });
-
-         */
         vars_snapshot_diff.second_snapshot(allstoredvars);
 
         Ok(vars_snapshot_diff)
@@ -402,6 +319,7 @@ impl SnapshotDiffBTreeMapsVars {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utility_test::*;
 
     #[test]
     fn unit_parse_regular_vars() {
@@ -468,32 +386,26 @@ mod tests {
         assert_eq!(result.flags[0].vars_type, "NodeInfo");
     }
 
-    /*
-    use crate::utility;
-    #[test]
-    fn integration_parse_gflags_master() {
-        let mut stored_gflags: Vec<StoredGFlags> = Vec::new();
-        let detail_snapshot_time = Local::now();
-        let hostname = utility::get_hostname_master();
-        let port = utility::get_port_master();
+    #[tokio::test]
+    async fn integration_parse_vars_master()
+    {
+        let hostname = get_hostname_master();
+        let port = get_port_master();
 
-        let gflags = read_gflags(hostname.as_str(), port.as_str());
-        add_to_gflags_vector(gflags, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_gflags);
+        let allstoredvars = AllStoredVars::read_vars(&vec![&hostname], &vec![&port], 1).await;
+
         // the master must have gflags
-        assert!(!stored_gflags.is_empty());
+        assert!(!allstoredvars.stored_vars.is_empty());
     }
-    #[test]
-    fn integration_parse_gflags_tserver() {
-        let mut stored_gflags: Vec<StoredGFlags> = Vec::new();
-        let detail_snapshot_time = Local::now();
-        let hostname = utility::get_hostname_tserver();
-        let port = utility::get_port_tserver();
+    #[tokio::test]
+    async fn integration_parse_vars_tserver()
+    {
+        let hostname = get_hostname_tserver();
+        let port = get_port_tserver();
 
-        let gflags = read_gflags(hostname.as_str(), port.as_str());
-        add_to_gflags_vector(gflags, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_gflags);
-        // the tserver must have gflags
-        assert!(!stored_gflags.is_empty());
+        let allstoredvars = AllStoredVars::read_vars(&vec![&hostname], &vec![&port], 1).await;
+
+        // the master must have gflags
+        assert!(!allstoredvars.stored_vars.is_empty());
     }
-
-     */
 }

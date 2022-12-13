@@ -101,19 +101,24 @@ impl AllStoredThreads {
         port: &str,
     ) -> Vec<Threads>
     {
-        let data_from_http = if scan_host_port(host, port) {
+        let data_from_http = if scan_host_port(host, port)
+        {
             http_get(host, port, "threadz?group=all")
-        } else {
+        }
+        else
+        {
             String::new()
         };
         AllStoredThreads::parse_threads(data_from_http)
     }
     fn parse_threads(
         http_data: String
-    ) -> Vec<Threads> {
+    ) -> Vec<Threads>
+    {
         let mut threads: Vec<Threads> = Vec::new();
         let function_regex = Regex::new(r"@\s+0x[[:xdigit:]]+\s+(\S+)\n").unwrap();
-        if let Some(table) = AllStoredThreads::find_table(&http_data) {
+        if let Some(table) = AllStoredThreads::find_table(&http_data)
+        {
             let (headers, rows) = table;
 
             let try_find_header = |target| headers.iter().position(|h| h == target);
@@ -124,32 +129,40 @@ impl AllStoredThreads {
             let cumul_iowaits_pos = try_find_header("Cumulative IO-wait(s)");
 
             let take_or_missing =
-                |row: &mut [String], pos: Option<usize>| match pos.and_then(|pos| row.get_mut(pos)) {
+                |row: &mut [String], pos: Option<usize>| match pos.and_then(|pos| row.get_mut(pos))
+                {
                     Some(value) => std::mem::take(value),
                     None => "<Missing>".to_string(),
                 };
 
             let mut stack_from_table = String::from("Initial value: this should not be visible");
-            for mut row in rows {
-                stack_from_table = if row.len() == 5 {
+            for mut row in rows
+            {
+                stack_from_table = if row.len() == 5
+                {
                     std::mem::take(&mut row[4])
-                } else {
+                }
+                else
+                {
                     stack_from_table.to_string()
                 };
                 let stack_from_table = stack_from_table.replace("&lt;", "<");
                 let stack_from_table = stack_from_table.replace("&gt;", ">");
                 let mut st = Vec::new();
-                for c in function_regex.captures_iter(&stack_from_table) {
+                for c in function_regex.captures_iter(&stack_from_table)
+                {
                     st.push(c[1].to_string().clone());
                 };
                 st.reverse();
                 let mut final_stack = String::from("");
-                for function in &st {
+                for function in &st
+                {
                     final_stack.push_str(function );
                     final_stack.push(';');
                 }
                 final_stack.pop();
-                threads.push(Threads {
+                threads.push(Threads
+                {
                     thread_name: take_or_missing(&mut row, thread_name_pos),
                     cumulative_user_cpu_s: take_or_missing(&mut row, cumul_user_cpus_pos),
                     cumulative_kernel_cpu_s: take_or_missing(&mut row, cumul_kernel_cpus_pos),
@@ -160,9 +173,13 @@ impl AllStoredThreads {
         }
         threads
     }
-    fn find_table(http_data: &str) -> Option<(Vec<String>, Vec<Vec<String>>)> {
+    fn find_table(
+        http_data: &str
+    ) -> Option<(Vec<String>, Vec<Vec<String>>)>
+    {
         let css = |selector| Selector::parse(selector).unwrap();
-        let get_cells = |row: ElementRef, selector| {
+        let get_cells = |row: ElementRef, selector|
+        {
             row.select(&css(selector))
                 .map(|cell| cell.inner_html().trim().to_string())
                 .collect()
@@ -180,11 +197,14 @@ impl AllStoredThreads {
         hostname_filter: &Regex
     ) -> Result<()>
     {
-        info!("print hhreads");
+        info!("print threads");
         let mut previous_hostname_port = String::from("");
-        for row in &self.stored_threads {
-            if hostname_filter.is_match(&row.hostname_port) {
-                if row.hostname_port != previous_hostname_port {
+        for row in &self.stored_threads
+        {
+            if hostname_filter.is_match(&row.hostname_port)
+            {
+                if row.hostname_port != previous_hostname_port
+                {
                     println!("--------------------------------------------------------------------------------------------------------------------------------------");
                     println!("Host: {}, Snapshot time: {}", &row.hostname_port.to_string(), row.timestamp);
                     println!("--------------------------------------------------------------------------------------------------------------------------------------");
@@ -208,6 +228,7 @@ impl AllStoredThreads {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utility_test::*;
 
     #[test]
     fn unit_parse_threads_data() {
@@ -336,7 +357,7 @@ Total number of threads: 4</pre></td></tr>
 </table><div class='yb-bottom-spacer'></div></div>
 <footer class='footer'><div class='yb-footer container text-muted'><pre class='message'><i class="fa-lg fa fa-gift" aria-hidden="true"></i> Congratulations on installing YugabyteDB. We'd like to welcome you to the community with a free t-shirt and pack of stickers! Please claim your reward here: <a href='https://www.yugabyte.com/community-rewards/'>https://www.yugabyte.com/community-rewards/</a></pre><pre>version 2.13.0.0 build 42 revision cd3c1a4bb1cca183be824851f8158ebbffd1d3d8 build_type RELEASE built at 06 Mar 2022 03:13:49 UTC
 server uuid 4ce571a18f8c4a9a8b35246222d12025 local time 2022-03-16 12:33:37.634419</pre></div></footer></body></html>"#.to_string();
-        let result = parse_threads(threads);
+        let result = AllStoredThreads::parse_threads(threads);
         // this results in 33 Threads
         assert_eq!(result.len(), 33);
         // and the thread name is Master_reactorx-6127
@@ -349,31 +370,24 @@ server uuid 4ce571a18f8c4a9a8b35246222d12025 local time 2022-03-16 12:33:37.6344
         assert_eq!(result[0].stack, "__clone;start_thread;yb::Thread::SuperviseThread();yb::rpc::Reactor::RunThread();ev_run;epoll_poll;__GI_epoll_wait");
     }
 
-    use crate::utility;
+    #[tokio::test]
+    async fn integration_parse_threadsdata_master() {
+        let hostname = get_hostname_master();
+        let port = get_port_master();
 
-    #[test]
-    fn integration_parse_threadsdata_master() {
-        let mut stored_threadsdata: Vec<StoredThreads> = Vec::new();
-        let detail_snapshot_time = Local::now();
-        let hostname = utility::get_hostname_master();
-        let port = utility::get_port_master();
-
-        let data_parsed_from_json = read_threads(hostname.as_str(), port.as_str());
-        add_to_threads_vector(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_threadsdata);
-        // each daemon should return one row.
-        assert!(stored_threadsdata.len() > 1);
+        let allstoredthreads = AllStoredThreads::read_threads(&vec![&hostname], &vec![&port], 1).await;
+        // the master returns more than one thread.
+        assert!(allstoredthreads.stored_threads.len() > 1);
     }
-    #[test]
-    fn integration_parse_threadsdata_tserver() {
-        let mut stored_threadsdata: Vec<StoredThreads> = Vec::new();
-        let detail_snapshot_time = Local::now();
-        let hostname = utility::get_hostname_tserver();
-        let port = utility::get_port_tserver();
+    #[tokio::test]
+    async fn integration_parse_threadsdata_tserver() {
+        let hostname = get_hostname_tserver();
+        let port = get_port_tserver();
 
-        let data_parsed_from_json = read_threads(hostname.as_str(), port.as_str());
-        add_to_threads_vector(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_threadsdata);
-        // each daemon should return one row.
-        assert!(stored_threadsdata.len() > 1);
+        let allstoredthreads = AllStoredThreads::read_threads(&vec![&hostname], &vec![&port], 1).await;
+
+        // the tablet server returns more than one thread.
+        assert!(allstoredthreads.stored_threads.len() > 1);
     }
 
 }

@@ -60,23 +60,22 @@ pub async fn perform_mems_snapshot(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use crate::utility;
+    use crate::utility_test::*;
 
     #[test]
-    fn parse_mems_tserver() {
+    fn integration_parse_mems_tserver() {
         // currently, the mems "parsing" is not much parsing.
         // What currently is done, is that the hostname:port/memz output is stored in a file in the snapshot directory named <hostname>:<port>_mems.
-        let hostname = utility::get_hostname_tserver();
-        let port = utility::get_port_tserver();
+        let hostname = get_hostname_tserver();
+        let port = get_port_tserver();
         read_mems(&hostname, &port);
     }
     #[test]
-    fn parse_mems_master() {
+    fn integration_parse_mems_master() {
         // currently, the mems "parsing" is not much parsing.
         // What currently is done, is that the hostname:port/memz output is stored in a file in the snapshot directory named <hostname>:<port>_mems.
-        let hostname = utility::get_hostname_master();
-        let port = utility::get_port_master();
+        let hostname = get_hostname_master();
+        let port = get_port_master();
         read_mems(&hostname, &port);
     }
 }

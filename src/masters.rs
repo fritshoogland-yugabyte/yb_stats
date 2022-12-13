@@ -739,6 +739,7 @@ pub struct StoredMasterError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utility_test::*;
 
     #[test]
     fn unit_parse_master_data() {
@@ -836,16 +837,11 @@ mod tests {
         assert!(result.masters[0].error.is_none());
     }
 
-    use crate::utility;
-
-    #[test]
-    fn integration_parse_masters() {
-        let mut allstoredmasters = AllStoredMasters::new();
-        let hostname = utility::get_hostname_master();
-        let port = utility::get_port_master();
-
-        let data_parsed_from_json = AllStoredMasters::read_http(hostname.as_ref(), port.as_ref());
-        allstoredmasters.split_into_vectors(data_parsed_from_json, format!("{}:{}", &hostname, &port).as_ref(), Local::now());
+    #[tokio::test]
+    async fn integration_parse_masters() {
+        let hostname = get_hostname_master();
+        let port = get_port_master();
+        let allstoredmasters = AllStoredMasters::read_masters(&vec![&hostname], &vec![&port], 1).await;
 
         // a MASTER only will generate entities on each master (!)
         assert!(!allstoredmasters.stored_masters.is_empty());

@@ -170,6 +170,7 @@ pub fn print_gflags_data(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utility_test::*;
 
     #[test]
     fn unit_parse_regular_gflags() {
@@ -1009,13 +1010,12 @@ Command-line Flags--TEST_xcluster_simulate_have_more_records=false
         assert_eq!(result.len(), 829);
     }
 
-    use crate::utility;
     #[test]
     fn integration_parse_gflags_master() {
         let mut stored_gflags: Vec<StoredGFlags> = Vec::new();
         let detail_snapshot_time = Local::now();
-        let hostname = utility::get_hostname_master();
-        let port = utility::get_port_master();
+        let hostname = get_hostname_master();
+        let port = get_port_master();
 
         let gflags = read_gflags(hostname.as_str(), port.as_str());
         add_to_gflags_vector(gflags, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_gflags);
@@ -1026,8 +1026,8 @@ Command-line Flags--TEST_xcluster_simulate_have_more_records=false
     fn integration_parse_gflags_tserver() {
         let mut stored_gflags: Vec<StoredGFlags> = Vec::new();
         let detail_snapshot_time = Local::now();
-        let hostname = utility::get_hostname_tserver();
-        let port = utility::get_port_tserver();
+        let hostname = get_hostname_tserver();
+        let port = get_port_tserver();
 
         let gflags = read_gflags(hostname.as_str(), port.as_str());
         add_to_gflags_vector(gflags, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_gflags);

@@ -491,6 +491,7 @@ impl AllStoredStatements {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utility_test::*;
 
     #[test]
     fn unit_parse_statements_simple() {
@@ -593,17 +594,15 @@ mod tests {
         assert_eq!(allstoredstatements.stored_statements[0].min_time, 0.);
     }
 
-    use crate::utility;
+    #[tokio::test]
+    async fn integration_parse_statements_ysql() {
+        let hostname = get_hostname_ysql();
+        let port = get_port_ysql();
 
-    #[test]
-    fn integration_parse_statements_ysql() {
-        let mut allstoredstatements = AllStoredStatements { stored_statements: Vec::new() };
-        let hostname = utility::get_hostname_ysql();
-        let port = utility::get_port_ysql();
-
-        let result = AllStoredStatements::read_http(hostname.as_str(), port.as_str());
-        AllStoredStatements::add_and_sum_statements(result, &hostname, Local::now(), &mut allstoredstatements);
+        let _allstoredstatements = AllStoredStatements::read_statements(&vec![&hostname], &vec![&port], 1).await;
         // likely in a test scenario, there are no SQL commands executed, and thus no rows are returned.
         // to make sure this test works in both the scenario of no statements, and with statements, perform no assertion.
+
+
     }
 }

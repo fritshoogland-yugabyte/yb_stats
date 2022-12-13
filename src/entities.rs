@@ -1414,8 +1414,8 @@ impl SnapshotDiffBTreeMapsEntities {
 
 #[cfg(test)]
 mod tests {
-    //use itertools::all;
     use super::*;
+    use crate::utility_test::*;
 
     #[test]
     fn unit_parse_simple_entities_dump() {
@@ -1477,14 +1477,12 @@ mod tests {
         assert_eq!(result.tablets[1].leader.as_ref().unwrap(),"a3f5a16532bb4ed4a061e794831168f8");
     }
 
-    use crate::utility;
-
     #[test]
     fn integration_parse_entities() {
         let mut allstoredentities = AllStoredEntities::new();
 
-        let hostname = utility::get_hostname_master();
-        let port = utility::get_port_master();
+        let hostname = get_hostname_master();
+        let port = get_port_master();
 
         let json = AllStoredEntities::read_http(&hostname, &port);
         allstoredentities.split_into_vectors(json, format!("{}:{}", hostname, port).as_str(), Local::now());

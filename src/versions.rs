@@ -521,6 +521,7 @@ impl SnapshotDiffBTreeMapsVersions {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utility_test::*;
 
     #[test]
     fn unit_parse_version_data() {
@@ -540,29 +541,22 @@ mod tests {
         assert_eq!(result.git_hash, "d142556567b5e1c83ea5c915ec7b9964492b2321");
     }
 
-    use crate::utility;
+    #[tokio::test]
+    async fn integration_parse_versiondata_master() {
+        let hostname = get_hostname_master();
+        let port = get_port_master();
 
-    #[test]
-    fn integration_parse_versiondata_master() {
-        let hostname = utility::get_hostname_master();
-        let port = utility::get_port_master();
+        let allstoredversions = AllStoredVersions::read_versions(&vec![&hostname], &vec![&port], 1).await;
 
-        let mut allstoredversions = AllStoredVersions::new();
-        let data_parsed_from_json = AllStoredVersions::read_http(hostname.as_str(), port.as_str());
-        allstoredversions.split_into_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now());
-
-        println!("{:?}", allstoredversions);
         // each daemon should return one row.
         assert!(allstoredversions.stored_versions.len() == 1);
     }
-    #[test]
-    fn integration_parse_versiondata_tserver() {
-        let hostname = utility::get_hostname_tserver();
-        let port = utility::get_port_tserver();
+    #[tokio::test]
+    async fn integration_parse_versiondata_tserver() {
+        let hostname = get_hostname_tserver();
+        let port = get_port_tserver();
 
-        let mut allstoredversions = AllStoredVersions::new();
-        let data_parsed_from_json = AllStoredVersions::read_http(hostname.as_str(), port.as_str());
-        allstoredversions.split_into_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now());
+        let allstoredversions = AllStoredVersions::read_versions(&vec![&hostname], &vec![&port], 1).await;
 
         // each daemon should return one row.
         assert!(allstoredversions.stored_versions.len() == 1);

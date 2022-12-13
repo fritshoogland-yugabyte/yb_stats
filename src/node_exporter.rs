@@ -668,6 +668,7 @@ fn linux_cpu_sum(nodeexportervalues: &mut Vec<NodeExporterValues>)
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utility_test::*;
 
     #[test]
     fn unit_parse_node_exporter_non_prometheus_data() {
@@ -781,21 +782,24 @@ request_duration_sum 22.978489699999997
         assert_eq!(result.len(), 0);
     }
 
-    use crate::utility;
-
-    #[test]
-    fn integration_parse_node_exporter() {
-        let hostname = utility::get_hostname_node_exporter();
+    #[tokio::test]
+    async fn integration_parse_node_exporter() {
+        let hostname = get_hostname_node_exporter();
         if hostname == *"SKIP" {
             // workaround for allowing integration tests where no node exporter is present.
             return;
         }
-        let port = utility::get_port_node_exporter();
+        let port = get_port_node_exporter();
 
+        let allstorednodeexportervalues = AllStoredNodeExporterValues::read_nodeexporter(&vec![&hostname], &vec![&port], 1).await;
+
+        /*
         let mut allstorednodeexportervalues = AllStoredNodeExporterValues { stored_nodeexportervalues: Vec::new() };
         let node_exporter_values = AllStoredNodeExporterValues::read_http(hostname.as_str(), port.as_str());
         AllStoredNodeExporterValues::add_to_vector(node_exporter_values, format!("{}:{}",hostname, port).as_ref(), &mut allstorednodeexportervalues);
         // a node exporter endpoint will generate entries in the stored_nodeexportervalues vector.
+
+         */
         assert!(!allstorednodeexportervalues.stored_nodeexportervalues.is_empty());
     }
 }

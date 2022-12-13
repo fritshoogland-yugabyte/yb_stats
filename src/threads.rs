@@ -30,7 +30,7 @@ pub struct StoredThreads {
 
 #[derive(Debug, Default)]
 pub struct AllStoredThreads {
-    pub stored_threads: Vec<StoredThreads>
+    pub stored_threads: Vec<StoredThreads>,
 }
 
 impl AllStoredThreads {
@@ -55,7 +55,7 @@ impl AllStoredThreads {
     pub async fn read_threads (
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
-        parallel: usize
+        parallel: usize,
     ) -> AllStoredThreads
     {
         info!("begin parallel http read");
@@ -148,6 +148,7 @@ impl AllStoredThreads {
                 };
                 let stack_from_table = stack_from_table.replace("&lt;", "<");
                 let stack_from_table = stack_from_table.replace("&gt;", ">");
+                // reverse the stack
                 let mut st = Vec::new();
                 for c in function_regex.captures_iter(&stack_from_table)
                 {
@@ -161,6 +162,7 @@ impl AllStoredThreads {
                     final_stack.push(';');
                 }
                 final_stack.pop();
+                // end reverse the stack
                 threads.push(Threads
                 {
                     thread_name: take_or_missing(&mut row, thread_name_pos),

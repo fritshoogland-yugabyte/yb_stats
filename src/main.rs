@@ -27,6 +27,7 @@ use crate::versions::{AllStoredVersions, SnapshotDiffBTreeMapsVersions};
 use crate::snapshot::read_snapshot;
 use crate::threads::AllStoredThreads;
 use crate::clocks::AllStoredClocks;
+use crate::memtrackers::AllStoredMemTrackers;
 
 mod snapshot;
 mod value_statistic_details;
@@ -51,6 +52,7 @@ mod isleader;
 mod tservers;
 mod vars;
 mod clocks;
+#[cfg(test)]
 mod utility_test;
 
 const DEFAULT_HOSTS: &str = "192.168.66.80,192.168.66.81,192.168.66.82";
@@ -120,7 +122,7 @@ struct Opts {
     end: Option<i32>,
     /// Print memtrackers data for the given snapshot number
     #[arg(long, value_name = "snapshot number")]
-    print_memtrackers: Option<String>,
+    print_memtrackers: Option<Option<String>>,
     /// Print log data for the given snapshot number
     #[arg(long, value_name = "snapshot number")]
     print_log: Option<String>,
@@ -323,13 +325,29 @@ async fn main() -> Result<()>
 
     } else if options.print_memtrackers.is_some() {
 
-        memtrackers::print_memtrackers_data(&options.print_memtrackers.unwrap(), &hostname_filter, &stat_name_filter)?;
+        match options.print_memtrackers.unwrap() {
+
+            Some(snapshot_number) => {
+
+              let mut allstoredmemtrackers = AllStoredMemTrackers::new();
+              allstoredmemtrackers.stored_memtrackers = read_snapshot(&snapshot_number, "memtrackers")?;
+
+            },
+            None => {
+
+               let allstoredmemtrackers = AllStoredMemTrackers::read_memtrackers(&hosts, &ports, parallel).await;
+               allstoredmemtrackers.print(&hostname_filter, &stat_name_filter)?;
+
+            },
+
+        }
 
     } else if options.print_log.is_some() {
 
         loglines::print_loglines(&options.print_log.unwrap(), &hostname_filter, &options.log_severity)?;
 
     } else if options.print_version.is_some() {
+
         match options.print_version.unwrap() {
             Some(snapshot_number) => {
 
@@ -337,12 +355,13 @@ async fn main() -> Result<()>
                 allstoredversions.stored_versions = read_snapshot(&snapshot_number, "versions")?;
 
                 allstoredversions.print(&hostname_filter);
-            }
+            },
             None => {
                 let allstoredversions = AllStoredVersions::read_versions(&hosts, &ports, parallel).await;
                 allstoredversions.print(&hostname_filter);
-            }
+            },
         }
+
     } else if options.print_threads.is_some() {
 
         match options.print_threads.unwrap() {
@@ -380,6 +399,7 @@ async fn main() -> Result<()>
             },
         }
     } else if options.print_masters.is_some() {
+
         match options.print_masters.unwrap() {
             Some(snapshot_number) => {
 
@@ -397,7 +417,9 @@ async fn main() -> Result<()>
                 allstoredmasters.print_adhoc(&options.details_enable, &hosts, &ports, parallel).await;
             }
         }
+
     } else if options.print_tablet_servers.is_some() {
+
         match options.print_tablet_servers.unwrap() {
             Some(snapshot_number) => {
 
@@ -413,7 +435,9 @@ async fn main() -> Result<()>
                 allstoredtabletservers.print_adhoc(&options.details_enable, &hosts, &ports, parallel).await?;
             }
         }
+
     } else if options.print_vars.is_some() {
+
         match options.print_vars.unwrap() {
             Some(snapshot_number) => {
                 let mut allstoredvars = AllStoredVars::new();
@@ -426,6 +450,7 @@ async fn main() -> Result<()>
                 allstoredvars.print(&options.details_enable, &hostname_filter, &stat_name_filter).await;
             }
         }
+
     } else if options.print_clocks.is_some() {
 
         match options.print_clocks.unwrap() {
@@ -849,7 +874,7 @@ async fn perform_snapshot(
     let arc_hosts_clone = arc_hosts.clone();
     let arc_ports_clone = arc_ports.clone();
     let handle = tokio::spawn(async move {
-        memtrackers::perform_memtrackers_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
+        AllStoredMemTrackers::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
     });
     handles.push(handle);
 

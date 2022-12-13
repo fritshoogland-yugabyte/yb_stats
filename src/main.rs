@@ -270,6 +270,7 @@ async fn main() -> Result<()>
             println!("snapshot number {}", snapshot_number);
         }
     } else if options.snapshot_diff || options.snapshot_list {
+
         info!("snapshot_diff");
         if options.begin.is_none() || options.end.is_none() {
             snapshot::Snapshot::print()?;
@@ -294,6 +295,7 @@ async fn main() -> Result<()>
         vars_diff.print();
         let versions_diff = versions::SnapshotDiffBTreeMapsVersions::snapshot_diff(&begin_snapshot, &end_snapshot)?;
         versions_diff.print();
+
     } else if options.entity_diff {
         info!("entity_diff");
 
@@ -491,6 +493,7 @@ async fn main() -> Result<()>
         }
         info!("ad-hoc metrics diff first snapshot end: {:?}", timer.elapsed());
 
+        println!("Begin ad-hoc in-memory snapshot created, press enter to create end snapshot for difference calculation.");
         let mut input = String::new();
         stdin().read_line(&mut input).expect("failed");
 
@@ -537,7 +540,9 @@ async fn main() -> Result<()>
         node_exporter.lock().await.print(&hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
 
     } else {
+
         info!("ad-hoc mode first snapshot begin");
+
         let timer = Instant::now();
 
         let first_snapshot_time = Local::now();

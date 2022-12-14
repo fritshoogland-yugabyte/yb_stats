@@ -199,11 +199,50 @@ impl AllStoredClocks {
 
         let leader_hostname = AllStoredIsLeader::return_leader_snapshot(snapshot_number)?;
 
+        if *details_enable
+        {
+            println!("{:20} {:20} {:10} {:20} {:26} {:36} {:6} {:10} {:10} {:10}",
+                     "hostname",
+                     "server",
+                     "HB",
+                     "status uptime",
+                     "physical time UTC",
+                     "hybrid time UTC",
+                     "HB RTT",
+                     "cloud",
+                     "region",
+                     "zone"
+            );
+        }
+        else
+        {
+            println!("{:20} {:10} {:20} {:26} {:36} {:6} {:10} {:10} {:10}",
+                     "server",
+                     "HB",
+                     "status uptime",
+                     "physical time UTC",
+                     "hybrid time UTC",
+                     "HB RTT",
+                     "cloud",
+                     "region",
+                     "zone"
+            );
+        }
         for row in &self.stored_clocks {
             if row.hostname_port == leader_hostname
                 && !*details_enable
             {
-                println!("{} {} {} {} {} {} {} {} {}", row.server, row.time_since_heartbeat, row.status_uptime, row.physical_time_utc, row.hybrid_time_utc, row.heartbeat_rtt, row.cloud, row.region, row.zone);
+                println!("{:20} {:10} {:20} {:26} {:36} {:6} {:10} {:10} {:10}",
+                         row.server.split_whitespace().next().unwrap_or_default(),
+                         row.time_since_heartbeat,
+                         row.status_uptime,
+                         row.physical_time_utc,
+                         row.hybrid_time_utc,
+                         row.heartbeat_rtt,
+                         row.cloud,
+                         row.region,
+                         row.zone
+                );
             }
             if *details_enable
             {
@@ -224,15 +263,65 @@ impl AllStoredClocks {
 
         let leader_hostname = AllStoredIsLeader::return_leader_http(hosts, ports, parallel).await;
 
+        if *details_enable
+        {
+            println!("{:20} {:20} {:10} {:20} {:26} {:36} {:6} {:10} {:10} {:10}",
+                     "hostname",
+                     "server",
+                     "HB",
+                     "status uptime",
+                     "physical time UTC",
+                     "hybrid time UTC",
+                     "HB RTT",
+                     "cloud",
+                     "region",
+                     "zone"
+            );
+        }
+        else
+        {
+            println!("{:20} {:10} {:20} {:26} {:36} {:6} {:10} {:10} {:10}",
+                     "server",
+                     "HB",
+                     "status uptime",
+                     "physical time UTC",
+                     "hybrid time UTC",
+                     "HB RTT",
+                     "cloud",
+                     "region",
+                     "zone"
+            );
+        }
         for row in &self.stored_clocks {
             if row.hostname_port == leader_hostname
                 && !*details_enable
             {
-                println!("{} {} {} {} {} {} {} {} {}", row.server, row.time_since_heartbeat, row.status_uptime, row.physical_time_utc, row.hybrid_time_utc, row.heartbeat_rtt, row.cloud, row.region, row.zone);
+                println!("{:20} {:10} {:20} {:26} {:36} {:6} {:10} {:10} {:10}",
+                         row.server.split_whitespace().next().unwrap_or_default(),
+                         row.time_since_heartbeat,
+                         row.status_uptime,
+                         row.physical_time_utc,
+                         row.hybrid_time_utc,
+                         row.heartbeat_rtt,
+                         row.cloud,
+                         row.region,
+                         row.zone
+                );
             }
             if *details_enable
             {
-                println!("{} {} {} {} {} {} {} {} {} {}", row.hostname_port, row.server, row.time_since_heartbeat, row.status_uptime, row.physical_time_utc, row.hybrid_time_utc, row.heartbeat_rtt, row.cloud, row.region, row.zone);
+                println!("{:20} {:20} {:10} {:20} {:26} {:36} {:6} {:10} {:10} {:10}",
+                         row.hostname_port,
+                         row.server,
+                         row.time_since_heartbeat,
+                         row.status_uptime,
+                         row.physical_time_utc,
+                         row.hybrid_time_utc,
+                         row.heartbeat_rtt,
+                         row.cloud,
+                         row.region,
+                         row.zone
+                );
             }
         }
         Ok(())

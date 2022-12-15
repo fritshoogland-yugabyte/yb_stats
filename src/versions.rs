@@ -89,17 +89,7 @@ impl AllStoredVersions {
         let allstoredversions = AllStoredVersions::read_versions(hosts, ports, parallel).await;
         save_snapshot(snapshot_number, "versions", allstoredversions.stored_versions)?;
 
-        /*
-        allstoredversions.await.save_snapshot(snapshot_number)
-            .unwrap_or_else(|e| {
-                error!("error saving snapshot: {}", e);
-                process::exit(1);
-            });
-
-         */
-
         info!("end snapshot: {:?}", timer.elapsed());
-
         Ok(())
     }
     pub fn new() -> Self {
@@ -160,21 +150,6 @@ impl AllStoredVersions {
             String::new()
         };
         AllStoredVersions::parse_version(data_from_http, host, port)
-
-/*
-        if ! scan_port_addr(format!("{}:{}", host, port)) {
-            warn!("hostname: port {}:{} cannot be reached, skipping", host, port);
-            return AllStoredVersions::parse_version(String::from(""), host, port)
-        };
-        let data_from_http = reqwest::blocking::get(format!("http://{}:{}/api/v1/version", host, port))
-            .unwrap_or_else(|e| {
-                error!("Fatal: error reading from URL: {}", e);
-                process::exit(1);
-            })
-            .text().unwrap();
-        AllStoredVersions::parse_version(data_from_http, host, port)
-
- */
     }
     fn parse_version(
         versions_data: String,
@@ -188,53 +163,6 @@ impl AllStoredVersions {
                 Version::empty()
             })
     }
-    /*
-    fn save_snapshot(
-        self,
-        snapshot_number: i32
-    ) -> Result<(), Box<dyn Error>>
-    {
-        let current_directory = env::current_dir()?;
-        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(&snapshot_number.to_string());
-
-        let versions_file = &current_snapshot_directory.join("versions");
-        let file = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(versions_file)?;
-        let mut writer = csv::Writer::from_writer(file);
-        for row in self.stored_versions {
-            writer.serialize(row)?;
-        }
-        writer.flush()?;
-
-        Ok(())
-    }
-
-    pub fn read_snapshot(
-        snapshot_number: &String
-    ) -> Result<AllStoredVersions, Box<dyn Error>>
-    {
-        let mut allstoredversions = AllStoredVersions {
-            stored_versions: Vec::new(),
-        };
-
-        let current_directory = env::current_dir()?;
-        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number);
-
-        let versions_file = &current_snapshot_directory.join("versions");
-        let file = fs::File::open(versions_file)?;
-
-        let mut reader = csv::Reader::from_reader(file);
-        for row in reader.deserialize() {
-            let data: StoredVersion = row?;
-            allstoredversions.stored_versions.push(data);
-        };
-
-        Ok(allstoredversions)
-    }
-
-     */
     pub fn print(
         &self,
         hostname_filter: &Regex,
@@ -372,56 +300,39 @@ impl SnapshotDiffBTreeMapsVersions {
         end_snapshot: &String,
     ) -> Result<SnapshotDiffBTreeMapsVersions>
     {
+        // first snapshot
         let mut allstoredversions = AllStoredVersions::new();
         allstoredversions.stored_versions = read_snapshot(begin_snapshot, "versions")?;
-        /*
-        let allstoredversions = AllStoredVersions::read_snapshot(begin_snapshot)
-            .unwrap_or_else(|e| {
-                error!("Fatal: error reading snapshot: {}", e);
-                process::exit(1);
-            });
-
-         */
-        let mut versions_snapshot_diff = SnapshotDiffBTreeMapsVersions::first_snapshot(allstoredversions);
-
+        let mut versions_snapshot_diff = SnapshotDiffBTreeMapsVersions::new();
+        versions_snapshot_diff.first_snapshot(allstoredversions);
+        // second snapshot
         let mut allstoredversions = AllStoredVersions::new();
         allstoredversions.stored_versions = read_snapshot(end_snapshot, "versions")?;
-        /*
-        let allstoredversions = AllStoredVersions::read_snapshot(end_snapshot)
-            .unwrap_or_else(|e| {
-                error!("Fatal: error reading snapshot: {}", e);
-                process::exit(1);
-            });
-
-         */
         versions_snapshot_diff.second_snapshot(allstoredversions);
-
+        // return diff
         Ok(versions_snapshot_diff)
     }
     pub fn new() -> Self {
         Default::default()
     }
     fn first_snapshot(
+        &mut self,
         allstoredversions: AllStoredVersions,
-    ) -> SnapshotDiffBTreeMapsVersions
+    )
     {
-        let mut snapshotdiff_btreemaps = SnapshotDiffBTreeMapsVersions {
-            btreemap_snapshotdiff_versions: Default::default(),
-        };
         for row in allstoredversions.stored_versions.into_iter() {
-            match snapshotdiff_btreemaps.btreemap_snapshotdiff_versions.get_mut( &row.hostname_port.to_string() ) {
+            match self.btreemap_snapshotdiff_versions.get_mut( &row.hostname_port.to_string() ) {
                 Some( _version_row ) => {
                     error!("Found second entry for first entry of version based on hostname: {}", &row.hostname_port) ;
                 },
                 None => {
-                    snapshotdiff_btreemaps.btreemap_snapshotdiff_versions.insert(
+                    self.btreemap_snapshotdiff_versions.insert(
                         row.hostname_port.to_string(),
                         SnapshotDiffStoredVersions::first_snapshot(row)
                     );
                 },
             }
         }
-        snapshotdiff_btreemaps
     }
     fn second_snapshot(
         &mut self,
@@ -457,16 +368,23 @@ impl SnapshotDiffBTreeMapsVersions {
     }
     pub fn print(
         &self,
+        hostname_filter: &Regex,
     )
     {
-        for (hostname, row) in self.btreemap_snapshotdiff_versions.iter() {
-            if row.first_git_hash.is_empty() || row.second_git_hash.is_empty() {
-                //println!("{} {:20} Versions: {:15} {:10} {:10} {:24} {:10}", "+".to_string().green(), hostname, row.second_version_number, row.second_build_number, row.second_build_type, row.second_build_timestamp, row.second_git_hash);
-                continue;
-            //} else if row.second_git_hash.is_empty() {
-            //    //println!("{} {:20} Versions: {:15} {:10} {:10} {:24} {:10}", "-".to_string().red(), hostname, row.first_version_number, row.first_build_number, row.first_build_type, row.first_build_timestamp, row.first_git_hash);
-            //    continue;
-            } else {
+        for (hostname, row) in self.btreemap_snapshotdiff_versions.iter().filter(|(k,_v)| hostname_filter.is_match(k))
+        {
+            if row.first_git_hash.is_empty()
+            {
+                print!("{} {:20} Versions: ", "+".to_string().green(), hostname);
+                println!("{} b{} {} {} {}", row.second_version_number, row.second_build_number, row.second_build_type, row.second_build_timestamp, row.second_git_hash);
+            }
+            else if row.second_git_hash.is_empty()
+            {
+                print!("{} {:20} Versions: ", "-".to_string().red(), hostname);
+                println!("{} b{} {} {} {}", row.first_version_number, row.first_build_number, row.first_build_type, row.first_build_timestamp, row.first_git_hash);
+            }
+            else
+            {
                 print!("{} {:20} Versions: ", "*".to_string().yellow(), hostname);
                 if row.first_version_number != row.second_version_number {
                     print!("{}->{} ", row.first_version_number.yellow(), row.second_version_number.yellow());
@@ -474,22 +392,22 @@ impl SnapshotDiffBTreeMapsVersions {
                     print!("{} ", row.second_version_number);
                 };
                 if row.first_build_number != row.second_build_number {
-                    print!("{}->{} ", row.first_build_number, row.second_build_number);
+                    print!("b{}->b{} ", row.first_build_number.yellow(), row.second_build_number.yellow());
                 } else {
-                    print!("{} ", row.second_build_number);
+                    print!("b{} ", row.second_build_number);
                 };
                 if row.first_build_type != row.second_build_type {
-                    print!("{}->{} ", row.first_build_type, row.second_build_type);
+                    print!("{}->{} ", row.first_build_type.yellow(), row.second_build_type.yellow());
                 } else {
                     print!("{} ", row.second_build_type);
                 };
                 if row.first_build_timestamp != row.second_build_timestamp {
-                    print!("{}->{} ", row.first_build_timestamp, row.second_build_timestamp);
+                    print!("{}->{} ", row.first_build_timestamp.yellow(), row.second_build_timestamp.yellow());
                 } else {
                     print!("{} ", row.second_build_timestamp);
                 };
                 if row.first_git_hash != row.second_git_hash {
-                    println!("{}->{} ", row.first_git_hash, row.second_git_hash);
+                    println!("{}->{} ", row.first_git_hash.yellow(), row.second_git_hash.yellow());
                 } else {
                     println!("{} ", row.second_git_hash);
                 };
@@ -504,7 +422,7 @@ impl SnapshotDiffBTreeMapsVersions {
     )
     {
         let allstoredversions = AllStoredVersions::read_versions(hosts, ports, parallel).await;
-        SnapshotDiffBTreeMapsVersions::first_snapshot(allstoredversions);
+        self.first_snapshot(allstoredversions);
     }
     pub async fn adhoc_read_second_snapshot(
         &mut self,

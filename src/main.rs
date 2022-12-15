@@ -108,6 +108,9 @@ struct Opts {
     /// Create a masters diff report using a begin and end snapshot number.
     #[arg(long)]
     masters_diff: bool,
+    /// Create a versions diff report using a begin and end snapshot number.
+    #[arg(long)]
+    versions_diff: bool,
     /// Create an adhoc diff report only for metrics
     #[arg(long)]
     adhoc_metrics_diff: bool,
@@ -267,11 +270,13 @@ async fn main() -> Result<()>
     let yb_stats_directory = current_directory.join("yb_stats.snapshots");
 
     if options.snapshot {
+
         info!("snapshot option");
         let snapshot_number: i32 = perform_snapshot(hosts, ports, options.snapshot_comment, parallel, options.disable_threads).await?;
         if !options.silent {
             println!("snapshot number {}", snapshot_number);
         }
+
     } else if options.snapshot_diff || options.snapshot_list {
 
         info!("snapshot_diff");
@@ -297,9 +302,10 @@ async fn main() -> Result<()>
         let vars_diff = vars::SnapshotDiffBTreeMapsVars::snapshot_diff(&begin_snapshot, &end_snapshot)?;
         vars_diff.print();
         let versions_diff = versions::SnapshotDiffBTreeMapsVersions::snapshot_diff(&begin_snapshot, &end_snapshot)?;
-        versions_diff.print();
+        versions_diff.print(&hostname_filter);
 
     } else if options.entity_diff {
+
         info!("entity_diff");
 
         if options.begin.is_none() || options.end.is_none() {
@@ -322,6 +328,19 @@ async fn main() -> Result<()>
         let (begin_snapshot, end_snapshot, _begin_snapshot_row) = snapshot::Snapshot::read_begin_end_snapshot_from_user(options.begin, options.end)?;
         let masters_diff = masters::SnapshotDiffBTreeMapsMasters::snapshot_diff(&begin_snapshot, &end_snapshot)?;
         masters_diff.print();
+
+    } else if options.versions_diff {
+
+        info!("versions_diff");
+
+        if options.begin.is_none() || options.end.is_none() {
+            snapshot::Snapshot::print()?;
+        }
+        if options.snapshot_list { process::exit(0) };
+
+        let (begin_snapshot, end_snapshot, _begin_snapshot_row) = snapshot::Snapshot::read_begin_end_snapshot_from_user(options.begin, options.end)?;
+        let versions_diff = versions::SnapshotDiffBTreeMapsVersions::snapshot_diff(&begin_snapshot, &end_snapshot)?;
+        versions_diff.print(&hostname_filter);
 
     } else if options.print_memtrackers.is_some() {
 
@@ -656,7 +675,7 @@ async fn main() -> Result<()>
         info!("ad-hoc metrics diff first snapshot end: {:?}", timer.elapsed());
 
         println!("Begin ad-hoc in-memory snapshot created, press enter to create end snapshot for difference calculation.");
-        let mut input = String::new();
+       let mut input = String::new();
         stdin().read_line(&mut input).expect("failed");
 
         info!("ad-hoc metrics diff second snapshot begin");
@@ -742,7 +761,7 @@ async fn main() -> Result<()>
         masters.lock().await.print();
         tablet_servers.lock().await.print();
         vars.lock().await.print();
-        versions.lock().await.print();
+        versions.lock().await.print(&hostname_filter);
 
     }
 

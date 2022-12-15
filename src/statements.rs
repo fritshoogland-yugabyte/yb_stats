@@ -216,27 +216,11 @@ impl SnapshotDiffBTreeMapStatements {
     {
         let mut allstoredstatements = AllStoredStatements::new();
         allstoredstatements.stored_statements = read_snapshot(begin_snapshot, "statements")?;
-        /*
-        let allstoredstatements = AllStoredStatements::read_snapshot(begin_snapshot)
-            .unwrap_or_else(|e| {
-                error!("Fatal: error reading snapshot: {}", e);
-                process::exit(1);
-            });
-
-         */
         let mut statements_snapshot_diff = SnapshotDiffBTreeMapStatements::new();
         statements_snapshot_diff.first_snapshot(allstoredstatements);
 
         let mut allstoredstatements = AllStoredStatements::new();
         allstoredstatements.stored_statements = read_snapshot(end_snapshot, "statements")?;
-        /*
-        let allstoredstatements = AllStoredStatements::read_snapshot(end_snapshot)
-            .unwrap_or_else(|e| {
-                error!("Fatal: error reading snapshot: {}", e);
-                process::exit(1);
-            });
-
-         */
 
         statements_snapshot_diff.second_snapshot(allstoredstatements, begin_snapshot_time);
 
@@ -340,61 +324,13 @@ impl AllStoredStatements {
 
         let allstoredstatements = AllStoredStatements::read_statements(hosts, ports, parallel).await;
         save_snapshot(snapshot_number, "statements", allstoredstatements.stored_statements)?;
-       /*
-        allstoredstatements.await.save_snapshot(snapshot_number)
-            .unwrap_or_else(|e| {
-                error!("error saving snapshot: {}", e);
-                process::exit(1);
-            });
-
-        */
 
         info!("end snapshot: {:?}", timer.elapsed());
-
         Ok(())
     }
     pub fn new() -> Self {
         Default::default()
     }
-    /*
-    fn save_snapshot ( self, snapshot_number: i32 ) -> Result<(), Box<dyn Error>>
-    {
-        let current_directory = env::current_dir()?;
-        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(&snapshot_number.to_string());
-
-        let statements_file = &current_snapshot_directory.join("statements");
-        let file = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(statements_file)?;
-        let mut writer = csv::Writer::from_writer(file);
-        for row in self.stored_statements {
-            writer.serialize(row)?;
-        }
-        writer.flush()?;
-
-        Ok(())
-    }
-
-    fn read_snapshot( snapshot_number: &String, ) -> Result<AllStoredStatements, Box<dyn Error>>
-    {
-        let mut allstoredstatements = AllStoredStatements { stored_statements: Vec::new() };
-
-        let current_directory = env::current_dir()?;
-        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number);
-
-        let statements_file = &current_snapshot_directory.join("statements");
-        let file = fs::File::open(statements_file)?;
-
-        let mut reader = csv::Reader::from_reader(file);
-        for  row in reader.deserialize() {
-            let data: StoredStatements = row?;
-            allstoredstatements.stored_statements.push(data);
-        }
-
-        Ok(allstoredstatements)
-    }
-     */
     pub async fn read_statements (
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
@@ -421,17 +357,18 @@ impl AllStoredStatements {
 
         info!("end parallel http read {:?}", timer.elapsed());
 
-        let mut allstoredstatements = AllStoredStatements { stored_statements: Vec::new() };
+        let mut allstoredstatements = AllStoredStatements::new();
+
         for (hostname_port, detail_snapshot_time, statements) in rx {
-            AllStoredStatements::add_and_sum_statements(statements, &hostname_port, detail_snapshot_time, &mut allstoredstatements);
+            allstoredstatements.add_and_sum_statements(statements, &hostname_port, detail_snapshot_time);
         }
         allstoredstatements
     }
     pub fn add_and_sum_statements(
+        &mut self,
         statementdata: Statement,
         hostname: &str,
         snapshot_time: DateTime<Local>,
-        allstoredstatements: &mut AllStoredStatements,
     ) {
         /*
          * This construction creates a BTreeMap in order to summarize the statements per YSQL endpoint.
@@ -443,7 +380,8 @@ impl AllStoredStatements {
         for statement in statementdata.statements {
             match unique_statement.get_mut(&(hostname.to_string().clone(), snapshot_time, statement.query.to_string())) {
                 Some(row) => {
-                    *row = UniqueStatementData::add_existing(row, statement)
+                    //*row = UniqueStatementData::add_existing(row, statement)
+                        *row = UniqueStatementData::add_existing(row, statement)
                 },
                 None => {
                     unique_statement.insert((hostname.to_string(), snapshot_time, statement.query.to_string()),
@@ -453,7 +391,7 @@ impl AllStoredStatements {
             }
         }
         for ((hostname, snapshot_time, query), unique_statement_data) in unique_statement {
-            allstoredstatements.stored_statements.push( StoredStatements::new(hostname, snapshot_time, query, unique_statement_data) );
+            self.stored_statements.push( StoredStatements::new(hostname, snapshot_time, query, unique_statement_data) );
         }
     }
     pub fn read_http(
@@ -467,18 +405,6 @@ impl AllStoredStatements {
             String::new()
         };
         AllStoredStatements::parse_statements(data_from_http)
-/*
-        if ! scan_port_addr( format!("{}:{}", host, port) ) {
-            warn!("Warning: hostname:port {}:{} cannot be reached, skipping (statements)", host, port);
-            return AllStoredStatements::parse_statements(String::from(""))
-        }
-        if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}:{}/statements", host, port)) {
-            AllStoredStatements::parse_statements(data_from_http.text().unwrap())
-        } else {
-            AllStoredStatements::parse_statements(String::from(""))
-        }
-
- */
     }
     fn parse_statements( statements_data: String ) -> Statement {
         serde_json::from_str( &statements_data )

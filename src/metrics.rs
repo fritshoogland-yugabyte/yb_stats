@@ -1517,7 +1517,11 @@ impl SnapshotDiffBTreeMapsMetrics {
                     && table_name_filter.is_match(&countsum_diff_row.table_name) {
                     let details = countsum_statistics.lookup(&metric_name);
                     let adaptive_length = if metric_id.len() < 15 { 0 } else { metric_id.len() - 15 };
-                    if countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count != 0 {
+                    // this gives attemptp to subtract with overflow in debug mode.
+                    //if countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count != 0 {
+                    if countsum_diff_row.first_snapshot_total_count < countsum_diff_row.second_snapshot_total_count
+                    && countsum_diff_row.second_snapshot_total_count - countsum_diff_row.first_snapshot_total_count != 0
+                    {
                         if *details_enable {
                             println!("{:20} {:8} {:15} {:15} {:30} {:70} {:15}        {:>15.3} /s avg: {:9.0} tot: {:>15.3} {:10}",
                                      hostname,

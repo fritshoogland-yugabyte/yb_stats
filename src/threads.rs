@@ -210,7 +210,7 @@ impl AllStoredThreads {
                     println!("--------------------------------------------------------------------------------------------------------------------------------------");
                     println!("Host: {}, Snapshot time: {}", &row.hostname_port.to_string(), row.timestamp);
                     println!("--------------------------------------------------------------------------------------------------------------------------------------");
-                    println!("{:20} {:30} {:>20} {:>20} {:>20} {:50}",
+                    println!("{:20} {:40} {:>20} {:>20} {:>20} {:50}",
                              "hostname_port",
                              "thread_name",
                              "cum_user_cpu_s",
@@ -220,7 +220,7 @@ impl AllStoredThreads {
                     println!("--------------------------------------------------------------------------------------------------------------------------------------");
                     previous_hostname_port = row.hostname_port.to_string();
                 };
-                println!("{:20} {:30} {:>20} {:>20} {:>20} {:50}", row.hostname_port, row.thread_name, row.cumulative_user_cpu_s, row.cumulative_kernel_cpu_s, row.cumulative_iowait_cpu_s, row.stack.replace('\n', ""));
+                println!("{:20} {:40} {:>20} {:>20} {:>20} {:50}", row.hostname_port, row.thread_name, row.cumulative_user_cpu_s, row.cumulative_kernel_cpu_s, row.cumulative_iowait_cpu_s, row.stack.replace('\n', ""));
             }
         }
         Ok(())

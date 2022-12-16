@@ -326,6 +326,29 @@ impl AllStoredClocks {
         }
         Ok(())
     }
+    pub async fn print_latency(
+        &self,
+        snapshot_number: &String,
+        details_enable: &bool,
+    ) -> Result<()>
+    {
+        info!("print adhoc tablet servers clocks latency");
+
+        let leader_hostname = AllStoredIsLeader::return_leader_snapshot(snapshot_number)?;
+
+        for row in &self.stored_clocks {
+            if row.hostname_port == leader_hostname
+                && !*details_enable
+            {
+                println!("{} -> {}: {} RTT ({} {} {})", leader_hostname.clone(), row.server.split_whitespace().next().unwrap_or_default(), row.heartbeat_rtt, row.cloud, row.region, row.zone);
+            }
+            if *details_enable
+            {
+                println!("{} {} -> {}: {} RTT ({} {} {})", row.hostname_port, leader_hostname.clone(), row.server.split_whitespace().next().unwrap_or_default(), row.heartbeat_rtt, row.cloud, row.region, row.zone);
+            }
+        }
+        Ok(())
+    }
     pub async fn print_adhoc_latency(
         &self,
         details_enable: &bool,
@@ -438,7 +461,7 @@ mod tests {
 
         let allstoredclocks = AllStoredClocks::read_clocks(&vec![&hostname], &vec![&port], 1_usize).await?;
 
-        assert!(allstoredclocks.stored_clocks.len() > 0);
+        assert!(!allstoredclocks.stored_clocks.is_empty());
 
         Ok(())
     }

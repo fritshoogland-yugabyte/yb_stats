@@ -508,7 +508,8 @@ mod tests {
 }"#.to_string();
         let mut allstoredstatements = AllStoredStatements { stored_statements: Vec::new() };
         let result = AllStoredStatements::parse_statements(statements_json);
-        AllStoredStatements::add_and_sum_statements(result, "localhost", Local::now(), &mut allstoredstatements);
+        allstoredstatements.add_and_sum_statements(result, "localhost", Local::now());
+        //AllStoredStatements::add_and_sum_statements(result, "localhost", Local::now(), &mut allstoredstatements);
         //add_to_statements_vector(result, "localhost", Local::now(), &mut stored_statements);
         // with the new way of adding up all relevant statistics, we still should have 2 statements
         assert_eq!(allstoredstatements.stored_statements.len(), 2);

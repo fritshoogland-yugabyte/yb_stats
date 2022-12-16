@@ -1,6 +1,6 @@
 //! Utility module for the [Snapshot] struct and snapshot CSV file.
 //!
-//! This currently leaves a single snapshot function in lib.rs which performs the complete snapshot of all modules.
+//! This currently leaves a single snapshot function in main.rs which performs the complete snapshot of all modules.
 //! Because all the interaction of [Snapshot] is including reading and writing to a CSV file, there are no unittests.
 use log::*;
 use std::{fs, path::Path, env};
@@ -18,11 +18,14 @@ pub struct Snapshot {
 }
 
 impl Snapshot {
-    /// This is a public function to use the stored CSV snapshot file, determine the highest snapshot number and insert a new snapshot with current timestamp with a snapshot number one higher.
-    /// If the snapshot file doesn't exist, it will be created (yb_stats.snapshots/snapshot.index).
-    /// If the file does exist, the snapshots are read into a vector and the highest snapshot number is determined.
-    /// Then a struct is added to the vector, and the file is overwritten with the new vector.
-    /// The last things done are: the snapshot directory for the data is created (yb_stats.snapshots/<nr>) and the snapshot number is returned.
+    /// This is a public function to:
+    /// - create the yb_stats.snapshots directory (if it exists, it does nothing).
+    /// - open the yb_stats.snapshots/snapshot.index if it exists, and read it into a vec of Snapshot.
+    /// - if it exists, get the highest snapshot number, otherwise snapshot_number remains 0.
+    /// - save a new Snapshot into the vec of Snapshot.
+    /// - write the vec of Snapshot to yb_stats.snapshots/snapshot.index.
+    /// - create the snapshot directory for the data as yb_stats.snapshots/<snapshot_number>.
+    /// - return snapshot_number.
     pub fn insert_new_snapshot_number(
         snapshot_comment: Option<String>
     ) -> Result<i32>
@@ -78,7 +81,8 @@ impl Snapshot {
         }
         Ok(snapshots)
     }
-    /// This is a private function to write the vector to the snapshots file. The file gets truncated and overwritten.
+    /// This is a private function to write the vector to the snapshots file.
+    /// The file gets truncated and overwritten.
     fn write_snapshots(
         snapshots: Vec<Snapshot>
     ) -> Result<()>
@@ -164,7 +168,7 @@ impl Snapshot {
         Ok((begin_snapshot.to_string(), end_snapshot.to_string(), begin_snapshot_row.clone()))
     }
 }
-
+/// This is the general save_snapshot function.
 pub fn save_snapshot<T: Serialize>(
     snapshot_number: i32,
     filename: &str,
@@ -188,7 +192,7 @@ pub fn save_snapshot<T: Serialize>(
 
     Ok(())
 }
-
+/// This is the general read_snapshot function.
 pub fn read_snapshot<T: for<'de> Deserialize<'de>>(
     snapshot_number: &String,
     filename: &str,

@@ -7,6 +7,9 @@
 //! - Read yb_stats snapshots (CSV), and report the difference (`--*-diff`).
 //! - Read yb_stats snapshots (CSV), and report the snapshot data (`--print-* <NR>`).
 //!
+//! This main file contains the [Opts] struct for commandline options via clap.
+//! It then calls the tasks using the opts structure.
+//!
 #![allow(rustdoc::private_intra_doc_links)]
 extern crate serde;
 extern crate serde_json;
@@ -15,13 +18,13 @@ extern crate serde_derive;
 extern crate csv;
 
 use clap::Parser;
-use std::{env, collections::HashMap};
+use std::collections::HashMap;
 use dotenv::dotenv;
 use anyhow::Result;
 
 mod snapshot;
-mod value_statistic_details;
-mod countsum_statistic_details;
+//mod value_statistic_details;
+//mod countsum_statistic_details;
 mod statements;
 mod threads;
 mod memtrackers;
@@ -40,8 +43,6 @@ mod isleader;
 mod tservers;
 mod vars;
 mod clocks;
-#[cfg(test)]
-mod utility_test;
 
 // constants
 const DEFAULT_HOSTS: &str = "192.168.66.80,192.168.66.81,192.168.66.82";
@@ -137,7 +138,7 @@ pub struct Opts {
     print_version: Option<Option<String>>,
     /// Print rpcs for the given snapshot number
     #[arg(long, value_name = "snapshot number")]
-    print_rpcs: Option<String>,
+    print_rpcs: Option<Option<String>>,
     /// print clocks
     #[arg(long)]
     print_clocks: Option<Option<String>>,
@@ -170,34 +171,29 @@ async fn main() -> Result<()>
     let hosts = utility::set_hosts(&options.hosts, &mut changed_options);
     let ports = utility::set_ports(&options.ports, &mut changed_options);
     let parallel = utility::set_parallel(&options.parallel, &mut changed_options);
-    let stat_name_filter = utility::set_regex(&options.stat_name_match);
-    let hostname_filter = utility::set_regex(&options.hostname_match);
-    let table_name_filter = utility::set_regex(&options.table_name_match);
 
-    let current_directory = env::current_dir().unwrap();
-    let yb_stats_directory = current_directory.join("yb_stats.snapshots");
-
-    // The actual functions that perform the yb_stats functionality
-    if      options.snapshot                               { utility::perform_snapshot(hosts, ports, options.snapshot_comment, parallel, options.disable_threads, options.silent).await?; }
-    else if options.snapshot_diff || options.snapshot_list { utility::snapshot_diff(&options, &hostname_filter, &stat_name_filter, &table_name_filter).await?; }
-    else if options.entity_diff                            { utility::entity_diff(&options).await?; }
-    else if options.masters_diff                           { utility::masters_diff(&options).await?; }
-    else if options.versions_diff                          { utility::versions_diff(&options, &hostname_filter).await?; }
-    else if options.print_memtrackers.is_some()            { utility::print_memtrackers(hosts, ports, parallel, &options, &hostname_filter, &stat_name_filter).await?; }
-    else if options.print_log.is_some()                    { loglines::print_loglines(&options.print_log.unwrap(), &hostname_filter, &options.log_severity)?; }
-    else if options.print_version.is_some()                { utility::print_version(hosts, ports, parallel, &options, &hostname_filter).await?; }
-    else if options.print_threads.is_some()                { utility::print_threads(hosts, ports, parallel, &options, &hostname_filter).await?; }
-    else if options.print_gflags.is_some()                 { gflags::print_gflags_data(&options.print_gflags.unwrap(), &yb_stats_directory, &hostname_filter, &stat_name_filter); }
-    else if options.print_entities.is_some()               { utility::print_entities(hosts, ports, parallel, &options, &table_name_filter).await?; }
-    else if options.print_masters.is_some()                { utility::print_masters(hosts, ports, parallel, &options).await?; }
-    else if options.print_tablet_servers.is_some()         { utility::print_tablet_servers(hosts, ports, parallel, &options).await?; }
-    else if options.print_vars.is_some()                   { utility::print_vars(hosts, ports, parallel, &options, &hostname_filter, &stat_name_filter).await?; }
-    else if options.print_clocks.is_some()                 { utility::print_clocks(hosts, ports, parallel, &options).await?; }
-    else if options.print_latencies.is_some()              { utility::print_latencies(hosts, ports, parallel, &options).await?; }
-    else if options.print_rpcs.is_some()                   { rpcs::print_rpcs(&options.print_rpcs.unwrap(), &hostname_filter, &options.details_enable)?; }
-    else if options.adhoc_metrics_diff                     { utility::adhoc_metrics_diff(hosts, ports, parallel, &options, &hostname_filter, &stat_name_filter, &table_name_filter).await?; }
-    else                                                   { utility::adhoc_diff(hosts, ports, parallel, &options, &hostname_filter, &stat_name_filter, &table_name_filter).await?; }
-
+    match &options {
+        Opts { snapshot, ..               } if *snapshot                       => snapshot::perform_snapshot(hosts, ports, parallel, &options).await?,
+        Opts { snapshot_diff, ..          } if *snapshot_diff                  => snapshot::snapshot_diff(&options).await?,
+        Opts { snapshot_list, ..          } if *snapshot_list                  => snapshot::snapshot_diff(&options).await?,
+        Opts { entity_diff, ..            } if *entity_diff                    => entities::entity_diff(&options).await?,
+        Opts { masters_diff, ..           } if *masters_diff                   => masters::masters_diff(&options).await?,
+        Opts { versions_diff, ..          } if *versions_diff                  => versions::versions_diff(&options).await?,
+        Opts { print_memtrackers, ..      } if print_memtrackers.is_some()     => memtrackers::print_memtrackers(hosts, ports, parallel, &options).await?,
+        Opts { print_version, ..          } if print_version.is_some()         => versions::print_version(hosts, ports, parallel, &options).await?,
+        Opts { print_threads, ..          } if print_threads.is_some()         => threads::print_threads(hosts, ports, parallel, &options).await?,
+        Opts { print_entities, ..         } if print_entities.is_some()        => entities::print_entities(hosts, ports, parallel, &options).await?,
+        Opts { print_masters, ..          } if print_masters.is_some()         => masters::print_masters(hosts, ports, parallel, &options).await?,
+        Opts { print_tablet_servers, ..   } if print_tablet_servers.is_some()  => tservers::print_tablet_servers(hosts, ports, parallel, &options).await?,
+        Opts { print_vars, ..             } if print_vars.is_some()            => vars::print_vars(hosts, ports, parallel, &options).await?,
+        Opts { print_clocks, ..           } if print_clocks.is_some()          => clocks::print_clocks(hosts, ports, parallel, &options).await?,
+        Opts { print_latencies, ..        } if print_latencies.is_some()       => clocks::print_latencies(hosts, ports, parallel, &options).await?,
+        Opts { print_rpcs, ..             } if print_rpcs.is_some()            => rpcs::print_rpcs(hosts, ports, parallel, &options).await?,
+        Opts { adhoc_metrics_diff, ..     } if *adhoc_metrics_diff             => utility::adhoc_metrics_diff(hosts, ports, parallel, &options).await?,
+        Opts { print_gflags, ..           } if print_gflags.is_some()          => gflags::print_gflags_data(&options),
+        Opts { print_log, ..              } if print_log.is_some()             => loglines::print_loglines(&options)?,
+        _                                                                      => utility::adhoc_diff(hosts, ports, parallel, &options).await?,
+    };
     // if we are allowed to write, and changed_options does contain values, write them to '.env'
     utility::dotenv_writer(WRITE_DOTENV, changed_options)?;
 

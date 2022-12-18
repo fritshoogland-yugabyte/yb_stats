@@ -115,9 +115,12 @@ pub struct Opts {
     /// Print memtrackers data for the given snapshot number
     #[arg(long, value_name = "snapshot number")]
     print_memtrackers: Option<Option<String>>,
+    /// tail log data
+    #[arg(long)]
+    tail_log: bool,
     /// Print log data for the given snapshot number
     #[arg(long, value_name = "snapshot number")]
-    print_log: Option<String>,
+    print_log: Option<Option<String>>,
     /// Output log data severity to include: optional: I (use with --print_log)
     #[arg(long, default_value = "WEF")]
     log_severity: String,
@@ -189,9 +192,10 @@ async fn main() -> Result<()>
         Opts { print_clocks, ..           } if print_clocks.is_some()          => clocks::print_clocks(hosts, ports, parallel, &options).await?,
         Opts { print_latencies, ..        } if print_latencies.is_some()       => clocks::print_latencies(hosts, ports, parallel, &options).await?,
         Opts { print_rpcs, ..             } if print_rpcs.is_some()            => rpcs::print_rpcs(hosts, ports, parallel, &options).await?,
+        Opts { print_log, ..              } if print_log.is_some()             => loglines::print_loglines(hosts, ports, parallel, &options).await?,
+        Opts { tail_log, ..                } if *tail_log             => loglines::tail_loglines(hosts, ports, parallel, &options).await?,
         Opts { adhoc_metrics_diff, ..     } if *adhoc_metrics_diff             => utility::adhoc_metrics_diff(hosts, ports, parallel, &options).await?,
         Opts { print_gflags, ..           } if print_gflags.is_some()          => gflags::print_gflags_data(&options),
-        Opts { print_log, ..              } if print_log.is_some()             => loglines::print_loglines(&options)?,
         _                                                                      => utility::adhoc_diff(hosts, ports, parallel, &options).await?,
     };
     // if we are allowed to write, and changed_options does contain values, write them to '.env'

@@ -1,224 +1,296 @@
-use std::process;
-use chrono::{Local, TimeZone};
-use std::path::PathBuf;
+use std::{sync::mpsc::channel, thread, time::Instant};
+use std::collections::BTreeMap;
+use std::time::Duration;
+use chrono::{DateTime, Local, TimeZone};
 use regex::{Regex,Captures};
-use std::fs;
 //use serde_derive::{Serialize,Deserialize};
-use std::sync::mpsc::channel;
 use log::*;
+use colored::*;
 use crate::snapshot;
 use anyhow::Result;
 use crate::Opts;
 use crate::utility;
-use crate::loglines::{LogLine, StoredLogLines};
+use crate::loglines::{AllStoredLogLines, LogLine, StoredLogLines};
 
-impl StoredLogLines {
-    fn new(hostname_port: &str, logline: LogLine ) -> Self {
-        Self {
-            hostname_port: hostname_port.to_string(),
-            timestamp: logline.timestamp,
-            severity: logline.severity.to_string(),
-            tid: logline.tid.to_string(),
-            sourcefile_nr: logline.sourcefile_nr.to_string(),
-            message: logline.message,
-        }
+impl AllStoredLogLines {
+    pub fn new() -> Self { Default::default() }
+    pub async fn perform_snapshot(
+        hosts: &Vec<&str>,
+        ports: &Vec<&str>,
+        snapshot_number: i32,
+        parallel: usize,
+    ) -> Result<()>
+    {
+        info!("begin snapshot");
+        let timer = Instant::now();
+
+        let allstoredloglines = AllStoredLogLines::read_loglines(hosts, ports, parallel).await;
+        snapshot::save_snapshot(snapshot_number, "loglines", allstoredloglines.stored_loglines)?;
+
+        info!("end snapshot: {:?}", timer.elapsed());
+
+        Ok(())
     }
-}
+    pub async fn read_loglines(
+        hosts: &Vec<&str>,
+        ports: &Vec<&str>,
+        parallel: usize,
+    ) -> AllStoredLogLines
+    {
+        info!("begin parallel http read");
+        let timer = Instant::now();
 
-#[allow(dead_code)]
-pub fn read_loglines(
-    host: &str,
-    port: &str,
-) -> Vec<LogLine>
-{
-    let data_from_http = if utility::scan_host_port( host, port) {
-        utility::http_get(host, port, "logs?raw")
-    } else {
-        String::new()
-    };
-    parse_loglines(data_from_http)
-    /*
-    if ! scan_port_addr( format!("{}:{}", host, port)) {
-        warn!("Warning: hostname:port {}:{} cannot be reached, skipping (logs)", host, port);
-        return Vec::new();
-    };
-    let data_from_http = reqwest::blocking::Client::builder()
-        .danger_accept_invalid_certs(true)
-        .build()
-        .unwrap()
-        .get(format!("http://{}:{}/logs?raw", host, port))
-        .send()
-        .unwrap()
-        .text()
-        .unwrap();
-    if let Ok(data_from_http) = reqwest::blocking::get(format!("http://{}:{}/logs?raw", host, port)) {
-        parse_loglines(data_from_http.text().unwrap())
-    } else {
-        parse_loglines(String::from(""))
-    }
+        let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
+        let (tx, rx) = channel();
 
-    parse_loglines(data_from_http)
-    */
-}
-
-#[allow(dead_code)]
-#[allow(clippy::ptr_arg)]
-fn read_loglines_snapshot(snapshot_number: &String, yb_stats_directory: &&PathBuf ) -> Vec<StoredLogLines> {
-
-    let mut stored_loglines: Vec<StoredLogLines> = Vec::new();
-    let loglines_file = &yb_stats_directory.join(snapshot_number).join("loglines");
-    let file = fs::File::open(loglines_file)
-        .unwrap_or_else(|e| {
-            error!("Fatal: error reading file: {}: {}", &loglines_file.clone().into_os_string().into_string().unwrap(), e);
-            process::exit(1);
+        pool.scope(move |s| {
+            for host in hosts {
+                for port in ports {
+                    let tx = tx.clone();
+                    s.spawn(move |_| {
+                        // no detail_snapshot_time: the time of the logline is part of LogLine!
+                        let loglines = AllStoredLogLines::read_http(host, port);
+                        tx.send((format!("{}:{}", host, port), loglines)).expect("error sending data via tx (loglines)");
+                    });
+                }
+            }
         });
-    let mut reader = csv::Reader::from_reader(file);
-    for row in reader.deserialize() {
-        let data: StoredLogLines = row.unwrap();
-        let _ = &stored_loglines.push(data);
-    }
-    stored_loglines
-}
 
-#[allow(dead_code)]
-#[allow(clippy::ptr_arg)]
-pub async fn perform_loglines_snapshot(
-    hosts: &Vec<&str>,
-    ports: &Vec<&str>,
-    snapshot_number: i32,
-    parallel: usize
-) -> Result<()>
-{
-    info!("perform_loglines_snapshot");
-    let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
-    let (tx, rx) = channel();
-    pool.scope(move |s| {
-        for host in hosts {
-            for port in ports {
-                let tx = tx.clone();
-                s.spawn(move |_| {
-                    let loglines = read_loglines(host, port);
-                    tx.send((format!("{}:{}", host, port), loglines)).expect("error sending data via tx (logs)");
+        info!("end parallel http read {:?}", timer.elapsed());
+
+        let mut allstoredloglines = AllStoredLogLines::new();
+
+        for (hostname_port, loglines) in rx {
+            for logline in loglines {
+                allstoredloglines.stored_loglines.push( StoredLogLines {
+                    hostname_port: hostname_port.to_string(),
+                    timestamp: logline.timestamp,
+                    severity: logline.severity.to_string(),
+                    tid: logline.tid.to_string(),
+                    sourcefile_nr: logline.sourcefile_nr.to_string(),
+                    message: logline.message.to_string(),
                 });
-            }}
-    });
-    let mut stored_loglines: Vec<StoredLogLines> = Vec::new();
-    for (hostname_port, loglines) in rx {
-        add_to_loglines_vector(loglines, &hostname_port, &mut stored_loglines);
+            }
+        }
+       allstoredloglines
     }
+    fn read_http(
+        host: &str,
+        port: &str,
+    ) -> Vec<LogLine>
+    {
+        let data_from_http = if utility::scan_host_port(host, port)
+        {
+            utility::http_get(host, port, "logs?raw")
+        }
+        else
+        {
+            String::new()
+        };
+        AllStoredLogLines::parse_loglines(data_from_http)
+    }
+    fn parse_loglines( http_data: String ) -> Vec<LogLine> {
+        let mut loglines: Vec<LogLine> = Vec::new();
+        // fs_manager:
+        //I0217 10:12:35.491056 26960 fs_manager.cc:278] Opened local filesystem: /mnt/d0
+        //uuid: "05b8d17620eb4cd79eddaddb2fbcbb42"
+        //format_stamp: "Formatted at 2022-02-13 16:26:17 on yb-1.local"
+        let regular_log_line = Regex::new( r"([IWFE])(\d{2}\d{2} \d{2}:\d{2}:\d{2}\.\d{6})\s+(\d{1,6}) ([a-z_A-Z.:0-9]*)] (.*)\n" ).unwrap();
 
-    snapshot::save_snapshot(snapshot_number, "loglines", stored_loglines)?;
-    Ok(())
+        // Just take the year, it's not in the loglines, however, when the year switches this will lead to error results
+        let year= Local::now().format("%Y").to_string();
+        let to_logline = |captures: Captures<'_>| {
+            let timestamp_string = format!("{}{}", year, &captures[2]);
+            let timestamp = Local
+                .datetime_from_str(&timestamp_string, "%Y%m%d %H:%M:%S.%6f")
+                .unwrap();
+
+            LogLine {
+                severity: captures[1].to_string(),
+                timestamp,
+                tid: captures[3].to_string(),
+                sourcefile_nr: captures[4].to_string(),
+                message: captures[5].to_string()
+            }
+        };
+        // Find first log line.  Any non-regular-log-line data at the beginning of
+        // the logs is discarded.  `remaining` covers all the logs following the
+        // first regular log line.
+        let mut logline;
+        let mut remaining;
+        match regular_log_line.captures(&http_data) {
+            None => return loglines,
+            Some(captures) => {
+                let offset = captures.get(0).map(|m| m.end()).unwrap_or(0);
+                remaining = &http_data[offset..];
+                logline = to_logline(captures);
+            }
+        };
+
+        // For each subsequent match, append any lines before the match to the
+        // current `LogLine`, store it, and start a new `LogLine`.  Update where
+        // we are in the logs by updating `remaining`.
+        while let Some(captures) = regular_log_line.captures(remaining) {
+            let all = captures.get(0).unwrap();
+            let from = all.start();
+            let offset = all.end();
+            logline.message += &remaining[..from];
+            loglines.push(logline);
+            logline = to_logline(captures);
+            remaining = &remaining[offset..]
+        }
+
+        // Append final logline and return
+        logline.message += remaining;
+        loglines.push(logline);
+
+        loglines
+    }
+    pub fn print(
+        &self,
+        hostname_filter: &Regex,
+        stat_name_filter: &Regex,
+        log_severity: &String,
+    ) -> Result<()>
+    {
+        info!("print_log");
+
+        // create a copy of the stored_loglines vector and sort it based on the timestamp.
+        let mut sorted_loglines = self.stored_loglines.clone();
+        sorted_loglines.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+        // use the sorted vector to loop over.
+        for row in &sorted_loglines {
+            if hostname_filter.is_match(&row.hostname_port)
+                && log_severity.contains(&row.severity)
+                && ( stat_name_filter.is_match(&row.message) || stat_name_filter.is_match(&row.sourcefile_nr) )
+            {
+                print!("{:20} {:33} ", row.hostname_port, row.timestamp);
+                match row.severity.as_str() {
+                    "I" => print!("{} ", "I".green()),
+                    "W" => print!("{} ", "W".yellow()),
+                    "E" => print!("{} ", "E".red()),
+                    "F" => print!("{} ", "F".purple()),
+                    _   => print!("{} ", row.severity.underline()),
+                }
+                println!("{:20} {:50}",row.sourcefile_nr, row.message.trim());
+                    //{:1} {:20} {:50}", row.hostname_port, row.timestamp, row.severity, row.sourcefile_nr, row.message)
+            }
+        }
+        Ok(())
+    }
 }
 
-#[allow(dead_code)]
-pub fn print_loglines(
+pub async fn print_loglines(
+    hosts: Vec<&str>,
+    ports: Vec<&str>,
+    parallel: usize,
     options: &Opts,
 ) -> Result<()>
 {
-    let snapshot_number = options.print_log.clone().unwrap();
     let hostname_filter = utility::set_regex(&options.hostname_match);
-    let log_severity = &options.log_severity;
-
-
-    info!("print_log");
-    let stored_loglines: Vec<StoredLogLines> = snapshot::read_snapshot(&snapshot_number, "loglines")?;
-    let mut previous_hostname_port = String::from("");
-    for row in stored_loglines {
-        if hostname_filter.is_match(&row.hostname_port)
-            && log_severity.contains(&row.severity) {
-            if row.hostname_port != previous_hostname_port {
-                println!("--------------------------------------------------------------------------------------------------------------------------------------");
-                println!("Host: {}, Snapshot number: {}, Snapshot time: {}", &row.hostname_port.to_string(), &snapshot_number, row.timestamp);
-                println!("--------------------------------------------------------------------------------------------------------------------------------------");
-                previous_hostname_port = row.hostname_port.to_string();
-            }
-            println!("{:20} {:33} {:1} {:20} {:50}", row.hostname_port, row.timestamp, row.severity, row.sourcefile_nr, row.message)
-        }
+    let stat_name_filter = utility::set_regex(&options.stat_name_match);
+    match options.print_log.as_ref().unwrap() {
+        Some(snapshot_number) => {
+            let mut allstoredloglines = AllStoredLogLines::new();
+            allstoredloglines.stored_loglines = snapshot::read_snapshot(snapshot_number, "loglines")?;
+            allstoredloglines.print(&hostname_filter, &stat_name_filter, &options.log_severity)?;
+        },
+        None => {
+            let allstoredloglines = AllStoredLogLines::read_loglines(&hosts, &ports, parallel).await;
+            allstoredloglines.print(&hostname_filter, &stat_name_filter, &options.log_severity)?;
+        },
     }
-
     Ok(())
 }
 
-#[allow(dead_code)]
-pub fn add_to_loglines_vector(loglinedata: Vec<LogLine>,
-                              hostname: &str,
-                              stored_loglines: &mut Vec<StoredLogLines>
-) {
-    for logline in loglinedata {
-        stored_loglines.push( StoredLogLines::new(hostname, logline));
-    }
-}
+pub async fn tail_loglines(
+    hosts: Vec<&str>,
+    ports: Vec<&str>,
+    parallel: usize,
+    options: &Opts,
+) -> Result<()>
+{
+    let hostname_filter = utility::set_regex(&options.hostname_match);
+    let stat_name_filter = utility::set_regex(&options.stat_name_match);
 
-#[allow(dead_code)]
-fn parse_loglines( logs_data: String ) -> Vec<LogLine> {
-    let mut loglines: Vec<LogLine> = Vec::new();
-    // fs_manager:
-    //I0217 10:12:35.491056 26960 fs_manager.cc:278] Opened local filesystem: /mnt/d0
-    //uuid: "05b8d17620eb4cd79eddaddb2fbcbb42"
-    //format_stamp: "Formatted at 2022-02-13 16:26:17 on yb-1.local"
-    let regular_log_line = Regex::new( r"([IWFE])(\d{2}\d{2} \d{2}:\d{2}:\d{2}\.\d{6})\s+(\d{1,6}) ([a-z_A-Z.:0-9]*)] (.*)\n" ).unwrap();
-
-    // Just take the year, it's not in the loglines, however, when the year switches this will lead to error results
-    let year= Local::now().format("%Y").to_string();
-    let to_logline = |captures: Captures<'_>| {
-        let timestamp_string = format!("{}{}", year, &captures[2]);
-        let timestamp = Local
-            .datetime_from_str(&timestamp_string, "%Y%m%d %H:%M:%S.%6f")
-            .unwrap();
-
-        LogLine {
-            severity: captures[1].to_string(),
-            timestamp,
-            tid: captures[3].to_string(),
-            sourcefile_nr: captures[4].to_string(),
-            message: captures[5].to_string()
+    #[derive(Debug, Clone)]
+    struct SpecialLogLine { severity: String, _tid: String, message: String }
+    let into_btreemap = |allstored: AllStoredLogLines| -> BTreeMap<(DateTime<Local>, String, String), SpecialLogLine>
+    {
+        let mut btreemap: BTreeMap<(DateTime<Local>, String, String), SpecialLogLine> = BTreeMap::new();
+        for logline in allstored.stored_loglines {
+            btreemap.insert((logline.timestamp, logline.hostname_port.to_string(), logline.sourcefile_nr.to_string()),
+                            SpecialLogLine {
+                severity: logline.severity.to_string(),
+                _tid: logline.tid.to_string(),
+                message: logline.message.to_string(),
+            });
         }
+        btreemap
     };
-    // Find first log line.  Any non-regular-log-line data at the beginning of
-    // the logs is discarded.  `remaining` covers all the logs following the
-    // first regular log line.
-    let mut logline;
-    let mut remaining;
-    match regular_log_line.captures(&logs_data) {
-        None => return loglines,
-        Some(captures) => {
-            let offset = captures.get(0).map(|m| m.end()).unwrap_or(0);
-            remaining = &logs_data[offset..];
-            logline = to_logline(captures);
+    let loglines = AllStoredLogLines::read_loglines(&hosts, &ports, parallel).await;
+    let mut first_loglines_btreemap = into_btreemap(loglines);
+
+    loop {
+        let mut display_loglines_btreemap: BTreeMap<(DateTime<Local>, String, String), SpecialLogLine> = BTreeMap::new();
+        let loglines = AllStoredLogLines::read_loglines(&hosts, &ports, parallel).await;
+        let second_loglines_btreemap = into_btreemap(loglines);
+        for (key, value) in &second_loglines_btreemap {
+            match first_loglines_btreemap.get(&key) {
+                None => {
+                    display_loglines_btreemap.insert( key.clone(), value.clone());
+                },
+                _ => {},
+            }
         }
-    };
+        //for ((timestamp, hostname_port, sourcefile_nr), logline) in &second_loglines_btreemap {
+        for ((timestamp, hostname_port, sourcefile_nr), logline) in &display_loglines_btreemap {
+            if hostname_filter.is_match(&hostname_port)
+                && options.log_severity.contains(&logline.severity)
+                && ( stat_name_filter.is_match(&logline.message) || stat_name_filter.is_match(&sourcefile_nr) )
+            {
+                print!("{:20} {:33} ", hostname_port, timestamp);
+                match logline.severity.as_str() {
+                    "I" => print!("{} ", "I".green()),
+                    "W" => print!("{} ", "W".yellow()),
+                    "E" => print!("{} ", "E".red()),
+                    "F" => print!("{} ", "F".purple()),
+                    _   => print!("{} ", logline.severity.underline()),
+                }
+                println!("{:20} {:50}", sourcefile_nr, logline.message.trim());
+            }
+        }
+        thread::sleep(Duration::from_secs(5));
+        drop(display_loglines_btreemap);
+        first_loglines_btreemap = second_loglines_btreemap;
 
-    // For each subsequent match, append any lines before the match to the
-    // current `LogLine`, store it, and start a new `LogLine`.  Update where
-    // we are in the logs by updating `remaining`.
-    while let Some(captures) = regular_log_line.captures(remaining) {
-        let all = captures.get(0).unwrap();
-        let from = all.start();
-        let offset = all.end();
-        logline.message += &remaining[..from];
-        loglines.push(logline);
-        logline = to_logline(captures);
-        remaining = &remaining[offset..]
     }
-
-    // Append final logline and return
-    logline.message += remaining;
-    loglines.push(logline);
-
-    loglines
+    //allstoredloglines.print(&hostname_filter, &stat_name_filter, &options.log_severity)?;
+    //Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    //use crate::utility_test::*;
+
+    #[test]
+    fn unit_parse_problem_logline() {
+        // This is a regular log line.
+        let logline = r#"
+E1218 12:12:33.463250  6986 async_initializer.cc:95] Failed to initialize client: Timed out (yb/rpc/rpc.cc:221): Could not locate the leader master: GetLeaderMasterRpc(addrs: [yb-1.local:7100, yb-2.local:7100, yb-3.local:7100, yb-1.local:7100, yb-2.local:7100, yb-3.local:7100], num_attempts: 46) passed its deadline 34.910s (passed: 1.521s): Not found (yb/master/master_rpc.cc:287): no leader found: GetLeaderMasterRpc(addrs: [yb-1.local:7100, yb-2.local:7100, yb-3.local:7100, yb-1.local:7100, yb-2.local:7100, yb-3.local:7100], num_attempts: 1)
+I1218 12:12:34.464701  7650 client-internal.cc:2273] Reinitialize master addresses from file: /opt/yugabyte/conf/master.conf
+I1218 12:12:34.464808  7650 client-internal.cc:2302] New master addresses: [yb-1.local:7100,yb-2.local:7100,yb-3.local:7100, yb-1.local:7100, yb-2.local:7100, yb-3.local:7100]
+        "#.to_string();
+        let result = AllStoredLogLines::parse_loglines(logline);
+        //assert_eq!(result[0].message,"FLAGS_rocksdb_base_background_compactions was not set, automatically configuring 1 base background compactions.");
+        println!("{:#?}", result);
+    }
 
     #[test]
     fn unit_parse_regular_logline() {
         // This is a regular log line.
         let logline = "I0217 10:19:56.834905  31987 docdb_rocksdb_util.cc:416] FLAGS_rocksdb_base_background_compactions was not set, automatically configuring 1 base background compactions.\n".to_string();
-        let result = parse_loglines(logline);
+        let result = AllStoredLogLines::parse_loglines(logline);
         assert_eq!(result[0].message,"FLAGS_rocksdb_base_background_compactions was not set, automatically configuring 1 base background compactions.");
     }
 
@@ -244,7 +316,7 @@ mod tests {
     @     0x7fa354089720  yb::tablet::OperationDriver::ApplyTask()
     @     0x7fa354089e8e  yb::tablet::OperationDriver::ReplicationFinished()
     @     0x7fa353cb3ae7  yb::consensus::ReplicaState::NotifyReplicationFinishedUnlocked()"#.to_string();
-        let result = parse_loglines(logline);
+        let result = AllStoredLogLines::parse_loglines(logline);
         // this is the old assertion when the following lines of a multiline logoine were not joined:
         //assert_eq!(result[0].message,"UpdateReplica running for 1.000s in thread 7814:");
         // this is the new line with the new code that adds the lines of a multiline message:
@@ -268,7 +340,7 @@ mod tests {
     ulimit: stack size 8192(unlimited) kb
     ulimit: cpu time unlimited(unlimited) secs
     ulimit: max user processes 12000(12000)"#.to_string();
-        let result = parse_loglines(logline);
+        let result = AllStoredLogLines::parse_loglines(logline);
         // this is the old assertion when the following lines of a multiline logline were not joined:
         //assert_eq!(result[0].message,"ulimit cur(max)...");
         // this is the new line with the new code that adds the lines of a multiline message:
@@ -283,7 +355,7 @@ mod tests {
         let logline = r#"W0221 17:18:06.190536  7924 process_context.cc:185] SQL Error: Type Not Found. Could not find user defined type
 create table test (id int primary key, f1 tdxt);
                                           ^^^^"#.to_string();
-        let result = parse_loglines(logline);
+        let result = AllStoredLogLines::parse_loglines(logline);
         //assert_eq!(result[0].message,"SQL Error: Type Not Found. Could not find user defined type");
         assert_eq!(result[0].message,"SQL Error: Type Not Found. Could not find user defined typecreate table test (id int primary key, f1 tdxt);\n                                          ^^^^");
     }
@@ -296,7 +368,7 @@ create table test (id int primary key, f1 tdxt);
         let logline = r#"W0221 17:18:28.396759  7925 process_context.cc:185] SQL Error: Invalid CQL Statement. Missing list of target columns
 insert into test values (1,'a');
                  ^^^^^^^^^^^^^^"#.to_string();
-        let result = parse_loglines(logline);
+        let result = AllStoredLogLines::parse_loglines(logline);
         //assert_eq!(result[0].message,"SQL Error: Invalid CQL Statement. Missing list of target columns");
         assert_eq!(result[0].message,"SQL Error: Invalid CQL Statement. Missing list of target columnsinsert into test values (1,'a');\n                 ^^^^^^^^^^^^^^");
     }
@@ -309,7 +381,7 @@ insert into test values (1,'a');
         let logline = r#"I0227 17:18:28.714171  2510 fs_manager.cc:278] Opened local filesystem: /mnt/d0
 uuid: "05b8d17620eb4cd79eddaddb2fbcbb42"
 format_stamp: "Formatted at 2022-02-13 16:26:17 on yb-1.local""#.to_string();
-        let result = parse_loglines(logline);
+        let result = AllStoredLogLines::parse_loglines(logline);
         //assert_eq!(result[0].message,"Opened local filesystem: /mnt/d0");
         assert_eq!(result[0].message,"Opened local filesystem: /mnt/d0uuid: \"05b8d17620eb4cd79eddaddb2fbcbb42\"\nformat_stamp: \"Formatted at 2022-02-13 16:26:17 on yb-1.local\"");
     }
@@ -375,7 +447,7 @@ flushed_frontier {
     max_value_level_ttl_expiration_time: 1
   }
 }"#.to_string();
-        let result = parse_loglines(logline);
+        let result = AllStoredLogLines::parse_loglines(logline);
         //assert_eq!(result[0].message,"T b770079b94ad430493ba5f729fb1f0e7 P 05b8d17620eb4cd79eddaddb2fbcbb42 [R]: Writing version edit: log_number: 33");
         assert_eq!(result[0].message,"T b770079b94ad430493ba5f729fb1f0e7 P 05b8d17620eb4cd79eddaddb2fbcbb42 [R]: Writing version edit: log_number: 33new_files {\n  level: 0\n  number: 10\n  total_file_size: 66565\n  base_file_size: 66384\n  smallest {\n    key: \"Gg\\303I\\200\\000\\000\\000\\000\\0003\\341I\\200\\000\\000\\000\\000\\000B\\225!!J\\200#\\200\\001|E\\302\\264\\205v\\200J\\001\\004\\000\\000\\000\\000\\000\\004\"\n    seqno: 1125899906842625\n    user_values {\n      tag: 1\n      data: \"\\200\\001|E\\302\\274j0\\200J\"\n    }\n    user_frontier {\n      [type.googleapis.com/yb.docdb.ConsensusFrontierPB] {\n        op_id {\n          term: 1\n          index: 2\n        }\n        hybrid_time: 6737247907820138496\n        history_cutoff: 18446744073709551614\n        max_value_level_ttl_expiration_time: 18446744073709551614\n      }\n    }\n  }\n  largest {\n    key: \"G\\222oI\\200\\000\\000\\000\\000\\0003\\341I\\200\\000\\000\\000\\000\\000B{!!K\\203#\\200\\001|E\\302\\274j0\\200?\\213\\001\\003\\000\\000\\000\\000\\000\\004\"\n    seqno: 1125899906842632\n    user_values {\n      tag: 1\n      data: \"\\200\\001|EXN\\364\\273\\200?\\253\"\n    }\n    user_frontier {\n      [type.googleapis.com/yb.docdb.ConsensusFrontierPB] {\n        op_id {\n          term: 1\n          index: 4\n        }\n        hybrid_time: 6737255221467299840\n        history_cutoff: 18446744073709551614\n        max_value_level_ttl_expiration_time: 1\n      }\n    }\n  }\n}\nflushed_frontier {\n  [type.googleapis.com/yb.docdb.ConsensusFrontierPB] {\n    op_id {\n      term: 1\n      index: 4\n    }\n    hybrid_time: 6737255221467299840\n    history_cutoff: 18446744073709551614\n    max_value_level_ttl_expiration_time: 1\n  }\n}");
     }
@@ -396,33 +468,29 @@ properties: contain_counters: false is_transactional: true consistency_level: ST
         2:dirname[string NULLABLE NOT A PARTITION KEY]
 ]
 properties: contain_counters: false is_transactional: true consistency_level: STRONG use_mangled_column_name: false is_ysql_catalog_table: false retain_delete_markers: false version 1"#.to_string();
-        let result = parse_loglines(logline);
+        let result = AllStoredLogLines::parse_loglines(logline);
         //assert_eq!(result[0].message,"T c6099b05976f49d9b782ccbe126f9b2d P 05b8d17620eb4cd79eddaddb2fbcbb42: Alter schema from Schema [");
         assert_eq!(result[0].message,"T c6099b05976f49d9b782ccbe126f9b2d P 05b8d17620eb4cd79eddaddb2fbcbb42: Alter schema from Schema [        0:ybrowid[binary NOT NULL PARTITION KEY],\n        1:dir[string NULLABLE NOT A PARTITION KEY],\n        2:dirname[string NULLABLE NOT A PARTITION KEY]\n]\nproperties: contain_counters: false is_transactional: true consistency_level: STRONG use_mangled_column_name: false is_ysql_catalog_table: false retain_delete_markers: false version 0 to Schema [\n        0:ybrowid[binary NOT NULL PARTITION KEY],\n        1:dir[string NULLABLE NOT A PARTITION KEY],\n        2:dirname[string NULLABLE NOT A PARTITION KEY]\n]\nproperties: contain_counters: false is_transactional: true consistency_level: STRONG use_mangled_column_name: false is_ysql_catalog_table: false retain_delete_markers: false version 1");
     }
 
-    #[test]
-    fn integration_parse_loglines_master() {
-        let mut stored_loglines: Vec<StoredLogLines> = Vec::new();
+    #[tokio::test]
+    async fn integration_parse_loglines_master() {
         let hostname = utility::get_hostname_master();
         let port = utility::get_port_master();
+        let allstoredloglines = AllStoredLogLines::read_loglines(&vec![&hostname], &vec![&port], 1).await;
 
-        let loglines = read_loglines(hostname.as_str(), port.as_str());
-        add_to_loglines_vector(loglines, format!("{}:{}", hostname, port).as_str(), &mut stored_loglines);
         // it's likely there will be logging
-        assert!(!stored_loglines.is_empty());
+        assert!(!allstoredloglines.stored_loglines.is_empty());
     }
 
-    #[test]
-    fn integration_parse_loglines_tserver() {
-        let mut stored_loglines: Vec<StoredLogLines> = Vec::new();
+    #[tokio::test]
+    async fn integration_parse_loglines_tserver() {
         let hostname = utility::get_hostname_tserver();
         let port = utility::get_port_tserver();
+        let allstoredloglines = AllStoredLogLines::read_loglines(&vec![&hostname], &vec![&port], 1).await;
 
-        let loglines = read_loglines(hostname.as_str(), port.as_str());
-        add_to_loglines_vector(loglines, format!("{}:{}", hostname, port).as_str(), &mut stored_loglines);
         // it's likely there will be logging
-        assert!(!stored_loglines.is_empty());
+        assert!(!allstoredloglines.stored_loglines.is_empty());
     }
 
 }

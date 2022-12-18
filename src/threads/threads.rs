@@ -15,7 +15,7 @@ impl AllStoredThreads {
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         snapshot_number: i32,
-        parallel: usize ,
+        parallel: usize,
     ) -> Result<()>
     {
         info!("begin snapshot");

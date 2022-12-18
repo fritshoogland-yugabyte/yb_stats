@@ -1,11 +1,10 @@
-use std::{sync::mpsc::channel, thread, time::Instant};
-use std::collections::BTreeMap;
-use std::time::Duration;
+use std::{sync::mpsc::channel, time::{Instant, Duration}, collections::BTreeMap};
 use chrono::{DateTime, Local, TimeZone};
 use regex::{Regex,Captures};
 //use serde_derive::{Serialize,Deserialize};
 use log::*;
 use colored::*;
+use tokio::time;
 use crate::snapshot;
 use anyhow::Result;
 use crate::Opts;
@@ -89,7 +88,10 @@ impl AllStoredLogLines {
         };
         AllStoredLogLines::parse_loglines(data_from_http)
     }
-    fn parse_loglines( http_data: String ) -> Vec<LogLine> {
+    fn parse_loglines(
+        http_data: String
+    ) -> Vec<LogLine>
+    {
         let mut loglines: Vec<LogLine> = Vec::new();
         // fs_manager:
         //I0217 10:12:35.491056 26960 fs_manager.cc:278] Opened local filesystem: /mnt/d0
@@ -99,7 +101,8 @@ impl AllStoredLogLines {
 
         // Just take the year, it's not in the loglines, however, when the year switches this will lead to error results
         let year= Local::now().format("%Y").to_string();
-        let to_logline = |captures: Captures<'_>| {
+        let to_logline = |captures: Captures<'_>|
+        {
             let timestamp_string = format!("{}{}", year, &captures[2]);
             let timestamp = Local
                 .datetime_from_str(&timestamp_string, "%Y%m%d %H:%M:%S.%6f")
@@ -118,7 +121,8 @@ impl AllStoredLogLines {
         // first regular log line.
         let mut logline;
         let mut remaining;
-        match regular_log_line.captures(&http_data) {
+        match regular_log_line.captures(&http_data)
+        {
             None => return loglines,
             Some(captures) => {
                 let offset = captures.get(0).map(|m| m.end()).unwrap_or(0);
@@ -130,7 +134,8 @@ impl AllStoredLogLines {
         // For each subsequent match, append any lines before the match to the
         // current `LogLine`, store it, and start a new `LogLine`.  Update where
         // we are in the logs by updating `remaining`.
-        while let Some(captures) = regular_log_line.captures(remaining) {
+        while let Some(captures) = regular_log_line.captures(remaining)
+        {
             let all = captures.get(0).unwrap();
             let from = all.start();
             let offset = all.end();
@@ -159,13 +164,15 @@ impl AllStoredLogLines {
         let mut sorted_loglines = self.stored_loglines.clone();
         sorted_loglines.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
         // use the sorted vector to loop over.
-        for row in &sorted_loglines {
+        for row in &sorted_loglines
+        {
             if hostname_filter.is_match(&row.hostname_port)
                 && log_severity.contains(&row.severity)
                 && ( stat_name_filter.is_match(&row.message) || stat_name_filter.is_match(&row.sourcefile_nr) )
             {
                 print!("{:20} {:33} ", row.hostname_port, row.timestamp);
-                match row.severity.as_str() {
+                match row.severity.as_str()
+                {
                     "I" => print!("{} ", "I".green()),
                     "W" => print!("{} ", "W".yellow()),
                     "E" => print!("{} ", "E".red()),
@@ -189,7 +196,8 @@ pub async fn print_loglines(
 {
     let hostname_filter = utility::set_regex(&options.hostname_match);
     let stat_name_filter = utility::set_regex(&options.stat_name_match);
-    match options.print_log.as_ref().unwrap() {
+    match options.print_log.as_ref().unwrap()
+    {
         Some(snapshot_number) => {
             let mut allstoredloglines = AllStoredLogLines::new();
             allstoredloglines.stored_loglines = snapshot::read_snapshot(snapshot_number, "loglines")?;
@@ -212,18 +220,17 @@ pub async fn tail_loglines(
 {
     let hostname_filter = utility::set_regex(&options.hostname_match);
     let stat_name_filter = utility::set_regex(&options.stat_name_match);
+    let mut interval = time::interval(Duration::from_secs(3));
 
     #[derive(Debug, Clone)]
     struct SpecialLogLine { severity: String, _tid: String, message: String }
     let into_btreemap = |allstored: AllStoredLogLines| -> BTreeMap<(DateTime<Local>, String, String), SpecialLogLine>
     {
         let mut btreemap: BTreeMap<(DateTime<Local>, String, String), SpecialLogLine> = BTreeMap::new();
-        for logline in allstored.stored_loglines {
+        for logline in allstored.stored_loglines
+        {
             btreemap.insert((logline.timestamp, logline.hostname_port.to_string(), logline.sourcefile_nr.to_string()),
-                            SpecialLogLine {
-                severity: logline.severity.to_string(),
-                _tid: logline.tid.to_string(),
-                message: logline.message.to_string(),
+                            SpecialLogLine { severity: logline.severity.to_string(), _tid: logline.tid.to_string(), message: logline.message.to_string(),
             });
         }
         btreemap
@@ -231,26 +238,32 @@ pub async fn tail_loglines(
     let loglines = AllStoredLogLines::read_loglines(&hosts, &ports, parallel).await;
     let mut first_loglines_btreemap = into_btreemap(loglines);
 
-    loop {
+    loop
+    {
         let mut display_loglines_btreemap: BTreeMap<(DateTime<Local>, String, String), SpecialLogLine> = BTreeMap::new();
         let loglines = AllStoredLogLines::read_loglines(&hosts, &ports, parallel).await;
         let second_loglines_btreemap = into_btreemap(loglines);
-        for (key, value) in &second_loglines_btreemap {
-            match first_loglines_btreemap.get(&key) {
+        // add all loglines that are not found in the second loglines snapshot to display loglines
+        for (key, value) in &second_loglines_btreemap
+        {
+            match first_loglines_btreemap.get(&key)
+            {
                 None => {
                     display_loglines_btreemap.insert( key.clone(), value.clone());
                 },
-                _ => {},
+                // do nothing when we got a match.
+                _ => (),
             }
         }
-        //for ((timestamp, hostname_port, sourcefile_nr), logline) in &second_loglines_btreemap {
-        for ((timestamp, hostname_port, sourcefile_nr), logline) in &display_loglines_btreemap {
+        for ((timestamp, hostname_port, sourcefile_nr), logline) in &display_loglines_btreemap
+        {
             if hostname_filter.is_match(&hostname_port)
                 && options.log_severity.contains(&logline.severity)
                 && ( stat_name_filter.is_match(&logline.message) || stat_name_filter.is_match(&sourcefile_nr) )
             {
                 print!("{:20} {:33} ", hostname_port, timestamp);
-                match logline.severity.as_str() {
+                match logline.severity.as_str()
+                {
                     "I" => print!("{} ", "I".green()),
                     "W" => print!("{} ", "W".yellow()),
                     "E" => print!("{} ", "E".red()),
@@ -260,13 +273,10 @@ pub async fn tail_loglines(
                 println!("{:20} {:50}", sourcefile_nr, logline.message.trim());
             }
         }
-        thread::sleep(Duration::from_secs(5));
+        interval.tick().await;
         drop(display_loglines_btreemap);
         first_loglines_btreemap = second_loglines_btreemap;
-
     }
-    //allstoredloglines.print(&hostname_filter, &stat_name_filter, &options.log_severity)?;
-    //Ok(())
 }
 
 #[cfg(test)]

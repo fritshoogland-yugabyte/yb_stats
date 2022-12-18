@@ -193,7 +193,7 @@ async fn main() -> Result<()>
         Opts { print_latencies, ..        } if print_latencies.is_some()       => clocks::print_latencies(hosts, ports, parallel, &options).await?,
         Opts { print_rpcs, ..             } if print_rpcs.is_some()            => rpcs::print_rpcs(hosts, ports, parallel, &options).await?,
         Opts { print_log, ..              } if print_log.is_some()             => loglines::print_loglines(hosts, ports, parallel, &options).await?,
-        Opts { tail_log, ..                } if *tail_log             => loglines::tail_loglines(hosts, ports, parallel, &options).await?,
+        Opts { tail_log, ..               } if *tail_log                       => loglines::tail_loglines(hosts, ports, parallel, &options).await?,
         Opts { adhoc_metrics_diff, ..     } if *adhoc_metrics_diff             => utility::adhoc_metrics_diff(hosts, ports, parallel, &options).await?,
         Opts { print_gflags, ..           } if print_gflags.is_some()          => gflags::print_gflags_data(&options),
         _                                                                      => utility::adhoc_diff(hosts, ports, parallel, &options).await?,

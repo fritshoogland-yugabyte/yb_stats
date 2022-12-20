@@ -224,15 +224,11 @@ pub async fn perform_snapshot(
     info!("begin snapshot");
     let timer = Instant::now();
 
-    let current_directory = env::current_dir().unwrap();
-    let yb_stats_directory = current_directory.join("yb_stats.snapshots");
-
     let snapshot_number = Snapshot::insert_new_snapshot_number(&options.snapshot_comment)?;
     info!("using snapshot number: {}", snapshot_number);
 
     let arc_hosts = Arc::new(hosts);
     let arc_ports = Arc::new(ports);
-    let arc_yb_stats_directory = Arc::new(yb_stats_directory);
 
     let mut handles = vec![];
 
@@ -338,17 +334,15 @@ pub async fn perform_snapshot(
 
     let arc_hosts_clone = arc_hosts.clone();
     let arc_ports_clone = arc_ports.clone();
-    let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
     let handle = tokio::spawn(async move {
-        pprof::perform_pprof_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel).await.unwrap();
+        pprof::Pprof::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
     });
     handles.push(handle);
 
     let arc_hosts_clone = arc_hosts.clone();
     let arc_ports_clone = arc_ports.clone();
-    let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
     let handle = tokio::spawn(async move {
-        mems::perform_mems_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel).await.unwrap();
+        mems::Mems::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
     });
     handles.push(handle);
 

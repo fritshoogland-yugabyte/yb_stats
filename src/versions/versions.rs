@@ -1,3 +1,4 @@
+//! Module for reading the /api/v1/versions output for the master and tablet server.
 use chrono::{DateTime, Local};
 use std::{sync::mpsc::channel, time::Instant};
 use colored::Colorize;

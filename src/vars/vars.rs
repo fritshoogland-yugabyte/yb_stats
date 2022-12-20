@@ -1,3 +1,5 @@
+//! Module for reading the /api/v1/varz output for the master and tablet server.
+//!
 use chrono::{DateTime, Local};
 use regex::Regex;
 use std::{sync::mpsc::channel, time::Instant, collections::BTreeMap};

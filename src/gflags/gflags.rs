@@ -149,149 +149,6 @@ pub async fn print_gflags(
     }
     Ok(())
 }
-/*
-#[allow(dead_code)]
-pub fn read_gflags(
-    host: &str,
-    port: &str,
-) -> Vec<GFlag> {
-    if ! scan_port_addr( format!("{}:{}", host, port)) {
-        warn!("hostname:port {}:{} cannot be reached, skipping (gflags)",host ,port);
-        return Vec::new();
-    }
-    let data_from_http = reqwest::blocking::Client::builder()
-        .danger_accept_invalid_certs(true)
-        .build()
-        .unwrap()
-        .get(format!("http://{}:{}/varz?raw", host, port))
-        .send()
-        .unwrap()
-        .text()
-        .unwrap();
-    parse_gflags(data_from_http)
-}
-
-#[allow(dead_code)]
-#[allow(clippy::ptr_arg)]
-pub async fn perform_gflags_snapshot(
-    hosts: &Vec<&str>,
-    ports: &Vec<&str>,
-    snapshot_number: i32,
-    yb_stats_directory: &PathBuf,
-    parallel: usize
-) {
-    info!("begin parallel http read");
-    let timer = Instant::now();
-
-    let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
-    let (tx, rx) = channel();
-    pool.scope(move |s| {
-        for host in hosts {
-            for port in ports {
-                let tx = tx.clone();
-                s.spawn(move |_| {
-                    let detail_snapshot_time = Local::now();
-                    let gflags = read_gflags(host, port);
-                    tx.send((format!("{}:{}", host, port), detail_snapshot_time, gflags)).expect("error sending data via tx (gflags)");
-                });
-            }}
-    });
-    info!("end parallel http read {:?}", timer.elapsed());
-
-    let mut stored_gflags: Vec<StoredGFlags> = Vec::new();
-    for (hostname_port, detail_snapshot_time, gflags) in rx {
-        add_to_gflags_vector(gflags, &hostname_port, detail_snapshot_time, &mut stored_gflags);
-    }
-
-    let current_snapshot_directory = &yb_stats_directory.join(snapshot_number.to_string());
-    let gflags_file = &current_snapshot_directory.join("gflags");
-    let file = fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .open(gflags_file)
-        .unwrap_or_else(|e| {
-            error!("Fatal: error writing gflags data in snapshot directory {}: {}", &gflags_file.clone().into_os_string().into_string().unwrap(), e);
-            process::exit(1);
-        });
-    let mut writer = csv::Writer::from_writer(file);
-    for row in stored_gflags {
-        writer.serialize(row).unwrap();
-    }
-    writer.flush().unwrap();
-}
-
-#[allow(dead_code)]
-pub fn add_to_gflags_vector(gflagdata: Vec<GFlag>,
-                            hostname: &str,
-                            snapshot_time: DateTime<Local>,
-                            stored_gflags: &mut Vec<StoredGFlags>
-) {
-    for gflag in gflagdata {
-        stored_gflags.push( StoredGFlags {
-            hostname_port: hostname.to_string(),
-            timestamp: snapshot_time,
-            gflag_name: gflag.name.to_string(),
-            gflag_value: gflag.value.to_string()
-        });
-    }
-}
-
-#[allow(dead_code)]
-fn parse_gflags( gflags_data: String ) -> Vec<GFlag> {
-    let mut gflags: Vec<GFlag> = Vec::new();
-    let re = Regex::new( r"--([A-Za-z_0-9]*)=(.*)\n" ).unwrap();
-    for captures in re.captures_iter(&gflags_data) {
-        gflags.push(GFlag { name: captures.get(1).unwrap().as_str().to_string(), value: captures.get(2).unwrap().as_str().to_string() });
-    }
-    gflags
-}
-
-#[allow(clippy::ptr_arg)]
-fn read_gflags_snapshot(snapshot_number: &String, yb_stats_directory: &PathBuf) -> Vec<StoredGFlags> {
-    let mut stored_gflags: Vec<StoredGFlags> = Vec::new();
-    let gflags_file = &yb_stats_directory.join(snapshot_number).join("gflags");
-    let file = fs::File::open(gflags_file)
-        .unwrap_or_else(|e| {
-            error!("Fatal: error reading file: {}: {}", &gflags_file.clone().into_os_string().into_string().unwrap(), e);
-            process::exit(1);
-        });
-    let mut reader = csv::Reader::from_reader(file);
-    for row in reader.deserialize() {
-        let data: StoredGFlags = row.unwrap();
-        let _ = &stored_gflags.push(data);
-    }
-    stored_gflags
-}
-
-pub fn print_gflags_data(
-    options: &Opts,
-) {
-    info!("print_gflags");
-
-    let snapshot_number = options.print_gflags.clone().unwrap();
-    let hostname_filter = utility::set_regex(&options.hostname_match);
-    let stat_name_filter = utility::set_regex(&options.stat_name_match);
-
-    let current_directory = env::current_dir().unwrap();
-    let yb_stats_directory = current_directory.join("yb_stats.snapshots");
-
-    let stored_gflags: Vec<StoredGFlags> = read_gflags_snapshot(&snapshot_number, &yb_stats_directory);
-    let mut previous_hostname_port = String::from("");
-    for row in stored_gflags {
-        if hostname_filter.is_match(&row.hostname_port) &&
-            stat_name_filter.is_match( &row.gflag_name) {
-            if row.hostname_port != previous_hostname_port {
-                println!("--------------------------------------------------------------------------------------------------------------------------------------");
-                println!("Host: {}, Snapshot number: {}, Snapshot time: {}", &row.hostname_port.to_string(), &snapshot_number, row.timestamp);
-                println!("--------------------------------------------------------------------------------------------------------------------------------------");
-                previous_hostname_port = row.hostname_port.to_string();
-            }
-            println!("{:80} {:30}", row.gflag_name, row.gflag_value)
-        }
-    }
-}
-
- */
 
 #[cfg(test)]
 mod tests {
@@ -1135,8 +992,8 @@ Command-line Flags--TEST_xcluster_simulate_have_more_records=false
         assert_eq!(result.len(), 829);
     }
 
-    #[test]
-    fn integration_parse_gflags_master() {
+    #[tokio::test]
+    async fn integration_parse_gflags_master() {
         let hostname = utility::get_hostname_master();
         let port = utility::get_port_master();
 
@@ -1144,8 +1001,8 @@ Command-line Flags--TEST_xcluster_simulate_have_more_records=false
         // the master must have gflags
         assert!(!allstoredgflags.stored_gflags.is_empty());
     }
-    #[test]
-    fn integration_parse_gflags_tserver() {
+    #[tokio::test]
+    async fn integration_parse_gflags_tserver() {
         let hostname = utility::get_hostname_tserver();
         let port = utility::get_port_tserver();
 

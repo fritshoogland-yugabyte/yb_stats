@@ -52,7 +52,9 @@ impl Pprof {
         info!("end parallel http read {:?}", timer.elapsed());
 
         for (hostname_port, pprof_data) in rx {
-            if pprof_data.starts_with("heap profile") {
+            if pprof_data.starts_with("heap profile")
+                && snapshot_number >= 0
+            {
                 let current_directory = env::current_dir()?;
                 let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number.to_string());
 
@@ -97,7 +99,7 @@ mod tests {
         // What currently is done, is that the hostname:port/pprof/growth output is stored in a file in the snapshot directory named <hostname>:<port>_pprof_growth.
         let hostname = utility::get_hostname_tserver();
         let port = utility::get_port_tserver();
-        Pprof::read_and_write_pprof(&vec![&hostname], &vec![&port], 1).await;;
+        Pprof::read_and_write_pprof(&vec![&hostname], &vec![&port], -1, 1).await.unwrap();
     }
     #[tokio::test]
     async fn integration_parse_pprof_growth_master() {
@@ -105,6 +107,6 @@ mod tests {
         // What currently is done, is that the hostname:port/pprof/growth output is stored in a file in the snapshot directory named <hostname>:<port>_pprof_growth.
         let hostname = utility::get_hostname_master();
         let port = utility::get_port_master();
-        Pprof::read_and_write_pprof(&vec![&hostname], &vec![&port], 1).await;;
+        Pprof::read_and_write_pprof(&vec![&hostname], &vec![&port], -1, 1).await.unwrap();
     }
 }

@@ -1,3 +1,5 @@
+//! The struct definitions
+//!
 use chrono::{DateTime, Local};
 
 #[derive(Debug)]

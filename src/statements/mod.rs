@@ -1,3 +1,4 @@
+//! Module for reading `/statements` from the YSQL webservers.
 mod structs;
 mod statements;
 

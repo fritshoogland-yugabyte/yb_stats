@@ -52,7 +52,9 @@ impl Mems {
         info!("end parallel http read {:?}", timer.elapsed());
 
         for (hostname_port, mems_data) in rx {
-            if mems_data.starts_with("------------------------------------------------") {
+            if mems_data.starts_with("------------------------------------------------")
+                && snapshot_number >= 0
+            {
                 let current_directory = env::current_dir()?;
                 let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number.to_string());
 
@@ -97,7 +99,7 @@ mod tests {
         // What currently is done, is that the hostname:port/memz output is stored in a file in the snapshot directory named <hostname>:<port>_mems.
         let hostname = utility::get_hostname_tserver();
         let port = utility::get_port_tserver();
-        Mems::read_and_write_mems(&vec![&hostname], &vec![&port], 1).await;;
+        Mems::read_and_write_mems(&vec![&hostname], &vec![&port], -1, 1).await.unwrap();
     }
     #[tokio::test]
     async fn integration_parse_mems_master() {
@@ -105,6 +107,6 @@ mod tests {
         // What currently is done, is that the hostname:port/memz output is stored in a file in the snapshot directory named <hostname>:<port>_mems.
         let hostname = utility::get_hostname_master();
         let port = utility::get_port_master();
-        Mems::read_and_write_mems(&vec![&hostname], &vec![&port], 1).await;;
+        Mems::read_and_write_mems(&vec![&hostname], &vec![&port], -1, 1).await.unwrap();
     }
 }

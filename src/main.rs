@@ -48,7 +48,9 @@ mod clocks;
 const DEFAULT_HOSTS: &str = "192.168.66.80,192.168.66.81,192.168.66.82";
 const DEFAULT_PORTS: &str = "7000,9000,12000,13000,9300";
 const DEFAULT_PARALLEL: &str = "1";
+/// Write the `.env` in the current working directory?
 const WRITE_DOTENV: bool = true;
+/// Accept certificates not signed by an official CA?
 const ACCEPT_INVALID_CERTS: bool = true;
 
 /// yb_stats switches

@@ -1,10 +1,5 @@
 //! The module for reading the /api/v1/is-leader to identify the master leader.
 //!
-//! The functionality for isleader has the following public entries:
-//!  1. Snapshot creation: [AllStoredIsLeader::perform_snapshot]
-//!  2. Provide the master hostname:port for a given snapshot: [AllStoredIsLeader::return_leader]
-//!
-//! This function has no public display function, it is only used to store the and retrieve the master leader.
 use chrono::Local;
 use std::{time::Instant, sync::mpsc::channel};
 //use serde_derive::{Serialize,Deserialize};
@@ -56,7 +51,7 @@ impl AllStoredIsLeader {
     }
     /// This function takes a vector of hosts and ports, and the allowed parallellism to (try to) read /api/v1/is-leader.
     /// It creates a threadpool based on parallel, and spawns a task for reading and parsing for all host-port combinations.
-    /// When all combinations are read, the results are gathered in Vec<AllStoredIsLeader> and returned.
+    /// When all combinations are read, the results are gathered in `Vec<AllStoredIsLeader>` and returned.
     async fn read_isleader (
         hosts: &Vec<&str>,
         ports: &Vec<&str>,

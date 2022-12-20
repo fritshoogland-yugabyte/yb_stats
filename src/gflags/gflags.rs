@@ -989,7 +989,7 @@ Command-line Flags--TEST_xcluster_simulate_have_more_records=false
 --vmodule=
 "#.to_string();
         let result = AllStoredGFlags::parse_gflags(gflags);
-        assert_eq!(result.len(), 829);
+        assert_eq!(result.len(), 830);
     }
 
     #[tokio::test]

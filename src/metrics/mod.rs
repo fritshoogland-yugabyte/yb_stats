@@ -1,3 +1,5 @@
+//! Module for reading `/metrics` on the masters, tablet servers and YSQL webservers.
+//!
 mod structs;
 mod metrics;
 mod value_statistic_details;

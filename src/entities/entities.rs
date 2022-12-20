@@ -13,7 +13,7 @@
 //! tablets.table_id might not exist for tables.table_id, because some tables do not have tablets, such as the postgres catalog entries.
 //!
 //! Special keyspaces:
-//! - system: contains the local, partitions, roles, transactions, peers, size_estimates, transactions-<UUID> tables.
+//! - system: contains the local, partitions, roles, transactions, peers, size_estimates, `transactions-<UUID>` tables.
 //! - system_schema: contains the YCQL indexes, views, aggregates, keyspaces, tables, types, functions, triggers, columns, sys.catalog tables.
 //! - system_auth: contains the roles, role_permissions, resource_role_permissions_index tables.
 //! - template1: postgres template1 database template, contains catalog

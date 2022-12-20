@@ -1,3 +1,5 @@
+//! Module for reading `/metrics` on node exporter.
+//!
 mod structs;
 mod node_exporter;
 

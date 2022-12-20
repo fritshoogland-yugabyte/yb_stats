@@ -1,3 +1,5 @@
+//! Module containing snapshot functions.
+//!
 mod structs;
 mod snapshot;
 

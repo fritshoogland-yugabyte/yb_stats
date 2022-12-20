@@ -1,66 +1,6 @@
 //! The module for JSON metrics from /metrics endpoints of master, tablet server, YCQL and YSQL.
 //! (and YEDIS)
 //!
-//! These endpoints provide a separate metrics endpoint in the prometheus format (/prometheus-metrics) too.
-//!
-//! The functionality for metrics has 3 public entries:
-//! 1. Snapshot creation: [AllStoredMetrics::perform_snapshot]
-//! 2. Snapshot diff: [SnapshotDiffBTreeMapsMetrics::snapshot_diff]
-//! 3. Ad-hoc mode (diff): [SnapshotDiffBTreeMapsMetrics::adhoc_read_first_snapshot], [SnapshotDiffBTreeMapsMetrics::adhoc_read_second_snapshot], [SnapshotDiffBTreeMapsMetrics::print].
-//!
-//! In general, the metric data is stored in the struct [AllStoredMetrics], which contains vectors of the three types of data.
-//! When data is fetched to be shown to the user, it is fetched in [AllStoredMetrics] for both snapshots, and put in [SnapshotDiffBTreeMapsMetrics] which has specific vectors for the three types.
-//! The essence of the vectors in [SnapshotDiffBTreeMapsMetrics] is that the statistics can be subtracted.
-//!
-//! # Snapshot creation
-//! When a snapshot is created using the `--snapshot` option, this function is provided via the method [AllStoredMetrics::perform_snapshot].
-//!
-//! 1. The snapshot is called via the [crate::perform_snapshot] function, which calls all snapshot functions for all data sources.
-//! 2. For metrics, this is via the [AllStoredMetrics::perform_snapshot] method. This method performs two calls.
-//!
-//!   * The method [AllStoredMetrics::read_metrics]
-//!     * This method starts a rayon threadpool, and runs the general function [AllStoredMetrics::read_http] for all host and port combinations.
-//!       * [AllStoredMetrics::read_http] calls [AllStoredMetrics::parse_metrics] to parse the http JSON output into a Vector of [MetricEntity].
-//!     * The vector is iterated over and processed in using the function [AllStoredMetrics::split_into_vectors] into the struct [AllStoredMetrics] into the vectors [StoredValues], [StoredCountSum] and [StoredCountSumRows].
-//!
-//!   * The method [AllStoredMetrics::save_snapshot]
-//!     * This method takes each of the vectors in the struct [AllStoredMetrics] and saves these to CSV files in the numbered snapshot directory.
-//!
-//! # Snapshot diff
-//! When a snapshot diff is requested via the `--snapshot-diff` option, this function is provided via the method [SnapshotDiffBTreeMapsMetrics::snapshot_diff]
-//!
-//! 1. Snapshot-diff is called directly in main, which calls the method [SnapshotDiffBTreeMapsMetrics::snapshot_diff].
-//!
-//!   * The method [AllStoredMetrics::read_snapshot] is called to read all data for an [AllStoredMetrics] struct for the begin snapshot.
-//!     * The method [SnapshotDiffBTreeMapsMetrics::first_snapshot] is called with [AllStoredMetrics] as argument to insert the first snapshot data.
-//!   * The method [AllStoredMetrics::read_snapshot] is called to read all data for an [AllStoredMetrics] struct for the end snapshot.
-//!     * The method [SnapshotDiffBTreeMapsMetrics::second_snapshot] is called with [AllStoredMetrics] as argument to insert the second snapshot data.
-//!   * The method [SnapshotDiffBTreeMapsMetrics::print] is called to print out the the diff report from the [SnapshotDiffBTreeMapsMetrics] data.
-//!
-//! # Ad-hoc mode diff
-//! When an ad-hoc diff is requested by not specifying any option, this is performed by three methods of [SnapshotDiffBTreeMapsMetrics].
-//!
-//! 1. [SnapshotDiffBTreeMapsMetrics::adhoc_read_first_snapshot]
-//!
-//!   * The method calls [AllStoredMetrics::read_metrics]
-//!     * This method starts a rayon threadpool, and runs the general function [AllStoredMetrics::read_http] for all host and port combinations.
-//!       * [AllStoredMetrics::read_http] calls [AllStoredMetrics::parse_metrics] to parse the http JSON output into a Vector of [MetricEntity].
-//!     * The vector is iterated over and processed in using the function [AllStoredMetrics::split_into_vectors] into the struct [AllStoredMetrics] into the vectors [StoredValues], [StoredCountSum] and [StoredCountSumRows].
-//!   * The method [SnapshotDiffBTreeMapsMetrics::first_snapshot] is called with [AllStoredMetrics] as argument to insert the first snapshot data.
-//!
-//! 2. The user is asked for enter via stdin().read_line()
-//!
-//! 3. [SnapshotDiffBTreeMapsMetrics::adhoc_read_second_snapshot]
-//!
-//!   * The method calls [AllStoredMetrics::read_metrics]
-//!     * This method starts a rayon threadpool, and runs the general function [AllStoredMetrics::read_http] for all host and port combinations.
-//!       * [AllStoredMetrics::read_http] calls [AllStoredMetrics::parse_metrics] to parse the http JSON output into a Vector of [MetricEntity].
-//!     * The vector is iterated over and processed in using the function [AllStoredMetrics::split_into_vectors] into the struct [AllStoredMetrics] into the vectors [StoredValues], [StoredCountSum] and [StoredCountSumRows].
-//!   * The method [SnapshotDiffBTreeMapsMetrics::second_snapshot] is called with [AllStoredMetrics] as argument to insert the second snapshot data.
-//!
-//! 4. [SnapshotDiffBTreeMapsMetrics::print]
-//!
-/// This imports extrnal crates
 use std::{sync::mpsc::channel, collections::BTreeMap, time::Instant};
 use chrono::{DateTime, Local};
 //use serde_derive::{Serialize,Deserialize};
@@ -211,13 +151,6 @@ impl SnapshotDiffValues {
             second_snapshot_value: storedvalues.metric_value,
         }
     }
-    /// This is a private function for a special use of [SnapshotDiffValues], which happens in the [SnapshotDiffBTreeMapsMetrics::print] function.
-    /// The special use is if the `--details-enable` flag is not set, statistics that are kept per table, tablet or cdc as metric_type are added together per server.
-    /// This is the default mode, in order to try to reduce the amount of output.
-    /// The way this works is that the existing, detailed, [BTreeMapSnapshotDiffValues] BTreeMap is iterated over, and for each key consisting of hostname_port, metric_type, metric_id and metric_name, the metric_id is set to "-".
-    /// This new key is inserted into another BTreeMap together with the existing [SnapshotDiffValues] struct as value.
-    /// If that key already exists in the other BTreeMap, this function is used.
-    /// The existing [SnapshotDiffValues] struct values are largely kept identical, the only things which are changed is first_snapshot_value and second_snapshot_value, for which the values in the result of the iterator over the detailed one are added to the existing values.
     fn diff_sum_existing(sum_value_diff_row: &mut SnapshotDiffValues, value_diff_row: &SnapshotDiffValues) -> Self {
         Self {
             table_name: sum_value_diff_row.table_name.to_string(),
@@ -228,14 +161,6 @@ impl SnapshotDiffValues {
             second_snapshot_value: sum_value_diff_row.second_snapshot_value + value_diff_row.second_snapshot_value,
         }
     }
-    /// This is a private function for a special use of [SnapshotDiffValues], which happens in the [SnapshotDiffBTreeMapsMetrics::print] function.
-    /// The special use is if the `--details-enable` flag is not set, statistics that are kept per table, tablet or cdc as metric_type are added together per server.
-    /// This is the default mode, in order to try to reduce the amount of output.
-    /// The way this works is that the existing, detailed, [BTreeMapSnapshotDiffValues] BTreeMap is iterated over, and for each key consisting of hostname_port, metric_type, metric_id and metric_name, the metric_id is set to "-".
-    /// This new key is inserted into another BTreeMap together with the existing [SnapshotDiffValues] struct as value.
-    /// If that key does not exist in the other BTreeMap, this function is used.
-    /// The found [SnapshotDiffValues] struct is used to create a new one as value for the newly inserted key.
-    /// Because the values are added for all objects, it doesn't make sense to keep the table_name or namespace; therefore these are set to "-".
     fn diff_sum_new(value_diff_row: &SnapshotDiffValues) -> Self {
         Self {
             table_name: "-".to_string(),
@@ -326,13 +251,6 @@ impl SnapshotDiffCountSum {
             first_snapshot_total_sum: 0,
         }
     }
-    /// This is a private function for a special use of [SnapshotDiffCountSum], which happens in the [SnapshotDiffBTreeMapsMetrics::print] function.
-    /// The special use is if the `--details-enable` flag is not set, statistics that are kept per table, tablet or cdc as metric_type are added together per server.
-    /// This is the default mode, in order to try to reduce the amount of output.
-    /// The way this works is that the existing, detailed, [BTreeMapSnapshotDiffCountSum] BTreeMap is iterated over, and for each key consisting of hostname_port, metric_type, metric_id and metric_name, the metric_id is set to "-".
-    /// This new key is inserted into another BTreeMap together with the existing [SnapshotDiffCountSum] struct as value.
-    /// If that key already exists in the other BTreeMap, this function is used.
-    /// The existing [SnapshotDiffCountSum] struct is kept identical, except for first_snapshot_total_count, first_snapshot_sum, second_snapshot_total_count and second_snapshot_total_sum for which the values in the result of the iterator are added to the existing values.
     fn diff_sum_existing(sum_countsum_diff_row: &mut SnapshotDiffCountSum, countsum_diff_row: &SnapshotDiffCountSum) -> Self
     {
         Self {
@@ -355,14 +273,6 @@ impl SnapshotDiffCountSum {
             first_snapshot_total_sum: sum_countsum_diff_row.first_snapshot_total_sum + countsum_diff_row.first_snapshot_total_sum,
         }
     }
-    /// This is a private function for a special use of [SnapshotDiffCountSum], which happens in the [SnapshotDiffBTreeMapsMetrics::print] function.
-    /// The special use is if the `--details-enable` flag is not set, statistics that are kept per table, tablet or cdc as metric_type are added together per server.
-    /// This is the default mode, in order to try to reduce the amount of output.
-    /// The way this works is that the existing, detailed, [BTreeMapSnapshotDiffCountSum] BTreeMap is iterated over, and for each key consisting of hostname_port, metric_type, metric_id and metric_name, the metric_id is set to "-".
-    /// This new key is inserted into another BTreeMap together with the existing [SnapshotDiffCountSum] struct as value.
-    /// If that key does not exist in the other BTreeMap, this function is used.
-    /// The found [SnapshotDiffCountSum] struct is used to create a new one as value for the newly inserted key.
-    /// Because the values are added for all objects, it doesn't make sense to keep the table_name or namespace; therefore these are set to "-".
     fn diff_sum_new(countsum_diff_row: &SnapshotDiffCountSum) -> Self
     {
         Self {
@@ -444,8 +354,6 @@ impl SnapshotDiffCountSumRows {
 
 impl AllStoredMetrics {
     #[allow(rustdoc::private_intra_doc_links)]
-    /// This function reads all the host/port combinations for metrics and saves these in a snapshot indicated by the snapshot_number.
-    /// Reading the metrics from http endpoints is performed by [AllStoredMetrics::read_metrics], saving the data as CSV is done using [AllStoredMetrics::save_snapshot].
     pub async fn perform_snapshot(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
@@ -467,7 +375,6 @@ impl AllStoredMetrics {
     pub fn new() -> Self{
         Default::default()
     }
-    /// This function reads all the host/port combinations for metric endpoints and returns an [AllStoredMetrics] struct containing vectors of [StoredValues], [StoredCountSum] and [StoredCountSumRows].
     async fn read_metrics (
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
@@ -900,14 +807,6 @@ impl SnapshotDiffBTreeMapsMetrics {
             }
         }
     }
-    /// This function prints the BTreeMaps in the [SnapshotDiffBTreeMapsMetrics] struct.
-    /// It first is taking the details_enable boolean, which splits the printing between printing per table and tablet or summing it all up per server portnumber combination.
-    /// Inside it, it first reads
-    /// - [BTreeMapSnapshotDiffValues] for hostname_port, metric_type, metrid_id and metric_name as key and the struct [SnapshotDiffValues] as value, and then
-    /// - [BTreeMapSnapshotDiffCountSum] for hostname_port, metric_type, metric_id and metric_name as key and the struct [SnapshotDiffCountSum] as value.
-    /// If details are not enabled, it loops over them and for the types of "cdc", "table" and "tablet" adds up the values. // FIXME: cdcsdk
-    /// It then prints out the values in the new summed BTreeMap if details are not enabled, or the original BTreeMap.
-    /// The last thing is to print out the values in [BTreeMapSnapshotDiffCountSumRows].
     pub async fn print(
         &self,
         hostname_filter: &Regex,

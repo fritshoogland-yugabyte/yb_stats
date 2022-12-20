@@ -186,7 +186,7 @@ pub fn set_parallel(
     parallel
 }
 
-/// Simple helper routine to create a regex from an &Option<String>.
+/// Simple helper routine to create a regex from an `&Option<String>`.
 pub fn set_regex(
     regex: &Option<String>,
 ) -> Regex

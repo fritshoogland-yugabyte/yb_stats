@@ -1,18 +1,155 @@
-use std::path::PathBuf;
-use std::time::Instant;
-use chrono::{DateTime, Local};
-use port_scanner::scan_port_addr;
+//! The DEPRECATED module for the gflags in the /varz endpoints of the master and tablet server.
+//!
+use std::{time::Instant, sync::mpsc::channel};
+use chrono::Local;
 use regex::Regex;
-use std::fs;
-use std::env;
-use std::process;
 //use serde_derive::{Serialize,Deserialize};
-use std::sync::mpsc::channel;
 use log::*;
+use anyhow::Result;
 use crate::Opts;
 use crate::utility;
-use crate::gflags::{GFlag, StoredGFlags};
+use crate::snapshot;
+use crate::gflags::{AllStoredGFlags, GFlag, StoredGFlags};
 
+impl GFlag {
+    pub fn new() -> Self { Default::default() }
+}
+impl AllStoredGFlags {
+    pub fn new() -> Self { Default::default() }
+    pub async fn perform_snapshot(
+        hosts: &Vec<&str>,
+        ports: &Vec<&str>,
+        snapshot_number: i32,
+        parallel: usize,
+    ) -> Result<()>
+    {
+        info!("begin snapshot");
+        let timer = Instant::now();
+
+        let allstoredgflags = AllStoredGFlags::read_gflags(hosts, ports, parallel).await;
+        snapshot::save_snapshot(snapshot_number, "gflags", allstoredgflags.stored_gflags)?;
+
+        info!("end snapshot: {:?}", timer.elapsed());
+
+        Ok(())
+    }
+    pub async fn read_gflags(
+        hosts: &Vec<&str>,
+        ports: &Vec<&str>,
+        parallel: usize,
+    ) -> AllStoredGFlags
+    {
+        info!("begin parallel http read");
+        let timer = Instant::now();
+
+        let pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
+        let (tx, rx) = channel();
+
+        pool.scope(move |s| {
+            for host in hosts {
+                for port in ports {
+                    let tx = tx.clone();
+                    s.spawn(move |_| {
+                        let detail_snapshot_time = Local::now();
+                        let gflags = AllStoredGFlags::read_http(host, port);
+                        tx.send((format!("{}:{}", host, port), detail_snapshot_time, gflags)).expect("error sending data via tx (loglines)");
+                    });
+                }
+            }
+        });
+
+        info!("end parallel http read {:?}", timer.elapsed());
+
+        let mut allstoredgflags = AllStoredGFlags::new();
+
+        for (hostname_port, detail_snapshot_time, gflags) in rx {
+            for gflag in gflags {
+                allstoredgflags.stored_gflags.push(StoredGFlags {
+                    hostname_port: hostname_port.to_string(),
+                    timestamp: detail_snapshot_time,
+                    gflag_name: gflag.name.to_string(),
+                    gflag_value: gflag.value.to_string(),
+                });
+            }
+        }
+        allstoredgflags
+    }
+    fn read_http(
+        host: &str,
+        port: &str,
+    ) -> Vec<GFlag>
+    {
+        let data_from_http = if utility::scan_host_port(host, port)
+        {
+            utility::http_get(host, port, "varz?raw")
+        }
+        else
+        {
+            String::new()
+        };
+        AllStoredGFlags::parse_gflags(data_from_http)
+    }
+    fn parse_gflags(
+        http_data: String
+    ) -> Vec<GFlag>
+    {
+        let mut gflags: Vec<GFlag> = vec![GFlag::new()];
+        let re = Regex::new( r"--([A-Za-z_0-9]*)=(.*)\n" ).unwrap();
+        for captures in re.captures_iter(&http_data)
+        {
+            gflags.push(GFlag { name: captures.get(1).unwrap().as_str().to_string(), value: captures.get(2).unwrap().as_str().to_string() });
+        }
+        gflags
+    }
+    pub fn print(
+        &self,
+        hostname_filter: &Regex,
+        stat_name_filter: &Regex,
+    ) -> Result<()>
+    {
+        info!("print_gflags");
+
+        let mut previous_hostname_port = String::from("");
+        for row in &self.stored_gflags {
+            if hostname_filter.is_match(&row.hostname_port) &&
+                stat_name_filter.is_match( &row.gflag_name) {
+                if row.hostname_port != previous_hostname_port {
+                    println!("--------------------------------------------------------------------------------------------------------------------------------------");
+                    println!("Host: {} Snapshot time: {}", &row.hostname_port.to_string(), row.timestamp);
+                    println!("--------------------------------------------------------------------------------------------------------------------------------------");
+                    previous_hostname_port = row.hostname_port.to_string();
+                }
+                println!("{:80} {:30}", row.gflag_name, row.gflag_value);
+            }
+        }
+        Ok(())
+    }
+}
+
+pub async fn print_gflags(
+    hosts: Vec<&str>,
+    ports: Vec<&str>,
+    parallel: usize,
+    options: &Opts,
+) -> Result<()>
+{
+    let hostname_filter = utility::set_regex(&options.hostname_match);
+    let stat_name_filter = utility::set_regex(&options.stat_name_match);
+
+    match options.print_gflags.as_ref().unwrap() {
+        Some(snapshot_number) => {
+            let mut allstoredgflags = AllStoredGFlags::new();
+            allstoredgflags.stored_gflags = snapshot::read_snapshot(snapshot_number, "gflags")?;
+            allstoredgflags.print(&hostname_filter, &stat_name_filter)?;
+        },
+        None => {
+            let allstoredgflags = AllStoredGFlags::read_gflags(&hosts, &ports, parallel).await;
+            allstoredgflags.print(&hostname_filter, &stat_name_filter)?;
+        }
+    }
+    Ok(())
+}
+/*
 #[allow(dead_code)]
 pub fn read_gflags(
     host: &str,
@@ -154,10 +291,11 @@ pub fn print_gflags_data(
     }
 }
 
+ */
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    //use crate::utility_test::*;
 
     #[test]
     fn unit_parse_regular_gflags() {
@@ -993,32 +1131,26 @@ Command-line Flags--TEST_xcluster_simulate_have_more_records=false
 --v=0
 --vmodule=
 "#.to_string();
-        let result = parse_gflags(gflags);
+        let result = AllStoredGFlags::parse_gflags(gflags);
         assert_eq!(result.len(), 829);
     }
 
     #[test]
     fn integration_parse_gflags_master() {
-        let mut stored_gflags: Vec<StoredGFlags> = Vec::new();
-        let detail_snapshot_time = Local::now();
         let hostname = utility::get_hostname_master();
         let port = utility::get_port_master();
 
-        let gflags = read_gflags(hostname.as_str(), port.as_str());
-        add_to_gflags_vector(gflags, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_gflags);
+        let allstoredgflags = AllStoredGFlags::read_gflags(&vec![&hostname], &vec![&port], 1).await;
         // the master must have gflags
-        assert!(!stored_gflags.is_empty());
+        assert!(!allstoredgflags.stored_gflags.is_empty());
     }
     #[test]
     fn integration_parse_gflags_tserver() {
-        let mut stored_gflags: Vec<StoredGFlags> = Vec::new();
-        let detail_snapshot_time = Local::now();
         let hostname = utility::get_hostname_tserver();
         let port = utility::get_port_tserver();
 
-        let gflags = read_gflags(hostname.as_str(), port.as_str());
-        add_to_gflags_vector(gflags, format!("{}:{}", hostname, port).as_str(), detail_snapshot_time, &mut stored_gflags);
+        let allstoredgflags = AllStoredGFlags::read_gflags(&vec![&hostname], &vec![&port], 1).await;
         // the tserver must have gflags
-        assert!(!stored_gflags.is_empty());
+        assert!(!allstoredgflags.stored_gflags.is_empty());
     }
 }

@@ -1,14 +1,13 @@
-//! Utility module for the [Snapshot] struct and snapshot CSV file.
+//! Snapshot functions
 //!
-//! This currently leaves a single snapshot function in main.rs which performs the complete snapshot of all modules.
-//! Because all the interaction of [Snapshot] is including reading and writing to a CSV file, there are no unittests.
 use log::*;
-use std::{fs, path::Path, env, io::{stdin, stdout, Write}, time::Instant, sync::Arc};
+use std::{env, fs, io::{stdin, stdout, Write}, path::Path, sync::Arc, time::Instant};
 use chrono::Local;
 use anyhow::{Context, Result};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
+use tokio::sync::Mutex;
 use crate::Opts;
-use crate::{metrics, statements, node_exporter, isleader, entities, masters, tservers, vars, versions, gflags, memtrackers, loglines, rpcs, pprof, mems, clocks, threads, utility};
+use crate::{clocks, entities, gflags, isleader, loglines, masters, mems, memtrackers, metrics, node_exporter, pprof, rpcs, statements, threads, tservers, utility, vars, versions};
 use crate::snapshot::Snapshot;
 
 impl Snapshot {
@@ -41,22 +40,22 @@ impl Snapshot {
         // If it doesn't exist, snapshot_number 0 is okay.
         let snapshot_index = &yb_stats_directory.join("snapshot.index");
         if Path::new(&snapshot_index).exists() {
-            snapshots = Snapshot::read_snapshots()?;
+            snapshots = Snapshot::read_snapshot_index()?;
             let record_with_highest_snapshot_number = snapshots.iter().max_by_key(|k| k.number).unwrap();
             snapshot_number = record_with_highest_snapshot_number.number + 1;
         }
         // create a new snapshot vector and assign it the new_snapshot, and add it to the snapshots vector.
         let new_snapshot: Snapshot = Snapshot { number: snapshot_number, timestamp: Local::now(), comment: snapshot_comment.clone().unwrap_or_default() };
         snapshots.push(new_snapshot);
-        Snapshot::write_snapshots(snapshots)?;
+        Snapshot::write_snapshot_index(snapshots)?;
         // Create the snapshot number directory in the &yb_stats_directory
         let current_snapshot_directory = &yb_stats_directory.join(snapshot_number.to_string());
         fs::create_dir_all(current_snapshot_directory)
             .with_context(|| format!("Cannot create directory: {}",&current_snapshot_directory.clone().into_os_string().into_string().unwrap()))?;
         Ok(snapshot_number)
     }
-    /// This is a private function to read the snapshots file, and return a vector with the snapshots.
-    fn read_snapshots(
+    /// This is a private function to read the snapshots index file, and return a vector with the snapshots.
+    fn read_snapshot_index(
     ) -> Result<Vec<Snapshot>>
     {
         let mut snapshots: Vec<Snapshot> = Vec::new();
@@ -75,9 +74,9 @@ impl Snapshot {
         }
         Ok(snapshots)
     }
-    /// This is a private function to write the vector to the snapshots file.
-    /// The file gets truncated and overwritten.
-    fn write_snapshots(
+    /// This is a private function to write the vector to the snapshots index file.
+    /// The file gets truncated and overwritten upon write.
+    fn write_snapshot_index(
         snapshots: Vec<Snapshot>
     ) -> Result<()>
     {
@@ -108,14 +107,19 @@ impl Snapshot {
     pub fn print(
     ) -> Result<()>
     {
-        let snapshots = Snapshot::read_snapshots()?;
+        let snapshots = Snapshot::read_snapshot_index()?;
         for row in &snapshots {
             println!("{:>3} {:30} {:50}", row.number, row.timestamp, row.comment);
         }
         Ok(())
     }
-    /// This is a public function that validates begin and end provided values, and if these are not specified are requested interactively, after which the begin and end snapshot numbers and the struct with the begin snapshot are returned as record.
-    /// If the begin or end value is provided (using the switches `-b`/`--begin` and `-e`/`--end`), it will take that value and not ask for it.
+    /// This is a public function that validates begin and end provided values,
+    /// and if these are not specified are requested interactively,
+    /// after which the begin and end snapshot numbers and the struct with the begin snapshot are returned as record.
+    ///
+    /// If the begin or end value is provided (using the switches `-b`/`--begin` and `-e`/`--end`),
+    /// it will take that value and not ask for it.
+    ///
     /// Both begin and end snapshots are validated for their existence in the [Snapshot] vector.
     /// Besides the begin and end snapshot values, the struct with the begin [Snapshot] is returned.
     /// The begin [Snapshot] struct is needed for the timestamp.
@@ -124,7 +128,7 @@ impl Snapshot {
         option_end: Option<i32>
     ) -> Result<(String, String, Snapshot)>
     {
-        let snapshots = Snapshot::read_snapshots()?;
+        let snapshots = Snapshot::read_snapshot_index()?;
         let begin_snapshot= match option_begin {
             Some(nr) => nr,
             None => {
@@ -162,7 +166,7 @@ impl Snapshot {
         Ok((begin_snapshot.to_string(), end_snapshot.to_string(), begin_snapshot_row.clone()))
     }
 }
-/// This is the general save_snapshot function.
+/// This is the general yb_stat wide save_snapshot function.
 pub fn save_snapshot<T: Serialize>(
     snapshot_number: i32,
     filename: &str,
@@ -186,7 +190,7 @@ pub fn save_snapshot<T: Serialize>(
 
     Ok(())
 }
-/// This is the general read_snapshot function.
+/// This is the general yb_stat wide read_snapshot function.
 pub fn read_snapshot<T: for<'de> Deserialize<'de>>(
     snapshot_number: &String,
     filename: &str,
@@ -210,7 +214,7 @@ pub fn read_snapshot<T: for<'de> Deserialize<'de>>(
     Ok(vector)
 }
 
-/// The function to perform a snapshot resulting in CSV files.
+/// The function to perform a general snapshot resulting in CSV files.
 pub async fn perform_snapshot(
     hosts: Vec<&'static str>,
     ports: Vec<&'static str>,
@@ -297,9 +301,8 @@ pub async fn perform_snapshot(
 
     let arc_hosts_clone = arc_hosts.clone();
     let arc_ports_clone = arc_ports.clone();
-    let arc_yb_stats_directory_clone = arc_yb_stats_directory.clone();
     let handle = tokio::spawn(async move {
-        gflags::perform_gflags_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, &arc_yb_stats_directory_clone, parallel).await;
+        gflags::AllStoredGFlags::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
     });
     handles.push(handle);
 
@@ -368,6 +371,15 @@ pub async fn perform_snapshot(
     Ok(())
 }
 
+/// This function shows the difference report for the snapshot data that allows to show a difference:
+/// - metrics (value, coarse_histogram/countsum, ysql/countsumrows)
+/// - statements (ysql)
+/// - node_exporter
+/// - entities (read via master leader)
+/// - masters (read via master leader)
+/// - tablet servers (read via master leader)
+/// - vars
+/// - versions
 pub async fn snapshot_diff(
     options: &Opts,
 ) -> Result<()>
@@ -407,6 +419,314 @@ pub async fn snapshot_diff(
 
     let versions_diff = versions::SnapshotDiffBTreeMapsVersions::snapshot_diff(&begin_snapshot, &end_snapshot)?;
     versions_diff.print(&hostname_filter);
+
+    Ok(())
+}
+
+/// Take "adhoc" (in memory) snapshots of metrics only:
+/// - metrics (value, coarse_histogram/countsum, ysql/countsumrows)
+/// - statements (ysql)
+/// - node_exporter
+///
+/// The idea here to reduce output when it's know lots of 'entities'/objects are created, or other
+/// changed would give too much output to be useful.
+pub async fn adhoc_metrics_diff(
+    hosts: Vec<&'static str>,
+    ports: Vec<&'static str>,
+    parallel: usize,
+    options: &Opts,
+) -> Result<()>
+{
+    info!("ad-hoc metrics diff first snapshot begin");
+    let timer = Instant::now();
+
+    let stat_name_filter = utility::set_regex(&options.stat_name_match);
+    let hostname_filter = utility::set_regex(&options.hostname_match);
+    let table_name_filter = utility::set_regex(&options.table_name_match);
+
+    let first_snapshot_time = Local::now();
+
+    let metrics = Arc::new(Mutex::new(metrics::SnapshotDiffBTreeMapsMetrics::new()));
+    let statements = Arc::new(Mutex::new(statements::SnapshotDiffBTreeMapStatements::new()));
+    let node_exporter = Arc::new(Mutex::new(node_exporter::SnapshotDiffBTreeMapNodeExporter::new()));
+
+    let hosts = Arc::new(Mutex::new(hosts));
+    let ports = Arc::new(Mutex::new(ports));
+    let mut handles = vec![];
+
+    let clone_metrics = metrics.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_metrics.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+    });
+    handles.push(handle);
+
+    let clone_statements = statements.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_statements.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+    });
+    handles.push(handle);
+
+    let clone_node_exporter = node_exporter.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_node_exporter.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+    });
+    handles.push(handle);
+
+    for handle in handles {
+        handle.await.unwrap();
+    }
+    info!("ad-hoc metrics diff first snapshot end: {:?}", timer.elapsed());
+
+    println!("Begin ad-hoc in-memory snapshot created, press enter to create end snapshot for difference calculation.");
+    let mut input = String::new();
+    stdin().read_line(&mut input).expect("failed");
+
+    info!("ad-hoc metrics diff second snapshot begin");
+    let timer = Instant::now();
+
+    let second_snapshot_time = Local::now();
+
+    let mut handles = vec![];
+
+    let clone_metrics = metrics.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_metrics.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel, &first_snapshot_time).await;
+    });
+    handles.push(handle);
+
+    let clone_statements = statements.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_statements.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel, &first_snapshot_time).await;
+    });
+    handles.push(handle);
+
+    let clone_node_exporter = node_exporter.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_node_exporter.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel, &first_snapshot_time).await;
+    });
+    handles.push(handle);
+
+    for handle in handles {
+        handle.await.unwrap();
+    }
+
+    info!("ad-hoc metrics diff second snapshot end: {:?}", timer.elapsed());
+
+    println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time - first_snapshot_time).num_milliseconds() as f64 / 1000_f64);
+    metrics.lock().await.print(&hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable).await;
+    statements.lock().await.print(&hostname_filter, options.sql_length).await;
+    node_exporter.lock().await.print(&hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
+
+    Ok(())
+}
+
+/// This function shows the difference report for the adhoc (in memory) snapshot data that allows to show a difference:
+/// - metrics (value, coarse_histogram/countsum, ysql/countsumrows)
+/// - statements (ysql)
+/// - node_exporter
+/// - entities (read via master leader)
+/// - masters (read via master leader)
+/// - tablet servers (read via master leader)
+/// - vars
+/// - versions
+pub async fn adhoc_diff(
+    hosts: Vec<&'static str>,
+    ports: Vec<&'static str>,
+    parallel: usize,
+    options: &Opts,
+) -> Result<()>
+{
+    info!("ad-hoc mode first snapshot begin");
+    let timer = Instant::now();
+
+    let stat_name_filter = utility::set_regex(&options.stat_name_match);
+    let hostname_filter = utility::set_regex(&options.hostname_match);
+    let table_name_filter = utility::set_regex(&options.table_name_match);
+
+    let first_snapshot_time = Local::now();
+
+    let metrics = Arc::new(Mutex::new(metrics::SnapshotDiffBTreeMapsMetrics::new()));
+    let statements = Arc::new(Mutex::new(statements::SnapshotDiffBTreeMapStatements::new()));
+    let node_exporter = Arc::new(Mutex::new(node_exporter::SnapshotDiffBTreeMapNodeExporter::new()));
+    let entities = Arc::new(Mutex::new(entities::SnapshotDiffBTreeMapsEntities::new()));
+    let masters = Arc::new(Mutex::new(masters::SnapshotDiffBTreeMapsMasters::new()));
+    let tablet_servers = Arc::new(Mutex::new(tservers::SnapshotDiffBTreeMapsTabletServers::new()));
+    let versions = Arc::new(Mutex::new(versions::SnapshotDiffBTreeMapsVersions::new()));
+    let vars = Arc::new(Mutex::new(vars::SnapshotDiffBTreeMapsVars::new()));
+
+    let hosts = Arc::new(Mutex::new(hosts));
+    let ports = Arc::new(Mutex::new(ports));
+    let mut handles = vec![];
+
+    let clone_metrics = metrics.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_metrics.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+    });
+    handles.push(handle);
+
+    let clone_statements = statements.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_statements.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+    });
+    handles.push(handle);
+
+    let clone_node_exporter = node_exporter.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_node_exporter.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+    });
+    handles.push(handle);
+
+    let clone_entities = entities.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_entities.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+    });
+    handles.push(handle);
+
+    let clone_masters = masters.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_masters.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+    });
+    handles.push(handle);
+
+    let clone_tablet_servers = tablet_servers.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_tablet_servers.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+    });
+    handles.push(handle);
+
+    let clone_vars = vars.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_vars.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+    });
+    handles.push(handle);
+
+    let clone_versions = versions.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_versions.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+    });
+    handles.push(handle);
+
+    for handle in handles {
+        handle.await.unwrap();
+    }
+    info!("ad-hoc metrics diff first snapshot end: {:?}", timer.elapsed());
+
+    println!("Begin ad-hoc in-memory snapshot created, press enter to create end snapshot for difference calculation.");
+    let mut input = String::new();
+    stdin().read_line(&mut input).expect("failed");
+
+    info!("ad-hoc metrics diff second snapshot begin");
+    let timer = Instant::now();
+
+    let second_snapshot_time = Local::now();
+    let mut handles = vec![];
+
+    let clone_metrics = metrics.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_metrics.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel, &first_snapshot_time).await;
+    });
+    handles.push(handle);
+
+    let clone_statements = statements.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_statements.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel, &first_snapshot_time).await;
+    });
+    handles.push(handle);
+
+    let clone_node_exporter = node_exporter.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_node_exporter.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel, &first_snapshot_time).await;
+    });
+    handles.push(handle);
+
+    let clone_entities = entities.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_entities.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+    });
+    handles.push(handle);
+
+    let clone_masters = masters.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_masters.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+    });
+    handles.push(handle);
+
+    let clone_tablet_servers = tablet_servers.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_tablet_servers.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+    });
+    handles.push(handle);
+
+    let clone_vars = vars.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_vars.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+    });
+    handles.push(handle);
+
+    let clone_versions = versions.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_versions.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+    });
+    handles.push(handle);
+
+    for handle in handles {
+        handle.await.unwrap();
+    }
+    info!("ad-hoc metrics diff second snapshot end: {:?}", timer.elapsed());
+
+    println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time - first_snapshot_time).num_milliseconds() as f64 / 1000_f64);
+    metrics.lock().await.print(&hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable).await;
+    statements.lock().await.print(&hostname_filter, options.sql_length).await;
+    node_exporter.lock().await.print(&hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
+    entities.lock().await.print();
+    masters.lock().await.print();
+    tablet_servers.lock().await.print();
+    vars.lock().await.print();
+    versions.lock().await.print(&hostname_filter);
 
     Ok(())
 }

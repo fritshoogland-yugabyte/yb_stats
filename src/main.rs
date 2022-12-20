@@ -139,21 +139,21 @@ pub struct Opts {
     /// Print version data for snapshot number, or get current.
     #[arg(long, value_name = "snapshot number")]
     print_version: Option<Option<String>>,
-    /// Print rpcs for the given snapshot number
+    /// Print rpcs for the given snapshot number, or get current.
     #[arg(long, value_name = "snapshot number")]
     print_rpcs: Option<Option<String>>,
-    /// print clocks
+    /// print clocks for the given snapshot number, or get current.
     #[arg(long)]
     print_clocks: Option<Option<String>>,
     /// print master leader tablet server latencies
     #[arg(long)]
     print_latencies: Option<Option<String>>,
-    /// Print threads data for the given snapshot number
+    /// Print threads data for the given snapshot number, or get current.
     #[arg(long, value_name = "snapshot number")]
     print_threads: Option<Option<String>>,
-    /// Print gflags for the given snapshot number
+    /// Print gflags for the given snapshot number, or get current.
     #[arg(long, value_name = "snapshot number")]
-    print_gflags: Option<String>,
+    print_gflags: Option<Option<String>>,
     /// Snapshot disable gathering of thread stacks from /threadz
     #[arg(long)]
     disable_threads: bool,
@@ -194,9 +194,9 @@ async fn main() -> Result<()>
         Opts { print_rpcs, ..             } if print_rpcs.is_some()            => rpcs::print_rpcs(hosts, ports, parallel, &options).await?,
         Opts { print_log, ..              } if print_log.is_some()             => loglines::print_loglines(hosts, ports, parallel, &options).await?,
         Opts { tail_log, ..               } if *tail_log                       => loglines::tail_loglines(hosts, ports, parallel, &options).await?,
-        Opts { adhoc_metrics_diff, ..     } if *adhoc_metrics_diff             => utility::adhoc_metrics_diff(hosts, ports, parallel, &options).await?,
-        Opts { print_gflags, ..           } if print_gflags.is_some()          => gflags::print_gflags_data(&options),
-        _                                                                      => utility::adhoc_diff(hosts, ports, parallel, &options).await?,
+        Opts { adhoc_metrics_diff, ..     } if *adhoc_metrics_diff             => snapshot::adhoc_metrics_diff(hosts, ports, parallel, &options).await?,
+        Opts { print_gflags, ..           } if print_gflags.is_some()          => gflags::print_gflags(hosts, ports, parallel, &options).await?,
+        _                                                                      => snapshot::adhoc_diff(hosts, ports, parallel, &options).await?,
     };
     // if we are allowed to write, and changed_options does contain values, write them to '.env'
     utility::dotenv_writer(WRITE_DOTENV, changed_options)?;

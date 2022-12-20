@@ -1,6 +1,6 @@
 use chrono::{DateTime, Local};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct GFlag {
     pub name: String,
     pub value: String,
@@ -12,4 +12,9 @@ pub struct StoredGFlags {
     pub timestamp: DateTime<Local>,
     pub gflag_name: String,
     pub gflag_value: String,
+}
+
+#[derive(Debug, Default)]
+pub struct AllStoredGFlags {
+    pub stored_gflags: Vec<StoredGFlags>,
 }

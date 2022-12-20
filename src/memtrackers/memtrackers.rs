@@ -5,7 +5,6 @@ use std::{sync::mpsc::channel, time::Instant};
 use scraper::{ElementRef, Html, Selector};
 use log::*;
 use anyhow::Result;
-use crate::utility::{scan_host_port, http_get};
 use crate::snapshot;
 use crate::memtrackers::{MemTrackers, StoredMemTrackers, AllStoredMemTrackers};
 use crate::Opts;
@@ -79,9 +78,9 @@ impl AllStoredMemTrackers {
         port: &str,
     ) -> Vec<MemTrackers>
     {
-        let data_from_http = if scan_host_port(host, port)
+        let data_from_http = if utility::scan_host_port(host, port)
         {
-            http_get(host, port, "mem-trackers")
+            utility::http_get(host, port, "mem-trackers")
         }
         else
         {
@@ -91,7 +90,8 @@ impl AllStoredMemTrackers {
     }
     fn parse_memtrackers(
         http_data: String
-    ) -> Vec<MemTrackers> {
+    ) -> Vec<MemTrackers>
+    {
         let mut memtrackers: Vec<MemTrackers> = Vec::new();
 
         if let Some(table) = AllStoredMemTrackers::find_table(&http_data) {
@@ -105,13 +105,10 @@ impl AllStoredMemTrackers {
                 Some(value) => std::mem::take(value),
                 None => "<Missing>".to_string(),
             };
-            //let memtrackers_id_regex = Regex::new(r"(.*)->").unwrap();
             let mut id_from_table = String::from("Initial value");
             for mut row in rows {
                 id_from_table = if row.len() == 4
                 {
-                    //std::mem::take(&mut row[1])
-                    //std::mem::take(&mut row[id_pos])
                     take_or_missing(&mut row, id_pos)
                 }
                 else
@@ -163,7 +160,7 @@ impl AllStoredMemTrackers {
     pub fn print(
         &self,
         hostname_filter: &Regex,
-        stat_name_filter: &Regex
+        stat_name_filter: &Regex,
     ) -> Result<()>
     {
         info!("print_memtrackers");
@@ -219,7 +216,6 @@ pub async fn print_memtrackers(
 #[cfg(test)]
 mod tests {
     use super::*;
-    //use crate::utility_test::*;
 
     #[test]
     fn unit_parse_memtrackers_data() {

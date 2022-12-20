@@ -1,3 +1,5 @@
+//! The module for the logs in the /logs endpoints of master and tablet server.
+//!
 use std::{sync::mpsc::channel, time::{Instant, Duration}, collections::BTreeMap};
 use chrono::{DateTime, Local, TimeZone};
 use regex::{Regex,Captures};
@@ -5,8 +7,8 @@ use regex::{Regex,Captures};
 use log::*;
 use colored::*;
 use tokio::time;
-use crate::snapshot;
 use anyhow::Result;
+use crate::snapshot;
 use crate::Opts;
 use crate::utility;
 use crate::loglines::{AllStoredLogLines, LogLine, StoredLogLines};
@@ -158,7 +160,7 @@ impl AllStoredLogLines {
         log_severity: &String,
     ) -> Result<()>
     {
-        info!("print_log");
+        info!("print log");
 
         // create a copy of the stored_loglines vector and sort it based on the timestamp.
         let mut sorted_loglines = self.stored_loglines.clone();
@@ -180,7 +182,6 @@ impl AllStoredLogLines {
                     _   => print!("{} ", row.severity.underline()),
                 }
                 println!("{:20} {:50}",row.sourcefile_nr, row.message.trim());
-                    //{:1} {:20} {:50}", row.hostname_port, row.timestamp, row.severity, row.sourcefile_nr, row.message)
             }
         }
         Ok(())

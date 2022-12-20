@@ -1,13 +1,11 @@
 //! Utilities
 use port_scanner::scan_port_addr;
 use log::*;
-use std::{time::Instant, env, sync::Arc, fs, collections::HashMap, io::{Write, stdin}};
-use chrono::Local;
-use anyhow::{Result, Context};
+use std::{collections::HashMap, env, fs, io::Write};
+use anyhow::{Context, Result};
 use regex::Regex;
-use tokio::sync::Mutex;
-use crate::{metrics, statements, node_exporter, entities, masters, tservers, vars, versions};
-use crate::Opts;
+//use qscan::{QScanner, QScanResult, QScanType, QscanTcpConnectState, QScanTcpConnectState};
+//use tokio::runtime::Runtime;
 
 // This reads the constant set in main.rs.
 // This probably needs to be made better, and user settable.
@@ -17,22 +15,42 @@ use crate::DEFAULT_HOSTS;
 use crate::DEFAULT_PORTS;
 use crate::DEFAULT_PARALLEL;
 
-// the scan routine for an existing host:port combination.
-// this currently uses port_scanner, but can be slow (3s).
-// qscan crate?
+/// Scan the given host and port combination to see if it's reachable.
 pub fn scan_host_port(
     host: &str,
     port: &str,
 ) -> bool
 {
+    // this currently uses port_scanner, but can be slow (3s).
     if ! scan_port_addr( format!("{}:{}", host, port)) {
         warn!("Port scanner: hostname:port {}:{} cannot be reached, skipping",host ,port);
         false
     } else {
         true
     }
+
+    /* try with qscan crate
+    let mut scanner = QScanner::new(host, port);
+    scanner.set_timeout_ms(100);
+    scanner.set_ntries(1);
+    scanner.set_scan_type(QScanType::TcpConnect);
+
+    let results: &Vec<QScanResult> = Runtime::new().unwrap().block_on(scanner.scan_tcp_connect());
+
+    for result in resuts {
+        if let QScanResult::TcpConnect(sa) = result {
+            if sa.state == QScanTcpConnectState::Open {
+                true
+            } else {
+                false
+            }
+        }
+    }
+
+     */
 }
 
+/// Reads the http endpoint as specified by the caller, and returns the result as String.
 pub fn http_get(
     host: &str,
     port: &str,
@@ -61,6 +79,9 @@ pub fn http_get(
     }
 }
 
+/// Take the hosts from the [Option] struct, and:
+/// - adds it to the changed_options hashmap if necessary.
+/// - returns a Vec<&str>.
 pub fn set_hosts(
     option: &Option<String>,
     changed_options: &mut HashMap<&str, String>,
@@ -94,6 +115,9 @@ pub fn set_hosts(
     hosts
 }
 
+/// Take the ports from the [Option] struct, and:
+/// - adds it to the changed_options hashmap if necessary.
+/// - returns a Vec<&str>.
 pub fn set_ports(
     option: &Option<String>,
     changed_options: &mut HashMap<&str, String>,
@@ -127,6 +151,9 @@ pub fn set_ports(
     ports
 }
 
+/// Take the parallel from the [Option] struct, and:
+/// - adds it to the changed_options hashmap if necessary.
+/// - returns a usize.
 pub fn set_parallel(
     option: &Option<String>,
     changed_options: &mut HashMap<&str, String>,
@@ -159,6 +186,7 @@ pub fn set_parallel(
     parallel
 }
 
+/// Simple helper routine to create a regex from an &Option<String>.
 pub fn set_regex(
     regex: &Option<String>,
 ) -> Regex
@@ -169,6 +197,8 @@ pub fn set_regex(
     }
 }
 
+/// If writing the '.env' file is allowed via write_dotenv,
+/// take the changed_options hashmap, and write it.
 pub fn dotenv_writer(
     write_dotenv: bool,
     changed_options: HashMap<&str, String>,
@@ -181,7 +211,7 @@ pub fn dotenv_writer(
             .write(true)
             .truncate(true)
             .open(".env")
-            .with_context(|| "Error writing .env file: .env")?;
+            .with_context(|| "Error writing .env file in current directory")?;
 
         for (key, value) in changed_options {
             file.write_all(format!("{}={}\n", key, value).as_bytes())?;
@@ -191,298 +221,7 @@ pub fn dotenv_writer(
     Ok(())
 }
 
-pub async fn adhoc_metrics_diff(
-    hosts: Vec<&'static str>,
-    ports: Vec<&'static str>,
-    parallel: usize,
-    options: &Opts,
-) -> Result<()>
-{
-    info!("ad-hoc metrics diff first snapshot begin");
-    let timer = Instant::now();
-
-    let stat_name_filter = set_regex(&options.stat_name_match);
-    let hostname_filter = set_regex(&options.hostname_match);
-    let table_name_filter = set_regex(&options.table_name_match);
-
-    let first_snapshot_time = Local::now();
-
-    let metrics = Arc::new(Mutex::new(metrics::SnapshotDiffBTreeMapsMetrics::new()));
-    let statements = Arc::new(Mutex::new(statements::SnapshotDiffBTreeMapStatements::new()));
-    let node_exporter = Arc::new(Mutex::new(node_exporter::SnapshotDiffBTreeMapNodeExporter::new()));
-
-    let hosts = Arc::new(Mutex::new(hosts));
-    let ports = Arc::new(Mutex::new(ports));
-    let mut handles = vec![];
-
-    let clone_metrics = metrics.clone();
-    let clone_hosts = hosts.clone();
-    let clone_ports = ports.clone();
-    let handle = tokio::spawn(async move {
-        clone_metrics.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
-    });
-    handles.push(handle);
-
-    let clone_statements = statements.clone();
-    let clone_hosts = hosts.clone();
-    let clone_ports = ports.clone();
-    let handle = tokio::spawn(async move {
-        clone_statements.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
-    });
-    handles.push(handle);
-
-    let clone_node_exporter = node_exporter.clone();
-    let clone_hosts = hosts.clone();
-    let clone_ports = ports.clone();
-    let handle = tokio::spawn(async move {
-        clone_node_exporter.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
-    });
-    handles.push(handle);
-
-    for handle in handles {
-        handle.await.unwrap();
-    }
-    info!("ad-hoc metrics diff first snapshot end: {:?}", timer.elapsed());
-
-    println!("Begin ad-hoc in-memory snapshot created, press enter to create end snapshot for difference calculation.");
-    let mut input = String::new();
-    stdin().read_line(&mut input).expect("failed");
-
-    info!("ad-hoc metrics diff second snapshot begin");
-    let timer = Instant::now();
-
-    let second_snapshot_time = Local::now();
-
-    let mut handles = vec![];
-
-    let clone_metrics = metrics.clone();
-    let clone_hosts = hosts.clone();
-    let clone_ports = ports.clone();
-    let handle = tokio::spawn(async move {
-        clone_metrics.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel, &first_snapshot_time).await;
-    });
-    handles.push(handle);
-
-    let clone_statements = statements.clone();
-    let clone_hosts = hosts.clone();
-    let clone_ports = ports.clone();
-    let handle = tokio::spawn(async move {
-        clone_statements.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel, &first_snapshot_time).await;
-    });
-    handles.push(handle);
-
-    let clone_node_exporter = node_exporter.clone();
-    let clone_hosts = hosts.clone();
-    let clone_ports = ports.clone();
-    let handle = tokio::spawn(async move {
-        clone_node_exporter.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel, &first_snapshot_time).await;
-    });
-    handles.push(handle);
-
-    for handle in handles {
-        handle.await.unwrap();
-    }
-
-    info!("ad-hoc metrics diff second snapshot end: {:?}", timer.elapsed());
-
-    println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time - first_snapshot_time).num_milliseconds() as f64 / 1000_f64);
-    metrics.lock().await.print(&hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable).await;
-    statements.lock().await.print(&hostname_filter, options.sql_length).await;
-    node_exporter.lock().await.print(&hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
-
-    Ok(())
-}
-
-pub async fn adhoc_diff(
-    hosts: Vec<&'static str>,
-    ports: Vec<&'static str>,
-    parallel: usize,
-    options: &Opts,
-) -> Result<()>
-{
-    info!("ad-hoc mode first snapshot begin");
-    let timer = Instant::now();
-
-    let stat_name_filter = set_regex(&options.stat_name_match);
-    let hostname_filter = set_regex(&options.hostname_match);
-    let table_name_filter = set_regex(&options.table_name_match);
-
-    let first_snapshot_time = Local::now();
-
-    let metrics = Arc::new(Mutex::new(metrics::SnapshotDiffBTreeMapsMetrics::new()));
-    let statements = Arc::new(Mutex::new(statements::SnapshotDiffBTreeMapStatements::new()));
-    let node_exporter = Arc::new(Mutex::new(node_exporter::SnapshotDiffBTreeMapNodeExporter::new()));
-    let entities = Arc::new(Mutex::new(entities::SnapshotDiffBTreeMapsEntities::new()));
-    let masters = Arc::new(Mutex::new(masters::SnapshotDiffBTreeMapsMasters::new()));
-    let tablet_servers = Arc::new(Mutex::new(tservers::SnapshotDiffBTreeMapsTabletServers::new()));
-    let versions = Arc::new(Mutex::new(versions::SnapshotDiffBTreeMapsVersions::new()));
-    let vars = Arc::new(Mutex::new(vars::SnapshotDiffBTreeMapsVars::new()));
-
-    let hosts = Arc::new(Mutex::new(hosts));
-    let ports = Arc::new(Mutex::new(ports));
-    let mut handles = vec![];
-
-    let clone_metrics = metrics.clone();
-    let clone_hosts = hosts.clone();
-    let clone_ports = ports.clone();
-    let handle = tokio::spawn(async move {
-        clone_metrics.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
-    });
-    handles.push(handle);
-
-    let clone_statements = statements.clone();
-    let clone_hosts = hosts.clone();
-    let clone_ports = ports.clone();
-    let handle = tokio::spawn(async move {
-        clone_statements.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
-    });
-    handles.push(handle);
-
-    let clone_node_exporter = node_exporter.clone();
-    let clone_hosts = hosts.clone();
-    let clone_ports = ports.clone();
-    let handle = tokio::spawn(async move {
-        clone_node_exporter.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
-    });
-    handles.push(handle);
-
-    let clone_entities = entities.clone();
-    let clone_hosts = hosts.clone();
-    let clone_ports = ports.clone();
-    let handle = tokio::spawn(async move {
-        clone_entities.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
-    });
-    handles.push(handle);
-
-    let clone_masters = masters.clone();
-    let clone_hosts = hosts.clone();
-    let clone_ports = ports.clone();
-    let handle = tokio::spawn(async move {
-        clone_masters.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
-    });
-    handles.push(handle);
-
-    let clone_tablet_servers = tablet_servers.clone();
-    let clone_hosts = hosts.clone();
-    let clone_ports = ports.clone();
-    let handle = tokio::spawn(async move {
-        clone_tablet_servers.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
-    });
-    handles.push(handle);
-
-    let clone_vars = vars.clone();
-    let clone_hosts = hosts.clone();
-    let clone_ports = ports.clone();
-    let handle = tokio::spawn(async move {
-        clone_vars.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
-    });
-    handles.push(handle);
-
-    let clone_versions = versions.clone();
-    let clone_hosts = hosts.clone();
-    let clone_ports = ports.clone();
-    let handle = tokio::spawn(async move {
-        clone_versions.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
-    });
-    handles.push(handle);
-
-    for handle in handles {
-        handle.await.unwrap();
-    }
-    info!("ad-hoc metrics diff first snapshot end: {:?}", timer.elapsed());
-
-    println!("Begin ad-hoc in-memory snapshot created, press enter to create end snapshot for difference calculation.");
-    let mut input = String::new();
-    stdin().read_line(&mut input).expect("failed");
-
-    info!("ad-hoc metrics diff second snapshot begin");
-    let timer = Instant::now();
-
-    let second_snapshot_time = Local::now();
-    let mut handles = vec![];
-
-    let clone_metrics = metrics.clone();
-    let clone_hosts = hosts.clone();
-    let clone_ports = ports.clone();
-    let handle = tokio::spawn(async move {
-        clone_metrics.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel, &first_snapshot_time).await;
-    });
-    handles.push(handle);
-
-    let clone_statements = statements.clone();
-    let clone_hosts = hosts.clone();
-    let clone_ports = ports.clone();
-    let handle = tokio::spawn(async move {
-        clone_statements.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel, &first_snapshot_time).await;
-    });
-    handles.push(handle);
-
-    let clone_node_exporter = node_exporter.clone();
-    let clone_hosts = hosts.clone();
-    let clone_ports = ports.clone();
-    let handle = tokio::spawn(async move {
-        clone_node_exporter.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel, &first_snapshot_time).await;
-    });
-    handles.push(handle);
-
-    let clone_entities = entities.clone();
-    let clone_hosts = hosts.clone();
-    let clone_ports = ports.clone();
-    let handle = tokio::spawn(async move {
-        clone_entities.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
-    });
-    handles.push(handle);
-
-    let clone_masters = masters.clone();
-    let clone_hosts = hosts.clone();
-    let clone_ports = ports.clone();
-    let handle = tokio::spawn(async move {
-        clone_masters.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
-    });
-    handles.push(handle);
-
-    let clone_tablet_servers = tablet_servers.clone();
-    let clone_hosts = hosts.clone();
-    let clone_ports = ports.clone();
-    let handle = tokio::spawn(async move {
-        clone_tablet_servers.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
-    });
-    handles.push(handle);
-
-    let clone_vars = vars.clone();
-    let clone_hosts = hosts.clone();
-    let clone_ports = ports.clone();
-    let handle = tokio::spawn(async move {
-        clone_vars.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
-    });
-    handles.push(handle);
-
-    let clone_versions = versions.clone();
-    let clone_hosts = hosts.clone();
-    let clone_ports = ports.clone();
-    let handle = tokio::spawn(async move {
-        clone_versions.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
-    });
-    handles.push(handle);
-
-    for handle in handles {
-        handle.await.unwrap();
-    }
-    info!("ad-hoc metrics diff second snapshot end: {:?}", timer.elapsed());
-
-    println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time - first_snapshot_time).num_milliseconds() as f64 / 1000_f64);
-    metrics.lock().await.print(&hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable).await;
-    statements.lock().await.print(&hostname_filter, options.sql_length).await;
-    node_exporter.lock().await.print(&hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
-    entities.lock().await.print();
-    masters.lock().await.print();
-    tablet_servers.lock().await.print();
-    vars.lock().await.print();
-    versions.lock().await.print(&hostname_filter);
-
-    Ok(())
-}
-
+/// Read environment variable for integration tests
 #[cfg(test)]
 pub fn get_hostname_master() -> String {
     match env::var("HOSTNAME_MASTER") {
@@ -490,6 +229,7 @@ pub fn get_hostname_master() -> String {
         Err(_e) => { panic!("The environment variable HOSTNAME_MASTER should be set") },
     }
 }
+/// Read environment variable for integration tests
 #[cfg(test)]
 pub fn get_port_master() -> String {
     match env::var("PORT_MASTER") {
@@ -497,6 +237,7 @@ pub fn get_port_master() -> String {
         Err(_e) => { panic!("The environment variable PORT_MASTER should be set") },
     }
 }
+/// Read environment variable for integration tests
 #[cfg(test)]
 pub fn get_hostname_tserver() -> String {
     match env::var("HOSTNAME_TSERVER") {
@@ -504,6 +245,7 @@ pub fn get_hostname_tserver() -> String {
         Err(_e) => { panic!("The environment variable HOSTNAME_TSERVER should be set") },
     }
 }
+/// Read environment variable for integration tests
 #[cfg(test)]
 pub fn get_port_tserver() -> String {
     match env::var("PORT_TSERVER") {
@@ -511,6 +253,7 @@ pub fn get_port_tserver() -> String {
         Err(_e) => { panic!("The environment variable PORT_TSERVER should be set") },
     }
 }
+/// Read environment variable for integration tests
 #[cfg(test)]
 pub fn get_hostname_ysql() -> String {
     match env::var("HOSTNAME_YSQL") {
@@ -518,6 +261,7 @@ pub fn get_hostname_ysql() -> String {
         Err(_e) => { panic!("The environment variable HOSTNAME_YSQL should be set") },
     }
 }
+/// Read environment variable for integration tests
 #[cfg(test)]
 pub fn get_port_ysql() -> String {
     match env::var("PORT_YSQL") {
@@ -525,6 +269,7 @@ pub fn get_port_ysql() -> String {
         Err(_e) => { panic!("The environment variable PORT_YSQL should be set") },
     }
 }
+/// Read environment variable for integration tests
 #[cfg(test)]
 pub fn get_hostname_ycql() -> String {
     match env::var("HOSTNAME_YCQL") {
@@ -532,6 +277,7 @@ pub fn get_hostname_ycql() -> String {
         Err(_e) => { panic!("The environment variable HOSTNAME_YCQL should be set") },
     }
 }
+/// Read environment variable for integration tests
 #[cfg(test)]
 pub fn get_port_ycql() -> String {
     match env::var("PORT_YCQL") {
@@ -539,6 +285,7 @@ pub fn get_port_ycql() -> String {
         Err(_e) => { panic!("The environment variable PORT_YCQL should be set") },
     }
 }
+/// Read environment variable for integration tests
 #[cfg(test)]
 pub fn get_hostname_yedis() -> String {
     match env::var("HOSTNAME_YEDIS") {
@@ -546,6 +293,7 @@ pub fn get_hostname_yedis() -> String {
         Err(_e) => { panic!("The environment variable HOSTNAME_YEDIS should be set") },
     }
 }
+/// Read environment variable for integration tests
 #[cfg(test)]
 pub fn get_port_yedis() -> String {
     match env::var("PORT_YEDIS") {
@@ -553,6 +301,7 @@ pub fn get_port_yedis() -> String {
         Err(_e) => { panic!("The environment variable PORT_YEDIS should be set") },
     }
 }
+/// Read environment variable for integration tests
 #[cfg(test)]
 pub fn get_hostname_node_exporter() -> String {
     match env::var("HOSTNAME_NODE_EXPORTER") {
@@ -560,6 +309,7 @@ pub fn get_hostname_node_exporter() -> String {
         Err(_e) => { panic!("The environment variable HOSTNAME_NODE_EXPORTER should be set") },
     }
 }
+/// Read environment variable for integration tests
 #[cfg(test)]
 pub fn get_port_node_exporter() -> String {
     match env::var("PORT_NODE_EXPORTER") {

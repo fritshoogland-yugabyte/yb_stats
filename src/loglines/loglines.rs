@@ -284,7 +284,10 @@ pub async fn tail_loglines(
 mod tests {
     use super::*;
 
+    // This is a test function to test log line output.
+    // Run with `cargo test unit_parse_proble_logline -- --nocapture` to see the output of println!
     #[test]
+    #[ignore = "for testing logline parsing"]
     fn unit_parse_problem_logline() {
         // This is a regular log line.
         let logline = r#"

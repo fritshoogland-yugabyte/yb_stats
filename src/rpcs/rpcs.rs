@@ -50,6 +50,7 @@ impl StoredInboundRpc {
 }
 
 impl AllStoredConnections {
+    // called from snapshot::perform_snapshot
     pub async fn perform_snapshot(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
@@ -219,45 +220,6 @@ impl AllStoredConnections {
             },
         }
     }
-    pub fn print_adhoc(
-        &self,
-        details_enable: &bool,
-        hostname_filter: &Regex,
-    ) -> Result<()>
-    {
-        info!("print connections");
-
-        let mut endpoint_count: BTreeMap<String, usize> = BTreeMap::new();
-        for row in &self.stored_ysqlconnections {
-            *endpoint_count.entry(row.hostname_port.clone()).or_default() += 1;
-        }
-        for row in &self.stored_inboundrpcs {
-            *endpoint_count.entry(row.hostname_port.clone()).or_default() += 1;
-        }
-        for row in &self.stored_outboundrpcs {
-            *endpoint_count.entry(row.hostname_port.clone()).or_default() += 1;
-        }
-        debug!("{:#?}", endpoint_count);
-        let mut previous_hostname = String::from("");
-        let mut endpoints_collector: Vec<String> = Vec::new();
-        for (endpoint, count) in endpoint_count {
-            if hostname_filter.is_match(&endpoint) {
-                let current_hostname = endpoint.split(':').next().unwrap();
-                let current_port = endpoint.split(':').nth(1).unwrap();
-                if current_hostname != previous_hostname {
-                    println!("\n{}", "-".repeat(100));
-                    AllStoredConnections::print_details(self, details_enable, &mut endpoints_collector);
-                    print!("Host: {}", current_hostname);
-                    previous_hostname = current_hostname.to_string();
-                }
-                endpoints_collector.push(endpoint.clone());
-                print!("; port: {}, count: {}", current_port, count);
-            };
-        }
-        println!("\n{}", "-".repeat(100));
-        AllStoredConnections::print_details(self, details_enable, &mut endpoints_collector);
-        Ok(())
-    }
     pub fn print(
         &self,
         details_enable: &bool,
@@ -266,73 +228,146 @@ impl AllStoredConnections {
     {
         info!("print connections");
 
-        let mut endpoint_count: BTreeMap<String, usize> = BTreeMap::new();
-        for row in &self.stored_ysqlconnections {
-            *endpoint_count.entry(row.hostname_port.clone()).or_default() += 1;
+        let mut endpoint_count: BTreeMap<String, (usize, usize)> = BTreeMap::new();
+        for row in &self.stored_ysqlconnections
+        {
+            if row.backend_status == "active"
+            {
+                endpoint_count.entry(row.hostname_port.clone()).and_modify(|(active, total)| { *active +=1; *total += 1} ).or_insert((1,1));
+            }
+            else
+            {
+                endpoint_count.entry(row.hostname_port.clone()).and_modify(|(_active, total)| *total +=1).or_insert((0,1));
+            }
         }
-        for row in &self.stored_inboundrpcs {
-            *endpoint_count.entry(row.hostname_port.clone()).or_default() += 1;
+        for row in &self.stored_inboundrpcs
+        {
+            // active cql
+            if self.stored_cqldetails.iter().any(|r| r.hostname_port == row.hostname_port && r.remote_ip == row.remote_ip && r.serial_nr == row.serial_nr)
+            {
+                endpoint_count.entry(row.hostname_port.clone()).and_modify(|(active, total)| { *active +=1; *total += 1} ).or_insert((1,1));
+            }
+            // active rpc
+            else if self.stored_headers.iter().any(|r| r.hostname_port == row.hostname_port && r.remote_ip == row.remote_ip && r.serial_nr == row.serial_nr)
+            {
+                endpoint_count.entry(row.hostname_port.clone()).and_modify(|(active, total)| { *active +=1; *total += 1} ).or_insert((1,1));
+            }
+            // inactive rpc
+            else
+            {
+                endpoint_count.entry(row.hostname_port.clone()).and_modify(|(_active, total)| *total +=1).or_insert((0,1));
+            }
         }
-        for row in &self.stored_outboundrpcs {
-            *endpoint_count.entry(row.hostname_port.clone()).or_default() += 1;
+        for row in &self.stored_outboundrpcs
+        {
+            // active rpc
+            if self.stored_headers.iter().any(|r| r.hostname_port == row.hostname_port && r.remote_ip == row.remote_ip && r.serial_nr == row.serial_nr)
+            {
+                endpoint_count.entry(row.hostname_port.clone()).and_modify(|(active, total)| { *active +=1; *total += 1} ).or_insert((1,1));
+            }
+            // inactive rpc
+            else
+            {
+                endpoint_count.entry(row.hostname_port.clone()).and_modify(|(_active, total)| *total +=1).or_insert((0,1));
+            }
         }
-        debug!("{:#?}", endpoint_count);
-        let mut previous_hostname = String::from("");
-        let mut endpoints_collector: Vec<String> = Vec::new();
-        for (endpoint, count) in endpoint_count {
+        let mut previous_hostname = String::new();
+        for (endpoint, (active, inactive)) in &endpoint_count {
             if hostname_filter.is_match(&endpoint) {
-                let current_hostname = endpoint.split(':').next().unwrap();
-                let current_port = endpoint.split(':').nth(1).unwrap();
-                if current_hostname != previous_hostname {
-                    println!("\n{}", "-".repeat(100));
-                    AllStoredConnections::print_details(self, details_enable, &mut endpoints_collector);
-                    print!("Host: {}", current_hostname);
+                let current_hostname = &endpoint.split(':').next().unwrap();
+                let current_port = &endpoint.split(':').nth(1).unwrap();
+                if current_hostname.to_string() != previous_hostname {
+                    println!("\n{}", "-".repeat(120));
+                    if current_port.to_string() != String::from("") {
+                        self.print_details(previous_hostname, details_enable, &endpoint_count);
+                    }
+
+                    print!("{}", current_hostname);
                     previous_hostname = current_hostname.to_string();
                 }
-                endpoints_collector.push(endpoint.clone());
-                print!("; port: {}, count: {}", current_port, count);
+                print!("; port: {}, {}/{} act/tot", current_port, active, inactive);
             };
         }
-        println!("\n{}", "-".repeat(100));
-        AllStoredConnections::print_details(self, details_enable, &mut endpoints_collector);
+        println!("\n{}", "-".repeat(120));
+        self.print_details(previous_hostname, details_enable, &endpoint_count);
+
         Ok(())
     }
     fn print_details(
         &self,
+        hostname: String,
         details_enable: &bool,
-        endpoints_collector: &mut Vec<String>,
+        endpoint_count: &BTreeMap<String,(usize, usize)>,
     )
     {
-        if *details_enable
-        {
-            for hostname_port in endpoints_collector.drain(..)
-            {
-                for ysql in self.stored_ysqlconnections.iter().filter(|x| x.hostname_port == hostname_port)
-                {
-                    println!("{} {} {} {} {} {} {}", ysql.hostname_port, ysql.backend_status, ysql.db_name, ysql.backend_type, ysql.application_name, ysql.host, ysql.query);
-                }
-                for inbound in self.stored_inboundrpcs.iter().filter(|x| x.hostname_port == hostname_port)
-                {
-                    println!("{} {} {} {}", inbound.hostname_port, inbound.state, inbound.remote_ip, inbound.processed_call_count);
-                    for cqldetail in self.stored_cqldetails.iter().filter(|x| x.hostname_port == hostname_port && x.remote_ip == inbound.remote_ip && x.serial_nr == inbound.serial_nr) {
-                        println!(" Key:{} ela_ms:{} type:{} sql_id:{} sql_str:{}", cqldetail.keyspace, cqldetail.elapsed_millis, cqldetail.cql_details_type, cqldetail.sql_id, cqldetail.sql_string);
-                    }
-                    for header in self.stored_headers.iter().filter(|x| x.hostname_port == hostname_port && x.remote_ip == inbound.remote_ip && x.serial_nr == inbound.serial_nr) {
-                        println!(" State:{} ela_ms:{} tmout_ms:{} method:{} service:{}", header.state, header.elapsed_millis, header.timeout_millis, header.remote_method_method_name, header.remote_method_service_name);
+        let mut activity_counter = 0;
+        for (endpoint, (_active, _inactive)) in endpoint_count {
+            if endpoint.split(':').nth(0).unwrap() == hostname {
+                // YSQL connections have a 1:1 relationship
+                for row in self.stored_ysqlconnections.iter().filter(|r| r.hostname_port == endpoint.to_string()) {
+                    if row.backend_status == "active" || *details_enable {
+                        println!("{}<-{:30} {:6} {:>6} ms db:{}, q:{}", row.hostname_port, format!("{}:{}", row.host, row.port), row.backend_status, row.query_running_for_ms, row.db_name, row.query);
+                        activity_counter+=1;
                     }
                 }
-                for outbound in self.stored_outboundrpcs.iter().filter(|x| x.hostname_port == hostname_port)
-                {
-                    println!("{} {} {} {} {}", outbound.hostname_port, outbound.state, outbound.remote_ip, outbound.processed_call_count, outbound.sending_bytes);
-                    for header in self.stored_headers.iter().filter(|x| x.hostname_port == hostname_port && x.remote_ip == outbound.remote_ip && x.serial_nr == outbound.serial_nr) {
-                        println!(" State:{} ela_ms:{} tmout_ms:{} method:{} service:{}", header.state, header.elapsed_millis, header.timeout_millis, header.remote_method_method_name, header.remote_method_service_name);
+                for row in self.stored_inboundrpcs.iter().filter(|r| r.hostname_port == endpoint.to_string()) {
+                    // YCQL connections have a 1:1 relationship
+                    if let Some(cql) = self.stored_cqldetails.iter().find(|r| r.hostname_port == row.hostname_port && r.remote_ip == row.remote_ip && r.serial_nr == row.serial_nr) {
+                        println!("{}<-{:30} {:6}  {:>6} ms ks:{}, q: {}", cql.hostname_port, cql.remote_ip, cql.cql_details_type, cql.elapsed_millis, cql.keyspace, cql.sql_string);
+                        activity_counter+=1;
+                    }
+                    // inbound RPCs can have multiple requests
+                    let mut counter = 0;
+                    for header in self.stored_headers.iter().filter(|r| r.hostname_port == row.hostname_port && r.remote_ip == row.remote_ip && r.serial_nr == row.serial_nr) {
+                        if counter == 0
+                        {
+                            println!("{}<-{:30}  {:6} {:>6} ms {}:{}", header.hostname_port, header.remote_ip, header.state, header.elapsed_millis, header.remote_method_service_name, header.remote_method_method_name);
+                            activity_counter += 1;
+                        }
+                        else
+                        {
+                            println!("{:50}  {:6} {:>6} ms {}:{}", "", header.state, header.elapsed_millis, header.remote_method_service_name, header.remote_method_method_name);
+                            activity_counter += 1;
+                        };
+                        counter += 1;
+                    }
+                    // idle inbound connections have a 1:1 relationship, because it's just an open connection
+                    if self.stored_headers.iter().filter(|r| r.hostname_port == row.hostname_port && r.remote_ip == row.remote_ip && r.serial_nr == row.serial_nr).count() == 0 && *details_enable {
+                        println!("{}<-{:30} {:6}", row.hostname_port, row.remote_ip, row.state);
+                        activity_counter+=1;
+                    }
+                }
+                for row in self.stored_outboundrpcs.iter().filter(|r| r.hostname_port == endpoint.to_string()) {
+                    // outbound RPCs can have multiple requests
+                    let mut counter = 0;
+                    for header in self.stored_headers.iter().filter(|r| r.hostname_port == row.hostname_port && r.remote_ip == row.remote_ip && r.serial_nr == row.serial_nr) {
+                        if counter == 0
+                        {
+                            println!("{}->{:30}  {:6} {:>6} ms {}:{}", header.hostname_port, header.remote_ip, header.state, header.elapsed_millis, header.remote_method_service_name, header.remote_method_method_name);
+                            activity_counter+=1;
+                        }
+                        else
+                        {
+                            println!("{:50}  {:6} {:>6} ms {}:{}", "", header.state, header.elapsed_millis, header.remote_method_service_name, header.remote_method_method_name);
+                            activity_counter += 1;
+                        }
+                        counter += 1;
+                    }
+                    // idle outbound connections have a 1:1 relationship, because it's just en open connection
+                    if self.stored_headers.iter().filter(|r| r.hostname_port == row.hostname_port && r.remote_ip == row.remote_ip && r.serial_nr == row.serial_nr).count() == 0 && *details_enable {
+                        println!("{}->{:30}  {:6}", row.hostname_port, row.remote_ip, row.state);
+                        activity_counter+=1;
                     }
                 }
             }
         }
+        if activity_counter > 0 {
+            println!("{}", "-".repeat(120));
+        }
     }
 }
 
+// called from main
 pub async fn print_rpcs(
     hosts: Vec<&str>,
     ports: Vec<&str>,
@@ -341,7 +376,9 @@ pub async fn print_rpcs(
 ) -> Result<()>
 {
     let hostname_filter = utility::set_regex(&options.hostname_match);
+    // unwrap() removes/evaluates the first Option<>, match evaluates the the second Option<>.
     match options.print_rpcs.as_ref().unwrap() {
+        // a snapshot_number provided, read snapshots and print data.
         Some(snapshot_number) => {
             let mut allstoredconnections = AllStoredConnections::new();
             allstoredconnections.stored_ysqlconnections = snapshot::read_snapshot(snapshot_number, "ysqlrpc")?;
@@ -352,9 +389,10 @@ pub async fn print_rpcs(
 
             allstoredconnections.print(&options.details_enable, &hostname_filter)?;
         },
+        // no snapshot number was provided, obtain data from the endpoints
         None => {
             let allstoredconnections = AllStoredConnections::read_connections(&hosts, &ports, parallel).await;
-            allstoredconnections.print_adhoc(&options.details_enable, &hostname_filter)?;
+            allstoredconnections.print(&options.details_enable, &hostname_filter)?;
         },
     }
     Ok(())
@@ -364,7 +402,6 @@ pub async fn print_rpcs(
 #[cfg(test)]
 mod tests {
     use super::*;
-    //use crate::utility_test::*;
 
     #[test]
     fn unit_parse_ysqlconnection_only_checkpointer()
@@ -387,6 +424,7 @@ mod tests {
         assert_eq!(allstoredconnections.stored_ysqlconnections[0].process_start_time,"2022-08-11 10:06:23.639902+00");
         assert_eq!(allstoredconnections.stored_ysqlconnections[0].application_name,"");
         assert_eq!(allstoredconnections.stored_ysqlconnections[0].backend_type,"checkpointer");
+        assert_eq!(allstoredconnections.stored_ysqlconnections[0].backend_status,"");
     }
 
     #[test]

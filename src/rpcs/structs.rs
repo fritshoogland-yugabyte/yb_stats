@@ -177,7 +177,7 @@ pub struct StoredHeaders {
     pub serial_nr: u32
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct AllStoredConnections {
     pub stored_ysqlconnections: Vec<StoredYsqlConnection>,
     pub stored_inboundrpcs: Vec<StoredInboundRpc>,

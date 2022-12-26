@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use crate::Opts;
-use crate::{clocks, entities, gflags, isleader, loglines, masters, mems, memtrackers, metrics, node_exporter, pprof, rpcs, statements, threads, tservers, utility, vars, versions};
+use crate::{clocks, entities, gflags, isleader, loglines, masters, mems, memtrackers, metrics, node_exporter, pprof, rpcs, statements, threads, tservers, utility, vars, versions, cluster_config};
 use crate::snapshot::Snapshot;
 
 impl Snapshot {
@@ -190,6 +190,36 @@ pub fn save_snapshot<T: Serialize>(
 
     Ok(())
 }
+/// This is the general yb_stat wide save_snapshot_json function.
+pub fn save_snapshot_json<T: Serialize>(
+    snapshot_number: i32,
+    filename: &str,
+    vector: Vec<T>,
+) -> Result<()>
+{
+    let current_directory = env::current_dir()?;
+    let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number.to_string());
+
+    let filepath = &current_snapshot_directory.join(format!("{}.{}",filename, "json"));
+    fs::write(filepath, serde_json::to_string(&vector)?)?;
+    Ok(())
+}
+/// This is the general yb_stat wide read_snapshot_json function.
+pub fn read_snapshot_json<T: for<'de> Deserialize<'de>>(
+    snapshot_number: &String,
+    filename: &str,
+) -> Result<Vec<T>>
+{
+    let current_directory = env::current_dir()?;
+    let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number);
+    let filepath = &current_snapshot_directory.join(format!("{}.{}", filename, "json"));
+
+    let vector = {
+        let read_from_file = fs::read_to_string(&filepath).with_context(|| format!("error reading from file: {}", &filepath.display()))?;
+        serde_json::from_str(&read_from_file).unwrap()
+    };
+    Ok(vector)
+}
 /// This is the general yb_stat wide read_snapshot function.
 pub fn read_snapshot<T: for<'de> Deserialize<'de>>(
     snapshot_number: &String,
@@ -350,6 +380,13 @@ pub async fn perform_snapshot(
     let arc_ports_clone = arc_ports.clone();
     let handle = tokio::spawn(async move {
         clocks::AllStoredClocks::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
+    });
+    handles.push(handle);
+
+    let arc_hosts_clone = arc_hosts.clone();
+    let arc_ports_clone = arc_ports.clone();
+    let handle = tokio::spawn(async move {
+        cluster_config::AllSysClusterConfigEntryPB::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
     });
     handles.push(handle);
 

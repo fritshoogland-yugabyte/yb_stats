@@ -201,7 +201,9 @@ pub fn save_snapshot_json<T: Serialize>(
     let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number.to_string());
 
     let filepath = &current_snapshot_directory.join(format!("{}.{}",filename, "json"));
-    fs::write(filepath, serde_json::to_string(&vector)?)?;
+    fs::write(filepath, serde_json::to_string(&vector)
+        .with_context(|| "Json serialization error")?
+    ).with_context(|| format!("Error saving snapshot: {}", filepath.display()))?;
     Ok(())
 }
 /// This is the general yb_stat wide read_snapshot_json function.
@@ -215,8 +217,9 @@ pub fn read_snapshot_json<T: for<'de> Deserialize<'de>>(
     let filepath = &current_snapshot_directory.join(format!("{}.{}", filename, "json"));
 
     let vector = {
-        let read_from_file = fs::read_to_string(&filepath).with_context(|| format!("error reading from file: {}", &filepath.display()))?;
-        serde_json::from_str(&read_from_file).unwrap()
+        let read_from_file = fs::read_to_string(&filepath)
+            .with_context(|| format!("Error reading snapshot: {}", &filepath.display()))?;
+        serde_json::from_str(&read_from_file).with_context(|| "Json deserialization error")?
     };
     Ok(vector)
 }

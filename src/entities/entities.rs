@@ -60,7 +60,7 @@ use log::*;
 use regex::Regex;
 use colored::*;
 use anyhow::Result;
-use crate::isleader::AllStoredIsLeader;
+use crate::isleader::AllIsLeader;
 use crate::utility;
 use crate::snapshot;
 use crate::entities::{Entities, Keyspaces, Tables, Tablets, Replicas, StoredKeyspaces, StoredTables, StoredTablets, StoredReplicas, SnapshotDiffKeyspaces, SnapshotDiffTables, SnapshotDiffTablets, SnapshotDiffReplica, SnapshotDiffBTreeMapsEntities};
@@ -247,11 +247,7 @@ impl AllStoredEntities
         port: &str,
     ) -> Entities
     {
-        let data_from_http = if utility::scan_host_port( host, port) {
-            utility::http_get(host, port, "dump-entities")
-        } else {
-            String::new()
-        };
+        let data_from_http = utility::http_get(host, port, "dump-entities");
         AllStoredEntities::parse_entities(data_from_http, host, port)
     }
     fn parse_entities(
@@ -298,7 +294,7 @@ impl AllStoredEntities
     {
         info!("print_entities");
 
-        let leader_hostname = AllStoredIsLeader::return_leader_snapshot(snapshot_number)?;
+        let leader_hostname = AllIsLeader::return_leader_snapshot(snapshot_number)?;
 
         let mut tables_btreemap: BTreeMap<(String, String, String), StoredTables> = BTreeMap::new();
 
@@ -477,7 +473,7 @@ impl AllStoredEntities
     {
         info!("print_entities");
 
-        let leader_hostname = AllStoredIsLeader::return_leader_http(hosts, ports, parallel).await;
+        let leader_hostname = AllIsLeader::return_leader_http(hosts, ports, parallel).await;
 
         let mut tables_btreemap: BTreeMap<(String, String, String), StoredTables> = BTreeMap::new();
 
@@ -797,7 +793,7 @@ impl SnapshotDiffBTreeMapsEntities {
         allstoredentities.stored_tablets = snapshot::read_snapshot(begin_snapshot, "tablets")?;
         allstoredentities.stored_replicas = snapshot::read_snapshot(begin_snapshot, "replicas")?;
 
-        let master_leader = AllStoredIsLeader::return_leader_snapshot(begin_snapshot)?;
+        let master_leader = AllIsLeader::return_leader_snapshot(begin_snapshot)?;
         let mut entities_snapshot_diff = SnapshotDiffBTreeMapsEntities::new();
         entities_snapshot_diff.first_snapshot(allstoredentities, master_leader, details_enable);
 
@@ -807,7 +803,7 @@ impl SnapshotDiffBTreeMapsEntities {
         allstoredentities.stored_tablets = snapshot::read_snapshot(end_snapshot, "tablets")?;
         allstoredentities.stored_replicas = snapshot::read_snapshot(end_snapshot, "replicas")?;
 
-        let master_leader = AllStoredIsLeader::return_leader_snapshot(end_snapshot)?;
+        let master_leader = AllIsLeader::return_leader_snapshot(end_snapshot)?;
         entities_snapshot_diff.second_snapshot(allstoredentities, master_leader, details_enable);
 
         Ok(entities_snapshot_diff)
@@ -1095,7 +1091,7 @@ impl SnapshotDiffBTreeMapsEntities {
     )
     {
         let allstoredentities = AllStoredEntities::read_entities(hosts, ports, parallel).await;
-        let master_leader= AllStoredIsLeader::return_leader_http(hosts, ports, parallel).await;
+        let master_leader= AllIsLeader::return_leader_http(hosts, ports, parallel).await;
         self.first_snapshot(allstoredentities, master_leader, &false );
     }
     pub async fn adhoc_read_second_snapshot(
@@ -1106,7 +1102,7 @@ impl SnapshotDiffBTreeMapsEntities {
     )
     {
         let allstoredentities = AllStoredEntities::read_entities(hosts, ports, parallel).await;
-        let master_leader= AllStoredIsLeader::return_leader_http(hosts, ports, parallel).await;
+        let master_leader= AllIsLeader::return_leader_http(hosts, ports, parallel).await;
         self.second_snapshot(allstoredentities, master_leader, &false);
     }
     pub fn print(

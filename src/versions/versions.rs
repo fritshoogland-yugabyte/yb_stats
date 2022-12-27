@@ -117,11 +117,7 @@ impl AllStoredVersions {
         port: &str,
     ) -> Version
     {
-        let data_from_http = if utility::scan_host_port( host, port) {
-            utility::http_get(host, port, "api/v1/version")
-        } else {
-            String::new()
-        };
+        let data_from_http = utility::http_get(host, port, "api/v1/version");
         AllStoredVersions::parse_version(data_from_http, host, port)
     }
     fn parse_version(

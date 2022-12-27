@@ -1,17 +1,18 @@
 //use serde_derive::{Serialize,Deserialize};
-use chrono::{DateTime, Local};
+use chrono::Local;
 use std::{sync::mpsc::channel, time::Instant};
 //use std::collections::BTreeMap;
 use log::*;
-use colored::*;
+//use colored::*;
 use anyhow::Result;
-use crate::isleader::AllStoredIsLeader;
+use crate::isleader::AllIsLeader;
 use crate::utility;
 use crate::snapshot;
-use crate::masters::{AllStoredMasters, AllMasters, StoredMasters, StoredMasterError, StoredRpcAddresses, StoredHttpAddresses, Masters, SnapshotDiffStoredMasters, SnapshotDiffBTreeMapsMasters, PermanentUuidHttpAddress, PermanentUuidRpcAddress};
+//use crate::masters::{AllStoredMasters, AllMasters, StoredMasters, StoredMasterError, StoredRpcAddresses, StoredHttpAddresses, Masters, SnapshotDiffStoredMasters, SnapshotDiffBTreeMapsMasters, PermanentUuidHttpAddress, PermanentUuidRpcAddress, AllGetMasterRegistrationRequestPB};
+use crate::masters::{Masters, PeerRole};
 use crate::Opts;
 
-impl AllStoredMasters {
+impl Masters {
     pub async fn perform_snapshot(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
@@ -22,11 +23,8 @@ impl AllStoredMasters {
         info!("begin snapshot");
         let timer = Instant::now();
 
-        let allmasters = AllStoredMasters::read_masters(hosts, ports, parallel).await;
-        snapshot::save_snapshot(snapshot_number, "masters", allmasters.stored_masters)?;
-        snapshot::save_snapshot(snapshot_number, "master_rpc_addresses", allmasters.stored_rpc_addresses)?;
-        snapshot::save_snapshot(snapshot_number, "master_http_addresses", allmasters.stored_http_addresses)?;
-        snapshot::save_snapshot(snapshot_number, "master_errors", allmasters.stored_master_error)?;
+        let masters = Masters::read_masters(hosts, ports, parallel).await;
+        snapshot::save_snapshot_json(snapshot_number, "masters", masters.masters)?;
 
         info!("end snapshot: {:?}", timer.elapsed());
         Ok(())
@@ -38,7 +36,7 @@ impl AllStoredMasters {
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize,
-    ) -> AllStoredMasters
+    ) -> Masters
     {
         info!("begin parallel http read");
         let timer = Instant::now();
@@ -51,8 +49,12 @@ impl AllStoredMasters {
                     let tx = tx.clone();
                     s.spawn(move |_| {
                         let detail_snapshot_time = Local::now();
-                        let masters = AllStoredMasters::read_http(host, port);
-                        tx.send((format!("{}:{}", host, port), detail_snapshot_time, masters)).expect("error sending data via tx (masters)");
+                        let mut masters = Masters::read_http(host, port);
+                        for master in masters.masters.iter_mut() {
+                            master.hostname_port = Some(format!("{}:{}", host.clone(), port.clone()));
+                            master.timestamp = Some(detail_snapshot_time);
+                        }
+                        tx.send(masters).expect("error sending data via tx");
                     });
                 }
             }
@@ -60,98 +62,33 @@ impl AllStoredMasters {
 
         info!("end parallel http read {:?}", timer.elapsed());
 
-        let mut allstoredmasters = AllStoredMasters::new();
+        let mut masters = Masters::new();
 
-        for (hostname_port, detail_snapshot_time, masters) in rx {
-            allstoredmasters.split_into_vectors(masters, &hostname_port, detail_snapshot_time);
-        }
-
-        allstoredmasters
-    }
-    fn split_into_vectors(
-        &mut self,
-        masters: AllMasters,
-        hostname_port: &str,
-        detail_snapshot_time: DateTime<Local>,
-    )
-    {
-        for master in masters.masters {
-            let mut placement_cloud = String::from("Unset");
-            let mut placement_region = String::from("Unset");
-            let mut placement_zone = String::from("Unset");
-            if let Some(cloud_info) = master.registration.cloud_info {
-                placement_cloud = cloud_info.placement_cloud;
-                placement_region = cloud_info.placement_region;
-                placement_zone = cloud_info.placement_zone;
-            };
-            self.stored_masters.push( StoredMasters {
-                hostname_port: hostname_port.to_string(),
-                timestamp: detail_snapshot_time,
-                instance_permanent_uuid: master.instance_id.permanent_uuid.to_string(),
-                instance_instance_seqno: master.instance_id.instance_seqno,
-                start_time_us: master.instance_id.start_time_us.unwrap_or_default(),
-                registration_cloud_placement_cloud: placement_cloud.to_string(),
-                registration_cloud_placement_region: placement_region.to_string(),
-                registration_cloud_placement_zone: placement_zone.to_string(),
-                registration_placement_uuid: master.registration.placement_uuid.unwrap_or_else(|| "Unset".to_string()).to_string(),
-                role: master.role.unwrap_or_else(|| "Unnknown".to_string()).to_string(),
-            });
-            if let Some(error) = master.error {
-                self.stored_master_error.push(StoredMasterError {
-                    hostname_port: hostname_port.to_string(),
-                    timestamp: detail_snapshot_time,
-                    instance_permanent_uuid: master.instance_id.permanent_uuid.to_string(),
-                    code: error.code.to_string(),
-                    message: error.message.to_string(),
-                    posix_code: error.posix_code,
-                    source_file: error.source_file.to_string(),
-                    source_line: error.source_line,
-                    errors: error.errors.to_string(),
-                });
+        for fetched_masters in rx {
+            for master in fetched_masters.masters.into_iter().filter(|r| r.instance_id.permanent_uuid != "") {
+                masters.masters.push(master);
             }
-            for rpc_address in master.registration.private_rpc_addresses {
-                self.stored_rpc_addresses.push( StoredRpcAddresses {
-                    hostname_port: hostname_port.to_string(),
-                    timestamp: detail_snapshot_time,
-                    instance_permanent_uuid: master.instance_id.permanent_uuid.to_string(),
-                    host: rpc_address.host.to_string(),
-                    port: rpc_address.port.to_string(),
-                });
-            };
-            if let Some(http_addresses) = master.registration.http_addresses {
-                for http_address in http_addresses {
-                    self.stored_http_addresses.push(StoredHttpAddresses {
-                        hostname_port: hostname_port.to_string(),
-                        timestamp: detail_snapshot_time,
-                        instance_permanent_uuid: master.instance_id.permanent_uuid.to_string(),
-                        host: http_address.host.to_string(),
-                        port: http_address.port.to_string(),
-                    });
-                };
-            };
         }
+
+        masters
     }
     pub fn read_http(
         host: &str,
         port: &str,
-    ) -> AllMasters
+    ) -> Masters
     {
-        let data_from_http = if utility::scan_host_port( host, port) {
-            utility::http_get(host, port, "api/v1/masters")
-        } else {
-            String::new()
-        };
-        AllStoredMasters::parse_masters(data_from_http, host, port)
+        let data_from_http = utility::http_get(host, port, "api/v1/masters");
+        Masters::parse_masters(data_from_http, host, port)
     }
     fn parse_masters(
-        masters_data: String,
+        http_data: String,
         host: &str,
         port: &str,
-    ) -> AllMasters {
-        serde_json::from_str(&masters_data )
+    ) -> Masters {
+        serde_json::from_str(&http_data )
             .unwrap_or_else(|e| {
                 debug!("({}:{}) could not parse /api/v1/masters json data for masters, error: {}", host, port, e);
-                AllMasters { masters: Vec::<Masters>::new() }
+                Masters::new()
             })
     }
     pub fn print(
@@ -160,58 +97,97 @@ impl AllStoredMasters {
         details_enable: &bool,
     ) -> Result<()>
     {
-        info!("print masters");
+        let leader_hostname = AllIsLeader::return_leader_snapshot(snapshot_number)?;
 
-        let leader_hostname = AllStoredIsLeader::return_leader_snapshot(snapshot_number)?;
-
-        for row in &self.stored_masters {
-            if row.hostname_port == leader_hostname
-            && !*details_enable {
-                println!("{} {:8} Cloud: {}, Region: {}, Zone: {}", row.instance_permanent_uuid, row.role, row.registration_cloud_placement_cloud, row.registration_cloud_placement_region, row.registration_cloud_placement_zone);
-                println!("{} Seqno: {} Start time: {}", " ".repeat(32), row.instance_instance_seqno, row.start_time_us);
-                print!("{} RPC addresses: ( ", " ".repeat(32));
-                for rpc_address in self.stored_rpc_addresses.iter()
-                    .filter(|x| x.hostname_port == row.hostname_port)
-                    .filter(|x| x.instance_permanent_uuid == row.instance_permanent_uuid) {
-                    print!("{}:{} ", rpc_address.host, rpc_address.port);
-                };
-                println!(" )");
-                print!("{} HTTP addresses: ( ", " ".repeat(32));
-                for http_address in self.stored_http_addresses.iter()
-                    .filter(|x| x.hostname_port == row.hostname_port)
-                    .filter(|x| x.instance_permanent_uuid == row.instance_permanent_uuid) {
-                    print!("{}:{} ", http_address.host, http_address.port);
-                };
-                println!(" )");
-                for error in self.stored_master_error.iter()
-                    .filter(|x| x.hostname_port == row.hostname_port)
-                    .filter(|x| x.instance_permanent_uuid == row.instance_permanent_uuid) {
-                    println!("{:#?}", error);
-                };
+        for row in &self.masters {
+            if row.hostname_port.as_ref().unwrap() != &leader_hostname
+                && !*details_enable {
+                continue
             }
+            // first row
             if *details_enable {
-                println!("{} {} {:8} Cloud: {}, Region: {}, Zone: {}", row.hostname_port, row.instance_permanent_uuid, row.role, row.registration_cloud_placement_cloud, row.registration_cloud_placement_region, row.registration_cloud_placement_zone);
-                println!("{} {} Seqno: {} Start time: {}", row.hostname_port, " ".repeat(32), row.instance_instance_seqno, row.start_time_us);
-                print!("{} {} RPC addresses: ( ", row.hostname_port, " ".repeat(32));
-                for rpc_address in self.stored_rpc_addresses.iter()
-                    .filter(|x| x.hostname_port == row.hostname_port)
-                    .filter(|x| x.instance_permanent_uuid == row.instance_permanent_uuid) {
-                    print!("{}:{} ", rpc_address.host, rpc_address.port);
+                print!("{} ", row.hostname_port.as_ref().unwrap());
+            };
+            println!("{} {:?} Cloud: {}, Region: {}, Zone: {}",
+                     row.instance_id.permanent_uuid,
+                     row.role
+                         .as_ref()
+                         .unwrap_or(&PeerRole::UNKNOWN_ROLE),
+                     row.registration
+                         .as_ref()
+                         .and_then(|registration| registration.cloud_info.as_ref())
+                         .and_then(|cloud_info| cloud_info.placement_cloud.as_ref())
+                         .unwrap_or(&"-".to_string()),
+                     row.registration
+                         .as_ref()
+                         .and_then(|registration| registration.cloud_info.as_ref())
+                         .and_then(|cloud_info| cloud_info.placement_region.as_ref())
+                         .unwrap_or(&"-".to_string()),
+                     row.registration
+                         .as_ref()
+                         .and_then(|registration| registration.cloud_info.as_ref())
+                         .and_then(|cloud_info| cloud_info.placement_zone.as_ref())
+                         .unwrap_or(&"-".to_string())
+            );
+            // second row
+            if *details_enable {
+                print!("{} ", row.hostname_port
+                    .as_ref()
+                    .unwrap()
+                );
+            };
+            println!("{} Seqno: {} Start time: {}",
+                     " ".repeat(32),
+                     row.instance_id.instance_seqno,
+                     row.instance_id.start_time_us.unwrap_or_default()
+            );
+            // third row
+            if *details_enable {
+                print!("{} ", row.hostname_port
+                    .as_ref()
+                    .unwrap()
+                );
+            };
+            print!("{} RPC addresses: ( ", " ".repeat(32));
+            for addresses in row.registration
+                .as_ref()
+                .and_then(|registration| registration.private_rpc_addresses.as_ref())
+                .iter() {
+                for address in *addresses {
+                    print!("{}:{} ", address.host, address.port);
+                }
+            };
+            println!(" )");
+            // fourth row
+            if *details_enable {
+                print!("{} ", row.hostname_port
+                    .as_ref()
+                    .unwrap()
+                );
+            };
+            print!("{} HTTP addresses: ( ", " ".repeat(32));
+            for addresses in row.registration
+                .as_ref()
+                .and_then(|registration| registration.http_addresses.as_ref())
+                .iter() {
+                for address in *addresses {
+                    print!("{}:{} ", address.host, address.port);
+                }
+            };
+            println!(" )");
+            // fifth row: only if errors are reported
+            if row.error.is_some() {
+                if *details_enable {
+                    print!("{} ", row.hostname_port
+                        .as_ref()
+                        .unwrap()
+                    );
                 };
-                println!(" )");
-                print!("{} {} HTTP addresses: ( ", row.hostname_port, " ".repeat(32));
-                for http_address in self.stored_http_addresses.iter()
-                    .filter(|x| x.hostname_port == row.hostname_port)
-                    .filter(|x| x.instance_permanent_uuid == row.instance_permanent_uuid) {
-                    print!("{}:{} ", http_address.host, http_address.port);
-                };
-                println!(" )");
-                for error in self.stored_master_error.iter()
-                    .filter(|x| x.hostname_port == row.hostname_port)
-                    .filter(|x| x.instance_permanent_uuid == row.instance_permanent_uuid) {
-                    println!("{} {:#?}", row.hostname_port, error);
-                };
-            }
+                println!("{:#?}", row.error
+                    .as_ref()
+                    .unwrap()
+                );
+            };
         }
         Ok(())
     }
@@ -223,63 +199,104 @@ impl AllStoredMasters {
         parallel: usize,
     )
     {
-        info!("print adhoc masters");
+        let leader_hostname = AllIsLeader::return_leader_http(hosts, ports, parallel).await;
 
-        let leader_hostname = AllStoredIsLeader::return_leader_http(hosts, ports, parallel).await;
-
-        for row in &self.stored_masters {
-            if row.hostname_port == leader_hostname
+        for row in &self.masters {
+            if row.hostname_port.as_ref().unwrap() != &leader_hostname
                 && !*details_enable {
-                println!("{} {:8} Cloud: {}, Region: {}, Zone: {}", row.instance_permanent_uuid, row.role, row.registration_cloud_placement_cloud, row.registration_cloud_placement_region, row.registration_cloud_placement_zone);
-                println!("{} Seqno: {} Start time: {}", " ".repeat(32), row.instance_instance_seqno, row.start_time_us);
-                print!("{} RPC addresses: ( ", " ".repeat(32));
-                for rpc_address in self.stored_rpc_addresses.iter()
-                    .filter(|x| x.hostname_port == row.hostname_port)
-                    .filter(|x| x.instance_permanent_uuid == row.instance_permanent_uuid) {
-                    print!("{}:{} ", rpc_address.host, rpc_address.port);
-                };
-                println!(" )");
-                print!("{} HTTP addresses: ( ", " ".repeat(32));
-                for http_address in self.stored_http_addresses.iter()
-                    .filter(|x| x.hostname_port == row.hostname_port)
-                    .filter(|x| x.instance_permanent_uuid == row.instance_permanent_uuid) {
-                    print!("{}:{} ", http_address.host, http_address.port);
-                };
-                println!(" )");
-                for error in self.stored_master_error.iter()
-                    .filter(|x| x.hostname_port == row.hostname_port)
-                    .filter(|x| x.instance_permanent_uuid == row.instance_permanent_uuid) {
-                    println!("{:#?}", error);
-                };
+                continue
             }
+            //if row.hostname_port.as_ref().unwrap() == &leader_hostname {
+            // first row
             if *details_enable {
-                println!("{} {} {:8} Cloud: {}, Region: {}, Zone: {}", row.hostname_port, row.instance_permanent_uuid, row.role, row.registration_cloud_placement_cloud, row.registration_cloud_placement_region, row.registration_cloud_placement_zone);
-                println!("{} {} Seqno: {} Start time: {}", row.hostname_port, " ".repeat(32), row.instance_instance_seqno, row.start_time_us);
-                print!("{} {} RPC addresses: ( ", row.hostname_port, " ".repeat(32));
-                for rpc_address in self.stored_rpc_addresses.iter()
-                    .filter(|x| x.hostname_port == row.hostname_port)
-                    .filter(|x| x.instance_permanent_uuid == row.instance_permanent_uuid) {
-                    print!("{}:{} ", rpc_address.host, rpc_address.port);
+                print!("{} ", row.hostname_port.as_ref().unwrap());
+            };
+            println!("{} {:?} Cloud: {}, Region: {}, Zone: {}",
+                     row.instance_id.permanent_uuid,
+                     row.role
+                         .as_ref()
+                         .unwrap_or(&PeerRole::UNKNOWN_ROLE),
+                     row.registration
+                         .as_ref()
+                         .and_then(|registration| registration.cloud_info.as_ref())
+                         .and_then(|cloud_info| cloud_info.placement_cloud.as_ref())
+                         .unwrap_or(&"-".to_string()),
+                     row.registration
+                         .as_ref()
+                         .and_then(|registration| registration.cloud_info.as_ref())
+                         .and_then(|cloud_info| cloud_info.placement_region.as_ref())
+                         .unwrap_or(&"-".to_string()),
+                     row.registration
+                         .as_ref()
+                         .and_then(|registration| registration.cloud_info.as_ref())
+                         .and_then(|cloud_info| cloud_info.placement_zone.as_ref())
+                         .unwrap_or(&"-".to_string())
+            );
+            // second row
+            if *details_enable {
+                print!("{} ", row.hostname_port
+                    .as_ref()
+                    .unwrap()
+                );
+            };
+            println!("{} Seqno: {} Start time: {}",
+                     " ".repeat(32),
+                     row.instance_id.instance_seqno,
+                     row.instance_id.start_time_us.unwrap_or_default()
+            );
+            // third row
+            if *details_enable {
+                print!("{} ", row.hostname_port
+                    .as_ref()
+                    .unwrap()
+                );
+            };
+            print!("{} RPC addresses: ( ", " ".repeat(32));
+            for addresses in row.registration
+                .as_ref()
+                .and_then(|registration| registration.private_rpc_addresses.as_ref())
+                .iter() {
+                for address in *addresses {
+                    print!("{}:{} ", address.host, address.port);
+                }
+            };
+            println!(" )");
+            // fourth row
+            if *details_enable {
+                print!("{} ", row.hostname_port
+                    .as_ref()
+                    .unwrap()
+                );
+            };
+            print!("{} HTTP addresses: ( ", " ".repeat(32));
+            for addresses in row.registration
+                .as_ref()
+                .and_then(|registration| registration.http_addresses.as_ref())
+                .iter() {
+                for address in *addresses {
+                    print!("{}:{} ", address.host, address.port);
+                }
+            };
+            println!(" )");
+            // fifth row: only if errors are reported
+            if row.error.is_some() {
+                if *details_enable {
+                    print!("{} ", row.hostname_port
+                        .as_ref()
+                        .unwrap()
+                    );
                 };
-                println!(" )");
-                print!("{} {} HTTP addresses: ( ", row.hostname_port, " ".repeat(32));
-                for http_address in self.stored_http_addresses.iter()
-                    .filter(|x| x.hostname_port == row.hostname_port)
-                    .filter(|x| x.instance_permanent_uuid == row.instance_permanent_uuid) {
-                    print!("{}:{} ", http_address.host, http_address.port);
-                };
-                println!(" )");
-                for error in self.stored_master_error.iter()
-                    .filter(|x| x.hostname_port == row.hostname_port)
-                    .filter(|x| x.instance_permanent_uuid == row.instance_permanent_uuid) {
-                    println!("{} {:#?}", row.hostname_port, error);
-                };
-            }
+                println!("{:#?}", row.error
+                    .as_ref()
+                    .unwrap()
+                );
+            };
         }
     }
 }
 
 
+/*
 impl SnapshotDiffStoredMasters {
     fn first_snapshot( storedmasters: StoredMasters ) -> Self
     {
@@ -340,7 +357,10 @@ impl SnapshotDiffStoredMasters {
     }
 }
 
+ */
 
+
+/*
 impl SnapshotDiffBTreeMapsMasters {
     pub fn snapshot_diff(
         begin_snapshot: &String,
@@ -353,7 +373,7 @@ impl SnapshotDiffBTreeMapsMasters {
         allstoredmasters.stored_http_addresses = snapshot::read_snapshot(begin_snapshot, "master_http_addresses")?;
         allstoredmasters.stored_master_error = snapshot::read_snapshot(begin_snapshot, "master_errors")?;
 
-        let master_leader = AllStoredIsLeader::return_leader_snapshot(begin_snapshot)?;
+        let master_leader = AllIsLeader::return_leader_snapshot(begin_snapshot)?;
         let mut masters_snapshot_diff = SnapshotDiffBTreeMapsMasters::new();
         masters_snapshot_diff.first_snapshot(allstoredmasters, master_leader);
 
@@ -363,7 +383,7 @@ impl SnapshotDiffBTreeMapsMasters {
         allstoredmasters.stored_http_addresses = snapshot::read_snapshot(end_snapshot, "master_http_addresses")?;
         allstoredmasters.stored_master_error = snapshot::read_snapshot(end_snapshot, "master_errors")?;
 
-        let master_leader = AllStoredIsLeader::return_leader_snapshot(begin_snapshot)?;
+        let master_leader = AllIsLeader::return_leader_snapshot(begin_snapshot)?;
         masters_snapshot_diff.second_snapshot(allstoredmasters, master_leader);
 
         Ok(masters_snapshot_diff)
@@ -556,7 +576,7 @@ impl SnapshotDiffBTreeMapsMasters {
     )
     {
         let allstoredmasters = AllStoredMasters::read_masters(hosts, ports, parallel).await;
-        let master_leader= AllStoredIsLeader::return_leader_http(hosts, ports, parallel).await;
+        let master_leader= AllIsLeader::return_leader_http(hosts, ports, parallel).await;
         self.first_snapshot(allstoredmasters, master_leader);
     }
     pub async fn adhoc_read_second_snapshot(
@@ -567,10 +587,11 @@ impl SnapshotDiffBTreeMapsMasters {
     )
     {
         let allstoredmasters = AllStoredMasters::read_masters(hosts, ports, parallel).await;
-        let master_leader= AllStoredIsLeader::return_leader_http(hosts, ports, parallel).await;
+        let master_leader= AllIsLeader::return_leader_http(hosts, ports, parallel).await;
         self.second_snapshot(allstoredmasters, master_leader);
     }
 }
+
 
 pub async fn masters_diff(
     options: &Opts,
@@ -589,6 +610,7 @@ pub async fn masters_diff(
 
     Ok(())
 }
+*/
 
 pub async fn print_masters(
     hosts: Vec<&str>,
@@ -600,18 +622,18 @@ pub async fn print_masters(
     match options.print_masters.as_ref().unwrap() {
         Some(snapshot_number) => {
 
-            let mut allstoredmasters = AllStoredMasters::new();
-            allstoredmasters.stored_masters = snapshot::read_snapshot(snapshot_number, "masters")?;
-            allstoredmasters.stored_rpc_addresses = snapshot::read_snapshot(snapshot_number, "master_rpc_addresses")?;
-            allstoredmasters.stored_http_addresses = snapshot::read_snapshot(snapshot_number, "master_http_addresses")?;
-            allstoredmasters.stored_master_error = snapshot::read_snapshot(snapshot_number, "master_errors")?;
+            let mut masters = Masters::new();
+            masters.masters = snapshot::read_snapshot_json(snapshot_number, "masters")?;
+            //allstoredmasters.stored_rpc_addresses = snapshot::read_snapshot(snapshot_number, "master_rpc_addresses")?;
+            //allstoredmasters.stored_http_addresses = snapshot::read_snapshot(snapshot_number, "master_http_addresses")?;
+            //allstoredmasters.stored_master_error = snapshot::read_snapshot(snapshot_number, "master_errors")?;
 
-            allstoredmasters.print(snapshot_number, &options.details_enable)?;
+            masters.print(snapshot_number, &options.details_enable)?;
 
         }
         None => {
-            let allstoredmasters = AllStoredMasters::read_masters(&hosts, &ports, parallel).await;
-            allstoredmasters.print_adhoc(&options.details_enable, &hosts, &ports, parallel).await;
+            let masters = Masters::read_masters(&hosts, &ports, parallel).await;
+            masters.print_adhoc(&options.details_enable, &hosts, &ports, parallel).await;
         }
     }
     Ok(())
@@ -621,7 +643,6 @@ pub async fn print_masters(
 #[cfg(test)]
 mod tests {
     use super::*;
-    //use crate::utility_test::*;
 
     #[test]
     fn unit_parse_master_data() {
@@ -715,19 +736,21 @@ mod tests {
   ]
 }
         "#.to_string();
-        let result = AllStoredMasters::parse_masters(json, "", "");
+        let result = Masters::parse_masters(json, "", "");
         assert!(result.masters[0].error.is_none());
     }
-
+/*
     #[tokio::test]
     async fn integration_parse_masters() {
         let hostname = utility::get_hostname_master();
         let port = utility::get_port_master();
-        let allstoredmasters = AllStoredMasters::read_masters(&vec![&hostname], &vec![&port], 1).await;
+        let result = AllGetMasterRegistrationRequestPB::read_masters(&vec![&hostname], &vec![&port], 1).await;
 
         // a MASTER only will generate entities on each master (!)
-        assert!(!allstoredmasters.stored_masters.is_empty());
-        assert!(!allstoredmasters.stored_rpc_addresses.is_empty());
-        assert!(!allstoredmasters.stored_http_addresses.is_empty());
+        assert!(!result.getmasterregistrationrequestpb[0].instance_id.permanent_uuid.is_empty());
+        assert!(!result.getmasterregistrationrequestpb[0].registration.unwrap().private_rpc_addresses[0].unwrap().is_empty());
+        assert!(!result.getmasterregistrationrequestpb[0].registration.unwrap().private_rpc_addresses[0].host[0].is_empty());
     }
+
+ */
 }

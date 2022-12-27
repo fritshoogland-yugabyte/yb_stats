@@ -415,11 +415,7 @@ impl AllStoredMetrics {
         port: &str,
     ) -> Vec<MetricEntity>
     {
-        let data_from_http = if utility::scan_host_port( host, port) {
-            utility::http_get(host, port, "metrics")
-        } else {
-            String::new()
-        };
+        let data_from_http = utility::http_get(host, port, "metrics");
         AllStoredMetrics::parse_metrics(data_from_http, host, port)
     }
     /// This function takes the metrics data as String, and tries to parse the JSON in it to a vector [MetricEntity].

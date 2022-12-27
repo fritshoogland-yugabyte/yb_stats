@@ -186,7 +186,7 @@ async fn main() -> Result<()>
         Opts { snapshot_diff, ..          } if *snapshot_diff                  => snapshot::snapshot_diff(&options).await?,
         Opts { snapshot_list, ..          } if *snapshot_list                  => snapshot::snapshot_diff(&options).await?,
         Opts { entity_diff, ..            } if *entity_diff                    => entities::entity_diff(&options).await?,
-        Opts { masters_diff, ..           } if *masters_diff                   => masters::masters_diff(&options).await?,
+        //Opts { masters_diff, ..           } if *masters_diff                   => masters::masters_diff(&options).await?,
         Opts { versions_diff, ..          } if *versions_diff                  => versions::versions_diff(&options).await?,
         Opts { print_memtrackers, ..      } if print_memtrackers.is_some()     => memtrackers::print_memtrackers(hosts, ports, parallel, &options).await?,
         Opts { print_version, ..          } if print_version.is_some()         => versions::print_version(hosts, ports, parallel, &options).await?,

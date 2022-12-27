@@ -155,11 +155,7 @@ impl AllStoredNodeExporterValues {
         port: &str,
     ) -> Vec<NodeExporterValues>
     {
-        let data_from_http = if utility::scan_host_port( host, port) {
-            utility::http_get(host, port, "metrics")
-        } else {
-            String::new()
-        };
+        let data_from_http = utility::http_get(host, port, "metrics");
         AllStoredNodeExporterValues::parse_nodeexporter(data_from_http)
     }
     fn parse_nodeexporter( node_exporter_data: String ) -> Vec<NodeExporterValues>

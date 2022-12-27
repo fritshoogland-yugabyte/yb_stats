@@ -76,14 +76,7 @@ impl Pprof {
         port: &str,
     ) -> String
     {
-        let data_from_http = if utility::scan_host_port(host, port)
-        {
-            utility::http_get(host, port, "pprof/growth")
-        }
-        else
-        {
-            String::new()
-        };
+        let data_from_http = utility::http_get(host, port, "pprof/growth");
         data_from_http
     }
 }

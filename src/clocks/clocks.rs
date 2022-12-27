@@ -6,7 +6,7 @@ use scraper::{ElementRef, Html, Selector};
 use log::*;
 use soup::prelude::*;
 use anyhow::Result;
-use crate::isleader::AllStoredIsLeader;
+use crate::isleader::AllIsLeader;
 use crate::utility;
 use crate::snapshot;
 use crate::clocks::{StoredClocks, AllStoredClocks, Clocks};
@@ -84,11 +84,7 @@ impl AllStoredClocks {
         port: &str,
     ) -> Vec<Clocks>
     {
-        let data_from_http = if utility::scan_host_port(host, port) {
-            utility::http_get(host, port, "tablet-server-clocks?raw")
-        } else {
-            String::new()
-        };
+        let data_from_http = utility::http_get(host, port, "tablet-server-clocks?raw");
         AllStoredClocks::parse_clocks(data_from_http)
     }
     fn parse_clocks(
@@ -166,7 +162,7 @@ impl AllStoredClocks {
     {
         info!("print tablet server clocks");
 
-        let leader_hostname = AllStoredIsLeader::return_leader_snapshot(snapshot_number)?;
+        let leader_hostname = AllIsLeader::return_leader_snapshot(snapshot_number)?;
 
         if *details_enable
         {
@@ -230,7 +226,7 @@ impl AllStoredClocks {
     {
         info!("print adhoc tablet servers clocks");
 
-        let leader_hostname = AllStoredIsLeader::return_leader_http(hosts, ports, parallel).await;
+        let leader_hostname = AllIsLeader::return_leader_http(hosts, ports, parallel).await;
 
         if *details_enable
         {
@@ -303,7 +299,7 @@ impl AllStoredClocks {
     {
         info!("print adhoc tablet servers clocks latency");
 
-        let leader_hostname = AllStoredIsLeader::return_leader_snapshot(snapshot_number)?;
+        let leader_hostname = AllIsLeader::return_leader_snapshot(snapshot_number)?;
 
         for row in &self.stored_clocks {
             if row.hostname_port == leader_hostname
@@ -328,7 +324,7 @@ impl AllStoredClocks {
     {
         info!("print adhoc tablet servers clocks latency");
 
-        let leader_hostname = AllStoredIsLeader::return_leader_http(hosts, ports, parallel).await;
+        let leader_hostname = AllIsLeader::return_leader_http(hosts, ports, parallel).await;
 
         for row in &self.stored_clocks {
             if row.hostname_port == leader_hostname

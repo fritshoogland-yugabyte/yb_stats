@@ -111,11 +111,7 @@ impl AllStoredConnections {
         port: &str,
     ) -> AllConnections
     {
-        let data_from_http = if utility::scan_host_port( host, port) {
-            utility::http_get(host, port, "rpcz")
-        } else {
-            String::new()
-        };
+        let data_from_http = utility::http_get(host, port, "rpcz");
         AllStoredConnections::parse_connections(data_from_http, host, port)
     }
     fn parse_connections(

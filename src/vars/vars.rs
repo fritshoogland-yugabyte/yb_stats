@@ -88,11 +88,7 @@ impl AllStoredVars {
         port: &str,
     ) -> AllVars
     {
-        let data_from_http = if utility::scan_host_port( host, port) {
-            utility::http_get(host, port, "api/v1/varz")
-        } else {
-            String::new()
-        };
+        let data_from_http = utility::http_get(host, port, "api/v1/varz");
         AllStoredVars::parse_vars(data_from_http, host, port)
     }
     fn parse_vars(

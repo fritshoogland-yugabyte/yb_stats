@@ -80,14 +80,7 @@ impl AllStoredLogLines {
         port: &str,
     ) -> Vec<LogLine>
     {
-        let data_from_http = if utility::scan_host_port(host, port)
-        {
-            utility::http_get(host, port, "logs?raw")
-        }
-        else
-        {
-            String::new()
-        };
+        let data_from_http = utility::http_get(host, port, "logs?raw");
         AllStoredLogLines::parse_loglines(data_from_http)
     }
     fn parse_loglines(

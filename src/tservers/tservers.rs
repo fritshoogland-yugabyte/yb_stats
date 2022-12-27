@@ -4,7 +4,7 @@ use std::{sync::mpsc::channel, time::Instant, collections::{HashMap, BTreeMap}};
 use log::*;
 use colored::*;
 use anyhow::Result;
-use crate::isleader::AllStoredIsLeader;
+use crate::isleader::AllIsLeader;
 use crate::utility;
 use crate::snapshot;
 use crate::tservers::{StoredTabletServers, StoredPathMetrics, AllTabletServers, AllStoredTabletServers};
@@ -118,11 +118,7 @@ impl AllStoredTabletServers {
         port: &str,
     ) -> AllTabletServers
     {
-        let data_from_http = if utility::scan_host_port( host, port) {
-            utility::http_get(host, port, "api/v1/tablet-servers")
-        } else {
-            String::new()
-        };
+        let data_from_http = utility::http_get(host, port, "api/v1/tablet-servers");
         AllStoredTabletServers::parse_tabletservers(data_from_http, host, port)
     }
     fn parse_tabletservers(
@@ -144,7 +140,7 @@ impl AllStoredTabletServers {
     {
         info!("print tablet servers");
 
-        let leader_hostname = AllStoredIsLeader::return_leader_snapshot(snapshot_number)?;
+        let leader_hostname = AllIsLeader::return_leader_snapshot(snapshot_number)?;
 
         for row in &self.stored_tabletservers {
             if row.hostname_port == leader_hostname
@@ -185,7 +181,7 @@ impl AllStoredTabletServers {
     {
         info!("print adhoc tablet servers");
 
-        let leader_hostname = AllStoredIsLeader::return_leader_http(hosts, ports, parallel).await;
+        let leader_hostname = AllIsLeader::return_leader_http(hosts, ports, parallel).await;
 
         for row in &self.stored_tabletservers {
             if row.hostname_port == leader_hostname
@@ -274,7 +270,7 @@ impl SnapshotDiffBTreeMapsTabletServers {
         allstoredtabletservers.stored_tabletservers = snapshot::read_snapshot(begin_snapshot, "tablet_servers")?;
         allstoredtabletservers.stored_pathmetrics = snapshot::read_snapshot(begin_snapshot, "tablet_servers_pathmetrics")?;
 
-        let master_leader = AllStoredIsLeader::return_leader_snapshot(begin_snapshot)?;
+        let master_leader = AllIsLeader::return_leader_snapshot(begin_snapshot)?;
         let mut tabletservers_snapshot_diff = SnapshotDiffBTreeMapsTabletServers::new();
         tabletservers_snapshot_diff.first_snapshot(allstoredtabletservers, master_leader);
 
@@ -282,7 +278,7 @@ impl SnapshotDiffBTreeMapsTabletServers {
         allstoredtabletservers.stored_tabletservers = snapshot::read_snapshot(end_snapshot, "tablet_servers")?;
         allstoredtabletservers.stored_pathmetrics = snapshot::read_snapshot(end_snapshot, "tablet_servers_pathmetrics")?;
 
-        let master_leader = AllStoredIsLeader::return_leader_snapshot(end_snapshot)?;
+        let master_leader = AllIsLeader::return_leader_snapshot(end_snapshot)?;
         tabletservers_snapshot_diff.second_snapshot(allstoredtabletservers, master_leader);
 
         Ok(tabletservers_snapshot_diff)
@@ -389,7 +385,7 @@ impl SnapshotDiffBTreeMapsTabletServers {
     )
     {
         let allstoredtabletservers = AllStoredTabletServers::read_tabletservers(hosts, ports, parallel).await;
-        let master_leader = AllStoredIsLeader::return_leader_http(hosts, ports, parallel).await;
+        let master_leader = AllIsLeader::return_leader_http(hosts, ports, parallel).await;
         self.first_snapshot(allstoredtabletservers, master_leader);
     }
     pub async fn adhoc_read_second_snapshot(
@@ -400,7 +396,7 @@ impl SnapshotDiffBTreeMapsTabletServers {
     )
     {
         let allstoredtabletservers = AllStoredTabletServers::read_tabletservers(hosts, ports, parallel).await;
-        let master_leader = AllStoredIsLeader::return_leader_http(hosts, ports, parallel).await;
+        let master_leader = AllIsLeader::return_leader_http(hosts, ports, parallel).await;
         self.second_snapshot(allstoredtabletservers, master_leader);
     }
 }

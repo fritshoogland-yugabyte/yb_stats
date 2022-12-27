@@ -7,9 +7,12 @@ use log::*;
 use anyhow::Result;
 use crate::utility;
 use crate::snapshot;
-use crate::isleader::{AllStoredIsLeader, StoredIsLeader, IsLeader};
+use crate::isleader::{AllIsLeader, IsLeader};
 
-impl AllStoredIsLeader {
+impl IsLeader {
+    fn new() -> Self { Default::default() }
+}
+impl AllIsLeader {
     /// This function reads all the host/port combinations for metrics and saves these in a snapshot indicated by the snapshot_number.
     pub async fn perform_snapshot(
         hosts: &Vec<&str>,
@@ -21,8 +24,8 @@ impl AllStoredIsLeader {
         info!("begin snapshot");
         let timer = Instant::now();
 
-        let allstoredisleader = AllStoredIsLeader::read_isleader(hosts, ports, parallel).await;
-        snapshot::save_snapshot(snapshot_number, "isleader", allstoredisleader.stored_isleader)?;
+        let allisleader = AllIsLeader::read_isleader(hosts, ports, parallel).await;
+        snapshot::save_snapshot_json(snapshot_number, "isleader", allisleader.isleader)?;
 
         info!("end snapshot: {:?}", timer.elapsed());
 
@@ -36,9 +39,15 @@ impl AllStoredIsLeader {
        snapshot_number: &String
     ) -> Result<String>
     {
-        let mut stored_isleader = AllStoredIsLeader::new();
-        stored_isleader.stored_isleader = snapshot::read_snapshot(snapshot_number, "isleader")?;
-        Ok(stored_isleader.stored_isleader.iter().filter(|r| r.status == "OK").map(|r| r.hostname_port.to_string()).next().unwrap())
+        let mut allisleader = AllIsLeader::new();
+        allisleader.isleader = snapshot::read_snapshot_json(snapshot_number, "isleader")?;
+        // please note the expect() is necessary to unwrap the option/some()
+        // unwrap_or_default() allows to obtain data with '--details-enable' even if the master leader cannot be found
+        Ok(allisleader.isleader.iter()
+            .find(|r| r.status == "OK")
+            .map(|r| r.hostname_port.as_ref().expect("None found").to_string())
+            .unwrap_or_default()
+        )
     }
     pub async fn return_leader_http (
         hosts: &Vec<&str>,
@@ -46,17 +55,19 @@ impl AllStoredIsLeader {
         parallel: usize,
     ) -> String
     {
-        let allstoredisleader = AllStoredIsLeader::read_isleader(hosts, ports, parallel).await;
-        allstoredisleader.stored_isleader.iter().filter(|r| r.status == "OK").map(|r| r.hostname_port.to_string()).next().unwrap_or_default()
+        let allisleader = AllIsLeader::read_isleader(hosts, ports, parallel).await;
+        // please note the expect() is necessary to unwrap the option/some()
+        // unwrap_or_default() allows to obtain data with '--details-enable' even if the master leader cannot be found
+        allisleader.isleader.iter()
+            .find(|r| r.status == "OK")
+            .map(|r| r.hostname_port.as_ref().expect("None found").to_string())
+            .unwrap_or_default()
     }
-    /// This function takes a vector of hosts and ports, and the allowed parallellism to (try to) read /api/v1/is-leader.
-    /// It creates a threadpool based on parallel, and spawns a task for reading and parsing for all host-port combinations.
-    /// When all combinations are read, the results are gathered in `Vec<AllStoredIsLeader>` and returned.
     async fn read_isleader (
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize
-    ) -> AllStoredIsLeader
+    ) -> AllIsLeader
     {
         info!("begin parallel http read");
         let timer = Instant::now();
@@ -69,9 +80,11 @@ impl AllStoredIsLeader {
                     let tx = tx.clone();
                     s.spawn(move |_| {
                         let detail_snapshot_time = Local::now();
-                        let isleader = AllStoredIsLeader::read_http(host, port);
+                        let mut isleader = AllIsLeader::read_http(host, port);
+                        isleader.timestamp = Some(detail_snapshot_time);
+                        isleader.hostname_port = Some(format!("{}:{}", host, port));
                         debug!("{:?}",&isleader);
-                        tx.send((format!("{}:{}", host, port), detail_snapshot_time, isleader)).expect("error sending data via tx (isleader)");
+                        tx.send(isleader).expect("error sending data via tx");
                     });
                 }
             }
@@ -79,26 +92,22 @@ impl AllStoredIsLeader {
 
         info!("end parallel http read {:?}", timer.elapsed());
 
-        let mut allstoredisleader = AllStoredIsLeader { stored_isleader: Vec::new() };
-        for (hostname_port, detail_snapshot_time, isleader) in rx {
-            debug!("hostname_port: {}, timestamp: {}, isleader: {}", &hostname_port, &detail_snapshot_time, &isleader.status);
-            allstoredisleader.stored_isleader.push(StoredIsLeader { hostname_port, timestamp: detail_snapshot_time, status: isleader.status.to_string() } );
+        let mut allisleader = AllIsLeader::new();
+
+        // the filter on the mpsc rx channel filter emptiness of the status field,
+        // indicating the source was not a master leader or master.
+        for isleader in rx.iter().filter(|r| r.status != "") {
+            allisleader.isleader.push(isleader);
         }
-        allstoredisleader
+        allisleader
     }
-    /// Using provided host and port, read http://host:port/api/v1/is-leader and parse the result
-    /// via [AllStoredIsLeader::parse_isleader], and return struct [IsLeader].
     fn read_http(
         host: &str,
         port: &str,
     ) -> IsLeader
     {
-        let data_from_http = if utility::scan_host_port( host, port) {
-            utility::http_get(host, port, "api/v1/is-leader")
-        } else {
-            String::new()
-        };
-        AllStoredIsLeader::parse_isleader(data_from_http)
+        let data_from_http = utility::http_get(host, port, "api/v1/is-leader");
+        AllIsLeader::parse_isleader(data_from_http)
     }
     /// This function parses the http output.
     /// This is a separate function in order to allow integration tests to use it.
@@ -106,7 +115,7 @@ impl AllStoredIsLeader {
     {
         serde_json::from_str( &http_output )
             .unwrap_or_else(|_e| {
-                IsLeader { status: "".to_string() }
+                IsLeader::new()
             })
     }
 }
@@ -122,7 +131,7 @@ mod tests {
         let version = r#"
         {"STATUS":"OK"}
 "#.to_string();
-        let result = AllStoredIsLeader::parse_isleader(version);
+        let result = AllIsLeader::parse_isleader(version);
         assert_eq!(result.status, "OK");
     }
 
@@ -131,7 +140,7 @@ mod tests {
         // This is what /api/v1/is-leader returns by the master, NOT on the master leader.
         let version = r#"
 "#.to_string();
-        let result = AllStoredIsLeader::parse_isleader(version);
+        let result = AllIsLeader::parse_isleader(version);
         assert_eq!(result.status, "");
     }
 
@@ -143,7 +152,7 @@ mod tests {
 Error 404: Not Found
 File not found
 "#.to_string();
-        let result = AllStoredIsLeader::parse_isleader(version);
+        let result = AllIsLeader::parse_isleader(version);
         assert_eq!(result.status, "");
     }
 
@@ -153,7 +162,7 @@ File not found
         let hostname = utility::get_hostname_master();
         let port = utility::get_port_master();
 
-        let leader = AllStoredIsLeader::return_leader_http(&vec![&hostname], &vec![&port], 1_usize).await;
+        let leader = AllIsLeader::return_leader_http(&vec![&hostname], &vec![&port], 1_usize).await;
         assert!(leader.is_empty())
     }
 }

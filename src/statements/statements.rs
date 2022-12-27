@@ -282,11 +282,7 @@ impl AllStoredStatements {
         port: &str,
     ) -> Statement
     {
-        let data_from_http = if utility::scan_host_port( host, port) {
-            utility::http_get(host, port, "statements")
-        } else {
-            String::new()
-        };
+        let data_from_http = utility::http_get(host, port, "statements");
         AllStoredStatements::parse_statements(data_from_http)
     }
     fn parse_statements( statements_data: String ) -> Statement {

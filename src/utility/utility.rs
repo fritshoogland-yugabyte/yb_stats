@@ -1,7 +1,7 @@
 //! Utilities
-use port_scanner::scan_port_addr;
+//use port_scanner::scan_port_addr;
 use log::*;
-use std::{collections::HashMap, env, fs, io::Write};
+use std::{collections::HashMap, env, fs, io::Write, time::Duration};
 use anyhow::{Context, Result};
 use regex::Regex;
 //use qscan::{QScanner, QScanResult, QScanType, QscanTcpConnectState, QScanTcpConnectState};
@@ -15,6 +15,7 @@ use crate::DEFAULT_HOSTS;
 use crate::DEFAULT_PORTS;
 use crate::DEFAULT_PARALLEL;
 
+/*
 /// Scan the given host and port combination to see if it's reachable.
 pub fn scan_host_port(
     host: &str,
@@ -22,6 +23,7 @@ pub fn scan_host_port(
 ) -> bool
 {
     // this currently uses port_scanner, but can be slow (3s).
+    /*
     if ! scan_port_addr( format!("{}:{}", host, port)) {
         warn!("Port scanner: hostname:port {}:{} cannot be reached, skipping",host ,port);
         false
@@ -29,6 +31,8 @@ pub fn scan_host_port(
         true
     }
 
+     */
+    true
     /* try with qscan crate
     let mut scanner = QScanner::new(host, port);
     scanner.set_timeout_ms(100);
@@ -50,6 +54,8 @@ pub fn scan_host_port(
      */
 }
 
+ */
+
 /// Reads the http endpoint as specified by the caller, and returns the result as String.
 pub fn http_get(
     host: &str,
@@ -58,6 +64,7 @@ pub fn http_get(
 ) -> String
 {
     if let Ok(data_from_web_request) = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(10))
         .danger_accept_invalid_certs(ACCEPT_INVALID_CERTS)
         .build()
         .unwrap()

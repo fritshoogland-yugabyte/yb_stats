@@ -3,7 +3,7 @@ use chrono::Local;
 use std::{sync::mpsc::channel, time::Instant};
 use log::*;
 use anyhow::{Result, Context};
-use crate::isleader::AllStoredIsLeader;
+use crate::isleader::AllIsLeader;
 use crate::utility;
 use crate::snapshot;
 use crate::cluster_config::{AllSysClusterConfigEntryPB, SysClusterConfigEntryPB};
@@ -26,8 +26,6 @@ impl AllSysClusterConfigEntryPB {
 
         let allsysclusterconfigentrypb = AllSysClusterConfigEntryPB::read_cluster_config(hosts, ports, parallel).await;
         snapshot::save_snapshot_json(snapshot_number, "cluster-config", allsysclusterconfigentrypb.sysclusterconfigentrypb)?;
-        //snapshot::save_snapshot(snapshot_number,"tablet_servers", alltabletservers.stored_tabletservers)?;
-        //snapshot::save_snapshot(snapshot_number,"tablet_servers_pathmetrics", alltabletservers.stored_pathmetrics)?;
 
         info!("end snapshot: {:?}", timer.elapsed());
 
@@ -67,7 +65,7 @@ impl AllSysClusterConfigEntryPB {
         let mut allsysclusterconfigentrypb = AllSysClusterConfigEntryPB::new();
 
         // the filter on the mpsc rx channel filters emptiness of the cluster_uuid field,
-        // indicating the source is not a master.
+        // indicating the source was not a master leader or follower.
         for sysclusterconfigentrypb in rx.iter().filter(|r| r.cluster_uuid != "") {
             allsysclusterconfigentrypb.sysclusterconfigentrypb.push(sysclusterconfigentrypb);
         }
@@ -79,19 +77,15 @@ impl AllSysClusterConfigEntryPB {
         port: &str,
     ) -> SysClusterConfigEntryPB
     {
-        let data_from_http = if utility::scan_host_port( host, port) {
-            utility::http_get(host, port, "api/v1/cluster-config")
-        } else {
-            String::new()
-        };
+        let data_from_http = utility::http_get(host, port, "api/v1/cluster-config");
         AllSysClusterConfigEntryPB::parse_cluster_config(data_from_http, host, port)
     }
     fn parse_cluster_config(
-        tabletservers_data: String,
+        http_data: String,
         host: &str,
         port: &str,
     ) -> SysClusterConfigEntryPB {
-        serde_json::from_str(&tabletservers_data)
+        serde_json::from_str(&http_data)
             .unwrap_or_else(|e| {
                 debug!("({}:{}) could not parse /api/v1/cluster-config json data for cluster-info, error: {}", host, port, e);
                 SysClusterConfigEntryPB::new()
@@ -102,7 +96,7 @@ impl AllSysClusterConfigEntryPB {
         snapshot_number: &String
     ) -> Result<()>
     {
-        let leader_hostname = AllStoredIsLeader::return_leader_snapshot(snapshot_number)?;
+        let leader_hostname = AllIsLeader::return_leader_snapshot(snapshot_number)?;
 
         println!("{}", serde_json::to_string_pretty( &self.sysclusterconfigentrypb
             .iter()
@@ -119,7 +113,7 @@ impl AllSysClusterConfigEntryPB {
         parallel: usize,
     ) -> Result<()>
     {
-        let leader_hostname = AllStoredIsLeader::return_leader_http(hosts, ports, parallel).await;
+        let leader_hostname = AllIsLeader::return_leader_http(hosts, ports, parallel).await;
 
         println!("{}", serde_json::to_string_pretty(&self.sysclusterconfigentrypb
             .iter()

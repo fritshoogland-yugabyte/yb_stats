@@ -79,14 +79,7 @@ impl AllStoredGFlags {
         port: &str,
     ) -> Vec<GFlag>
     {
-        let data_from_http = if utility::scan_host_port(host, port)
-        {
-            utility::http_get(host, port, "varz?raw")
-        }
-        else
-        {
-            String::new()
-        };
+        let data_from_http = utility::http_get(host, port, "varz?raw");
         AllStoredGFlags::parse_gflags(data_from_http)
     }
     fn parse_gflags(

@@ -78,14 +78,7 @@ impl AllStoredMemTrackers {
         port: &str,
     ) -> Vec<MemTrackers>
     {
-        let data_from_http = if utility::scan_host_port(host, port)
-        {
-            utility::http_get(host, port, "mem-trackers")
-        }
-        else
-        {
-            String::new()
-        };
+        let data_from_http = utility::http_get(host, port, "mem-trackers");
         AllStoredMemTrackers::parse_memtrackers(data_from_http)
     }
     fn parse_memtrackers(

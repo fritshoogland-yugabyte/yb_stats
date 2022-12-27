@@ -289,7 +289,7 @@ pub async fn perform_snapshot(
     let arc_hosts_clone = arc_hosts.clone();
     let arc_ports_clone = arc_ports.clone();
     let handle = tokio::spawn(async move {
-        isleader::AllStoredIsLeader::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
+        isleader::AllIsLeader::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
     });
     handles.push(handle);
 
@@ -303,7 +303,8 @@ pub async fn perform_snapshot(
     let arc_hosts_clone = arc_hosts.clone();
     let arc_ports_clone = arc_ports.clone();
     let handle = tokio::spawn(async move {
-        masters::AllStoredMasters::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
+        //masters::AllStoredMasters::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
+        masters::Masters::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
     });
     handles.push(handle);
 
@@ -442,8 +443,11 @@ pub async fn snapshot_diff(
     let entities_diff = entities::SnapshotDiffBTreeMapsEntities::snapshot_diff(&begin_snapshot, &end_snapshot, &options.details_enable)?;
     entities_diff.print();
 
+    /*
     let masters_diff = masters::SnapshotDiffBTreeMapsMasters::snapshot_diff(&begin_snapshot, &end_snapshot)?;
     masters_diff.print();
+
+     */
 
     let tabletservers_diff = tservers::SnapshotDiffBTreeMapsTabletServers::snapshot_diff(&begin_snapshot, &end_snapshot)?;
     tabletservers_diff.print();
@@ -595,7 +599,7 @@ pub async fn adhoc_diff(
     let statements = Arc::new(Mutex::new(statements::SnapshotDiffBTreeMapStatements::new()));
     let node_exporter = Arc::new(Mutex::new(node_exporter::SnapshotDiffBTreeMapNodeExporter::new()));
     let entities = Arc::new(Mutex::new(entities::SnapshotDiffBTreeMapsEntities::new()));
-    let masters = Arc::new(Mutex::new(masters::SnapshotDiffBTreeMapsMasters::new()));
+    //let masters = Arc::new(Mutex::new(masters::SnapshotDiffBTreeMapsMasters::new()));
     let tablet_servers = Arc::new(Mutex::new(tservers::SnapshotDiffBTreeMapsTabletServers::new()));
     let versions = Arc::new(Mutex::new(versions::SnapshotDiffBTreeMapsVersions::new()));
     let vars = Arc::new(Mutex::new(vars::SnapshotDiffBTreeMapsVars::new()));
@@ -636,6 +640,7 @@ pub async fn adhoc_diff(
     });
     handles.push(handle);
 
+    /*
     let clone_masters = masters.clone();
     let clone_hosts = hosts.clone();
     let clone_ports = ports.clone();
@@ -643,6 +648,8 @@ pub async fn adhoc_diff(
         clone_masters.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
     });
     handles.push(handle);
+
+     */
 
     let clone_tablet_servers = tablet_servers.clone();
     let clone_hosts = hosts.clone();
@@ -715,6 +722,7 @@ pub async fn adhoc_diff(
     });
     handles.push(handle);
 
+    /*
     let clone_masters = masters.clone();
     let clone_hosts = hosts.clone();
     let clone_ports = ports.clone();
@@ -722,6 +730,8 @@ pub async fn adhoc_diff(
         clone_masters.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
     });
     handles.push(handle);
+
+     */
 
     let clone_tablet_servers = tablet_servers.clone();
     let clone_hosts = hosts.clone();
@@ -757,7 +767,7 @@ pub async fn adhoc_diff(
     statements.lock().await.print(&hostname_filter, options.sql_length).await;
     node_exporter.lock().await.print(&hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
     entities.lock().await.print();
-    masters.lock().await.print();
+    //masters.lock().await.print();
     tablet_servers.lock().await.print();
     vars.lock().await.print();
     versions.lock().await.print(&hostname_filter);

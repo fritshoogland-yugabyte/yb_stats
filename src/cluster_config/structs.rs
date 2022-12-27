@@ -2,6 +2,9 @@
 
 use chrono::{DateTime, Local};
 
+/// This struct is a wrapper for the SysClusterConfigEntryPB struct.
+///
+/// In this way, the struct can be used with function in impl.
 #[derive(Debug, Default)]
 pub struct AllSysClusterConfigEntryPB {
     pub sysclusterconfigentrypb: Vec<SysClusterConfigEntryPB>,
@@ -133,7 +136,6 @@ pub struct ProducerEntryKeyValue {
 // producer_schema has to be optional, not in PB definition.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct StreamEntryPB {
-    //pub consumer_producer_tablet_map: HashMap<String, ProducerTabletListPB>,
     pub consumer_producer_tablet_map: Vec<StreamEntryKeyValue>,
     pub consumer_table_id: String,
     pub producer_table_id: String,

@@ -1,7 +1,7 @@
 //! Module for reading `/threadz` on the masters and tablet servers.
 //!
 mod structs;
-mod threads;
+mod functions;
 
 pub use structs::*;
-pub use threads::*;
+pub use functions::*;

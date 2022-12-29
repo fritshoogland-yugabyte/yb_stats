@@ -1,7 +1,7 @@
 //! Module containing snapshot functions.
 //!
 mod structs;
-mod snapshot;
+mod functions;
 
 pub use structs::*;
-pub use snapshot::*;
+pub use functions::*;

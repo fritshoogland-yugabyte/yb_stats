@@ -108,6 +108,7 @@ pub struct ConsumerRegistryKeyValue {
 
 // src/yb/cdc/cdc_consumer.proto
 #[derive(Serialize, Deserialize, Debug)]
+#[allow(clippy::upper_case_acronyms)]
 pub enum XClusterRole {
     ACTIVE = 0,
     STANDBY = 1,
@@ -214,6 +215,7 @@ pub struct UDTypeInfo {
 
 // src/yb/common/value.proto
 #[derive(Serialize, Deserialize, Debug)]
+#[allow(clippy::upper_case_acronyms)]
 pub enum DataType {
     UNKNOWN_DATA = 999,
     NULL_VALUE_TYPE = 0,
@@ -346,6 +348,7 @@ pub struct QLSeqValuePB {
 
 // src/yb/common/value.proto
 #[derive(Serialize, Deserialize, Debug)]
+#[allow(clippy::upper_case_acronyms)]
 pub enum QLVirtualValuePB {
     LIMIT_MAX = 1,
     LIMIT_MIN = 2,
@@ -428,6 +431,7 @@ pub struct TablePropertiesPB {
 
 // src/yb/common/common_types.proto
 #[derive(Serialize, Deserialize, Debug)]
+#[allow(clippy::upper_case_acronyms)]
 pub enum YBConsistencyLevel {
     STRONG = 1,
     CONSISTENT_PREFIX = 2,

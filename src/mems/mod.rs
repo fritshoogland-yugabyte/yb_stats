@@ -1,5 +1,5 @@
 //! Module for reading `/memz` on the masters and tablet servers.
 //!
-mod mems;
+mod functions;
 
-pub use mems::*;
+pub use functions::*;

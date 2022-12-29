@@ -1,4 +1,4 @@
 //! Module for general utility functions.
-mod utility;
+mod functions;
 
-pub use utility::*;
+pub use functions::*;

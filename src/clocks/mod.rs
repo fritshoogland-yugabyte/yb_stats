@@ -4,7 +4,7 @@
 //! The `--details-enable` switch shows the clock information from all masters.
 //!
 mod structs;
-mod clocks;
+mod functions;
 
 pub use structs::*;
-pub use clocks::*;
+pub use functions::*;

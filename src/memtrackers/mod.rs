@@ -1,7 +1,7 @@
 //! Module for reading `/mem-trackers` on the masters and tablet servers.
 //!
 mod structs;
-mod memtrackers;
+mod functions;
 
 pub use structs::*;
-pub use memtrackers::*;
+pub use functions::*;

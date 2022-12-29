@@ -96,7 +96,7 @@ impl AllIsLeader {
 
         // the filter on the mpsc rx channel filter emptiness of the status field,
         // indicating the source was not a master leader or master.
-        for isleader in rx.iter().filter(|r| r.status != "") {
+        for isleader in rx.iter().filter(|r| !r.status.is_empty()) {
             allisleader.isleader.push(isleader);
         }
         allisleader

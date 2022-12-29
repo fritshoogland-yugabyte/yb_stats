@@ -150,7 +150,7 @@ impl AllStoredLogLines {
         &self,
         hostname_filter: &Regex,
         stat_name_filter: &Regex,
-        log_severity: &String,
+        log_severity: &str,
     ) -> Result<()>
     {
         info!("print log");
@@ -240,6 +240,7 @@ pub async fn tail_loglines(
         // add all loglines that are not found in the second loglines snapshot to display loglines
         for (key, value) in &second_loglines_btreemap
         {
+            /*
             match first_loglines_btreemap.get(&key)
             {
                 None => {
@@ -248,12 +249,18 @@ pub async fn tail_loglines(
                 // do nothing when we got a match.
                 _ => (),
             }
+
+             */
+            if first_loglines_btreemap.get(key).is_none()
+            {
+                display_loglines_btreemap.insert( key.clone(), value.clone());
+            }
         }
         for ((timestamp, hostname_port, sourcefile_nr), logline) in &display_loglines_btreemap
         {
-            if hostname_filter.is_match(&hostname_port)
+            if hostname_filter.is_match(hostname_port)
                 && options.log_severity.contains(&logline.severity)
-                && ( stat_name_filter.is_match(&logline.message) || stat_name_filter.is_match(&sourcefile_nr) )
+                && ( stat_name_filter.is_match(&logline.message) || stat_name_filter.is_match(sourcefile_nr) )
             {
                 print!("{:20} {:33} ", hostname_port, timestamp);
                 match logline.severity.as_str()

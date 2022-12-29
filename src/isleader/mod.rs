@@ -1,7 +1,7 @@
 //! Module for reading `/api/v1/is-leader` on the masters.
 //!
 mod structs;
-mod isleader;
+mod functions;
 
 pub use structs::*;
-pub use isleader::*;
+pub use functions::*;

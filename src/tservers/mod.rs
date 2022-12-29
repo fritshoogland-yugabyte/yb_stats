@@ -1,7 +1,7 @@
 //! Module for reading `/api/v1/tablet-servers` on the masters.
 //!
 mod structs;
-mod tservers;
+mod functions;
 
 pub use structs::*;
-pub use tservers::*;
+pub use functions::*;

@@ -14,7 +14,7 @@
 //! - main -> [print_rpcs] (print adhoc or snapshot rpc info)
 //!
 mod structs;
-mod rpcs;
+mod functions;
 
 pub use structs::*;
-pub use rpcs::*;
+pub use functions::*;

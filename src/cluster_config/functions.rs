@@ -66,7 +66,7 @@ impl AllSysClusterConfigEntryPB {
 
         // the filter on the mpsc rx channel filters emptiness of the cluster_uuid field,
         // indicating the source was not a master leader or follower.
-        for sysclusterconfigentrypb in rx.iter().filter(|r| r.cluster_uuid != "") {
+        for sysclusterconfigentrypb in rx.iter().filter(|r| !r.cluster_uuid.is_empty()) {
             allsysclusterconfigentrypb.sysclusterconfigentrypb.push(sysclusterconfigentrypb);
         }
 
@@ -100,9 +100,10 @@ impl AllSysClusterConfigEntryPB {
 
         println!("{}", serde_json::to_string_pretty( &self.sysclusterconfigentrypb
             .iter()
-            .filter(|r| r.hostname_port == Some(leader_hostname.clone()))
-            .next()
+            .find(|r| r.hostname_port == Some(leader_hostname.clone()))
             .with_context(|| "Unable to find current master leader")?
+            //.filter(|r| r.hostname_port == Some(leader_hostname.clone()))
+            //.next()
         )?);
         Ok(())
     }
@@ -117,9 +118,10 @@ impl AllSysClusterConfigEntryPB {
 
         println!("{}", serde_json::to_string_pretty(&self.sysclusterconfigentrypb
             .iter()
-            .filter(|r| r.hostname_port == Some(leader_hostname.clone()))
-            .next()
+            .find(|r| r.hostname_port == Some(leader_hostname.clone()))
             .with_context(|| "Unable to find current master leader")?
+            //.filter(|r| r.hostname_port == Some(leader_hostname.clone()))
+            //.next()
         )?);
         Ok(())
     }

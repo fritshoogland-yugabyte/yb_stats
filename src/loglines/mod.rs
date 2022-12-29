@@ -1,6 +1,6 @@
 //! Module for reading `/logs` on the masters and tablet servers.
 mod structs;
-mod loglines;
+mod functions;
 
 pub use structs::*;
-pub use loglines::*;
+pub use functions::*;

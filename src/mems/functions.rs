@@ -76,8 +76,7 @@ impl Mems {
         port: &str,
     ) -> String
     {
-        let data_from_http = utility::http_get(host, port, "memz?raw=true");
-        data_from_http
+        utility::http_get(host, port, "memz?raw=true")
     }
 }
 

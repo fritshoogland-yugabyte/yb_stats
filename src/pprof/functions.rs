@@ -76,8 +76,7 @@ impl Pprof {
         port: &str,
     ) -> String
     {
-        let data_from_http = utility::http_get(host, port, "pprof/growth");
-        data_from_http
+        utility::http_get(host, port, "pprof/growth")
     }
 }
 

@@ -1,6 +1,6 @@
 //! Module for reading `/statements` from the YSQL webservers.
 mod structs;
-mod statements;
+mod functions;
 
 pub use structs::*;
-pub use statements::*;
+pub use functions::*;

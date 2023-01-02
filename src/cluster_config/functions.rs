@@ -1,4 +1,5 @@
-//use serde_derive::{Serialize,Deserialize};
+//! The impls and functions
+//!
 use chrono::Local;
 use std::{sync::mpsc::channel, time::Instant};
 use log::*;
@@ -93,30 +94,11 @@ impl AllSysClusterConfigEntryPB {
     }
     pub fn print(
         &self,
-        snapshot_number: &String
+        leader_hostname: String
     ) -> Result<()>
     {
-        let leader_hostname = AllIsLeader::return_leader_snapshot(snapshot_number)?;
 
         println!("{}", serde_json::to_string_pretty( &self.sysclusterconfigentrypb
-            .iter()
-            .find(|r| r.hostname_port == Some(leader_hostname.clone()))
-            .with_context(|| "Unable to find current master leader")?
-            //.filter(|r| r.hostname_port == Some(leader_hostname.clone()))
-            //.next()
-        )?);
-        Ok(())
-    }
-    pub async fn print_adhoc(
-        &self,
-        hosts: &Vec<&str>,
-        ports: &Vec<&str>,
-        parallel: usize,
-    ) -> Result<()>
-    {
-        let leader_hostname = AllIsLeader::return_leader_http(hosts, ports, parallel).await;
-
-        println!("{}", serde_json::to_string_pretty(&self.sysclusterconfigentrypb
             .iter()
             .find(|r| r.hostname_port == Some(leader_hostname.clone()))
             .with_context(|| "Unable to find current master leader")?
@@ -139,14 +121,15 @@ pub async fn print_cluster_config(
 
             let mut allsysclusterconfigentrypb = AllSysClusterConfigEntryPB::new();
             allsysclusterconfigentrypb.sysclusterconfigentrypb = snapshot::read_snapshot_json(snapshot_number, "cluster-config")?;
-            //allstoredtabletservers.stored_pathmetrics = snapshot::read_snapshot(snapshot_number, "tablet_servers_pathmetrics")?;
+            let leader_hostname = AllIsLeader::return_leader_snapshot(snapshot_number)?;
 
-            allsysclusterconfigentrypb.print(snapshot_number)?;
+            allsysclusterconfigentrypb.print(leader_hostname)?;
 
         }
         None => {
             let allsysclusterconfigentrypb = AllSysClusterConfigEntryPB::read_cluster_config(&hosts, &ports, parallel).await;
-            allsysclusterconfigentrypb.print_adhoc(&hosts, &ports, parallel).await?;
+            let leader_hostname = AllIsLeader::return_leader_http(&hosts, &ports, parallel).await;
+            allsysclusterconfigentrypb.print(leader_hostname)?;
         }
     }
     Ok(())

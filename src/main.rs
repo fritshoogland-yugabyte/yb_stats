@@ -23,8 +23,6 @@ use dotenv::dotenv;
 use anyhow::Result;
 
 mod snapshot;
-//mod value_statistic_details;
-//mod countsum_statistic_details;
 mod statements;
 mod threads;
 mod memtrackers;

@@ -1,8 +1,7 @@
-//! The module for reading the /api/v1/is-leader to identify the master leader.
+//! The impls and functions.
 //!
 use chrono::Local;
 use std::{time::Instant, sync::mpsc::channel};
-//use serde_derive::{Serialize,Deserialize};
 use log::*;
 use anyhow::Result;
 use crate::utility;
@@ -13,7 +12,6 @@ impl IsLeader {
     fn new() -> Self { Default::default() }
 }
 impl AllIsLeader {
-    /// This function reads all the host/port combinations for metrics and saves these in a snapshot indicated by the snapshot_number.
     pub async fn perform_snapshot(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
@@ -34,7 +32,6 @@ impl AllIsLeader {
     fn new() -> Self {
         Default::default()
     }
-    /// This function requires a snapshot number, and returns the hostname_port of the master leader.
     pub fn return_leader_snapshot (
        snapshot_number: &String
     ) -> Result<String>
@@ -109,8 +106,8 @@ impl AllIsLeader {
         let data_from_http = utility::http_get(host, port, "api/v1/is-leader");
         AllIsLeader::parse_isleader(data_from_http)
     }
-    /// This function parses the http output.
-    /// This is a separate function in order to allow integration tests to use it.
+    // This function parses the http output.
+    // This is a separate function in order to allow integration tests to use it.
     fn parse_isleader( http_output: String ) -> IsLeader
     {
         serde_json::from_str( &http_output )

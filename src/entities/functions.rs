@@ -1,61 +1,74 @@
-//! The module for reading /dump-entities available on the masters.
+//! The impls and functions.
 //!
 //! The /dump-entities endpoint contains a number of independent JSON arrays:
-//! 1. keyspaces: "keyspaces":[{"keyspace_id":"00000000000000000000000000000001","keyspace_name":"system","keyspace_type":"ycql"},..]
-//! 2. tables: "tables":[{"table_id":"000000010000300080000000000000af","keyspace_id":"00000001000030008000000000000000","table_name":"pg_user_mapping_user_server_index","state":"RUNNING"},..]
-//! 3. tablets: "tablets":[{"table_id":"sys.catalog.uuid","tablet_id":"00000000000000000000000000000000","state":"RUNNING"},..]
-//! 3.1 replicas: "replicas":[{"type":"VOTER","server_uuid":"047856aaf11547749694ca7d7941fb31","addr":"yb-2.local:9100"},..]
-//! This is 3.1 because replicas are arrays nested in tablets.
+//! 1. keyspaces: "keyspaces": `[{"keyspace_id":"00000000000000000000000000000001","keyspace_name":"system","keyspace_type":"ycql"},..]`
+//! 2. tables: "tables": `[{"table_id":"000000010000300080000000000000af","keyspace_id":"00000001000030008000000000000000","table_name":"pg_user_mapping_user_server_index","state":"RUNNING"},..]`
+//! 3. tablets: "tablets": `[{"table_id":"sys.catalog.uuid","tablet_id":"00000000000000000000000000000000","state":"RUNNING"},..]`
+//!
+//!     3.1. replicas: "replicas": `[{"type":"VOTER","server_uuid":"047856aaf11547749694ca7d7941fb31","addr":"yb-2.local:9100"},..]`
+//!
+//!     This is 3.1 because replicas are arrays nested in tablets.
 //!
 //! The way these link together is:
-//! tables.keyspace_id -> keyspaces.keyspace_id (keyspaces.keyspace_id must exist for tables.keyspace_id)
-//! tables.table_id -> tablets.table_id, which contains the replicas as a nested array.
-//! tablets.table_id might not exist for tables.table_id, because some tables do not have tablets, such as the postgres catalog entries.
+//! - `tables.keyspace_id` -> `keyspaces.keyspace_id` (keyspaces.keyspace_id must exist for tables.keyspace_id)
+//! - `tables.table_id` -> `tablets.table_id`, which contains the replicas as a nested array.
+//!     `tablets.table_id` might not exist for `tables.table_id`, because some tables do not have tablets, such as the postgres catalog entries.
 //!
-//! Special keyspaces:
-//! - system: contains the local, partitions, roles, transactions, peers, size_estimates, `transactions-<UUID>` tables.
-//! - system_schema: contains the YCQL indexes, views, aggregates, keyspaces, tables, types, functions, triggers, columns, sys.catalog tables.
-//! - system_auth: contains the roles, role_permissions, resource_role_permissions_index tables.
-//! - template1: postgres template1 database template, contains catalog
-//! - template0: postgres template0 database template, contains catalog
-//! - postgres: postgres standard database, not commonly used with YugabyteDB.
-//! - yugabyte: postgres standard database, default database.
-//! - system_platform: postgres database, contains a few extra catalog tables starting with 'sql'.
+//! # Special keyspaces:
 //!
+//! | keyspace        | description                                                                                                              |
+//! |-----------------|--------------------------------------------------------------------------------------------------------------------------|
+//! | system          | contains the local, partitions, roles, transactions, peers, size_estimates, `transactions-<UUID>` tables                 |
+//! | system_schema   | contains the YCQL indexes, views, aggregates, keyspaces, tables, types, functions, triggers, columns, sys.catalog tables |
+//! | system_auth     | contains the roles, role_permissions, resource_role_permissions_index tables                                             |
+//! | template1       | postgres template1 database template, contains catalog                                                                   |
+//! | template0       | postgres template0 database template, contains catalog                                                                   |
+//! | postgres        | postgres standard database, not commonly used with YugabyteDB                                                            |
+//! | yugabyte        | postgres standard database, default database                                                                             |
+//! | system_platform | postgres database, contains a few extra catalog tables starting with 'sql'                                               |
+//!
+//! # YCQL
 //! YCQL requires a keyspace to be defined before user objects can be created and loaded, and
 //! keyspace, table and tablet will get a random UUID as id.
 //!
+//! # YSQL
 //! YSQL keyspaces do get an id in a specific way.
 //! The id of the YSQL keyspace is in a format that later is used by the objects too.
 //! This is how a YSQL keyspace id looks like:
-//! 000033e5000030008000000000000000
-//! |------|xxxx||xx||xxxxxx|------|
-//! database    ver var     object
-//! oid         (3) (8)     oid
-//! (hex)                   (hex)
-//! A YSQL keyspace has the object id set to all 0.
-//! This is described in the YugabyteDB sourcecode: src/yb/common/entity_ids.cc
-//! Version 3 is for ISO4122 UUID version.
-//! Variant 8 means DCE 1.1, ISO/IEC 11578:1996
-//! Version and variant are static currently.
 //!
+//! ```text
+//! | 0  1  2  3| 4  6| 7| 8| 9|10 11|12 13 14 15|
+//! |-----------|-----|--|--|--|-----|-----------|
+//! |00 00 33 e5|00 00|30|00|80|00 00|00 00 00 00|
+//! db                ver   var      object
+//! oid               (3)   (8)      oid
+//! (hex)                   (hex)
+//! ```
+//! - (position 12..15): A YSQL keyspace has the object id set to all 0. This is described in the YugabyteDB sourcecode: src/yb/common/entity_ids.cc
+//! - (position 7): Version 3 is for ISO4122 UUID version.
+//! - (position 9): Variant 8 means DCE 1.1, ISO/IEC 11578:1996
+//! - Version and variant are static currently.
+//!
+//! ## YSQL object id and catalog data
 //! The object OID number indicates whether an object is a catalog object or a user object.
 //! Any object OID lower than 16384 (0x4000) is a catalog object. This is why a user table_id always starts from ..4000.
 //!
-//! YSQL colocated databases.
+//! ## YSQL colocated databases.
 //! If a database is created with colocation turned on, it will generate a special table entry:
+//! ```text
 //!     {
 //!       "table_id": "0000400f000030008000000000000000.colocated.parent.uuid",
 //!       "keyspace_id": "0000400f000030008000000000000000",
 //!       "table_name": "0000400f000030008000000000000000.colocated.parent.tablename",
 //!       "state": "RUNNING"
 //!     }
+//! ```
 //! This indicates the keyspace/database is colocated, and thus any object not explicitly defined using its own tablets,
 //! will be stored in the tablets that are part of the database.
 //! 
 //use serde_derive::{Serialize,Deserialize};
-use chrono::{DateTime, Local};
-use std::{collections::{BTreeMap, HashMap}, time::Instant, sync::mpsc::channel};
+use chrono::Local;
+use std::{time::Instant, sync::mpsc::channel};
 use log::*;
 use regex::Regex;
 use colored::*;
@@ -63,7 +76,8 @@ use anyhow::Result;
 use crate::isleader::AllIsLeader;
 use crate::utility;
 use crate::snapshot;
-use crate::entities::{Entities, Keyspaces, Tables, Tablets, Replicas, StoredKeyspaces, StoredTables, StoredTablets, StoredReplicas, SnapshotDiffKeyspaces, SnapshotDiffTables, SnapshotDiffTablets, SnapshotDiffReplica, SnapshotDiffBTreeMapsEntities};
+//use crate::entities::{Entities, Keyspaces, Tables, Tablets, Replicas, StoredKeyspaces, StoredTables, StoredTablets, StoredReplicas, SnapshotDiffKeyspaces, SnapshotDiffTables, SnapshotDiffTablets, SnapshotDiffReplica, SnapshotDiffBTreeMapsEntities};
+use crate::entities::{Entities, AllEntities, EntitiesDiff, KeyspaceDiff, TablesDiff, TabletsDiff, ReplicasDiff};
 use crate::Opts;
 
 impl Entities {
@@ -72,6 +86,7 @@ impl Entities {
     }
 }
 
+/*
 impl StoredTables
 {
     fn new(hostname_port: &str, timestamp: DateTime<Local>, table: Tables) -> Self
@@ -152,7 +167,9 @@ pub struct AllStoredEntities {
 
 }
 
-impl AllStoredEntities
+ */
+
+impl AllEntities
 {
     pub async fn perform_snapshot(
         hosts: &Vec<&str>,
@@ -164,11 +181,8 @@ impl AllStoredEntities
         info!("begin snapshot");
         let timer = Instant::now();
 
-        let allstoredentities = AllStoredEntities::read_entities(hosts, ports, parallel).await;
-        snapshot::save_snapshot(snapshot_number, "keyspaces", allstoredentities.stored_keyspaces)?;
-        snapshot::save_snapshot(snapshot_number, "tables", allstoredentities.stored_tables)?;
-        snapshot::save_snapshot(snapshot_number, "tablets", allstoredentities.stored_tablets)?;
-        snapshot::save_snapshot(snapshot_number, "replicas", allstoredentities.stored_replicas)?;
+        let allentities = AllEntities::read_entities(hosts, ports, parallel).await;
+        snapshot::save_snapshot_json(snapshot_number,"entities", allentities.entities)?;
 
         info!("end snapshot: {:?}", timer.elapsed());
 
@@ -181,7 +195,7 @@ impl AllStoredEntities
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize,
-    ) -> AllStoredEntities
+    ) -> AllEntities
     {
         info!("begin parallel http read");
         let timer = Instant::now();
@@ -225,8 +239,10 @@ impl AllStoredEntities
                     let tx = tx.clone();
                     s.spawn(move |_|  {
                         let detail_snapshot_time = Local::now();
-                        let entities = AllStoredEntities::read_http(host, port);
-                        tx.send((format!("{}:{}", host, port), detail_snapshot_time, entities)).expect("error sending data via tx (entities)");
+                        let mut entities = AllEntities::read_http(host, port);
+                        entities.timestamp = Some(detail_snapshot_time);
+                        entities.hostname_port = Some(format!("{}:{}", host, port));
+                        tx.send(entities).expect("error sending data via tx");
                     });
                 }
             }
@@ -234,13 +250,13 @@ impl AllStoredEntities
 
         info!("end parallel http read {:?}", timer.elapsed());
 
-        let mut allstoredentities = AllStoredEntities::new();
+        let mut allentities = AllEntities::new();
 
-        for (hostname_port, detail_snapshot_time, entities) in rx {
-            allstoredentities.split_into_vectors(entities, &hostname_port, detail_snapshot_time);
+        for entity in rx.iter().filter(|r| !r.keyspaces.is_empty() && !r.tables.is_empty() && !r.tablets.is_empty()) {
+            allentities.entities.push(entity);
         }
 
-        allstoredentities
+        allentities
     }
     fn read_http(
         host: &str,
@@ -248,7 +264,7 @@ impl AllStoredEntities
     ) -> Entities
     {
         let data_from_http = utility::http_get(host, port, "dump-entities");
-        AllStoredEntities::parse_entities(data_from_http, host, port)
+        AllEntities::parse_entities(data_from_http, host, port)
     }
     fn parse_entities(
         entities_data: String,
@@ -262,42 +278,13 @@ impl AllStoredEntities
                 Entities::new()
             })
     }
-    fn split_into_vectors(
-        &mut self,
-        entities: Entities,
-        hostname_port: &str,
-        detail_snapshot_time: DateTime<Local>,
-    )
-    {
-        debug!("split_into_vectors");
-        for keyspace in entities.keyspaces {
-            self.stored_keyspaces.push(StoredKeyspaces::new(hostname_port, detail_snapshot_time, &keyspace) );
-        }
-        for table in entities.tables {
-            self.stored_tables.push( StoredTables::new(hostname_port, detail_snapshot_time, table) );
-        }
-        for tablet in entities.tablets {
-            self.stored_tablets.push( StoredTablets::new(hostname_port, detail_snapshot_time, &tablet) );
-            if let Some(replicas) = tablet.replicas {
-                for replica in replicas {
-                    self.stored_replicas.push(StoredReplicas::new(hostname_port, detail_snapshot_time, &tablet.tablet_id, replica));
-                }
-            }
-        }
-    }
     pub fn print(
         &self,
-        snapshot_number: &String,
         table_name_filter: &Regex,
         details_enable: &bool,
+        leader_hostname: String,
     ) -> Result<()>
     {
-        info!("print_entities");
-
-        let leader_hostname = AllIsLeader::return_leader_snapshot(snapshot_number)?;
-
-        let mut tables_btreemap: BTreeMap<(String, String, String), StoredTables> = BTreeMap::new();
-
         let is_system_keyspace = |keyspace: &str| -> bool {
             matches!(keyspace, "00000000000000000000000000000001" |   // ycql system
                                "00000000000000000000000000000002" |   // ycql system_schema
@@ -306,185 +293,568 @@ impl AllStoredEntities
                                "000033e5000030008000000000000000")    // ysql template0
         };
 
-        let object_oid_number = |oid: &str| -> u32 {
-            // The oid entry normally is a 32 byte UUID for both ycql and ysql, which only contains hexadecimal numbers.
-            // However, there is a single entry in system_schema that has a table_id that is 'sys.catalog.uuid'
-            if oid.len() == 32_usize {
-                let true_oid = &oid[24..];
-                u32::from_str_radix(true_oid, 16).unwrap()
-            } else {
-                0
+        for entity in self.entities.iter()
+        {
+            if !*details_enable && entity.hostname_port.ne(&Some(leader_hostname.clone()))
+            {
+                continue;
+            }
+            for row in &entity.keyspaces
+            {
+                if !*details_enable
+                    && is_system_keyspace(row.keyspace_id.as_str())
+                {
+                    continue;
+                }
+                // a ysql keyspace is not removed from keyspaces when it's dropped.
+                // to identify a dropped keyspace, we can count the number of tables that reside in it.
+                // if the number is 0, it is a dropped keyspace.
+                if row.keyspace_type == "ysql"
+                    && entity.tables.iter()
+                        .filter(|r| r.keyspace_id == row.keyspace_id)
+                        .count() > 0
+                {
+                    // a ysql keyspace is a colocated keyspace if it a tablet exists
+                    // with the following table_id: <keyspace_id>.colocated.parent.uuid
+                    // the variable "colocation" is set to "[colocated]" if that is true for the current keyspace.
+                    let colocation = if entity.tablets.iter()
+                        .any(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id))
+                    {
+                        "[colocated]"
+                    } else {
+                        ""
+                    };
+                    // print keyspace details.
+                    if *details_enable
+                    {
+                        print!("{} ", entity.hostname_port.clone().unwrap());
+                    }
+                    println!("Keyspace:     {}.{} id: {} {}", row.keyspace_type, row.keyspace_name, row.keyspace_id, colocation);
+                    // if the keyspace is colocated, it means it has got a tablet directly linked to it.
+                    // normally a tablet is linked to a table.
+                    // if colocated is true, print the tablet and replica details:
+                    if colocation == "[colocated]"
+                    {
+                        for tablet in entity.tablets
+                            .iter()
+                            .filter(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id))
+                        {
+                            if *details_enable
+                            {
+                                print!("{} ", entity.hostname_port.clone().unwrap());
+                            }
+                            println!("  Tablet:     {}.{}.{} state: {}", row.keyspace_type, row.keyspace_name, tablet.tablet_id, tablet.state);
+                            // replicas
+                            if *details_enable
+                            {
+                                print!("{} ", entity.hostname_port.clone().unwrap());
+                            }
+                            println!("    Replicas: ({})", tablet.replicas.clone()
+                                .unwrap_or_default()
+                                .iter()
+                                .map(|r|
+                                    {
+                                        if &r.server_uuid == tablet.leader.as_ref().unwrap_or(&"".to_string())
+                                        {
+                                            format!("{}({}:LEADER), ", &r.addr, &r.replica_type)
+                                        }
+                                        else
+                                        {
+                                            format!("{}({}), ", &r.addr, &r.replica_type)
+                                        }
+                                    })
+                                .collect::<String>()
+                                .trim()
+                            );
+                        }
+                    }
+                } else if row.keyspace_type != "ysql"
+                {
+                    if *details_enable
+                    {
+                        print!("{} ", entity.hostname_port.clone().unwrap());
+                    }
+                    println!("Keyspace: {}.{} id: {}", row.keyspace_type, row.keyspace_name, row.keyspace_id);
+                }
+            }
+            let object_oid_number = |oid: &str| -> u32 {
+                // The oid entry normally is a 32 byte UUID for both ycql and ysql, which only contains hexadecimal numbers.
+                // However, there is a single entry in system_schema that has a table_id that is 'sys.catalog.uuid'
+                if oid.len() == 32_usize {
+                    let true_oid = &oid[24..];
+                    u32::from_str_radix(true_oid, 16).unwrap()
+                } else {
+                    0
+                }
+            };
+            for row in entity.tables.iter() {
+                if is_system_keyspace(row.keyspace_id.as_str()) && !*details_enable
+                {
+                    continue
+                }
+                if !table_name_filter.is_match(&row.table_name)
+                {
+                    continue
+                }
+                // ysql table_id has got the OID number in it,
+                // the below function takes that, and tests if it's below 16384.
+                // ysql oid numbers below 16384 are system/catalog tables.
+                //
+                // The purpose is to skip ysql catalog tables when details_enable is not set.
+                if object_oid_number(row.table_id.as_str()) < 16384
+                    && !*details_enable
+                    // This takes the keyspace_id from the tables struct row,
+                    // and filters the contents of keyspaces vector for the keyspace_id.
+                    // Using the keyspace_id, it maps the keyspace_name,
+                    // which is tested for equality with "ysql" to make sure it's a ysql row for which the filter is applied.
+                    && entity.keyspaces.iter()
+                        .find(|r| r.keyspace_id == row.keyspace_id)
+                        .map(|r| &r.keyspace_type)
+                        .unwrap() == "ysql"
+                {
+                    continue
+                }
+                // if the table is colocated, it means it does not have one or more tablets
+                // directly linked to the table.
+                // To check for colocation:
+                // - the table keyspace type must be ysql.
+                // - the must be OID >= 16384 (catalog tables do not have tablets).
+                // - there are no tablets directly linked to the table.
+                let colocation = if entity.keyspaces
+                        .iter()
+                        .find(|r| r.keyspace_id == row.keyspace_id)
+                        .map(|r| r.keyspace_type.clone())
+                        .unwrap_or_default() == "ysql"
+                    && object_oid_number(row.table_id.as_str()) >= 16384
+                    && !entity.tablets
+                        .iter()
+                        .any(|r| r.table_id == row.table_id)
+                {
+                    "[colocated]"
+                }
+                else
+                {
+                    ""
+                };
+                if *details_enable
+                {
+                    print!("{} ", entity.hostname_port.clone().unwrap());
+                }
+                println!("Object:       {}.{}.{}, state: {}, id: {} {}",
+                    &entity.keyspaces
+                        .iter()
+                        .find(|r| r.keyspace_id == row.keyspace_id)
+                        .map(|r| r.keyspace_type.clone())
+                        .unwrap_or_default(),
+                    &entity.keyspaces
+                        .iter()
+                        .find(|r| r.keyspace_id == row.keyspace_id)
+                        .map(|r| r.keyspace_name.clone())
+                        .unwrap_or_default(),
+                    row.table_name,
+                    row.state,
+                    row.table_id,
+                    colocation,
+                );
+                for tablet in entity.tablets
+                    .iter()
+                    .filter(|r| r.table_id == row.table_id)
+                {
+                    if *details_enable
+                    {
+                        print!("{} ", entity.hostname_port.clone().unwrap());
+                    }
+                    println!("  Tablet:     {}.{}.{}.{} state: {}",
+                             &entity.keyspaces
+                                 .iter()
+                                 .find(|r| r.keyspace_id == row.keyspace_id)
+                                 .map(|r| r.keyspace_type.clone())
+                                 .unwrap_or_default(),
+                             &entity.keyspaces
+                                 .iter()
+                                 .find(|r| r.keyspace_id == row.keyspace_id)
+                                 .map(|r| r.keyspace_name.clone())
+                                 .unwrap_or_default(),
+                             row.table_name,
+                             tablet.tablet_id,
+                             tablet.state,
+                    );
+                    // replicas
+                    if *details_enable
+                    {
+                        print!("{} ", entity.hostname_port.clone().unwrap());
+                    }
+                    println!("    Replicas: ({})", tablet.replicas.clone()
+                        .unwrap_or_default()
+                        .iter()
+                        .map(|r|
+                            {
+                                if &r.server_uuid == tablet.leader.as_ref().unwrap_or(&"".to_string())
+                                {
+                                    format!("{}({}:LEADER), ", &r.addr, &r.replica_type)
+                                }
+                                else
+                                {
+                                    format!("{}({}), ", &r.addr, &r.replica_type)
+                                }
+                            })
+                        .collect::<String>()
+                        .trim()
+                    );
+                }
             }
         };
+        Ok(())
+    }
+}
 
-        for row in self.stored_keyspaces.iter() {
-            if !*details_enable && row.hostname_port.ne(&leader_hostname) {
+impl EntitiesDiff {
+    pub fn new() -> Self { Default::default() }
+    pub fn snapshot_diff(
+        begin_snapshot: &String,
+        end_snapshot: &String,
+    ) -> Result<EntitiesDiff>
+    {
+        let mut entitiesdiff = EntitiesDiff::new();
+
+        let mut allentities = AllEntities::new();
+        allentities.entities = snapshot::read_snapshot_json(begin_snapshot, "entities")?;
+        let master_leader = AllIsLeader::return_leader_snapshot(begin_snapshot)?;
+        entitiesdiff.first_snapshot(allentities, master_leader);
+
+        let mut allentities = AllEntities::new();
+        allentities.entities = snapshot::read_snapshot_json(end_snapshot, "entities")?;
+        let master_leader = AllIsLeader::return_leader_snapshot(begin_snapshot)?;
+        entitiesdiff.second_snapshot(allentities, master_leader);
+
+        Ok(entitiesdiff)
+    }
+    fn first_snapshot(
+        &mut self,
+        allentities: AllEntities,
+        master_leader: String,
+    )
+    {
+        if master_leader == *"" {
+            self.master_found = false;
+            return
+        } else {
+            self.master_found = true;
+        }
+        trace!("First snapshot: master_leader: {}, found: {}", master_leader, self.master_found);
+
+        for entity in allentities.entities
+            .iter()
+            .filter(|r| r.hostname_port.as_ref().unwrap().clone() == master_leader.clone())
+        {
+            for keyspace in &entity.keyspaces {
+                self.btreekeyspacediff
+                    .entry(keyspace.keyspace_id.clone())
+                    .and_modify(|_| error!("Duplicate keyspace_id entry: id: {}, type: {}, name: {}",
+                        keyspace.keyspace_id,
+                        keyspace.keyspace_type,
+                        keyspace.keyspace_name)
+                    )
+                    .or_insert(KeyspaceDiff {
+                        first_keyspace_name: keyspace.keyspace_name.clone(),
+                        first_keyspace_type: keyspace.keyspace_type.clone(),
+                        ..Default::default()
+                        }
+                    );
+            }
+            for table in &entity.tables {
+                self.btreetablesdiff
+                    .entry(table.table_id.clone())
+                    .and_modify(|_| error!("Duplicate table_id entry: id: {}, name: {}, keyspace_id: {}, state: {}",
+                        table.table_id,
+                        table.keyspace_id,
+                        table.table_name,
+                        table.state)
+                    )
+                    .or_insert( TablesDiff {
+                        first_keyspace_id: table.keyspace_id.clone(),
+                        first_table_name: table.table_name.clone(),
+                        first_state: table.state.clone(),
+                        ..Default::default()
+                    });
+            }
+            for tablet in &entity.tablets {
+                self.btreetabletsdiff
+                    .entry(tablet.tablet_id.clone())
+                    .and_modify(|_| error!("Duplicate tablet_id entry: id: {}, table_id: {}, state: {}, leader: {}",
+                        tablet.tablet_id,
+                        tablet.table_id,
+                        tablet.state,
+                        tablet.leader.as_ref().unwrap_or(&"".to_string()))
+                    )
+                    .or_insert( TabletsDiff {
+                        first_table_id: tablet.table_id.clone(),
+                        first_state: tablet.state.clone(),
+                        first_leader: tablet.leader.as_ref().unwrap_or(&"".to_string()).to_string(),
+                        ..Default::default()
+                    });
+                for replica in tablet.replicas.clone().unwrap_or_default() {
+                    self.btreereplicasdiff
+                        .entry( (tablet.tablet_id.clone(), replica.server_uuid.clone()) )
+                        .and_modify(|_| error!("Duplicate replica entry: ({}, {}), addr: {}, type: {}",
+                            tablet.tablet_id,
+                            replica.server_uuid,
+                            replica.addr,
+                            replica.replica_type)
+                        )
+                        .or_insert( ReplicasDiff {
+                            first_addr: replica.addr,
+                            first_replica_type: replica.replica_type,
+                            ..Default::default()
+                        });
+                }
+            }
+        }
+    }
+    fn second_snapshot(
+        &mut self,
+        allentities: AllEntities,
+        master_leader: String,
+    )
+    {
+        if master_leader == *"" {
+            self.master_found = false;
+            return
+        } else {
+            self.master_found = true;
+        }
+        trace!("Second snapshot: master_leader: {}, found: {}", master_leader, self.master_found);
+
+        for entity in allentities.entities
+            .iter()
+            .filter(|r| r.hostname_port.as_ref().unwrap().clone() == master_leader.clone())
+        {
+            for keyspace in &entity.keyspaces {
+                self.btreekeyspacediff
+                    .entry(keyspace.keyspace_id.clone())
+                    .and_modify(|keyspacediff| {
+                        keyspacediff.second_keyspace_name = keyspace.keyspace_name.clone();
+                        keyspacediff.second_keyspace_type = keyspace.keyspace_type.clone();
+                        }
+                    )
+                    .or_insert(KeyspaceDiff {
+                        second_keyspace_name: keyspace.keyspace_name.clone(),
+                        second_keyspace_type: keyspace.keyspace_type.clone(),
+                        ..Default::default()
+                        }
+                    );
+            }
+            for table in &entity.tables {
+                self.btreetablesdiff
+                    .entry(table.table_id.clone())
+                    .and_modify(|tablediff| {
+                        tablediff.second_keyspace_id = table.keyspace_id.clone();
+                        tablediff.second_table_name = table.table_name.clone();
+                        tablediff.second_state = table.state.clone();
+                        }
+                    )
+                    .or_insert( TablesDiff {
+                        second_keyspace_id: table.keyspace_id.clone(),
+                        second_table_name: table.table_name.clone(),
+                        second_state: table.state.clone(),
+                        ..Default::default()
+                    });
+            }
+            for tablet in &entity.tablets {
+                self.btreetabletsdiff
+                    .entry(tablet.tablet_id.clone())
+                    .and_modify(|tabletdiff| {
+                        tabletdiff.second_table_id = tablet.table_id.clone();
+                        tabletdiff.second_state = tablet.state.clone();
+                        tabletdiff.second_leader = tablet.leader.as_ref().unwrap_or(&"".to_string()).to_string();
+                        }
+                    )
+                    .or_insert( TabletsDiff {
+                        second_table_id: tablet.table_id.clone(),
+                        second_state: tablet.state.clone(),
+                        second_leader: tablet.leader.as_ref().unwrap_or(&"".to_string()).to_string(),
+                        ..Default::default()
+                    });
+                for replica in tablet.replicas.clone().unwrap_or_default() {
+                    self.btreereplicasdiff
+                        .entry( (tablet.tablet_id.clone(), replica.server_uuid.clone()) )
+                        .and_modify(|replicadiff| {
+                            replicadiff.second_addr = replica.addr.clone();
+                            replicadiff.second_replica_type = replica.replica_type.clone();
+                            }
+                        )
+                        .or_insert( ReplicasDiff {
+                            second_addr: replica.addr.clone(),
+                            second_replica_type: replica.replica_type.clone(),
+                            ..Default::default()
+                        });
+                }
+            }
+        }
+    }
+    pub async fn adhoc_read_first_snapshot(
+        &mut self,
+        hosts: &Vec<&str>,
+        ports: &Vec<&str>,
+        parallel: usize
+    )
+    {
+        let allentities = AllEntities::read_entities(hosts, ports, parallel).await;
+        let master_leader= AllIsLeader::return_leader_http(hosts, ports, parallel).await;
+        self.first_snapshot(allentities, master_leader);
+    }
+    pub async fn adhoc_read_second_snapshot(
+        &mut self,
+        hosts: &Vec<&str>,
+        ports: &Vec<&str>,
+        parallel: usize
+    )
+    {
+        let allentities = AllEntities::read_entities(hosts, ports, parallel).await;
+        let master_leader= AllIsLeader::return_leader_http(hosts, ports, parallel).await;
+        self.second_snapshot(allentities, master_leader);
+    }
+    pub fn print(
+        &self,
+    )
+    {
+        if !self.master_found {
+            println!("Master leader was not found in hosts specified, skipping entity diff.");
+            return;
+        }
+        let is_system_keyspace = |keyspace: &str| -> bool {
+            matches!(keyspace, "00000000000000000000000000000001" |   // ycql system
+                               "00000000000000000000000000000002" |   // ycql system_schema
+                               "00000000000000000000000000000003" |   // ycql system_auth
+                               "00000001000030008000000000000000" |   // ysql template1
+                               "000033e5000030008000000000000000")    // ysql template0
+        };
+        for (keyspace_id, keyspace_row) in &self.btreekeyspacediff {
+            // do not report system keyspaces
+            if is_system_keyspace(keyspace_id.as_str())
+            {
                 continue;
             }
-            if !*details_enable && is_system_keyspace(row.keyspace_id.as_str()) {
-                continue;
+            if keyspace_row.first_keyspace_name == keyspace_row.second_keyspace_name
+                && keyspace_row.first_keyspace_type == keyspace_row.second_keyspace_type
+            {
+                // the keyspaces exist in both snapshots.
+                // however, ysql keyspaces do not get deleted upon 'drop database'.
+                // a dropped ysql keyspace can be detected by having zero tables.
+                if keyspace_row.second_keyspace_type == "ysql"
+                {
+                    let first_snapshot_table_count = self.btreetablesdiff
+                        .iter()
+                        .filter(|(_k,v)| v.first_keyspace_id == keyspace_id.clone())
+                        .count();
+                    let second_snapshot_table_count = self.btreetablesdiff
+                        .iter()
+                        .filter(|(_k,v)| v.second_keyspace_id == keyspace_id.clone())
+                        .count();
+                    // first and second table count > 0: the keyspace was normally existing in both snapshots.
+                    if first_snapshot_table_count > 0 && second_snapshot_table_count > 0
+                        // first and second table count == 0: the keyspace was a deleted ysql keyspace in both snapshots.
+                        || first_snapshot_table_count == 0 && second_snapshot_table_count == 0
+                    {
+                        continue;
+                    }
+                    else if first_snapshot_table_count > 0 && second_snapshot_table_count == 0
+                    // the first table count is > 0 and the second table count is 0: this is a deleted ysql keyspace/database.
+                    {
+                        let colocation = if self.btreetabletsdiff.iter()
+                            .any(|(_k,v)| v.first_table_id == format!("{}.colocated.parent.uuid", &keyspace_id))
+                            && keyspace_row.first_keyspace_type == "ysql"
+                        {
+                            "[colocated]"
+                        } else {
+                            ""
+                        };
+                        println!("{} Database: {}.{}, id: {} {}",
+                                 "-".to_string().red(),
+                                 keyspace_row.first_keyspace_type,
+                                 keyspace_row.first_keyspace_name,
+                                 keyspace_id,
+                                 colocation
+                        );
+                    } else if first_snapshot_table_count == 0 && second_snapshot_table_count > 0
+                    // the first table count is 0 and the second table count is > 0: the deleted database got undeleted (?)
+                    // this is not possible, hence error.
+                    {
+                        error!("ysql keyspace name: {}, id: {} table count was zero, now is: {}. This is not possible",
+                            keyspace_id,
+                            keyspace_row.second_keyspace_name,
+                            second_snapshot_table_count,
+                        );
+                    };
+                } else {
+                    // this is not a ysql keyspace.
+                    // this means no change happened to the keyspace
+                    continue;
+                }
             }
-            // a ysql keyspace is not removed from keyspaces when it's dropped.
-            // to identify a dropped keyspace, we can count the number of tables that reside in it.
-            // if the number is 0, it is a dropped keyspace.
-            if row.keyspace_type == "ysql"
-            && self.stored_tables.iter().filter(|r| r.keyspace_id == row.keyspace_id).count() > 0 {
-                let colocation = if self.stored_tablets.iter()
-                    .any(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id)) {
+            // the first snapshot fields are empty, which means the second snapshot fields are filled out:
+            // this is an added keyspace.
+            else if keyspace_row.first_keyspace_name.is_empty()
+                && keyspace_row.first_keyspace_type.is_empty()
+            {
+                let colocation = if self.btreetabletsdiff.iter()
+                    .any(|(_k,v)| v.second_table_id == format!("{}.colocated.parent.uuid", &keyspace_id))
+                    && keyspace_row.second_keyspace_type == "ysql"
+                {
                     "[colocated]"
                 } else {
                     ""
                 };
-                if *details_enable {
-                    print!("{} ", &row.hostname_port);
-                }
-                println!("Keyspace: {}.{} id: {} {}", row.keyspace_type, row.keyspace_name, row.keyspace_id, colocation);
-
-                if colocation == "[colocated]" {
-                    for tablet in self.stored_tablets
-                        .iter()
-                        .filter(|r| r.hostname_port == leader_hostname)
-                        .filter(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id))
-                    {
-                        if *details_enable {
-                            print!("{} ", &row.hostname_port);
-                        }
-
-                        println!("Tablet:   {}.{}.{} state: {}", row.keyspace_type, row.keyspace_name, tablet.tablet_id, tablet.tablet_state);
-
-                        if *details_enable {
-                            print!("{} ", &row.hostname_port);
-                        }
-                        print!("            ( ");
-                        for replica in self.stored_replicas
-                            .iter()
-                            .filter(|r| r.hostname_port == leader_hostname)
-                            .filter(|r| r.tablet_id == tablet.tablet_id)
-                        {
-                            let replica_state = if replica.server_uuid == tablet.leader { "LEADER" } else { "FOLLOWER" };
-                            print!("{},{},{} ", replica.replica_type, replica.addr, replica_state);
-                        };
-                        println!(")");
-                    }
-                }
-            } else if row.keyspace_type != "ysql" {
-                    if *details_enable {
-                        print!("{} ", &row.hostname_port);
-                    }
-                    println!("Keyspace: {}.{} id: {}", row.keyspace_type, row.keyspace_name, row.keyspace_id);
-            };
-        }
-
-        for row in self.stored_tables.iter() {
-            if !*details_enable && row.hostname_port.ne(&leader_hostname) {
-               continue
+                println!("{} Database: {}.{}, id: {} {}",
+                         "+".to_string().green(),
+                         keyspace_row.second_keyspace_type,
+                         keyspace_row.second_keyspace_name,
+                         keyspace_id,
+                         colocation
+                );
             }
-            if is_system_keyspace(row.keyspace_id.as_str()) && !*details_enable {
-                continue
-            }
-            if object_oid_number(row.table_id.as_str()) < 16384
-            && !*details_enable
-            // this takes the keyspace_id from the stored_tables vector, and filters the contents of stored_keyspaces vector for the keyspace_id,
-            // and then maps the keyspace_name, which is tested for equality with "ysql" to make sure it's a ysql row for which the filter is applied.
-            //&& self.stored_keyspaces.iter().filter(|r| r.keyspace_id == row.keyspace_id).next().map(|r| &r.keyspace_type).unwrap() == "ysql" {
-            && self.stored_keyspaces.iter().find(|r| r.keyspace_id == row.keyspace_id).map(|r| &r.keyspace_type).unwrap() == "ysql" {
-                continue
-            }
-            if !table_name_filter.is_match(&row.table_name) {
-                continue
-            }
-            let keyspace_type = self.stored_keyspaces
-                .iter()
-                .filter(|r| r.keyspace_id == row.keyspace_id.clone())
-                .map(|r| r.keyspace_type.clone())
-                .next()
-                .unwrap();
-            tables_btreemap.insert( (keyspace_type.clone(), row.keyspace_id.clone(), row.table_id.clone()), StoredTables {
-                hostname_port: row.hostname_port.to_string(),
-                timestamp: row.timestamp,
-                table_id: row.table_id.to_string(),
-                table_name: row.table_name.to_string(),
-                table_state: row.table_state.to_string(),
-                keyspace_id: row.keyspace_id.to_string(),
-                keyspace_name: "".to_string(),
-                keyspace_type
-            } );
-        }
-
-        for ((keyspace_type, keyspace_id, table_id), row) in tables_btreemap {
-            let keyspace_name = self.stored_keyspaces
-                .iter()
-                .filter(|r| r.keyspace_id == keyspace_id)
-                .map(|r| r.keyspace_name.clone())
-                .next()
-                .unwrap();
-
-            if *details_enable {
-                print!("{} ", &row.hostname_port);
-            }
-
-            // determine colocation of an object
-            // 1. an object id must be higher than 16384
-            // 2. an object must have one or more tablets
-            // 3. an object must be in a database of type "ysql"
-            let colocation = if row.keyspace_type == "ysql"
-                && object_oid_number(row.table_id.as_str()) >= 16384
-                && self.stored_tablets.iter().filter(|r| r.hostname_port == leader_hostname).filter(|r| r.table_id == row.table_id).count() == 0 {
-                "[colocated]"
-            } else {
-                ""
-            };
-
-            println!("Object:   {}.{}.{}, state: {}, id: {} {}", keyspace_type, keyspace_name, row.table_name, row.table_state, row.table_id, colocation);
-
-            for tablet in self.stored_tablets
-                .iter()
-                .filter(|r| r.hostname_port == leader_hostname)
-                .filter(|r| r.table_id == table_id)
+            // the second snapshot fields are empty, which means the first snapshot fields are filled out:
+            // this is a removed keyspace.
+            // this has to be a removed ycql keyspace: ysql keyspaces do not get removed.
+            else if keyspace_row.second_keyspace_name.is_empty()
+                && keyspace_row.second_keyspace_type.is_empty()
             {
-                if *details_enable {
-                    print!("{} ", &row.hostname_port);
-                }
-
-                println!("Tablet:   {}.{}.{}.{} state: {}", keyspace_type, keyspace_name, row.table_name, tablet.tablet_id, tablet.tablet_state);
-
-                print!("            ( ");
-                for replica in self.stored_replicas
-                    .iter()
-                    .filter(|r| r.hostname_port == leader_hostname)
-                    .filter(|r| r.tablet_id == tablet.tablet_id)
+                let colocation = if self.btreetabletsdiff.iter()
+                    .any(|(_k,v)| v.first_table_id == format!("{}.colocated.parent.uuid", &keyspace_id))
+                    && keyspace_row.first_keyspace_type == "ysql"
                 {
-                    let replica_state = if replica.server_uuid == tablet.leader { "LEADER" } else { "FOLLOWER" };
-                    print!("{},{},{} ", replica.replica_type, replica.addr, replica_state);
+                    "[colocated]"
+                } else {
+                    ""
                 };
-                println!(")");
+                println!("{} Database: {}.{}, id: {} {}",
+                         "-".to_string().red(),
+                         keyspace_row.first_keyspace_type,
+                         keyspace_row.first_keyspace_name,
+                         keyspace_id,
+                         colocation
+                );
+            } else {
+                // at this point the fields between first and second snapshot are not alike.
+                // this leaves one option: the keyspace name has changed.
+                let colocation = if self.btreetabletsdiff.iter()
+                    .any(|(_k,v)| v.first_table_id == format!("{}.colocated.parent.uuid", &keyspace_id))
+                    && keyspace_row.first_keyspace_type == "ysql"
+                {
+                    "[colocated]"
+                } else {
+                    ""
+                };
+                println!("{} Database: {}.{}->{}, id: {} {}",
+                         "*".to_string().yellow(),
+                         keyspace_row.first_keyspace_type,
+                         keyspace_row.first_keyspace_name.yellow(),
+                         keyspace_row.second_keyspace_name.yellow(),
+                         keyspace_id,
+                         colocation
+                );
             }
         }
-        Ok(())
-    }
-    pub async fn print_adhoc(
-        &self,
-        table_name_filter: &Regex,
-        details_enable: &bool,
-        hosts: &Vec<&str>,
-        ports: &Vec<&str>,
-        parallel: usize,
-    )
-    {
-        info!("print_entities");
-
-        let leader_hostname = AllIsLeader::return_leader_http(hosts, ports, parallel).await;
-
-        let mut tables_btreemap: BTreeMap<(String, String, String), StoredTables> = BTreeMap::new();
-
-        let is_system_keyspace = |keyspace: &str| -> bool {
-            matches!(keyspace, "00000000000000000000000000000001" |   // ycql system
-                               "00000000000000000000000000000002" |   // ycql system_schema
-                               "00000000000000000000000000000003" |   // ycql system_auth
-                               "00000001000030008000000000000000" |   // ysql template1
-                               "000033e5000030008000000000000000")    // ysql template0
-        };
-
         let object_oid_number = |oid: &str| -> u32 {
             // The oid entry normally is a 32 byte UUID for both ycql and ysql, which only contains hexadecimal numbers.
             // However, there is a single entry in system_schema that has a table_id that is 'sys.catalog.uuid'
@@ -495,154 +865,510 @@ impl AllStoredEntities
                 0
             }
         };
-
-        for row in self.stored_keyspaces.iter() {
-            if !*details_enable && row.hostname_port.ne(&leader_hostname) {
-                continue;
-            }
-            if !*details_enable && is_system_keyspace(row.keyspace_id.as_str()) {
-                continue;
-            }
-            let colocation = if self.stored_tablets.iter()
-                .any(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id)) {
-                "[colocated]"
-            } else {
-                ""
-            };
-
-            if row.keyspace_type == "ysql"
-                && self.stored_tables.iter().filter(|r| r.keyspace_id == row.keyspace_id).count() > 0 {
-                if *details_enable {
-                    print!("{} ", &row.hostname_port);
-                }
-                println!("Keyspace: {}.{} id: {} {}", row.keyspace_type, row.keyspace_name, row.keyspace_id, colocation);
-
-                if colocation == "[colocated]" {
-                    for tablet in self.stored_tablets
-                        .iter()
-                        .filter(|r| r.hostname_port == leader_hostname)
-                        .filter(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id))
-                    {
-                        if *details_enable {
-                            print!("{} ", &row.hostname_port);
-                        }
-
-                        println!("Tablet:   {}.{}.{} state: {}", row.keyspace_type, row.keyspace_name, tablet.tablet_id, tablet.tablet_state);
-
-                        if *details_enable {
-                            print!("{} ", &row.hostname_port);
-                        }
-                        print!("            ( ");
-                        for replica in self.stored_replicas
-                            .iter()
-                            .filter(|r| r.hostname_port == leader_hostname)
-                            .filter(|r| r.tablet_id == tablet.tablet_id)
-                        {
-                            let replica_state = if replica.server_uuid == tablet.leader { "LEADER" } else { "FOLLOWER" };
-                            print!("{},{},{} ", replica.replica_type, replica.addr, replica_state);
-                        };
-                        println!(")");
-                    }
-                }
-            } else if row.keyspace_type != "ysql" {
-                    if *details_enable {
-                        print!("{} ", &row.hostname_port);
-                    }
-                    println!("Keyspace: {}.{} id: {}", row.keyspace_type, row.keyspace_name, row.keyspace_id);
-            };
-        }
-
-        for row in self.stored_tables.iter() {
-            if !*details_enable && row.hostname_port.ne(&leader_hostname) {
-                continue
-            }
-            if is_system_keyspace(row.keyspace_id.as_str()) && !*details_enable {
-                continue
-            }
-            if object_oid_number(row.table_id.as_str()) < 16384
-                && !*details_enable
-                // this takes the keyspace_id from the stored_tables vector, and filters the contents of stored_keyspaces vector for the keyspace_id,
-                // and then maps the keyspace_name, which is tested for equality with "ysql" to make sure it's a ysql row for which the filter is applied.
-                //&& self.stored_keyspaces.iter().filter(|r| r.keyspace_id == row.keyspace_id).next().map(|r| &r.keyspace_type).unwrap() == "ysql" {
-                && self.stored_keyspaces.iter().find(|r| r.keyspace_id == row.keyspace_id).map(|r| &r.keyspace_type).unwrap() == "ysql" {
-                continue
-            }
-            if !table_name_filter.is_match(&row.table_name) {
-                continue
-            }
-            let keyspace_type = self.stored_keyspaces
-                .iter()
-                .filter(|r| r.keyspace_id == row.keyspace_id.clone())
-                .map(|r| r.keyspace_type.clone())
-                .next()
-                .unwrap();
-            tables_btreemap.insert( (keyspace_type.clone(), row.keyspace_id.clone(), row.table_id.clone()), StoredTables {
-                hostname_port: row.hostname_port.to_string(),
-                timestamp: row.timestamp,
-                table_id: row.table_id.to_string(),
-                table_name: row.table_name.to_string(),
-                table_state: row.table_state.to_string(),
-                keyspace_id: row.keyspace_id.to_string(),
-                keyspace_name: "".to_string(),
-                keyspace_type
-            } );
-        }
-
-        for ((keyspace_type, keyspace_id, table_id), row) in tables_btreemap {
-            let keyspace_name = self.stored_keyspaces
-                .iter()
-                .filter(|r| r.keyspace_id == keyspace_id)
-                .map(|r| r.keyspace_name.clone())
-                .next()
-                .unwrap();
-
-            if *details_enable {
-                print!("{} ", &row.hostname_port);
-            }
-
-            // determine colocation of an object
-            // 1. an object id must be higher than 16384
-            // 2. an object must have one or more tablets
-            // 3. an object must be in a database of type "ysql"
-            let colocation = if row.keyspace_type == "ysql"
-                && object_oid_number(row.table_id.as_str()) >= 16384
-                && self.stored_tablets.iter().filter(|r| r.hostname_port == leader_hostname).filter(|r| r.table_id == row.table_id).count() == 0 {
-                "[colocated]"
-            } else {
-                ""
-            };
-
-            println!("Object:   {}.{}.{}, state: {}, id: {} {}", keyspace_type, keyspace_name, row.table_name, row.table_state, row.table_id, colocation);
-
-            for tablet in self.stored_tablets
-                .iter()
-                .filter(|r| r.hostname_port == leader_hostname)
-                .filter(|r| r.table_id == table_id)
+        for (table_id, table_row) in &self.btreetablesdiff {
+            // skip system keyspaces
+            if is_system_keyspace(table_row.first_keyspace_id.as_str())
+                || is_system_keyspace(table_row.second_keyspace_id.as_str())
             {
-                if *details_enable {
-                    print!("{} ", &row.hostname_port);
-                }
-
-                println!("Tablet:   {}.{}.{}.{} state: {}", keyspace_type, keyspace_name, row.table_name, tablet.tablet_id, tablet.tablet_state);
-
-                if *details_enable {
-                    print!("{} ", &row.hostname_port);
-                }
-                print!("            ( ");
-                for replica in self.stored_replicas
-                    .iter()
-                    .filter(|r| r.hostname_port == leader_hostname)
-                    .filter(|r| r.tablet_id == tablet.tablet_id)
-                {
-                    let replica_state = if replica.server_uuid == tablet.leader { "LEADER" } else { "FOLLOWER" };
-                    print!("{},{},{} ", replica.replica_type, replica.addr, replica_state);
-                };
-                println!(")");
+                continue;
             }
+
+            if table_row.first_keyspace_id == table_row.second_keyspace_id
+                && table_row.first_table_name  == table_row.second_table_name
+                && table_row.first_state == table_row.second_state
+            {
+                // the table properties are exactly alike, so no reason to display anything: nothing has changed.
+                continue;
+            }
+            // first snapshot fields are empty, which means second snapshot fields are filled out:
+            // this is an added object.
+            else if table_row.first_table_name.is_empty()
+                && table_row.first_state.is_empty()
+                && table_row.first_keyspace_id.is_empty()
+            {
+                // ysql table_id has got the OID number in it,
+                // the below function takes that, and tests if it's below 16384.
+                // ysql oid numbers below 16384 are system/catalog tables.
+                if object_oid_number(table_id.as_str()) < 16384
+                    && &self.btreekeyspacediff
+                    .get(&table_row.second_keyspace_id.clone())
+                    .map(|r| r.second_keyspace_type.clone())
+                    .unwrap_or_default() == "ysql"
+                {
+                    continue;
+                }
+                // if the table is colocated, it means it does not have one or more tablets
+                // directly linked to the table.
+                // To check for colocation:
+                // - the table keyspace type must be ysql.
+                // - the must be OID >= 16384 (catalog tables do not have tablets).
+                // - there are no tablets directly linked to the table.
+                let colocation = if &self.btreekeyspacediff
+                    .get(&table_row.second_keyspace_id.clone())
+                    .map(|r| r.second_keyspace_type.clone())
+                    .unwrap_or_default() == "ysql"
+                    && object_oid_number(table_id.as_str()) >= 16384
+                    && !self.btreetabletsdiff
+                    .iter()
+                    .any(|(_k,v)| v.second_table_id == table_id.clone())
+                {
+                    "[colocated]"
+                }
+                else
+                {
+                    ""
+                };
+                println!("{} Object:   {}.{}.{}, state: {}, id: {} {}",
+                        "+".to_string().green(),
+                        &self.btreekeyspacediff
+                            .get(&table_row.second_keyspace_id)
+                            .map(|r| r.second_keyspace_type.clone())
+                            .unwrap_or_default(),
+                        &self.btreekeyspacediff
+                            .get(&table_row.second_keyspace_id)
+                            .map(|r| r.second_keyspace_name.clone())
+                            .unwrap_or_default(),
+                        table_row.second_table_name,
+                        table_row.second_state,
+                        table_id,
+                        colocation,
+                );
+            }
+            // second snapshot fields are emtpy, which means first snapshot fields are filled out:
+            // this is a removed object.
+            else if table_row.second_table_name.is_empty()
+                && table_row.second_state.is_empty()
+                && table_row.second_keyspace_id.is_empty()
+            {
+                // ysql table_id has got the OID number in it,
+                // the below function takes that, and tests if it's below 16384.
+                // ysql oid numbers below 16384 are system/catalog tables.
+                if object_oid_number(table_id.as_str()) < 16384
+                    && &self.btreekeyspacediff
+                    .get(&table_row.first_keyspace_id)
+                    .map(|r| r.first_keyspace_type.clone())
+                    .unwrap_or_default() == "ysql"
+                {
+                    continue;
+                }
+                // if the table is colocated, it means it does not have one or more tablets
+                // directly linked to the table.
+                // normally (non-colocated) one or more tablets are linked to a table.
+                // catalog generally do not have tablets linked to it, hence the OID >= 16384 check.
+                let colocation = if &self.btreekeyspacediff
+                    .get(&table_row.first_keyspace_id.clone())
+                    .map(|r| r.first_keyspace_type.clone())
+                    .unwrap_or_default() == "ysql"
+                    && object_oid_number(table_id.as_str()) >= 16384
+                    && !self.btreetabletsdiff
+                    .iter()
+                    .any(|(_k,v)| v.first_table_id == table_id.clone())
+                {
+                    "[colocated]"
+                }
+                else
+                {
+                    ""
+                };
+                println!("{} Object:   {}.{}.{}, state: {}, id: {} {}",
+                        "-".to_string().red(),
+                        &self.btreekeyspacediff
+                            .get(&table_row.first_keyspace_id)
+                            .map(|r| r.first_keyspace_type.clone())
+                            .unwrap_or_default(),
+                        &self.btreekeyspacediff
+                            .get(&table_row.first_keyspace_id)
+                            .map(|r| r.first_keyspace_name.clone())
+                            .unwrap_or_default(),
+                        table_row.first_table_name,
+                        table_row.first_state,
+                        table_id,
+                        colocation,
+                );
+            } else {
+                // at this point the table properties are not alike.
+                //
+                // if the table is colocated, it means it does not have one or more tablets
+                // directly linked to the table.
+                // normally (non-colocated) one or more tablets are linked to a table.
+                // catalog generally do not have tablets linked to it, hence the OID >= 16384 check.
+                let colocation = if &self.btreekeyspacediff
+                    .get(&table_row.first_keyspace_id.clone())
+                    .map(|r| r.first_keyspace_type.clone())
+                    .unwrap_or_default() == "ysql"
+                    && object_oid_number(table_id.as_str()) >= 16384
+                    && !self.btreetabletsdiff
+                    .iter()
+                    .any(|(_k,v)| v.first_table_id == table_id.clone())
+                {
+                    "[colocated]"
+                }
+                else
+                {
+                    ""
+                };
+                print!("{} Object:   {}.{}.",
+                         "*".to_string().yellow(),
+                         &self.btreekeyspacediff
+                             .get(&table_row.first_keyspace_id)
+                             .map(|r| r.first_keyspace_type.clone())
+                             .unwrap_or_default(),
+                         &self.btreekeyspacediff
+                             .get(&table_row.first_keyspace_id)
+                             .map(|r| r.first_keyspace_name.clone())
+                             .unwrap_or_default(),
+                );
+                // table name different (alter table rename to)
+                if table_row.first_table_name != table_row.second_table_name
+                {
+                    print!("{}->{}, ", table_row.first_table_name.yellow(), table_row.second_table_name.yellow());
+                }
+                else
+                {
+                    print!("{}, ", table_row.first_table_name);
+                }
+                if table_row.first_state != table_row.second_state
+                {
+                    print!("state: {}->{}, ", table_row.first_state.yellow(), table_row.second_state.yellow());
+                }
+                else
+                {
+                    print!("state: {}, ", table_row.first_state);
+                }
+                println!("id: {} {}",
+                         table_id,
+                         colocation,
+                );
+            }
+        }
+        for (tablet_id, tablet_row) in &self.btreetabletsdiff {
+            if tablet_row.first_table_id == tablet_row.second_table_id
+                && tablet_row.first_state == tablet_row.second_state
+                && tablet_row.first_leader == tablet_row.second_leader
+            {
+                // the tablet data of the first and second snapshot is alike: nothing has changed.
+                continue;
+            }
+            // first snapshot fields are empty, which means second snapshot fields are filled out:
+            // this is an added tablet.
+            else if tablet_row.first_table_id.is_empty()
+                && tablet_row.first_state.is_empty()
+                && tablet_row.first_leader.is_empty()
+            {
+                println!("{} Tablet:   {}.{}.{}.{}, state: {}, leader: {}",
+                    "+".to_string().green(),
+                    self.btreetablesdiff
+                        .get(&tablet_row.second_table_id)
+                        .map(|r| {
+                            self.btreekeyspacediff
+                                .get(&r.second_keyspace_id)
+                                .map(|r| r.second_keyspace_type.clone())
+                                .unwrap_or_default()
+                        })
+                        .unwrap_or_default(),
+                    self.btreetablesdiff
+                        .get(&tablet_row.second_table_id)
+                        .map(|r| {
+                                 self.btreekeyspacediff
+                                     .get(&r.second_keyspace_id.clone())
+                                     .map(|r| r.second_keyspace_name.clone())
+                                     .unwrap_or_default()
+                        })
+                        .unwrap_or_default(),
+                    self.btreetablesdiff
+                        .get(&tablet_row.second_table_id)
+                        .map(|r| r.second_table_name.clone())
+                        .unwrap_or_default(),
+                    tablet_id,
+                    tablet_row.second_state,
+                    self.btreereplicasdiff
+                        .iter()
+                        .find(|((replica_tablet_id, replica_server_uuid), _replicadiff)| replica_tablet_id == tablet_id && replica_server_uuid.clone() == tablet_row.second_leader )
+                        .map(|((_replica_tablet_id, _replica_server_uuid), replicadiff)| replicadiff.second_addr.clone())
+                        .unwrap_or_default()
+                );
+            }
+            // second snapshot fields are empty, which means first snapshot fields are filled out:
+            // this is a deleted tablet object.
+            else if tablet_row.second_table_id.is_empty()
+                && tablet_row.second_state.is_empty()
+                && tablet_row.second_leader.is_empty()
+            {
+                println!("{} Tablet:   {}.{}.{}.{}, state: {}, leader: {}",
+                         "-".to_string().red(),
+                         self.btreetablesdiff
+                             .get(&tablet_row.first_table_id)
+                             .map(|r| {
+                                 self.btreekeyspacediff
+                                     .get(&r.first_keyspace_id)
+                                     .map(|r| r.first_keyspace_type.clone())
+                                     .unwrap_or_default()
+                             })
+                             .unwrap_or_default(),
+                         self.btreetablesdiff
+                             .get(&tablet_row.first_table_id)
+                             .map(|r| {
+                                 self.btreekeyspacediff
+                                     .get(&r.first_keyspace_id.clone())
+                                     .map(|r| r.first_keyspace_name.clone())
+                                     .unwrap_or_default()
+                             })
+                             .unwrap_or_default(),
+                         self.btreetablesdiff
+                             .get(&tablet_row.first_table_id)
+                             .map(|r| r.first_table_name.clone())
+                             .unwrap_or_default(),
+                         tablet_id,
+                         tablet_row.first_state,
+                         self.btreereplicasdiff
+                             .iter()
+                             .find(|((replica_tablet_id, replica_server_uuid), _replicadiff)| replica_tablet_id == tablet_id && replica_server_uuid.clone() == tablet_row.first_leader )
+                             .map(|((_replica_tablet_id, _replica_server_uuid), replicadiff)| replicadiff.first_addr.clone())
+                             .unwrap_or_default()
+                );
+            } else {
+                // at this point we know the tablets are not alike, but not added or removed.
+                print!("{} Tablet:   {}.{}.{}.{}, ",
+                    "*".to_string().yellow(),
+                    self.btreetablesdiff
+                        .get(&tablet_row.second_table_id)
+                        .map(|r| {
+                            self.btreekeyspacediff
+                                .get(&r.second_keyspace_id)
+                                .map(|r| r.second_keyspace_type.clone())
+                                .unwrap_or_default()
+                        })
+                        .unwrap_or_default(),
+                    self.btreetablesdiff
+                        .get(&tablet_row.second_table_id)
+                        .map(|r| {
+                                 self.btreekeyspacediff
+                                     .get(&r.second_keyspace_id.clone())
+                                     .map(|r| r.second_keyspace_name.clone())
+                                     .unwrap_or_default()
+                        })
+                        .unwrap_or_default(),
+                    self.btreetablesdiff
+                        .get(&tablet_row.second_table_id)
+                        .map(|r| r.second_table_name.clone())
+                        .unwrap_or_default(),
+                    tablet_id,
+                );
+                if tablet_row.first_state != tablet_row.second_state
+                {
+                    print!("state: {}->{}, ", tablet_row.first_state.yellow(), tablet_row.second_state.yellow());
+                }
+                else
+                {
+                    print!("state: {}", tablet_row.second_state);
+                }
+                if tablet_row.first_leader != tablet_row.second_leader
+                {
+                    println!(" leader: {}->{}",
+                             self.btreereplicasdiff
+                                 .iter()
+                                 .find(|((replica_tablet_id, replica_server_uuid), _replicadiff)| replica_tablet_id == tablet_id && replica_server_uuid.clone() == tablet_row.first_leader )
+                                 .map(|((_replica_tablet_id, _replica_server_uuid), replicadiff)| replicadiff.first_addr.clone())
+                                 .unwrap_or_default()
+                                 .yellow(),
+                             self.btreereplicasdiff
+                                 .iter()
+                                 .find(|((replica_tablet_id, replica_server_uuid), _replicadiff)| replica_tablet_id == tablet_id && replica_server_uuid.clone() == tablet_row.second_leader )
+                                 .map(|((_replica_tablet_id, _replica_server_uuid), replicadiff)| replicadiff.second_addr.clone())
+                                 .unwrap_or_default()
+                                 .yellow(),
+                    );
+                }
+                else
+                {
+                    println!(" leader: {}",
+                             self.btreereplicasdiff
+                                 .iter()
+                                 .find(|((replica_tablet_id, replica_server_uuid), _replicadiff)| replica_tablet_id == tablet_id && replica_server_uuid.clone() == tablet_row.second_leader )
+                                 .map(|((_replica_tablet_id, _replica_server_uuid), replicadiff)| replicadiff.second_addr.clone())
+                                 .unwrap_or_default(),
+                    );
+                }
+            }
+        }
+        for ((tablet_id, _server_uuid), replica_row) in &self.btreereplicasdiff
+        {
+            if replica_row.first_replica_type == replica_row.second_replica_type
+                && replica_row.first_addr == replica_row.second_addr
+            {
+                // identical replica information: nothing changed.
+                continue;
+            }
+            // if the first replica info is empty, it means a replica was added.
+            else if replica_row.first_replica_type.is_empty()
+                && replica_row.first_addr.is_empty()
+            {
+                println!("{} Replica:  {}.{}.{}.{}.{}, Type: {}",
+                    "+".to_string().green(),
+                    self.btreetabletsdiff
+                        .get(&tablet_id.clone())
+                        .map(|tablet| {
+                            self.btreetablesdiff
+                                .get(&tablet.second_table_id.clone())
+                                .map(|table| {
+                                    self.btreekeyspacediff
+                                        .get(&table.second_keyspace_id)
+                                        .map(|keyspace| keyspace.second_keyspace_type.clone())
+                                        .unwrap_or_default()
+                                })
+                                .unwrap_or_default()
+                        } )
+                        .unwrap_or_default(),
+                    self.btreetabletsdiff
+                        .get(&tablet_id.clone())
+                        .map(|tablet| {
+                            self.btreetablesdiff
+                                .get(&tablet.second_table_id.clone())
+                                .map(|table| {
+                                    self.btreekeyspacediff
+                                        .get(&table.second_keyspace_id)
+                                        .map(|keyspace| keyspace.second_keyspace_name.clone())
+                                        .unwrap_or_default()
+                                })
+                                .unwrap_or_default()
+                        } )
+                        .unwrap_or_default(),
+                    self.btreetabletsdiff
+                        .get(&tablet_id.clone())
+                        .map(|tablet| {
+                            self.btreetablesdiff
+                                .get(&tablet.second_table_id.clone())
+                                .map(|table| table.second_table_name.clone())
+                                .unwrap_or_default()
+                        } )
+                        .unwrap_or_default(),
+                    tablet_id,
+                    replica_row.second_addr,
+                    replica_row.second_replica_type,
+                );
+            }
+            // if the second replica info is empty, it means a replica was removed.
+            else if replica_row.second_replica_type.is_empty()
+                && replica_row.second_addr.is_empty()
+            {
+                println!("{} Replica:  {}.{}.{}.{}.{}, Type: {}",
+                         "-".to_string().red(),
+                         self.btreetabletsdiff
+                             .get(&tablet_id.clone())
+                             .map(|tablet| {
+                                 self.btreetablesdiff
+                                     .get(&tablet.first_table_id.clone())
+                                     .map(|table| {
+                                         self.btreekeyspacediff
+                                             .get(&table.first_keyspace_id)
+                                             .map(|keyspace| keyspace.first_keyspace_type.clone())
+                                             .unwrap_or_default()
+                                     })
+                                     .unwrap_or_default()
+                             } )
+                             .unwrap_or_default(),
+                         self.btreetabletsdiff
+                             .get(&tablet_id.clone())
+                             .map(|tablet| {
+                                 self.btreetablesdiff
+                                     .get(&tablet.first_table_id.clone())
+                                     .map(|table| {
+                                         self.btreekeyspacediff
+                                             .get(&table.first_keyspace_id)
+                                             .map(|keyspace| keyspace.first_keyspace_name.clone())
+                                             .unwrap_or_default()
+                                     })
+                                     .unwrap_or_default()
+                             } )
+                             .unwrap_or_default(),
+                         self.btreetabletsdiff
+                             .get(&tablet_id.clone())
+                             .map(|tablet| {
+                                 self.btreetablesdiff
+                                     .get(&tablet.first_table_id.clone())
+                                     .map(|table| table.first_table_name.clone())
+                                     .unwrap_or_default()
+                             } )
+                             .unwrap_or_default(),
+                         tablet_id,
+                         replica_row.first_addr,
+                         replica_row.first_replica_type
+                );
+            }
+            else
+            {
+                // the entries have changed?
+                //println!("{} Replica: {}.{}.{}.{}.{}, Type: {}",
+                print!("{} Replica: {}.{}.{}.{}.",
+                    "*".to_string().yellow(),
+                    self.btreetabletsdiff
+                        .get(&tablet_id.clone())
+                        .map(|tablet| {
+                            self.btreetablesdiff
+                                .get(&tablet.second_table_id.clone())
+                                .map(|table| {
+                                    self.btreekeyspacediff
+                                        .get(&table.second_keyspace_id)
+                                        .map(|keyspace| keyspace.second_keyspace_type.clone())
+                                        .unwrap_or_default()
+                                })
+                                .unwrap_or_default()
+                        } )
+                        .unwrap_or_default(),
+                    self.btreetabletsdiff
+                        .get(&tablet_id.clone())
+                        .map(|tablet| {
+                            self.btreetablesdiff
+                                .get(&tablet.second_table_id.clone())
+                                .map(|table| {
+                                    self.btreekeyspacediff
+                                        .get(&table.second_keyspace_id)
+                                        .map(|keyspace| keyspace.second_keyspace_name.clone())
+                                        .unwrap_or_default()
+                                })
+                                .unwrap_or_default()
+                        } )
+                        .unwrap_or_default(),
+                    self.btreetabletsdiff
+                        .get(&tablet_id.clone())
+                        .map(|tablet| {
+                            self.btreetablesdiff
+                                .get(&tablet.second_table_id.clone())
+                                .map(|table| table.second_table_name.clone())
+                                .unwrap_or_default()
+                        } )
+                        .unwrap_or_default(),
+                    tablet_id,
+                );
+                if replica_row.first_addr != replica_row.second_addr
+                {
+                    print!("{}->{} ",
+                        replica_row.first_addr.yellow(),
+                        replica_row.second_addr.yellow(),
+                    );
+                }
+                else
+                {
+                    print!("{} ",
+                        replica_row.second_addr,
+                    );
+                }
+                if replica_row.first_replica_type != replica_row.second_replica_type
+                {
+                    println!("Type: {}->{}",
+                    replica_row.first_replica_type.yellow(),
+                    replica_row.second_replica_type.yellow(),
+                    );
+                }
+                else
+                {
+                    println!("Type: {}", replica_row.second_replica_type);
+                };
+            };
         }
     }
 }
-
+/*
 // replica_id, server_uuid is the unique key
 //pub server_uuid: String,
 //pub tablet_id: String,
@@ -779,7 +1505,9 @@ impl SnapshotDiffKeyspaces {
         }
     }
 }
+*/
 
+/*
 impl SnapshotDiffBTreeMapsEntities {
     pub fn snapshot_diff(
         begin_snapshot: &String,
@@ -1267,6 +1995,8 @@ impl SnapshotDiffBTreeMapsEntities {
     }
 }
 
+ */
+
 pub async fn entity_diff(
     options: &Opts,
 ) -> Result<()>
@@ -1276,9 +2006,9 @@ pub async fn entity_diff(
         snapshot::Snapshot::print()?;
     }
     if options.snapshot_list { return Ok(()) };
-
     let (begin_snapshot, end_snapshot, _begin_snapshot_row) = snapshot::Snapshot::read_begin_end_snapshot_from_user(options.begin, options.end)?;
-    let entity_diff = SnapshotDiffBTreeMapsEntities::snapshot_diff(&begin_snapshot, &end_snapshot, &options.details_enable)?;
+
+    let entity_diff = EntitiesDiff::snapshot_diff(&begin_snapshot, &end_snapshot)?;
     entity_diff.print();
 
     Ok(())
@@ -1294,16 +2024,15 @@ pub async fn print_entities(
     let table_name_filter = utility::set_regex(&options.table_name_match);
     match options.print_entities.as_ref().unwrap() {
         Some(snapshot_number) => {
-            let mut allstoredentities = AllStoredEntities::new();
-            allstoredentities.stored_keyspaces = snapshot::read_snapshot(snapshot_number, "keyspaces")?;
-            allstoredentities.stored_tables = snapshot::read_snapshot(snapshot_number, "tables")?;
-            allstoredentities.stored_tablets = snapshot::read_snapshot(snapshot_number, "tablets")?;
-            allstoredentities.stored_replicas = snapshot::read_snapshot(snapshot_number, "replicas")?;
-            allstoredentities.print(snapshot_number, &table_name_filter, &options.details_enable)?;
+            let mut allentities = AllEntities::new();
+            allentities.entities = snapshot::read_snapshot_json(snapshot_number, "entities")?;
+            let leader_hostname = AllIsLeader::return_leader_snapshot(snapshot_number)?;
+            allentities.print(&table_name_filter, &options.details_enable, leader_hostname)?;
         },
         None => {
-            let allstoredentities = AllStoredEntities::read_entities(&hosts, &ports, parallel).await;
-            allstoredentities.print_adhoc(&table_name_filter, &options.details_enable, &hosts, &ports, parallel).await;
+            let allentities = AllEntities::read_entities(&hosts, &ports, parallel).await;
+            let leader_hostname = AllIsLeader::return_leader_http(&hosts, &ports, parallel).await;
+            allentities.print(&table_name_filter, &options.details_enable, leader_hostname)?;
         },
     }
     Ok(())
@@ -1312,7 +2041,6 @@ pub async fn print_entities(
 #[cfg(test)]
 mod tests {
     use super::*;
-    //use crate::utility_test::*;
 
     #[test]
     fn unit_parse_simple_entities_dump() {

@@ -1,20 +1,31 @@
+//! The structs
+//!
 #![allow(non_camel_case_types)]
 
 use chrono::{DateTime, Local};
 
 /// This struct is a wrapper for the SysClusterConfigEntryPB struct.
 ///
-/// In this way, the struct can be used with function in impl.
+/// In this way, the struct can be used with functions in impl.
 #[derive(Debug, Default)]
 pub struct AllSysClusterConfigEntryPB {
     pub sysclusterconfigentrypb: Vec<SysClusterConfigEntryPB>,
 }
-
-// src/yb/master/catalog_entity_info.proto
-// hostname_port + timestamp: added
+/// The root struct for deserializing `/api/v1/cluster-config`.
+///
+/// This struct is the begin struct needed to parse the results from master:port/api/v1/cluster-config:
+/// ```text
+/// {
+///   "version": 0,
+///   "cluster_uuid": "fc8f2d5e-9844-42af-9355-35d1f5dc64e5"
+/// }
+/// ```
+/// source: `src/yb/master/catalog_entity_info.proto`
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct SysClusterConfigEntryPB {
+    /// yb_stats added to allow understanding the source host
     pub hostname_port: Option<String>,
+    /// yb_stats added to allow understanding the timestamp
     pub timestamp: Option<DateTime<Local>>,
     pub version: i32,
     pub replication_info: Option<ReplicationInfoPB>,
@@ -24,8 +35,7 @@ pub struct SysClusterConfigEntryPB {
     pub consumer_registry: Option<ConsumerRegistryPB>,
     pub leader_blacklist: Option<BlacklistPB>,
 }
-
-// src/yb/master/catalog_entity_info.proto
+/// source: `src/yb/master/catalog_entity_info.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ReplicationInfoPB {
     pub live_replicas: Option<PlacementInfoPB>,
@@ -33,53 +43,45 @@ pub struct ReplicationInfoPB {
     pub affinitized_leaders: Option<Vec<CloudInfoPB>>,
     pub multi_affinitized_leaders: Option<Vec<CloudInfoListPB>>,
 }
-
-
-// src/yb/master/catalog_entity_info.proto
+/// source: `src/yb/master/catalog_entity_info.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PlacementInfoPB {
     pub num_replicas: Option<i32>,
     pub placement_blocks: Option<Vec<PlacementBlockPB>>,
     pub placement_uuid: Option<String>,
 }
-
-// src/yb/master/catalog_entity_info.proto
+/// source: `src/yb/master/catalog_entity_info.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PlacementBlockPB {
     pub cloud_info: Option<CloudInfoPB>,
     pub min_num_replicas: Option<i32>,
 }
-
-// src/yb/common/common_net.proto
+/// source: `src/yb/common/common_net.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CloudInfoPB {
     pub placement_cloud: Option<String>,
     pub placement_region: Option<String>,
     pub placement_zone: Option<String>,
 }
-
-// src/yb/common/common_net.proto
+/// source: `src/yb/common/common_net.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CloudInfoListPB {
     pub zones: Option<Vec<CloudInfoPB>>,
 }
-
-// src/yb/common/catalog_entity_info.proto
+/// source: `src/yb/common/catalog_entity_info.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct BlacklistPB {
     pub hosts: Option<Vec<HostPortPB>>,
     pub initial_replica_load: Option<i32>,
     pub initial_leader_load: Option<i32>,
 }
-
-// src/yb/common/common_net.proto
+/// source: `src/yb/common/common_net.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct HostPortPB {
     pub host: String,
     pub port: u32,
 }
-
-// src/yb/common/catalog_entity_info.proto
+/// source: `src/yb/common/catalog_entity_info.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct EncryptionInfoPB {
     pub encryption_enabled: Option<bool>,
@@ -88,25 +90,24 @@ pub struct EncryptionInfoPB {
     pub latest_version_id: Option<String>,
     pub key_in_memory: Option<bool>,
 }
-
-// src/yb/cdc/cdc_consumer.proto
-// producer_map requires an extra key-value struct
-// enable_replicate_transaction_status_table + role have to be optional, not in PB definition.
+/// source: `src/yb/cdc/cdc_consumer.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ConsumerRegistryPB {
+    /// In the PB definition, this is defined as a map:  `map<string, ProducerEntryPB> producer_map = 1;`.
+    /// But to be able to parse this, an added struct `ConsumerRegistryKeyValue` was added, see below.
     pub producer_map: Vec<ConsumerRegistryKeyValue>,
+    /// This field is not defined as optional in the PB definition, but it can be absent in real life, making the Option required.
     pub enable_replicate_transaction_status_table: Option<bool>,
+    /// This field is not defined as optional in the PB definition, but it can be absent in real life, making the Option required.
     pub role: Option<XClusterRole>,
-
 }
-// custom: see above.
+/// Helper struct for `ConsumerRegistryPB`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ConsumerRegistryKeyValue {
     pub key: String,
     pub value: ProducerEntryPB,
 }
-
-// src/yb/cdc/cdc_consumer.proto
+/// source: `src/yb/cdc/cdc_consumer.proto`
 #[derive(Serialize, Deserialize, Debug)]
 #[allow(clippy::upper_case_acronyms)]
 pub enum XClusterRole {
@@ -114,61 +115,61 @@ pub enum XClusterRole {
     STANDBY = 1,
 }
 
-// src/yb/cdc/cdc_consumer.proto
-// stream_map requires an extra key-value struct
-// disable_stream has to be optional, not in PB definition.
+/// source: `src/yb/cdc/cdc_consumer.proto`
 #[derive(Serialize, Deserialize, Debug)]
 #[allow(non_snake_case)]
 pub struct ProducerEntryPB {
+    /// in the PB definition, this is defined as a map: `map<string, StreamEntryPB> stream_map = 1;`.
+    /// But to be able to parse this, an added struct `ProducerEntryKeyValue` was added, see below.
     pub stream_map: Vec<ProducerEntryKeyValue>,
     pub master_addrs: Option<Vec<HostPortPB>>,
     pub DEPRECATED_tserver_addrs: Option<Vec<HostPortPB>>,
+    /// This field is not defined as optional in the PB definition, but it can be absent in real life, making the Option required.
     pub disable_stream: Option<bool>,
 }
-// custom: see above
+/// Helper struct for `ProducerEntryPB`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ProducerEntryKeyValue {
     pub key: String,
     pub value: StreamEntryPB,
 }
-
-// src/yb/cdc/cdc_consumer.proto
-// consumer_producer_tablet_map requires an extra key-value struct
-// producer_schema has to be optional, not in PB definition.
+/// source: `src/yb/cdc/cdc_consumer.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct StreamEntryPB {
+    /// In the PB definition, this is defined as a map: `map<string, ProducerTabletListPB> consumer_producer_tablet_map = 1;`.
+    /// But to be able to parse this, an added struct `StreamEntryKeyValue` was added, see below.
     pub consumer_producer_tablet_map: Vec<StreamEntryKeyValue>,
     pub consumer_table_id: String,
     pub producer_table_id: String,
     pub local_tserver_optimized: bool,
+    /// This field is not defined as optional in the PB definition, but it can be absent in real life, making the Option required.
     pub producer_schema: Option<ProducerSchemaPB>,
 }
-// custom: see above
+/// Helper struct for `StreamEntryPB`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct StreamEntryKeyValue {
     key: String,
     value: ProducerTabletListPB,
 }
-
-// src/yb/cdc/cdc_consumer.proto
+/// source: `src/yb/cdc/cdc_consumer.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ProducerTabletListPB {
     pub tablets: Option<Vec<String>>,
     pub start_key: Option<Vec<String>>,
     pub end_key: Option<Vec<String>>,
 }
-
-// src/yb/cdc/cdc_consumer.proto
-// pending_schema_version, pending_schema and last_compatible_consumer_schema_version have to be optional, not in PB definition.
+/// source: `src/yb/cdc/cdc_consumer.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ProducerSchemaPB {
     pub validated_schema_version: u32,
+    /// This field is not defined as optional in the PB definition, but it can be absent in real life, making the Option required.
     pub pending_schema_version: Option<u32>,
+    /// This field is not defined as optional in the PB definition, but it can be absent in real life, making the Option required.
     pub pending_schema: Option<SchemaPB>,
+    /// This field is not defined as optional in the PB definition, but it can be absent in real life, making the Option required.
     pub last_compatible_consumer_schema_version: Option<u32>,
 }
-
-// src/yb/common/common.proto
+/// source: `src/yb/common/common.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SchemaPB {
     pub columns: Option<Vec<ColumnSchemaPB>>,
@@ -176,13 +177,14 @@ pub struct SchemaPB {
     pub colocated_table_id: Option<ColocatedTableIdentifierPB>,
     pub pgschema_name: Option<String>,
 }
-
-// src/yb/common/common.proto
+/// source: `src/yb/common/common.proto`
 #[derive(Serialize, Deserialize, Debug)]
 #[allow(non_snake_case)]
 pub struct ColumnSchemaPB {
     pub id: Option<u32>,
     pub name: String,
+    /// This renames the original column name of `type` to `columnschemapb_type`.
+    /// This is needed because `type` is a reserved word that is not allowed.
     #[serde(rename = "type")]
     pub columnschemapb_type: QLTypePB,
     pub is_key: Option<bool>,
@@ -195,16 +197,14 @@ pub struct ColumnSchemaPB {
     pub OBSOLETE_json_operations: Option<Vec<QLJsonOperationPB>>,
     pub pg_type_id: Option<u32>,
 }
-
-// src/yb/common/common.proto
+/// source: `src/yb/common/common.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct QLTypePB {
     pub main: Option<DataType>,
     pub params: Option<Vec<QLTypePB>>,
     pub udtype_info: Option<UDTypeInfo>,
 }
-
-// src/yb/common/common.proto
+/// source: `src/yb/common/common.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct UDTypeInfo {
     pub keyspace_name: Option<String>,
@@ -212,8 +212,7 @@ pub struct UDTypeInfo {
     pub id: Option<String>,
     pub field_names: Option<Vec<String>>,
 }
-
-// src/yb/common/value.proto
+/// source: `src/yb/common/value.proto`
 #[derive(Serialize, Deserialize, Debug)]
 #[allow(clippy::upper_case_acronyms)]
 pub enum DataType {
@@ -251,21 +250,20 @@ pub enum DataType {
     UINT64 = 103,
     GIN_NULL = 104,
 }
-
-// src/yb/common/common.proto
+/// source: `src/yb/common/common.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct QLJsonOperationPB {
     pub json_operator: JsonOperatorPB,
     pub operand: QLExpressionPB,
 }
-
-// src/yb/common/common.proto
+/// source: `src/yb/common/common.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct QLExpressionPB {
     pub expr: QLExpression,
 }
-
-// src/yb/common/common.proto // sort of
+/// source: `src/yb/common/common.proto`
+///
+/// Enum defined as `oneof` list in `QLExpressionPB`.
 #[derive(Serialize, Deserialize, Debug)]
 pub enum QLExpression {
     value(QLValuePB),
@@ -279,29 +277,26 @@ pub enum QLExpression {
     json_column(QLJsonColumnOperationsPB),
     tuple(QLTupleExpressionPB),
 }
-
-// src/yb/common/common.proto
+/// source: `src/yb/common/common.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct QLJsonColumnOperationsPB {
     column_id: Option<i32>,
     json_operations: Option<Vec<QLJsonOperationPB>>,
 }
-
-
-// src/yb/common/common_types.proto
+/// source: `src/yb/common/common_types.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub enum JsonOperatorPB {
     JSON_OBJECT = 0,
     JSON_TEXT = 1,
 }
-
-// src/yb/common/value.proto
+/// source: `src/yb/common/value.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct QLValuePB {
     pub value: QLValuePBValue,
 }
-
-// src/yb/common/value.proto // sort of
+/// source: `src/yb/common/value.proto`
+///
+/// Enum defined as `oneof` list in `QLValuePB`.
 #[derive(Serialize, Deserialize, Debug)]
 pub enum QLValuePBValue {
     int8_value(i32),
@@ -332,21 +327,18 @@ pub enum QLValuePBValue {
     gin_null_value(u32),
     tuple_value(QLSeqValuePB),
 }
-
-// src/yb/common/value.proto
+/// source: `src/yb/common/value.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct QLMapValuePB {
     pub keys: Option<Vec<QLValuePB>>,
     pub values: Option<Vec<QLValuePB>>,
 }
-
-// src/yb/common/value.proto
+/// source: `src/yb/common/value.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct QLSeqValuePB {
     pub elems: Option<Vec<QLValuePB>>,
 }
-
-// src/yb/common/value.proto
+/// source: `src/yb/common/value.proto`
 #[derive(Serialize, Deserialize, Debug)]
 #[allow(clippy::upper_case_acronyms)]
 pub enum QLVirtualValuePB {
@@ -359,22 +351,19 @@ pub enum QLVirtualValuePB {
     NULL_LOW = 7,
     ARRAY = 8,
 }
-
-// src/yb/common/common.proto
+/// source: `src/yb/common/common.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct QLSubscriptedColPB {
     pub column_id: Option<i32>,
     pub subscript_args: Option<Vec<QLExpressionPB>>,
 }
-
-// src/yb/common/common.proto
+/// source: `src/yb/common/common.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct QLConditionPB {
     pub op: Option<QLOperator>,
     pub operands: Option<Vec<QLExpressionPB>>,
 }
-
-// src/yb/common/value.proto
+/// source: `src/yb/common/value.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub enum QLOperator {
     QL_OP_NOOP = 0,
@@ -405,15 +394,13 @@ pub enum QLOperator {
     QL_OP_EXISTS = 20,     // IF EXISTS
     QL_OP_NOT_EXISTS = 21, // IF NOT EXISTS
 }
-
-// src/yb/common/common.proto
+/// source: `src/yb/common/common.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct QLBCallPB {
     pub opcode: Option<i32>,
     pub operands: Option<Vec<QLExpressionPB>>,
 }
-
-// src/yb/common/common.proto
+/// source: `src/yb/common/common.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TablePropertiesPB {
     pub default_time_to_live: Option<u64>,
@@ -428,8 +415,7 @@ pub struct TablePropertiesPB {
     pub backfilling_timestamp: Option<u64>,
     pub partitioning_version: Option<u32>,
 }
-
-// src/yb/common/common_types.proto
+/// source: `src/yb/common/common_types.proto`
 #[derive(Serialize, Deserialize, Debug)]
 #[allow(clippy::upper_case_acronyms)]
 pub enum YBConsistencyLevel {
@@ -437,21 +423,20 @@ pub enum YBConsistencyLevel {
     CONSISTENT_PREFIX = 2,
     USER_ENFORCED = 3,
 }
-
-// src/yb/common/common.proto
+/// source: `src/yb/common/common.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ColocatedTableIdentifierPB {
     pub value: ColocatedTableIdentifierPBValue,
 }
-
-// src/yb/common/common.proto // sort of
+/// source: `src/yb/common/common.proto`
+///
+/// Enum defined as `oneof` list in `ColocatedTableIdentifierPB`.
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ColocatedTableIdentifierPBValue {
     colocation_id(u32),
     cotable_id(String),
 }
-
-// src/yb/common/common.proto
+/// source: `src/yb/common/common.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct QLTupleExpressionPB {
     pub elems: Option<Vec<QLExpressionPB>>,

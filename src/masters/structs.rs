@@ -1,17 +1,47 @@
+//! The structs
 #![allow(non_camel_case_types)]
 #![allow(clippy::upper_case_acronyms)]
 
 use std::collections::BTreeMap;
 use chrono::{DateTime, Local};
 
-// src/yb/common/wire_protocol.proto
+/// The root struct for deserializing `/api/v1/masters`.
+///
+/// This struct is the begin struct needed to parse the results from master:port/api/v1/masters:
+/// ```text
+/// {
+///   "masters": [
+///     {
+///       "instance_id": {
+///         "permanent_uuid": "ca7914fb53bf4d8e992ba8af6daf886c",
+/// ..etc..
+/// ```
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct Masters {
+    pub masters: Vec<GetMasterRegistrationRequestPB>,
+}
+/// The main struct holding the master information.
+///
+/// source: `src/yb/master/master_cluster.proto`
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct GetMasterRegistrationRequestPB {
+    /// yb_stats added to allow understanding the source host.
+    pub hostname_port: Option<String>,
+    /// yb_stats added to allow understanding the timestamp.
+    pub timestamp: Option<DateTime<Local>>,
+    pub instance_id: NodeInstancePB,
+    pub registration: Option<ServerRegistrationPB>,
+    pub role: Option<PeerRole>,
+    pub error: Option<AppStatusPB>,
+}
+/// source: `src/yb/common/wire_protocol.proto`
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct NodeInstancePB {
     pub permanent_uuid: String,
     pub instance_seqno: i64,
     pub start_time_us: Option<u64>,
 }
-// src/yb/common/wire_protocol.proto
+/// source: `src/yb/common/wire_protocol.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ServerRegistrationPB {
     pub private_rpc_addresses: Option<Vec<HostPortPB>>,
@@ -21,103 +51,20 @@ pub struct ServerRegistrationPB {
     pub broadcast_addresses: Option<Vec<HostPortPB>>,
     pub pg_port: Option<u64>,
 }
-// src/yb/common/common_net.proto
+/// source: `src/yb/common/common_net.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct HostPortPB {
     pub host: String,
     pub port: u32,
 }
-// src/yb/common/common_net.proto
+/// source: `src/yb/common/common_net.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CloudInfoPB {
    pub placement_cloud: Option<String>,
    pub placement_region: Option<String>,
    pub placement_zone: Option<String>,
 }
-// src/yb/master/master_cluster.proto
-// code is ErrorCode, not Code.
-/*
-#[derive(Serialize, Deserialize, Debug)]
-pub struct MasterErrorPB {
-    //pub code: Code,
-    pub code: ErrorCode,
-    pub status: AppStatusPB,
-}
- */
-// src/yb/master/master_cluster.proto
-#[derive(Serialize, Deserialize, Debug)]
-pub enum Code {
-    // An error which has no more specific error code.
-    // The code and message in 'status' may reveal more details.
-    //
-    // RPCs should avoid returning this, since callers will not be
-    // able to easily parse the error.
-    UNKNOWN_ERROR = 1,
-    // The schema provided for a request was not well-formed.
-    INVALID_SCHEMA = 2,
-    // The requested table or index does not exist
-    OBJECT_NOT_FOUND = 3,
-    // The name requested for the table or index is already in use
-    OBJECT_ALREADY_PRESENT = 4,
-    // The number of tablets requested for a new table is over the per TS limit.
-    TOO_MANY_TABLETS = 5,
-    // Catalog manager is not yet initialized.
-    CATALOG_MANAGER_NOT_INITIALIZED = 6,
-    // The operation attempted can only be invoked against either the
-    // leader or a single non-distributed master, which this node
-    // isn't.
-    NOT_THE_LEADER = 7,
-    // The number of replicas requested is greater than the number of live servers
-    // in the cluster.
-    REPLICATION_FACTOR_TOO_HIGH = 8,
-    // Change config should always be issued with the latest config version set.
-    // If the client fails to do so, or there is a concurrent change, we will
-    // set this error code.
-    CONFIG_VERSION_MISMATCH = 9,
-    // If there is an operation in progress causing the current rpc to be in an indeterminate state,
-    // we return this error code. Client can retry on a case by case basis as needed.
-    IN_TRANSITION_CAN_RETRY = 10,
-    // Invalid namespace name or id for the namespace operation.
-    NAMESPACE_NOT_FOUND = 11,
-    NAMESPACE_ALREADY_PRESENT = 12,
-    NO_NAMESPACE_USED = 13,
-    NAMESPACE_IS_NOT_EMPTY = 14,
-    // Client set some fields incorrectly in the cluster config proto.
-    INVALID_CLUSTER_CONFIG = 15,
-    // Indicator to client that the load balance operation can be retried.
-    CAN_RETRY_LOAD_BALANCE_CHECK = 16,
-    // Invalid (User-Defined) Type operation
-    TYPE_NOT_FOUND = 17,
-    INVALID_TYPE = 18,
-    TYPE_ALREADY_PRESENT = 19,
-    // Snapshot related errors.
-    INVALID_TABLE_TYPE = 20,
-    TABLE_CREATION_IS_IN_PROGRESS = 21,
-    SNAPSHOT_NOT_FOUND = 22,
-    SNAPSHOT_FAILED = 23,
-    SNAPSHOT_CANCELLED = 24,
-    PARALLEL_SNAPSHOT_OPERATION = 25,
-    SNAPSHOT_IS_NOT_READY = 26,
-    // Roles and permissions errors.
-    ROLE_ALREADY_PRESENT = 27,
-    ROLE_NOT_FOUND = 28,
-    INVALID_REQUEST = 29,
-    NOT_AUTHORIZED = 32,
-    // Indicator to client that the are leaders on preferred only operation can be retried.
-    CAN_RETRY_ARE_LEADERS_ON_PREFERRED_ONLY_CHECK = 30,
-    REDIS_CONFIG_NOT_FOUND = 31,
-    // Indicator to client that load balancer was recently active.
-    LOAD_BALANCER_RECENTLY_ACTIVE = 33,
-    INTERNAL_ERROR = 34,
-    // Client set some fields in the table replication info incorrectly.
-    INVALID_TABLE_REPLICATION_INFO = 35,
-    REACHED_SPLIT_LIMIT = 36,
-    SPLIT_OR_BACKFILL_IN_PROGRESS = 37,
-    // Error in case a tablet-level operation was attempted on a tablet which is not running.
-    TABLET_NOT_RUNNING = 38,
-    TABLE_NOT_RUNNING = 39,
-}
-// src/yb/common/wire_protocol.proto
+/// source: `src/yb/common/wire_protocol.proto`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AppStatusPB {
     pub code: ErrorCode,
@@ -127,7 +74,9 @@ pub struct AppStatusPB {
     pub source_line: Option<i32>,
     pub errors: Option<String>,
 }
-// src/yb/common/wire_protocol.proto, in AppStatusPB
+/// source: `src/yb/common/wire_protocol.proto`
+///
+/// Defined in `AppStatusPB`
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ErrorCode {
     UNKNOWN_ERROR = 999,
@@ -166,13 +115,18 @@ pub enum ErrorCode {
     CACHE_MISS_ERROR = 32,
     TABLET_SPLIT = 33,
 }
-// src/yb/common/wire_protocol.proto, in AppStatusPB
+/// source: `src/yb/common/wire_protocol.proto`
+///
+/// Defined in `AppStatusPB`
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ErrorCodes {
    posix_code(i32),
    ql_error_code(i64),
 }
-// src/yb/common/common_types.proto
+/// source: `src/yb/common/common_types.proto`
+///
+/// Default value set to `UNKNOWN_ROLE`.
+/// The derive macro `PartialEq` is set to allow checking for equality.
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub enum PeerRole {
   // Indicates this node is a follower in the configuration, i.e. that it participates
@@ -197,42 +151,19 @@ pub enum PeerRole {
   UNKNOWN_ROLE = 7,
 }
 
-// src/yb/master/master_cluster.proto
-// hostname_port + timestamp: added.
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub struct GetMasterRegistrationRequestPB {
-    pub hostname_port: Option<String>,
-    pub timestamp: Option<DateTime<Local>>,
-    pub instance_id: NodeInstancePB,
-    pub registration: Option<ServerRegistrationPB>,
-    pub role: Option<PeerRole>,
-    pub error: Option<AppStatusPB>,
-}
-// This struct is needed to parse the results from master:port/api/v1/masters:
-// {
-//   "masters": [
-//     {
-//       "instance_id": {
-//         "permanent_uuid": "ca7914fb53bf4d8e992ba8af6daf886c",
-// ..etc..
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub struct Masters {
-    pub masters: Vec<GetMasterRegistrationRequestPB>,
-}
-
 // diff
-// the type BTreeMastersDiff is a btreemap with:
-// key: master permanent_uuid
-// value: struct MastersDiffFields
+/// BTreeMap for storing a master diff struct per `permanent_uuid`.
 type BTreeMastersDiff = BTreeMap<String, MastersDiffFields>;
-//  this is the wrapper struct to hold the btreemap diff
+/// The wrapper struct for holding the btreemap holding the diff structs.
 #[derive(Debug, Default)]
 pub struct MastersDiff {
     pub btreemastersdiff: BTreeMastersDiff,
     pub master_found: bool,
 }
-// this is a very simple way of diffing:
-// for every field that we would like to see the difference, create a first and second field.
+/// The masters diff struct.
+///
+/// This performs a very simple way of diffing:
+/// For every field that makes sense to see the difference, create a first and second (snapshot) field.
 #[derive(Debug, Default)]
 pub struct MastersDiffFields {
     pub first_instance_seqno: i64,

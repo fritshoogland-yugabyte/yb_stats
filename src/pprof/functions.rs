@@ -1,4 +1,4 @@
-//! Module for reading the /prof/growth output for the master and tablet server.
+//! The impls and functions.
 //!
 use std::{fs, io::Write, sync::mpsc::channel, time::Instant, env};
 use log::*;
@@ -83,7 +83,6 @@ impl Pprof {
 #[cfg(test)]
 mod tests {
     use super::*;
-    //use crate::utility_test::*;
 
     #[tokio::test]
     async fn integration_parse_pprof_growth_tserver() {

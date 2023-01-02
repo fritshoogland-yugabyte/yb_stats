@@ -1,12 +1,14 @@
+//! The impls and functions
+//!
 use chrono::Local;
 use std::{fmt, sync::mpsc::channel, time::Instant};
 use log::*;
 use colored::*;
 use anyhow::Result;
+
 use crate::isleader::AllIsLeader;
 use crate::utility;
 use crate::snapshot;
-//use crate::masters::{AllStoredMasters, AllMasters, StoredMasters, StoredMasterError, StoredRpcAddresses, StoredHttpAddresses, Masters, SnapshotDiffStoredMasters, SnapshotDiffBTreeMapsMasters, PermanentUuidHttpAddress, PermanentUuidRpcAddress, AllGetMasterRegistrationRequestPB};
 use crate::masters::{Masters, MastersDiff, PeerRole, MastersDiffFields};
 use crate::Opts;
 use crate::snapshot::read_snapshot_json;
@@ -56,7 +58,6 @@ impl Masters {
                         let detail_snapshot_time = Local::now();
                         let mut masters = Masters::read_http(host, port);
                         for master in masters.masters.iter_mut() {
-                            //master.hostname_port = Some(format!("{}:{}", host.clone(), port.clone()));
                             master.hostname_port = Some(format!("{}:{}", host, port));
                             master.timestamp = Some(detail_snapshot_time);
                         }
@@ -99,12 +100,10 @@ impl Masters {
     }
     pub fn print(
         &self,
-        snapshot_number: &String,
         details_enable: &bool,
+        leader_hostname: String,
     ) -> Result<()>
     {
-        let leader_hostname = AllIsLeader::return_leader_snapshot(snapshot_number)?;
-
         for row in &self.masters {
             // if details_enable is true then always continue
             // if details_enable is false, then hostname_port must equal leader_hostname,
@@ -203,114 +202,6 @@ impl Masters {
             };
         }
         Ok(())
-    }
-    pub async fn print_adhoc(
-        &self,
-        details_enable: &bool,
-        hosts: &Vec<&str>,
-        ports: &Vec<&str>,
-        parallel: usize,
-    )
-    {
-        let leader_hostname = AllIsLeader::return_leader_http(hosts, ports, parallel).await;
-
-        for row in &self.masters {
-            // if details_enable is true then always continue
-            // if details_enable is false, then hostname_port must equal leader_hostname,
-            // so only the master leader info is printed.
-            if row.hostname_port.as_ref().unwrap() != &leader_hostname
-                && !*details_enable {
-                continue
-            }
-            // first row
-            if *details_enable {
-                print!("{} ", row.hostname_port.as_ref().unwrap());
-            };
-            // instance_id, cloud, region, zone
-            println!("{} {:?} Placement: {}.{}.{}",
-                     row.instance_id.permanent_uuid,
-                     row.role
-                         .as_ref()
-                         .unwrap_or(&PeerRole::UNKNOWN_ROLE),
-                     row.registration
-                         .as_ref()
-                         .and_then(|registration| registration.cloud_info.as_ref())
-                         .and_then(|cloud_info| cloud_info.placement_cloud.as_ref())
-                         .unwrap_or(&"-".to_string()),
-                     row.registration
-                         .as_ref()
-                         .and_then(|registration| registration.cloud_info.as_ref())
-                         .and_then(|cloud_info| cloud_info.placement_region.as_ref())
-                         .unwrap_or(&"-".to_string()),
-                     row.registration
-                         .as_ref()
-                         .and_then(|registration| registration.cloud_info.as_ref())
-                         .and_then(|cloud_info| cloud_info.placement_zone.as_ref())
-                         .unwrap_or(&"-".to_string())
-            );
-            // second row
-            if *details_enable {
-                print!("{} ", row.hostname_port
-                    .as_ref()
-                    .unwrap()
-                );
-            };
-            // blank space, sequence_no, start_time_us
-            println!("{} Seqno: {} Start time: {}",
-                     " ".repeat(32),
-                     row.instance_id.instance_seqno,
-                     row.instance_id.start_time_us.unwrap_or_default()
-            );
-            // third row
-            if *details_enable {
-                print!("{} ", row.hostname_port
-                    .as_ref()
-                    .unwrap()
-                );
-            };
-            // blank space, list of rpc addresses
-            print!("{} RPC addresses: ( ", " ".repeat(32));
-            for addresses in row.registration
-                .as_ref()
-                .and_then(|registration| registration.private_rpc_addresses.as_ref())
-                .iter() {
-                for address in *addresses {
-                    print!("{}:{} ", address.host, address.port);
-                }
-            };
-            println!(")");
-            // fourth row
-            if *details_enable {
-                print!("{} ", row.hostname_port
-                    .as_ref()
-                    .unwrap()
-                );
-            };
-            // blank space, list of http addresses
-            print!("{} HTTP addresses: ( ", " ".repeat(32));
-            for addresses in row.registration
-                .as_ref()
-                .and_then(|registration| registration.http_addresses.as_ref())
-                .iter() {
-                for address in *addresses {
-                    print!("{}:{} ", address.host, address.port);
-                }
-            };
-            println!(")");
-            // fifth row: only if errors are reported
-            if row.error.is_some() {
-                if *details_enable {
-                    print!("{} ", row.hostname_port
-                        .as_ref()
-                        .unwrap()
-                    );
-                };
-                println!("{:#?}", row.error
-                    .as_ref()
-                    .unwrap()
-                );
-            };
-        }
     }
 }
 
@@ -537,9 +428,9 @@ impl MastersDiff {
             if row.second_instance_seqno == 0
             {
                 debug!("role: {}->{} placement: {}.{}.{}->{}.{}.{}", row.first_role, row.second_role, row.first_placement_cloud, row.first_placement_region, row.first_placement_cloud, row.second_placement_cloud, row.second_placement_region, row.second_placement_cloud);
-                // if the second instance_seqno is zero, it means the permanent_uuid is gone.
+                // if the second instance_seqno is zero, it means the permanent_uuid is gone in the second snapshot.
                 // this means the masters is gone.
-                println!("{} {} Role: {}->{}, Previous placement: {}.{}.{}",
+                println!("{} Masters: {} Role: {}->{}, Previous placement: {}.{}.{}",
                     "-".to_string().red(),
                     permanent_uuid,
                     row.first_role,
@@ -550,18 +441,18 @@ impl MastersDiff {
                 );
                 debug!("Seq#:{}->{} Start time:{}->{}", row.first_instance_seqno, row.second_instance_seqno, row.first_start_time_us, row.second_start_time_us);
                 println!("{} Seq#: {}, Start time: {}",
-                    " ".repeat(34),
+                    " ".repeat(43),
                     row.second_instance_seqno,
                     row.second_start_time_us,
                 );
                 debug!("rpc: {}->{}", row.first_private_rpc_addresses, row.second_private_rpc_addresses);
                 println!("{} RPC ( {} )",
-                    " ".repeat(34),
+                    " ".repeat(43),
                     row.second_private_rpc_addresses,
                 );
                 debug!("http: {}->{}", row.first_http_addresses, row.second_http_addresses);
                 println!("{} HTTP ( {} )",
-                    " ".repeat(34),
+                    " ".repeat(43),
                     row.second_http_addresses,
                 );
             }
@@ -570,7 +461,7 @@ impl MastersDiff {
                 // if the first instance_seqno is zero, it means the permanent_uuid has appeared after the first snapshot.
                 // this means it's a new master.
                 debug!("role: {}->{} placement: {}.{}.{}->{}.{}.{}", row.first_role, row.second_role, row.first_placement_cloud, row.first_placement_region, row.first_placement_cloud, row.second_placement_cloud, row.second_placement_region, row.second_placement_cloud);
-                println!("{} {} Role: {}, Placement: {}.{}.{}",
+                println!("{} Masters: {} Role: {}, Placement: {}.{}.{}",
                     "+".to_string().green(),
                     permanent_uuid,
                     row.second_role,
@@ -580,18 +471,18 @@ impl MastersDiff {
                 );
                 debug!("Seq#:{}->{} Start time:{}->{}", row.first_instance_seqno, row.second_instance_seqno, row.first_start_time_us, row.second_start_time_us);
                 println!("{} Seq#: {}, Start time: {}",
-                    " ".repeat(34),
+                    " ".repeat(43),
                     row.second_instance_seqno,
                     row.second_start_time_us,
                 );
                 debug!("rpc: {}->{}", row.first_private_rpc_addresses, row.second_private_rpc_addresses);
                 println!("{} RPC ( {} )",
-                    " ".repeat(34),
+                    " ".repeat(43),
                     row.second_private_rpc_addresses,
                 );
                 debug!("http: {}->{}", row.first_http_addresses, row.second_http_addresses);
                 println!("{} HTTP ( {} )",
-                    " ".repeat(34),
+                    " ".repeat(43),
                     row.second_http_addresses,
                 );
             }
@@ -620,7 +511,7 @@ impl MastersDiff {
                     // print out the master, and highlight the changes
 
                     // first row
-                    print!("{} {} ",
+                    print!("{} Masters: {} ",
                         "=".to_string().yellow(),
                         permanent_uuid,
                     );
@@ -788,13 +679,14 @@ pub async fn print_masters(
 
             let mut masters = Masters::new();
             masters.masters = snapshot::read_snapshot_json(snapshot_number, "masters")?;
-
-            masters.print(snapshot_number, &options.details_enable)?;
+            let leader_hostname = AllIsLeader::return_leader_snapshot(snapshot_number)?;
+            masters.print(&options.details_enable, leader_hostname)?;
 
         }
         None => {
             let masters = Masters::read_masters(&hosts, &ports, parallel).await;
-            masters.print_adhoc(&options.details_enable, &hosts, &ports, parallel).await;
+            let leader_hostname = AllIsLeader::return_leader_http(&hosts, &ports, parallel).await;
+            masters.print(&options.details_enable, leader_hostname)?;
         }
     }
     Ok(())

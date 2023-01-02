@@ -1,7 +1,7 @@
+//! The impls and functions
+//!
 use chrono::Local;
 use std::{sync::mpsc::channel, time::Instant};
-//use serde_derive::{Serialize,Deserialize};
-//use regex::Regex;
 use scraper::{ElementRef, Html, Selector};
 use log::*;
 use soup::prelude::*;
@@ -9,10 +9,10 @@ use anyhow::Result;
 use crate::isleader::AllIsLeader;
 use crate::utility;
 use crate::snapshot;
-use crate::clocks::{StoredClocks, AllStoredClocks, Clocks};
+use crate::clocks::{AllClocks, Clocks};
 use crate::Opts;
 
-impl AllStoredClocks {
+impl AllClocks {
     pub async fn perform_snapshot(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
@@ -23,8 +23,8 @@ impl AllStoredClocks {
         info!("begin snapshot");
         let timer = Instant::now();
 
-        let allstoredclocks = AllStoredClocks::read_clocks(hosts, ports, parallel).await?;
-        snapshot::save_snapshot(snapshot_number, "clocks", allstoredclocks.stored_clocks)?;
+        let allstoredclocks = AllClocks::read_clocks(hosts, ports, parallel).await?;
+        snapshot::save_snapshot_json(snapshot_number, "clocks", allstoredclocks.clocks)?;
 
         info!("end snapshot: {:?}", timer.elapsed());
 
@@ -35,7 +35,7 @@ impl AllStoredClocks {
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize
-    ) -> Result<AllStoredClocks>
+    ) -> Result<AllClocks>
     {
         info!("begin parallel http read");
         let timer = Instant::now();
@@ -49,8 +49,11 @@ impl AllStoredClocks {
                     let tx = tx.clone();
                     s.spawn(move |_| {
                         let detail_snapshot_time = Local::now();
-                        let clocks = AllStoredClocks::read_http(host, port);
-                        tx.send((format!("{}:{}", host, port), detail_snapshot_time, clocks)).expect("error sending data via tx (clocks)");
+                        let mut clocks = AllClocks::read_http(host, port);
+                        clocks.iter_mut().for_each(|r| r.timestamp = Some(detail_snapshot_time));
+                        clocks.iter_mut().for_each(|r| r.hostname_port = Some(format!("{}:{}", host, port)));
+                        //clocks.hostname_port = Some(format!("{}:{}"), host, port));
+                        tx.send(clocks).expect("error sending data via tx");
                     });
                 }
             }
@@ -58,26 +61,16 @@ impl AllStoredClocks {
 
         info!("end parallel http read {:?}", timer.elapsed());
 
-        let mut allstoredclocks = AllStoredClocks::new();
+        let mut allclocks = AllClocks::new();
 
-        for (hostname_port, detail_snapshot_time, clocks) in rx {
-            for clock in clocks {
-                allstoredclocks.stored_clocks.push(StoredClocks {
-                    hostname_port: hostname_port.to_string(),
-                    timestamp: detail_snapshot_time,
-                    server: clock.server.to_string(),
-                    time_since_heartbeat: clock.time_since_heartbeat.to_string(),
-                    status_uptime: clock.status_uptime.to_string(),
-                    physical_time_utc: clock.physical_time_utc.to_string(),
-                    hybrid_time_utc: clock.hybrid_time_utc.to_string(),
-                    heartbeat_rtt: clock.heartbeat_rtt.to_string(),
-                    cloud: clock.cloud.to_string(),
-                    region: clock.region.to_string(),
-                    zone: clock.zone.to_string(),
-                });
+        for clocks in rx
+        {
+            for clock in clocks
+            {
+                 allclocks.clocks.push(clock);
             }
         }
-        Ok(allstoredclocks)
+        Ok(allclocks)
     }
     fn read_http(
         host: &str,
@@ -85,14 +78,14 @@ impl AllStoredClocks {
     ) -> Vec<Clocks>
     {
         let data_from_http = utility::http_get(host, port, "tablet-server-clocks?raw");
-        AllStoredClocks::parse_clocks(data_from_http)
+        AllClocks::parse_clocks(data_from_http)
     }
     fn parse_clocks(
         http_data: String,
     ) -> Vec<Clocks>
     {
         let mut clocks: Vec<Clocks> = Vec::new();
-        if let Some(table) = AllStoredClocks::find_table(&http_data)
+        if let Some(table) = AllClocks::find_table(&http_data)
         {
             let (headers, rows) = table;
 
@@ -123,7 +116,6 @@ impl AllStoredClocks {
                 let parse = Soup::new(&take_or_missing(&mut row, server_pos));
 
                 clocks.push(Clocks {
-                    //server: take_or_missing(&mut row, server_pos),
                     server: parse.text(),
                     time_since_heartbeat: take_or_missing(&mut row, time_since_heartbeat_pos),
                     status_uptime: take_or_missing(&mut row, status_uptime_pos),
@@ -133,6 +125,7 @@ impl AllStoredClocks {
                     cloud: take_or_missing(&mut row, cloud_pos),
                     region: take_or_missing(&mut row, region_pos),
                     zone: take_or_missing(&mut row, zone_pos),
+                    ..Default::default()
                 });
             }
         }
@@ -156,13 +149,12 @@ impl AllStoredClocks {
     }
     pub fn print(
         &self,
-        snapshot_number: &String,
         details_enable: &bool,
+        leader_hostname: String,
     ) -> Result<()>
     {
         info!("print tablet server clocks");
 
-        let leader_hostname = AllIsLeader::return_leader_snapshot(snapshot_number)?;
 
         if *details_enable
         {
@@ -193,8 +185,8 @@ impl AllStoredClocks {
                      "zone"
             );
         }
-        for row in &self.stored_clocks {
-            if row.hostname_port == leader_hostname
+        for row in &self.clocks {
+            if row.hostname_port == Some(leader_hostname.clone())
                 && !*details_enable
             {
                 println!("{:20} {:10} {:20} {:26} {:36} {:6} {:10} {:10} {:10}",
@@ -211,130 +203,29 @@ impl AllStoredClocks {
             }
             if *details_enable
             {
-                println!("{}: {} {} {} {} {} {} {} {} {}", row.hostname_port, row.server, row.time_since_heartbeat, row.status_uptime, row.physical_time_utc, row.hybrid_time_utc, row.heartbeat_rtt, row.cloud, row.region, row.zone);
-            }
-        }
-        Ok(())
-    }
-    pub async fn print_adhoc(
-        &self,
-        details_enable: &bool,
-        hosts: &Vec<&str>,
-        ports: &Vec<&str>,
-        parallel: usize,
-    ) -> Result<()>
-    {
-        info!("print adhoc tablet servers clocks");
-
-        let leader_hostname = AllIsLeader::return_leader_http(hosts, ports, parallel).await;
-
-        if *details_enable
-        {
-            println!("{:20} {:20} {:10} {:20} {:26} {:36} {:6} {:10} {:10} {:10}",
-                     "hostname",
-                     "server",
-                     "HB",
-                     "status uptime",
-                     "physical time UTC",
-                     "hybrid time UTC",
-                     "HB RTT",
-                     "cloud",
-                     "region",
-                     "zone"
-            );
-        }
-        else
-        {
-            println!("{:20} {:10} {:20} {:26} {:36} {:6} {:10} {:10} {:10}",
-                     "server",
-                     "HB",
-                     "status uptime",
-                     "physical time UTC",
-                     "hybrid time UTC",
-                     "HB RTT",
-                     "cloud",
-                     "region",
-                     "zone"
-            );
-        }
-        for row in &self.stored_clocks {
-            if row.hostname_port == leader_hostname
-                && !*details_enable
-            {
-                println!("{:20} {:10} {:20} {:26} {:36} {:6} {:10} {:10} {:10}",
-                         row.server.split_whitespace().next().unwrap_or_default(),
-                         row.time_since_heartbeat,
-                         row.status_uptime,
-                         row.physical_time_utc,
-                         row.hybrid_time_utc,
-                         row.heartbeat_rtt,
-                         row.cloud,
-                         row.region,
-                         row.zone
-                );
-            }
-            if *details_enable
-            {
-                println!("{:20} {:20} {:10} {:20} {:26} {:36} {:6} {:10} {:10} {:10}",
-                         row.hostname_port,
-                         row.server,
-                         row.time_since_heartbeat,
-                         row.status_uptime,
-                         row.physical_time_utc,
-                         row.hybrid_time_utc,
-                         row.heartbeat_rtt,
-                         row.cloud,
-                         row.region,
-                         row.zone
-                );
+                println!("{}: {} {} {} {} {} {} {} {} {}", row.hostname_port.as_ref().unwrap(), row.server, row.time_since_heartbeat, row.status_uptime, row.physical_time_utc, row.hybrid_time_utc, row.heartbeat_rtt, row.cloud, row.region, row.zone);
             }
         }
         Ok(())
     }
     pub async fn print_latency(
         &self,
-        snapshot_number: &String,
         details_enable: &bool,
+        leader_hostname: String,
     ) -> Result<()>
     {
         info!("print adhoc tablet servers clocks latency");
 
-        let leader_hostname = AllIsLeader::return_leader_snapshot(snapshot_number)?;
 
-        for row in &self.stored_clocks {
-            if row.hostname_port == leader_hostname
+        for row in &self.clocks {
+            if row.hostname_port == Some(leader_hostname.clone())
                 && !*details_enable
             {
                 println!("{} -> {}: {} RTT ({} {} {})", leader_hostname.clone(), row.server.split_whitespace().next().unwrap_or_default(), row.heartbeat_rtt, row.cloud, row.region, row.zone);
             }
             if *details_enable
             {
-                println!("{} {} -> {}: {} RTT ({} {} {})", row.hostname_port, leader_hostname.clone(), row.server.split_whitespace().next().unwrap_or_default(), row.heartbeat_rtt, row.cloud, row.region, row.zone);
-            }
-        }
-        Ok(())
-    }
-    pub async fn print_adhoc_latency(
-        &self,
-        details_enable: &bool,
-        hosts: &Vec<&str>,
-        ports: &Vec<&str>,
-        parallel: usize,
-    ) -> Result<()>
-    {
-        info!("print adhoc tablet servers clocks latency");
-
-        let leader_hostname = AllIsLeader::return_leader_http(hosts, ports, parallel).await;
-
-        for row in &self.stored_clocks {
-            if row.hostname_port == leader_hostname
-                && !*details_enable
-            {
-                println!("{} -> {}: {} RTT ({} {} {})", leader_hostname.clone(), row.server.split_whitespace().next().unwrap_or_default(), row.heartbeat_rtt, row.cloud, row.region, row.zone);
-            }
-            if *details_enable
-            {
-                println!("{} {} -> {}: {} RTT ({} {} {})", row.hostname_port, leader_hostname.clone(), row.server.split_whitespace().next().unwrap_or_default(), row.heartbeat_rtt, row.cloud, row.region, row.zone);
+                println!("{} {} -> {}: {} RTT ({} {} {})", row.hostname_port.as_ref().unwrap(), leader_hostname.clone(), row.server.split_whitespace().next().unwrap_or_default(), row.heartbeat_rtt, row.cloud, row.region, row.zone);
             }
         }
         Ok(())
@@ -350,14 +241,16 @@ pub async fn print_clocks(
 {
     match options.print_clocks.as_ref().unwrap() {
         Some(snapshot_number) => {
-            let mut allstoredclocks = AllStoredClocks::new();
-            allstoredclocks.stored_clocks = snapshot::read_snapshot(snapshot_number, "clocks")?;
+            let mut allclocks = AllClocks::new();
+            allclocks.clocks = snapshot::read_snapshot_json(snapshot_number, "clocks")?;
+            let leader_hostname = AllIsLeader::return_leader_snapshot(snapshot_number)?;
 
-            allstoredclocks.print(snapshot_number, &options.details_enable)?;
+            allclocks.print(&options.details_enable, leader_hostname)?;
         },
         None => {
-            let allstoredclocks = AllStoredClocks::read_clocks(&hosts, &ports, parallel).await?;
-            allstoredclocks.print_adhoc(&options.details_enable, &hosts, &ports, parallel).await?;
+            let allclocks = AllClocks::read_clocks(&hosts, &ports, parallel).await?;
+            let leader_hostname = AllIsLeader::return_leader_http(&hosts, &ports, parallel).await;
+            allclocks.print(&options.details_enable, leader_hostname)?;
         },
     }
     Ok(())
@@ -372,14 +265,17 @@ pub async fn print_latencies(
 {
     match options.print_latencies.as_ref().unwrap() {
         Some(snapshot_number) => {
-            let mut allstoredclocks = AllStoredClocks::new();
-            allstoredclocks.stored_clocks = snapshot::read_snapshot(snapshot_number, "clocks")?;
+            let mut allclocks = AllClocks::new();
+            allclocks.clocks = snapshot::read_snapshot_json(snapshot_number, "clocks")?;
+            let leader_hostname = AllIsLeader::return_leader_snapshot(snapshot_number)?;
 
-            allstoredclocks.print_latency(snapshot_number, &options.details_enable).await?;
+            allclocks.print_latency(&options.details_enable, leader_hostname).await?;
         },
         None => {
-            let allstoredclocks = AllStoredClocks::read_clocks(&hosts, &ports, parallel).await?;
-            allstoredclocks.print_adhoc_latency(&options.details_enable, &hosts, &ports, parallel).await?;
+            let allstoredclocks = AllClocks::read_clocks(&hosts, &ports, parallel).await?;
+            let leader_hostname = AllIsLeader::return_leader_http(&hosts, &ports, parallel).await;
+
+            allstoredclocks.print_latency(&options.details_enable, leader_hostname).await?;
         },
     }
     Ok(())

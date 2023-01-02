@@ -344,7 +344,7 @@ mod tests {
   <td>20</td>
 </tr>
 </table>"#.to_string();
-        let result = AllStoredClocks::parse_clocks(threads);
+        let result = AllClocks::parse_clocks(threads);
         // this results in 33 Threads
         assert_eq!(result.len(), 3);
 
@@ -364,9 +364,9 @@ mod tests {
         let hostname = utility::get_hostname_master();
         let port = utility::get_port_master();
 
-        let allstoredclocks = AllStoredClocks::read_clocks(&vec![&hostname], &vec![&port], 1_usize).await?;
+        let allclocks = AllClocks::read_clocks(&vec![&hostname], &vec![&port], 1_usize).await?;
 
-        assert!(!allstoredclocks.stored_clocks.is_empty());
+        assert!(!allclocks.clocks.is_empty());
 
         Ok(())
     }

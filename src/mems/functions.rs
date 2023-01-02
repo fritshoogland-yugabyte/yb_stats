@@ -58,7 +58,7 @@ impl Mems {
                 let current_directory = env::current_dir()?;
                 let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number.to_string());
 
-                let mems_file = &current_snapshot_directory.join(format!("mems_{}", hostname_port));
+                let mems_file = &current_snapshot_directory.join(format!("mems_{}.txt", hostname_port));
                 let mut file = fs::OpenOptions::new()
                     .create(true)
                     .write(true)

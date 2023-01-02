@@ -1,16 +1,17 @@
+//! The impls and functions
+//!
 use chrono::Local;
 use regex::Regex;
-//use serde_derive::{Serialize,Deserialize};
 use std::{sync::mpsc::channel, time::Instant};
 use scraper::{ElementRef, Html, Selector};
 use log::*;
 use anyhow::Result;
 use crate::snapshot;
-use crate::memtrackers::{MemTrackers, StoredMemTrackers, AllStoredMemTrackers};
+use crate::memtrackers::{MemTrackers, AllMemTrackers};
 use crate::Opts;
 use crate::utility;
 
-impl AllStoredMemTrackers {
+impl AllMemTrackers {
     pub async fn perform_snapshot(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
@@ -21,8 +22,8 @@ impl AllStoredMemTrackers {
         info!("begin snapshot");
         let timer = Instant::now();
 
-        let allstoredmemtrackers = AllStoredMemTrackers::read_memtrackers(hosts, ports, parallel).await;
-        snapshot::save_snapshot(snapshot_number,"memtrackers", allstoredmemtrackers.stored_memtrackers)?;
+        let allmemtrackers = AllMemTrackers::read_memtrackers(hosts, ports, parallel).await;
+        snapshot::save_snapshot_json(snapshot_number,"memtrackers", allmemtrackers.memtrackers)?;
 
         info!("end snapshot: {:?}", timer.elapsed());
 
@@ -33,7 +34,7 @@ impl AllStoredMemTrackers {
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize,
-    ) -> AllStoredMemTrackers
+    ) -> AllMemTrackers
     {
         info!("begin parallel http read");
         let timer = Instant::now();
@@ -47,8 +48,10 @@ impl AllStoredMemTrackers {
                     let tx = tx.clone();
                     s.spawn(move |_| {
                         let detail_snapshot_time = Local::now();
-                        let memtrackers = AllStoredMemTrackers::read_http(host, port);
-                        tx.send((format!("{}:{}", host, port), detail_snapshot_time, memtrackers)).expect("error sending data via tx (memtrackers)");
+                        let mut memtrackers = AllMemTrackers::read_http(host, port);
+                        memtrackers.iter_mut().for_each(|r| r.timestamp = Some(detail_snapshot_time));
+                        memtrackers.iter_mut().for_each(|r| r.hostname_port = Some(format!("{}:{}", host, port)));
+                        tx.send(memtrackers).expect("error sending data via tx");
                     });
                 }
             }
@@ -56,22 +59,17 @@ impl AllStoredMemTrackers {
 
         info!("end parallel http read {:?}", timer.elapsed());
 
-        let mut allstoredmemtrackers = AllStoredMemTrackers::new();
+        let mut allmemtrackers = AllMemTrackers::new();
 
-        for (hostname_port, detail_snapshot_time, memtrackers) in rx {
-            for memtracker in memtrackers {
-                allstoredmemtrackers.stored_memtrackers.push( StoredMemTrackers {
-                    hostname_port: hostname_port.to_string(),
-                    timestamp: detail_snapshot_time,
-                    id: memtracker.id.to_string(),
-                    current_consumption: memtracker.current_consumption.to_string(),
-                    peak_consumption: memtracker.peak_consumption.to_string(),
-                    limit: memtracker.limit.to_string(),
-                });
+        for memtrackers in rx
+        {
+            for memtracker in memtrackers
+            {
+                allmemtrackers.memtrackers.push(memtracker);
             }
-
         }
-        allstoredmemtrackers
+
+        allmemtrackers
     }
     fn read_http(
         host: &str,
@@ -79,7 +77,7 @@ impl AllStoredMemTrackers {
     ) -> Vec<MemTrackers>
     {
         let data_from_http = utility::http_get(host, port, "mem-trackers");
-        AllStoredMemTrackers::parse_memtrackers(data_from_http)
+        AllMemTrackers::parse_memtrackers(data_from_http)
     }
     fn parse_memtrackers(
         http_data: String
@@ -87,7 +85,7 @@ impl AllStoredMemTrackers {
     {
         let mut memtrackers: Vec<MemTrackers> = Vec::new();
 
-        if let Some(table) = AllStoredMemTrackers::find_table(&http_data) {
+        if let Some(table) = AllMemTrackers::find_table(&http_data) {
             let (headers, rows) = table;
             let try_find_header = |target| headers.iter().position(|h| h == target);
             let id_pos = try_find_header("Id");
@@ -124,11 +122,11 @@ impl AllStoredMemTrackers {
                 }
                 final_ids = final_ids[0..final_ids.len()-2].to_string();
                 memtrackers.push(MemTrackers {
-                    //id: take_or_missing(&mut row, id_pos),
                     id: final_ids,
                     current_consumption: take_or_missing(&mut row, current_consumption_pos),
                     peak_consumption: take_or_missing(&mut row, peak_consumption_pos),
                     limit: take_or_missing(&mut row, limit_pos),
+                    ..Default::default()
                 });
             }
         }
@@ -159,12 +157,12 @@ impl AllStoredMemTrackers {
         info!("print_memtrackers");
 
         let mut previous_hostname_port = String::from("");
-        for row in &self.stored_memtrackers{
-            if hostname_filter.is_match(&row.hostname_port)
+        for row in &self.memtrackers{
+            if hostname_filter.is_match(&row.hostname_port.clone().expect("hostname:port should be set"))
                 && stat_name_filter.is_match(&row.id) {
-                if row.hostname_port != previous_hostname_port {
+                if row.hostname_port.clone().expect("hostname:port should be set" ) != previous_hostname_port {
                     println!("{}", "-".repeat(174));
-                    println!("Host: {}, Snapshot time: {}", &row.hostname_port.to_string(), row.timestamp);
+                    println!("Host: {}, Snapshot time: {}", &row.hostname_port.clone().expect("hostname:port should be set"), row.timestamp.expect("timestamp should be set"));
                     println!("{}", "-".repeat(174));
                     println!("{:20} {:90} {:>20} {:>20} {:>20}",
                              "hostname_port",
@@ -173,9 +171,9 @@ impl AllStoredMemTrackers {
                              "peak_consumption",
                              "limit");
                     println!("{}", "-".repeat(174));
-                    previous_hostname_port = row.hostname_port.to_string();
+                    previous_hostname_port = row.hostname_port.clone().expect("hostname:port should be set");
                 }
-                println!("{:20} {:90} {:>20} {:>20} {:>20}", row.hostname_port, row.id.replace("&gt;", ">"), row.current_consumption, row.peak_consumption, row.limit)
+                println!("{:20} {:90} {:>20} {:>20} {:>20}", row.hostname_port.clone().expect("hostname:port should be set"), row.id.replace("&gt;", ">"), row.current_consumption, row.peak_consumption, row.limit)
             }
         }
         Ok(())
@@ -194,13 +192,13 @@ pub async fn print_memtrackers(
 
     match options.print_memtrackers.as_ref().unwrap() {
         Some(snapshot_number) => {
-            let mut allstoredmemtrackers = AllStoredMemTrackers::new();
-            allstoredmemtrackers.stored_memtrackers = snapshot::read_snapshot(snapshot_number, "memtrackers")?;
-            allstoredmemtrackers.print(&hostname_filter, &stat_name_filter)?;
+            let mut allmemtrackers = AllMemTrackers::new();
+            allmemtrackers.memtrackers = snapshot::read_snapshot_json(snapshot_number, "memtrackers")?;
+            allmemtrackers.print(&hostname_filter, &stat_name_filter)?;
         },
         None => {
-            let allstoredmemtrackers = AllStoredMemTrackers::read_memtrackers(&hosts, &ports, parallel).await;
-            allstoredmemtrackers.print(&hostname_filter, &stat_name_filter)?;
+            let allmemtrackers = AllMemTrackers::read_memtrackers(&hosts, &ports, parallel).await;
+            allmemtrackers.print(&hostname_filter, &stat_name_filter)?;
         },
     }
     Ok(())
@@ -1266,7 +1264,7 @@ mod tests {
 <footer class='footer'><div class='yb-footer container text-muted'><pre class='message'><i class="fa-lg fa fa-gift" aria-hidden="true"></i> Congratulations on installing YugabyteDB. We'd like to welcome you to the community with a free t-shirt and pack of stickers! Please claim your reward here: <a href='https://www.yugabyte.com/community-rewards/'>https://www.yugabyte.com/community-rewards/</a></pre><pre>version 2.11.2.0 build 89 revision d142556567b5e1c83ea5c915ec7b9964492b2321 build_type RELEASE built at 25 Jan 2022 17:51:08 UTC
 server uuid 05b8d17620eb4cd79eddaddb2fbcbb42</pre></div></footer></body></html>
 "#.to_string();
-        let result = AllStoredMemTrackers::parse_memtrackers(memtrackers);
+        let result = AllMemTrackers::parse_memtrackers(memtrackers);
         assert_eq!(result.len(), 345);
     }
 
@@ -1275,17 +1273,17 @@ server uuid 05b8d17620eb4cd79eddaddb2fbcbb42</pre></div></footer></body></html>
         let hostname = utility::get_hostname_master();
         let port = utility::get_port_master();
 
-        let allstoredmemtrackers = AllStoredMemTrackers::read_memtrackers(&vec![&hostname], &vec![&port], 1).await;
+        let allmemtrackers = AllMemTrackers::read_memtrackers(&vec![&hostname], &vec![&port], 1).await;
         // memtrackers must return some rows
-        assert!(!allstoredmemtrackers.stored_memtrackers.is_empty());
+        assert!(!allmemtrackers.memtrackers.is_empty());
     }
     #[tokio::test]
     async fn parse_memtrackers_tserver() {
         let hostname = utility::get_hostname_tserver();
         let port = utility::get_port_tserver();
 
-        let allstoredmemtrackers = AllStoredMemTrackers::read_memtrackers(&vec![&hostname], &vec![&port], 1).await;
+        let allmemtrackers = AllMemTrackers::read_memtrackers(&vec![&hostname], &vec![&port], 1).await;
         // memtrackers must return some rows
-        assert!(!allstoredmemtrackers.stored_memtrackers.is_empty());
+        assert!(!allmemtrackers.memtrackers.is_empty());
     }
 }

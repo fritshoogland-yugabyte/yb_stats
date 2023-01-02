@@ -58,7 +58,7 @@ impl Pprof {
                 let current_directory = env::current_dir()?;
                 let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number.to_string());
 
-                let pprof_file = &current_snapshot_directory.join(format!("pprof_growth_{}", hostname_port));
+                let pprof_file = &current_snapshot_directory.join(format!("pprof_growth_{}.txt", hostname_port));
                 let mut file = fs::OpenOptions::new()
                     .create(true)
                     .write(true)

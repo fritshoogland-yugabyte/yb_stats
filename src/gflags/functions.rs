@@ -1,20 +1,16 @@
-//! The DEPRECATED module for the gflags in the /varz endpoints of the master and tablet server.
+//! The impls and functions
 //!
 use std::{time::Instant, sync::mpsc::channel};
 use chrono::Local;
 use regex::Regex;
-//use serde_derive::{Serialize,Deserialize};
 use log::*;
 use anyhow::Result;
 use crate::Opts;
 use crate::utility;
 use crate::snapshot;
-use crate::gflags::{AllStoredGFlags, GFlag, StoredGFlags};
+use crate::gflags::{AllGFlags, GFlag};
 
-impl GFlag {
-    pub fn new() -> Self { Default::default() }
-}
-impl AllStoredGFlags {
+impl AllGFlags {
     pub fn new() -> Self { Default::default() }
     pub async fn perform_snapshot(
         hosts: &Vec<&str>,
@@ -26,8 +22,8 @@ impl AllStoredGFlags {
         info!("begin snapshot");
         let timer = Instant::now();
 
-        let allstoredgflags = AllStoredGFlags::read_gflags(hosts, ports, parallel).await;
-        snapshot::save_snapshot(snapshot_number, "gflags", allstoredgflags.stored_gflags)?;
+        let allgflags = AllGFlags::read_gflags(hosts, ports, parallel).await;
+        snapshot::save_snapshot_json(snapshot_number, "gflags", allgflags.gflags)?;
 
         info!("end snapshot: {:?}", timer.elapsed());
 
@@ -37,7 +33,7 @@ impl AllStoredGFlags {
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize,
-    ) -> AllStoredGFlags
+    ) -> AllGFlags
     {
         info!("begin parallel http read");
         let timer = Instant::now();
@@ -51,8 +47,10 @@ impl AllStoredGFlags {
                     let tx = tx.clone();
                     s.spawn(move |_| {
                         let detail_snapshot_time = Local::now();
-                        let gflags = AllStoredGFlags::read_http(host, port);
-                        tx.send((format!("{}:{}", host, port), detail_snapshot_time, gflags)).expect("error sending data via tx (loglines)");
+                        let mut gflags = AllGFlags::read_http(host, port);
+                        gflags.iter_mut().for_each(|r| r.timestamp = Some(detail_snapshot_time));
+                        gflags.iter_mut().for_each(|r| r.hostname_port = Some(format!("{}:{}", host, port)));
+                        tx.send(gflags).expect("error sending data via tx");
                     });
                 }
             }
@@ -60,19 +58,17 @@ impl AllStoredGFlags {
 
         info!("end parallel http read {:?}", timer.elapsed());
 
-        let mut allstoredgflags = AllStoredGFlags::new();
+        let mut allgflags = AllGFlags::new();
 
-        for (hostname_port, detail_snapshot_time, gflags) in rx {
-            for gflag in gflags {
-                allstoredgflags.stored_gflags.push(StoredGFlags {
-                    hostname_port: hostname_port.to_string(),
-                    timestamp: detail_snapshot_time,
-                    gflag_name: gflag.name.to_string(),
-                    gflag_value: gflag.value.to_string(),
-                });
+        for gflags in rx
+        {
+            for gflag in gflags
+            {
+                allgflags.gflags.push(gflag);
             }
         }
-        allstoredgflags
+
+        allgflags
     }
     fn read_http(
         host: &str,
@@ -80,18 +76,24 @@ impl AllStoredGFlags {
     ) -> Vec<GFlag>
     {
         let data_from_http = utility::http_get(host, port, "varz?raw");
-        AllStoredGFlags::parse_gflags(data_from_http)
+        AllGFlags::parse_gflags(data_from_http)
     }
     fn parse_gflags(
         http_data: String
     ) -> Vec<GFlag>
     {
-        let mut gflags: Vec<GFlag> = vec![GFlag::new()];
+        let mut gflags = Vec::new();
+
         let re = Regex::new( r"--([A-Za-z_0-9]*)=(.*)\n" ).unwrap();
         for captures in re.captures_iter(&http_data)
         {
-            gflags.push(GFlag { name: captures.get(1).unwrap().as_str().to_string(), value: captures.get(2).unwrap().as_str().to_string() });
+            gflags.push(GFlag {
+                name: captures.get(1).unwrap().as_str().to_string(),
+                value: captures.get(2).unwrap().as_str().to_string(),
+                ..Default::default()
+            });
         }
+
         gflags
     }
     pub fn print(
@@ -103,16 +105,16 @@ impl AllStoredGFlags {
         info!("print_gflags");
 
         let mut previous_hostname_port = String::from("");
-        for row in &self.stored_gflags {
-            if hostname_filter.is_match(&row.hostname_port) &&
-                stat_name_filter.is_match( &row.gflag_name) {
-                if row.hostname_port != previous_hostname_port {
+        for row in &self.gflags {
+            if hostname_filter.is_match(&row.hostname_port.clone().expect("hostname:port should be set")) &&
+                stat_name_filter.is_match( &row.name) {
+                if row.hostname_port.clone().expect("hostname:port should be set") != previous_hostname_port {
                     println!("--------------------------------------------------------------------------------------------------------------------------------------");
-                    println!("Host: {} Snapshot time: {}", &row.hostname_port.to_string(), row.timestamp);
+                    println!("Host: {} Snapshot time: {}", &row.hostname_port.clone().expect("hostname:port should be set").to_string(), row.timestamp.expect("timestamp should be et"));
                     println!("--------------------------------------------------------------------------------------------------------------------------------------");
-                    previous_hostname_port = row.hostname_port.to_string();
+                    previous_hostname_port = row.hostname_port.clone().expect("hostname:port should be set").to_string();
                 }
-                println!("{:80} {:30}", row.gflag_name, row.gflag_value);
+                println!("{:80} {:30}", row.name, row.value);
             }
         }
         Ok(())
@@ -131,13 +133,13 @@ pub async fn print_gflags(
 
     match options.print_gflags.as_ref().unwrap() {
         Some(snapshot_number) => {
-            let mut allstoredgflags = AllStoredGFlags::new();
-            allstoredgflags.stored_gflags = snapshot::read_snapshot(snapshot_number, "gflags")?;
-            allstoredgflags.print(&hostname_filter, &stat_name_filter)?;
+            let mut allgflags = AllGFlags::new();
+            allgflags.gflags = snapshot::read_snapshot_json(snapshot_number, "gflags")?;
+            allgflags.print(&hostname_filter, &stat_name_filter)?;
         },
         None => {
-            let allstoredgflags = AllStoredGFlags::read_gflags(&hosts, &ports, parallel).await;
-            allstoredgflags.print(&hostname_filter, &stat_name_filter)?;
+            let allgflags = AllGFlags::read_gflags(&hosts, &ports, parallel).await;
+            allgflags.print(&hostname_filter, &stat_name_filter)?;
         }
     }
     Ok(())
@@ -981,8 +983,8 @@ Command-line Flags--TEST_xcluster_simulate_have_more_records=false
 --v=0
 --vmodule=
 "#.to_string();
-        let result = AllStoredGFlags::parse_gflags(gflags);
-        assert_eq!(result.len(), 830);
+        let result = AllGFlags::parse_gflags(gflags);
+        assert_eq!(result.len(), 829);
     }
 
     #[tokio::test]
@@ -990,17 +992,17 @@ Command-line Flags--TEST_xcluster_simulate_have_more_records=false
         let hostname = utility::get_hostname_master();
         let port = utility::get_port_master();
 
-        let allstoredgflags = AllStoredGFlags::read_gflags(&vec![&hostname], &vec![&port], 1).await;
+        let allgflags = AllGFlags::read_gflags(&vec![&hostname], &vec![&port], 1).await;
         // the master must have gflags
-        assert!(!allstoredgflags.stored_gflags.is_empty());
+        assert!(!allgflags.gflags.is_empty());
     }
     #[tokio::test]
     async fn integration_parse_gflags_tserver() {
         let hostname = utility::get_hostname_tserver();
         let port = utility::get_port_tserver();
 
-        let allstoredgflags = AllStoredGFlags::read_gflags(&vec![&hostname], &vec![&port], 1).await;
+        let allgflags = AllGFlags::read_gflags(&vec![&hostname], &vec![&port], 1).await;
         // the tserver must have gflags
-        assert!(!allstoredgflags.stored_gflags.is_empty());
+        assert!(!allgflags.gflags.is_empty());
     }
 }

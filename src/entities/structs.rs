@@ -1,11 +1,7 @@
 //! The structs
+//!
 use chrono::{DateTime, Local};
 use std::collections::BTreeMap;
-
-//type BTreeMapSnapshotDiffReplicas = BTreeMap<(String, String), SnapshotDiffReplica>;
-//type BTreeMapSnapshotDiffTablets = BTreeMap<String, SnapshotDiffTablets>;
-//type BTreeMapSnapshotDiffTables = BTreeMap<String, SnapshotDiffTables>;
-//type BTreeMapSnapshotDiffKeyspaces = BTreeMap<String, SnapshotDiffKeyspaces>;
 
 /// The root struct for deserializing `/dump-entities`
 ///
@@ -56,7 +52,7 @@ use std::collections::BTreeMap;
 pub struct Entities {
     /// yb_stats added to allow understanding the source host.
     pub hostname_port: Option<String>,
-    /// yb_stats added to allow understanding the timestamp.
+    /// yb_stats added to allow understanding the snapshot timestamp.
     pub timestamp: Option<DateTime<Local>>,
     pub keyspaces: Vec<Keyspaces>,
     pub tables: Vec<Tables>,
@@ -148,101 +144,3 @@ pub struct ReplicasDiff {
     pub second_replica_type: String,
     pub second_addr: String,
 }
-/*
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct StoredTables {
-    pub hostname_port: String,
-    pub timestamp: DateTime<Local>,
-    pub table_id: String,
-    pub table_name: String,
-    pub table_state: String,
-    pub keyspace_id: String,
-    pub keyspace_name: String,
-    pub keyspace_type: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct StoredKeyspaces
-{
-    pub hostname_port: String,
-    pub timestamp: DateTime<Local>,
-    pub keyspace_id: String,
-    pub keyspace_name: String,
-    pub keyspace_type: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct StoredTablets
-{
-    pub hostname_port: String,
-    pub timestamp: DateTime<Local>,
-    pub table_id: String,
-    pub tablet_id: String,
-    pub tablet_state: String,
-    pub leader: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct StoredReplicas
-{
-    pub hostname_port: String,
-    pub timestamp: DateTime<Local>,
-    pub tablet_id: String,
-    pub replica_type: String,
-    pub server_uuid: String,
-    pub addr: String,
-}
-
-#[derive(Debug)]
-pub struct SnapshotDiffReplica {
-    pub first_replica_type: String,
-    pub first_addr: String,
-    pub second_replica_type: String,
-    pub second_addr: String,
-}
-
-#[derive(Debug)]
-pub struct SnapshotDiffTablets
-{
-    pub first_table_id: String,
-    pub first_tablet_state: String,
-    pub first_leader: String,
-    pub second_table_id: String,
-    pub second_tablet_state: String,
-    pub second_leader: String,
-}
-
-#[derive(Debug)]
-pub struct SnapshotDiffTables {
-    pub first_table_name: String,
-    pub first_table_state: String,
-    pub first_keyspace_id: String,
-    pub second_table_name: String,
-    pub second_table_state: String,
-    pub second_keyspace_id: String,
-}
-
-#[derive(Debug)]
-pub struct SnapshotDiffKeyspaces
-{
-    pub first_keyspace_name: String,
-    pub first_keyspace_type: String,
-    pub second_keyspace_name: String,
-    pub second_keyspace_type: String,
-}
-
-#[derive(Default)]
-pub struct SnapshotDiffBTreeMapsEntities {
-    pub btreemap_snapshotdiff_replicas: BTreeMapSnapshotDiffReplicas,
-    pub btreemap_snapshotdiff_tablets: BTreeMapSnapshotDiffTablets,
-    pub btreemap_snapshotdiff_tables: BTreeMapSnapshotDiffTables,
-    pub btreemap_snapshotdiff_keyspaces: BTreeMapSnapshotDiffKeyspaces,
-    pub keyspace_id_lookup: HashMap<String, (String, String)>,
-    pub table_keyspace_lookup: HashMap<String, String>,
-    pub table_id_lookup: HashMap<String, String>,
-    pub server_id_lookup: HashMap<String, String>,
-    pub tablet_table_lookup: HashMap<String, String>,
-    pub master_found: bool,
-}
- */

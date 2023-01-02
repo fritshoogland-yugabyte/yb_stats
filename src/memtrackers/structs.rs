@@ -1,17 +1,15 @@
+//! The structs
+//!
 use chrono::{DateTime, Local};
 
-#[derive(Debug)]
+/// The root struct for deserializing the memtrackers HTML table.
+///
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct MemTrackers {
-    pub id: String,
-    pub current_consumption: String,
-    pub peak_consumption: String,
-    pub limit: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct StoredMemTrackers {
-    pub hostname_port: String,
-    pub timestamp: DateTime<Local>,
+    /// yb_stats added to allow understanding the snapshot timestamp.
+    pub hostname_port: Option<String>,
+    /// yb_stats added to allow understanding the snapshot timestamp.
+    pub timestamp: Option<DateTime<Local>>,
     pub id: String,
     pub current_consumption: String,
     pub peak_consumption: String,
@@ -19,6 +17,6 @@ pub struct StoredMemTrackers {
 }
 
 #[derive(Debug, Default)]
-pub struct AllStoredMemTrackers {
-    pub stored_memtrackers: Vec<StoredMemTrackers>,
+pub struct AllMemTrackers {
+    pub memtrackers: Vec<MemTrackers>,
 }

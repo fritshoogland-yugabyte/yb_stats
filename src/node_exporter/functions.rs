@@ -1,55 +1,16 @@
-//! The module for prometheus metrics from /metrics endpoint of node-exporter.
+//! The impls and functions
+//! 
 use std::{sync::mpsc::channel, time::Instant};
 use chrono::{DateTime, Local};
 use prometheus_parse::Value;
-//use serde_derive::{Serialize,Deserialize};
 use regex::Regex;
 use log::*;
 use anyhow::Result;
 use crate::utility;
 use crate::snapshot;
-use crate::node_exporter::{SnapshotDiffBTreeMapNodeExporter, StoredNodeExporterValues, SnapshotDiffNodeExporter, NodeExporterValues};
+use crate::node_exporter::{NodeExporter, AllNodeExporter, NodeExporterDiff, NameCategoryDiff};
 
-impl SnapshotDiffNodeExporter {
-    fn first_snapshot(storednodeexportervalues: StoredNodeExporterValues) -> Self {
-        Self {
-            first_snapshot_time: storednodeexportervalues.timestamp,
-            second_snapshot_time: storednodeexportervalues.timestamp,
-            node_exporter_type: storednodeexportervalues.node_exporter_type.to_string(),
-            category: storednodeexportervalues.node_exporter_category.to_string(),
-            first_value: storednodeexportervalues.node_exporter_value,
-            second_value: 0.,
-        }
-    }
-    fn second_snapshot_existing(storednodeexportervalues: StoredNodeExporterValues, nodeexporter_diff_row: &mut SnapshotDiffNodeExporter) -> Self
-    {
-        Self {
-            first_snapshot_time: nodeexporter_diff_row.first_snapshot_time,
-            second_snapshot_time: storednodeexportervalues.timestamp,
-            node_exporter_type: storednodeexportervalues.node_exporter_type.to_string(),
-            category: storednodeexportervalues.node_exporter_category.to_string(),
-            first_value: nodeexporter_diff_row.first_value,
-            second_value: storednodeexportervalues.node_exporter_value,
-        }
-    }
-    fn second_snapshot_new(storednodeexportervalues: StoredNodeExporterValues, first_snapshot_time: DateTime<Local>) -> Self
-    {
-        Self {
-            first_snapshot_time,
-            second_snapshot_time: storednodeexportervalues.timestamp,
-            node_exporter_type: storednodeexportervalues.node_exporter_type.to_string(),
-            category: storednodeexportervalues.node_exporter_category.to_string(),
-            first_value: 0.,
-            second_value: storednodeexportervalues.node_exporter_value,
-        }
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct AllStoredNodeExporterValues {
-    pub stored_nodeexportervalues: Vec<StoredNodeExporterValues>,
-}
-impl AllStoredNodeExporterValues {
+impl AllNodeExporter {
     pub fn new() -> Self {
         Default::default()
     }
@@ -63,65 +24,17 @@ impl AllStoredNodeExporterValues {
         info!("begin snapshot");
         let timer = Instant::now();
 
-        let allstorednodeexportervalues = AllStoredNodeExporterValues::read_nodeexporter(hosts, ports, parallel).await;
-        snapshot::save_snapshot(snapshot_number, "nodeexporter", allstorednodeexportervalues.stored_nodeexportervalues)?;
-        /*
-        allstorednodeexportervalues.save_snapshot(snapshot_number)
-            .unwrap_or_else(|e| {
-                error!("error saving snapshot: {}", e);
-                process::exit(1);
-            });
-
-         */
+        let allnodeexporter = AllNodeExporter::read_nodeexporter(hosts, ports, parallel).await;
+        snapshot::save_snapshot_json(snapshot_number, "nodeexporter", allnodeexporter.nodeexporter)?;
 
         info!("end snapshot: {:?}", timer.elapsed());
         Ok(())
     }
-    /*
-    fn save_snapshot(self, snapshot_number: i32) -> Result<(), Box<dyn Error>>
-    {
-        let current_directory = env::current_dir()?;
-        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(&snapshot_number.to_string());
-
-        let nodeexporter_file = &current_snapshot_directory.join("nodeexporter");
-        let file = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(nodeexporter_file)?;
-        let mut writer = csv::Writer::from_writer(file);
-        for row in self.stored_nodeexportervalues {
-            writer.serialize(row)?;
-        }
-        writer.flush()?;
-
-        Ok(())
-    }
-
-    fn read_snapshot( snapshot_number: &String, ) -> Result<AllStoredNodeExporterValues, Box<dyn Error>>
-    {
-        let mut allstorednodeexportervalues = AllStoredNodeExporterValues { stored_nodeexportervalues: Vec::new() };
-
-        let current_directory = env::current_dir()?;
-        let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number);
-
-        let nodeexporter_file = &current_snapshot_directory.join("nodeexporter");
-        let file = fs::File::open(nodeexporter_file)?;
-
-        let mut reader = csv::Reader::from_reader(file);
-        for  row in reader.deserialize() {
-            let data: StoredNodeExporterValues = row?;
-            allstorednodeexportervalues.stored_nodeexportervalues.push(data);
-        }
-
-        Ok(allstorednodeexportervalues)
-    }
-
-     */
     pub async fn read_nodeexporter(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize
-    ) -> AllStoredNodeExporterValues
+    ) -> AllNodeExporter
     {
         info!("begin parallel http read");
         let timer = Instant::now();
@@ -134,8 +47,10 @@ impl AllStoredNodeExporterValues {
                     let tx = tx.clone();
                     s.spawn(move |_| {
                         let detail_snapshot_time = Local::now();
-                        let node_exporter_values = AllStoredNodeExporterValues::read_http(host, port);
-                        tx.send((format!("{}:{}", host, port), detail_snapshot_time, node_exporter_values)).expect("error sending data via tx (node_exporter)");
+                        let mut nodeexporter = AllNodeExporter::read_http(host, port);
+                        nodeexporter.iter_mut().for_each(|r| r.timestamp = detail_snapshot_time);
+                        nodeexporter.iter_mut().for_each(|r| r.hostname_port = format!("{}:{}", host, port));
+                        tx.send(nodeexporter).expect("error sending data via tx");
                     });
                 }
             }
@@ -143,28 +58,34 @@ impl AllStoredNodeExporterValues {
 
         info!("end parallel http read {:?}", timer.elapsed());
 
-        //let mut allstorednodeexportervalues = AllStoredNodeExporterValues { stored_nodeexportervalues: Vec::new() };
-        let mut allstorednodeexportervalues = AllStoredNodeExporterValues::new();
-        for (hostname_port, _detail_snapshot_time, node_exporter_values) in rx {
-            AllStoredNodeExporterValues::add_to_vector(node_exporter_values, &hostname_port, &mut allstorednodeexportervalues);
+        let mut allnodeexporter = AllNodeExporter::new();
+        for nodeexporters in rx 
+        {
+            for nodeexporter in nodeexporters 
+            {
+                allnodeexporter.nodeexporter.push(nodeexporter);
+            }
         }
-        allstorednodeexportervalues
+        
+        allnodeexporter
     }
     pub fn read_http(
         host: &str,
         port: &str,
-    ) -> Vec<NodeExporterValues>
+    ) -> Vec<NodeExporter>
     {
         let data_from_http = utility::http_get(host, port, "metrics");
-        AllStoredNodeExporterValues::parse_nodeexporter(data_from_http)
+        AllNodeExporter::parse_nodeexporter(data_from_http)
     }
-    fn parse_nodeexporter( node_exporter_data: String ) -> Vec<NodeExporterValues>
+    fn parse_nodeexporter( 
+        node_exporter_data: String
+    ) -> Vec<NodeExporter>
     {
         // This is the actual parsing
         let node_exporter_rows = prometheus_parse::Scrape::parse(node_exporter_data.lines().map(|s| Ok(s.to_owned()))).unwrap();
 
         // post processing
-        let mut nodeexportervalues: Vec<NodeExporterValues> = Vec::new();
+        let mut nodeexporter = Vec::new();
         if !node_exporter_rows.samples.is_empty()
         {
             for sample in node_exporter_rows.samples
@@ -178,32 +99,34 @@ impl AllStoredNodeExporterValues {
                 } else {
                     label
                 };
-                // Insert the sample into the nodeexportervalues vector.
+                // Insert the sample into the nodeexporter vector.
                 // Currently, histogram and summary types are not used in YugabyteDB.
                 // YugabyteDB uses gauges and counters, but doesn't actually specify it.
                 // NodeExporter uses gauges, counters, untyped and one summary.
                 match sample.value {
                     Value::Counter(val) => {
-                        nodeexportervalues.push(
-                            NodeExporterValues {
-                                node_exporter_name: sample.metric.to_string(),
-                                node_exporter_type: "counter".to_string(),
-                                node_exporter_labels: label,
-                                node_exporter_category: "all".to_string(),
-                                node_exporter_timestamp: sample.timestamp,
-                                node_exporter_value: val,
+                        nodeexporter.push(
+                            NodeExporter {
+                                name: sample.metric.to_string(),
+                                exporter_type: "counter".to_string(),
+                                labels: label,
+                                category: "all".to_string(),
+                                exporter_timestamp: sample.timestamp,
+                                value: val,
+                                ..Default::default()
                             }
                         )
                     },
                     Value::Gauge(val) => {
-                        nodeexportervalues.push(
-                            NodeExporterValues {
-                                node_exporter_name: sample.metric.to_string(),
-                                node_exporter_type: "gauge".to_string(),
-                                node_exporter_labels: label,
-                                node_exporter_category: "all".to_string(),
-                                node_exporter_timestamp: sample.timestamp,
-                                node_exporter_value: val,
+                        nodeexporter.push(
+                            NodeExporter {
+                                name: sample.metric.to_string(),
+                                exporter_type: "gauge".to_string(),
+                                labels: label,
+                                category: "all".to_string(),
+                                exporter_timestamp: sample.timestamp,
+                                value: val,
+                                ..Default::default()
                             }
                         )
                     },
@@ -213,15 +136,15 @@ impl AllStoredNodeExporterValues {
                         if sample.metric.ends_with("_sum") || sample.metric.ends_with("_count") { continue };
                         // untyped: not sure what it is.
                         // I would say: probably a counter.
-                        nodeexportervalues.push(
-                            NodeExporterValues {
-                                node_exporter_name: sample.metric.to_string(),
-                                node_exporter_type: "counter".to_string(),
-                                node_exporter_labels: label,
-                                node_exporter_category: "all".to_string(),
-                                node_exporter_timestamp: sample.timestamp,
-                                node_exporter_value: val,
-
+                        nodeexporter.push(
+                            NodeExporter {
+                                name: sample.metric.to_string(),
+                                exporter_type: "counter".to_string(),
+                                labels: label,
+                                category: "all".to_string(),
+                                exporter_timestamp: sample.timestamp,
+                                value: val,
+                                ..Default::default()
                             }
                         )
                     },
@@ -229,114 +152,86 @@ impl AllStoredNodeExporterValues {
                     Value::Summary(_val) => {},
                 }
             }
-            nodeexporter_statistics_to_detail(&mut nodeexportervalues);
-            linux_dm_to_detail(&mut nodeexportervalues);
-            linux_softnet_sum(&mut nodeexportervalues);
-            linux_schedstat_sum(&mut nodeexportervalues);
-            linux_cpu_sum(&mut nodeexportervalues);
+            // post processing
+            nodeexporter_statistics_to_detail(&mut nodeexporter);
+            linux_dm_to_detail(&mut nodeexporter);
+            linux_softnet_sum(&mut nodeexporter);
+            linux_schedstat_sum(&mut nodeexporter);
+            linux_cpu_sum(&mut nodeexporter);
         }
-        nodeexportervalues
-    }
-    fn add_to_vector(
-        node_exporter_values: Vec<NodeExporterValues>,
-        hostname: &str,
-        allstorednodeexportervalues: &mut AllStoredNodeExporterValues,
-    )
-    {
-        for row in node_exporter_values {
-            if row.node_exporter_value > 0.0 {
-                allstorednodeexportervalues.stored_nodeexportervalues.push(
-                    StoredNodeExporterValues {
-                        hostname_port: hostname.to_string(),
-                        timestamp: DateTime::from(row.node_exporter_timestamp),
-                        node_exporter_name: row.node_exporter_name.to_string(),
-                        node_exporter_type: row.node_exporter_type.to_string(),
-                        node_exporter_labels: row.node_exporter_labels.to_string(),
-                        node_exporter_category: row.node_exporter_category.to_string(),
-                        node_exporter_value: row.node_exporter_value,
-                    }
-                );
-            }
-        }
+        nodeexporter
     }
 }
 
-
-impl SnapshotDiffBTreeMapNodeExporter {
+impl NodeExporterDiff {
+    pub fn new() -> Self {
+        Default::default()
+    }
     pub fn snapshot_diff (
         begin_snapshot: &String,
         end_snapshot: &String,
         begin_snapshot_time: &DateTime<Local>,
-    ) -> Result<SnapshotDiffBTreeMapNodeExporter>
+    ) -> Result<NodeExporterDiff>
     {
-        let mut allstorednodeexportervalues = AllStoredNodeExporterValues::new();
-        allstorednodeexportervalues.stored_nodeexportervalues = snapshot::read_snapshot(begin_snapshot, "nodeexporter")?;
+        let mut nodeexporterdiff = NodeExporterDiff::new();
 
-        let mut node_exporter_snapshot_diff = SnapshotDiffBTreeMapNodeExporter::new();
-        node_exporter_snapshot_diff.first_snapshot(allstorednodeexportervalues);
+        let mut allnodeexporter = AllNodeExporter::new();
+        allnodeexporter.nodeexporter = snapshot::read_snapshot_json(begin_snapshot, "nodeexporter")?;
+        nodeexporterdiff.first_snapshot(allnodeexporter);
 
-        let mut allstorednodeexportervalues = AllStoredNodeExporterValues::new();
-        allstorednodeexportervalues.stored_nodeexportervalues = snapshot::read_snapshot(end_snapshot, "nodeexporter")?;
+        let mut allnodeexporter = AllNodeExporter::new();
+        allnodeexporter.nodeexporter = snapshot::read_snapshot_json(end_snapshot, "nodeexporter")?;
+        nodeexporterdiff.second_snapshot(allnodeexporter, begin_snapshot_time);
 
-        node_exporter_snapshot_diff.second_snapshot(allstorednodeexportervalues, begin_snapshot_time);
-
-        Ok(node_exporter_snapshot_diff)
-    }
-    pub fn new() -> Self {
-        Default::default()
-    }
-    pub async fn adhoc_read_first_snapshot (
-        &mut self,
-        hosts: &Vec<&str>,
-        ports: &Vec<&str>,
-        parallel: usize,
-    )
-    {
-        let allstorednodeexportervalues = AllStoredNodeExporterValues::read_nodeexporter(hosts, ports, parallel).await;
-        self.first_snapshot(allstorednodeexportervalues);
+        Ok(nodeexporterdiff)
     }
     fn first_snapshot(
         &mut self,
-        allstorednodeexportervalues: AllStoredNodeExporterValues
+        allnodeexporter: AllNodeExporter,
     )
     {
-        for row in allstorednodeexportervalues.stored_nodeexportervalues {
-            self.btreemap_snapshotdiff_nodeexporter.insert(
-                (row.hostname_port.to_string(), format!("{}{}", row.node_exporter_name, row.node_exporter_labels)),
-                SnapshotDiffNodeExporter::first_snapshot(row)
-            );
+        for row in &allnodeexporter.nodeexporter
+        {
+            self.btreemapnodeexporterdiff
+                .entry((row.hostname_port.clone(), row.name.clone(), row.labels.clone()))
+                .and_modify(|_|
+                    error!("Duplicate combination of hostname_port: {}, name: {}, labels: {}",
+                       row.hostname_port,
+                       row.name.clone(),
+                       row.labels.clone(),
+                    )
+                )
+                .or_insert(NameCategoryDiff {
+                    first_snapshot_time: row.timestamp,
+                    exporter_type: row.exporter_type.clone(),
+                    category: row.category.clone(),
+                    first_value: row.value,
+                    ..Default::default()
+                });
         }
-    }
-    pub async fn adhoc_read_second_snapshot(
-        &mut self,
-        hosts: &Vec<&str>,
-        ports: &Vec<&str>,
-        parallel: usize,
-        first_snapshot_time: &DateTime<Local>,
-    )
-    {
-        let allstorednodeexporter = AllStoredNodeExporterValues::read_nodeexporter(hosts, ports, parallel).await;
-        self.second_snapshot(allstorednodeexporter, first_snapshot_time);
     }
     fn second_snapshot(
         &mut self,
-        allstorednodeexporter: AllStoredNodeExporterValues,
+        allnodeexporter: AllNodeExporter,
         first_snapshot_time: &DateTime<Local>,
     )
     {
-        for row in allstorednodeexporter.stored_nodeexportervalues {
-            match self.btreemap_snapshotdiff_nodeexporter.get_mut( &(row.hostname_port.to_string(), format!("{}{}",row.node_exporter_name, row.node_exporter_labels)) )
-            {
-                Some(nodeexporter_diff_row) => {
-                   *nodeexporter_diff_row =  SnapshotDiffNodeExporter::second_snapshot_existing(row, nodeexporter_diff_row)
-                },
-                None => {
-                    self.btreemap_snapshotdiff_nodeexporter.insert(
-                        (row.hostname_port.to_string(), format!("{}{}", row.node_exporter_name, row.node_exporter_labels)),
-                        SnapshotDiffNodeExporter::second_snapshot_new(row, *first_snapshot_time)
-                    );
-                },
-            }
+        for row in &allnodeexporter.nodeexporter
+        {
+            self.btreemapnodeexporterdiff
+                .entry((row.hostname_port.clone(), row.name.clone(), row.labels.clone()))
+                .and_modify( |namecategorydiff| {
+                    namecategorydiff.second_snapshot_time = row.timestamp;
+                    namecategorydiff.second_value = row.value;
+                })
+                .or_insert( NameCategoryDiff {
+                    first_snapshot_time: *first_snapshot_time,
+                    second_snapshot_time: row.timestamp,
+                    exporter_type: row.exporter_type.clone(),
+                    category: row.category.clone(),
+                    second_value: row.value,
+                    ..Default::default()
+                });
         }
     }
     pub fn print(
@@ -347,117 +242,143 @@ impl SnapshotDiffBTreeMapNodeExporter {
         details_enable: &bool,
     )
     {
-        for ((hostname, nodeexporter_name), nodeexporter_row) in &self.btreemap_snapshotdiff_nodeexporter {
-            if hostname_filter.is_match(hostname)
-                && stat_name_filter.is_match(nodeexporter_name)
-                && nodeexporter_row.second_value - nodeexporter_row.first_value != 0.0
-                && nodeexporter_row.node_exporter_type == "counter" {
-                if *details_enable && nodeexporter_row.category == "summary" { continue };
-                if ! *details_enable && nodeexporter_row.category == "detail" { continue };
+        for ((hostname_port, name, category), diff_row) in &self.btreemapnodeexporterdiff {
+            if hostname_filter.is_match(hostname_port)
+                && stat_name_filter.is_match(name)
+                && diff_row.second_value - diff_row.first_value != 0.0
+                && diff_row.exporter_type == "counter"
+            {
+                if *details_enable && category == "summary" { continue };
+                if ! *details_enable && diff_row.category == "detail" { continue };
                 println!("{:20} {:8} {:73} {:19.6} {:15.3} /s",
-                         hostname,
-                         nodeexporter_row.node_exporter_type,
-                         nodeexporter_name,
-                         nodeexporter_row.second_value - nodeexporter_row.first_value,
-                         (nodeexporter_row.second_value - nodeexporter_row.first_value) / (nodeexporter_row.second_snapshot_time - nodeexporter_row.first_snapshot_time).num_seconds() as f64,
+                         hostname_port,
+                         diff_row.exporter_type,
+                         name,
+                         diff_row.second_value - diff_row.first_value,
+                         (diff_row.second_value - diff_row.first_value) / (diff_row.second_snapshot_time - diff_row.first_snapshot_time).num_seconds() as f64,
                 );
             }
-            if hostname_filter.is_match(hostname)
-                && stat_name_filter.is_match(nodeexporter_name)
-                && nodeexporter_row.node_exporter_type == "gauge"
-                && *gauges_enable {
-                if *details_enable && nodeexporter_row.category == "summary" { continue };
-                if ! *details_enable && nodeexporter_row.category == "detail" { continue };
+            if hostname_filter.is_match(hostname_port)
+                && stat_name_filter.is_match(hostname_port)
+                && diff_row.exporter_type == "gauge"
+                && *gauges_enable
+            {
+                if *details_enable && category == "summary" { continue };
+                if ! *details_enable && diff_row.category == "detail" { continue };
                 println!("{:20} {:8} {:73} {:19.6} {:+15}",
-                         hostname,
-                         nodeexporter_row.node_exporter_type,
-                         nodeexporter_name,
-                         nodeexporter_row.second_value,
-                         nodeexporter_row.second_value - nodeexporter_row.first_value
+                         hostname_port,
+                         diff_row.exporter_type,
+                         name,
+                         diff_row.second_value,
+                         diff_row.second_value - diff_row.first_value
                 );
             }
         }
     }
+    pub async fn adhoc_read_first_snapshot (
+        &mut self,
+        hosts: &Vec<&str>,
+        ports: &Vec<&str>,
+        parallel: usize,
+    )
+    {
+        let allnodeexporter = AllNodeExporter::read_nodeexporter(hosts, ports, parallel).await;
+        self.first_snapshot(allnodeexporter);
+    }
+    pub async fn adhoc_read_second_snapshot(
+        &mut self,
+        hosts: &Vec<&str>,
+        ports: &Vec<&str>,
+        parallel: usize,
+        first_snapshot_time: &DateTime<Local>,
+    )
+    {
+        let allnodeexporter = AllNodeExporter::read_nodeexporter(hosts, ports, parallel).await;
+        self.second_snapshot(allnodeexporter, &first_snapshot_time);
+    }
 }
 
-fn nodeexporter_statistics_to_detail(nodeexportervalues: &mut [NodeExporterValues])
+fn nodeexporter_statistics_to_detail(nodeexporter: &mut [NodeExporter])
 {
     // anything that starts with process_ is node_exporter process
-    for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name.starts_with("process_")) {
-        record.node_exporter_category = "detail".to_string();
+    for record in nodeexporter.iter_mut().filter(|r| r.name.starts_with("process_")) {
+        record.category = "detail".to_string();
     }
     // anything that start with promhttp_ is the node_exporter http server
-    for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name.starts_with("promhttp_")) {
-        record.node_exporter_category = "detail".to_string();
+    for record in nodeexporter.iter_mut().filter(|r| r.name.starts_with("promhttp_")) {
+        record.category = "detail".to_string();
     }
     // anything that starts with go_ are statistics about the node_exporter process
-    for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name.starts_with("go_")) {
-        record.node_exporter_category = "detail".to_string();
+    for record in nodeexporter.iter_mut().filter(|r| r.name.starts_with("go_")) {
+        record.category = "detail".to_string();
     }
     // anything that starts with node_scrape_collector is about the node_exporter scraper
-    for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name.starts_with("node_scrape_collector_")) {
-        record.node_exporter_category = "detail".to_string();
+    for record in nodeexporter.iter_mut().filter(|r| r.name.starts_with("node_scrape_collector_")) {
+        record.category = "detail".to_string();
     }
     // any record that contains a label that contains 'dm-' is a specification of a block device, and not the block device itself
-    for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_labels.contains("dm-")) {
-        record.node_exporter_category = "detail".to_string();
+    for record in nodeexporter.iter_mut().filter(|r| r.name.contains("dm-")) {
+        record.category = "detail".to_string();
     }
 }
 
-fn linux_dm_to_detail(nodeexportervalues: &mut [NodeExporterValues])
+fn linux_dm_to_detail(nodeexporter: &mut [NodeExporter])
 {
     // any record that contains a label that contains 'dm-' is a specification of a block device, and not the block device itself
-    for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_labels.contains("dm-")) {
-        record.node_exporter_category = "detail".to_string();
+    for record in nodeexporter.iter_mut().filter(|r| r.labels.contains("dm-")) {
+        record.category = "detail".to_string();
     }
 }
 
-fn linux_softnet_sum(nodeexportervalues: &mut Vec<NodeExporterValues>)
+fn linux_softnet_sum(nodeexporter: &mut Vec<NodeExporter>)
 {
     // softnet: node_softnet_processed_total
-    if nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_processed_total").count() > 0 {
+    if nodeexporter.iter().filter(|r| r.name == "node_softnet_processed_total").count() > 0 {
         // make current records detail records
-        for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_softnet_processed_total") {
-            record.node_exporter_category = "detail".to_string();
+        for record in nodeexporter.iter_mut().filter(|r| r.name == "node_softnet_processed_total") {
+            record.category = "detail".to_string();
         }
         // add a summary record
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_softnet_processed_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_processed_total").map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_processed_total").map(|x| x.node_exporter_value).sum(),
+        nodeexporter.push(NodeExporter{
+            name: "node_softnet_processed_total".to_string(),
+            exporter_type: "counter".to_string(),
+            labels: "".to_string(),
+            category: "summary".to_string(),
+            exporter_timestamp: nodeexporter.iter().filter(|r| r.name == "node_softnet_processed_total").map(|x| x.exporter_timestamp).min().unwrap(),
+            value: nodeexporter.iter().filter(|r| r.name == "node_softnet_processed_total").map(|x| x.value).sum(),
+            ..Default::default()
         });
     }
     // softnet: node_softnet_dropped_total
-    if nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_dropped_total").count() > 0 {
+    if nodeexporter.iter().filter(|r| r.name == "node_softnet_dropped_total").count() > 0 {
         // make current records detail records
-        for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_softnet_dropped_total") {
-            record.node_exporter_category = "detail".to_string();
+        for record in nodeexporter.iter_mut().filter(|r| r.name == "node_softnet_dropped_total") {
+            record.category = "detail".to_string();
         }
         // add a summary record
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_softnet_dropped_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_dropped_total").map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_dropped_total").map(|x| x.node_exporter_value).sum(),
+        nodeexporter.push(NodeExporter {
+            name: "node_softnet_dropped_total".to_string(),
+            exporter_type: "counter".to_string(),
+            labels: "".to_string(),
+            category: "summary".to_string(),
+            exporter_timestamp: nodeexporter.iter().filter(|r| r.name == "node_softnet_dropped_total").map(|x| x.exporter_timestamp).min().unwrap(),
+            value: nodeexporter.iter().filter(|r| r.name == "node_softnet_dropped_total").map(|x| x.value).sum(),
+            ..Default::default()
         });
     }
     // softnet: node_softnet_times_squeezed_total
-    if nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_times_squeezed_total").count() > 0 {
-        for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_softnet_times_squeezed_total") {
-            record.node_exporter_category = "detail".to_string();
+    if nodeexporter.iter().filter(|r| r.name == "node_softnet_times_squeezed_total").count() > 0 {
+        for record in nodeexporter.iter_mut().filter(|r| r.name == "node_softnet_times_squeezed_total") {
+            record.category = "detail".to_string();
         }
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_softnet_times_squeezed_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_times_squeezed_total").map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_softnet_times_squeezed_total").map(|x| x.node_exporter_value).sum(),
+        nodeexporter.push(NodeExporter {
+            name: "node_softnet_times_squeezed_total".to_string(),
+            exporter_type: "counter".to_string(),
+            labels: "".to_string(),
+            category: "summary".to_string(),
+            exporter_timestamp: nodeexporter.iter().filter(|r| r.name == "node_softnet_times_squeezed_total").map(|x| x.exporter_timestamp).min().unwrap(),
+            value: nodeexporter.iter().filter(|r| r.name == "node_softnet_times_squeezed_total").map(|x| x.value).sum(),
+            ..Default::default()
         });
     }
 }
@@ -471,48 +392,51 @@ fn linux_softnet_sum(nodeexportervalues: &mut Vec<NodeExporterValues>)
 /// - schedstat_timeslices (the number of timeslices executed)
 /// The original values are kept, but put in category 'detail'.
 /// The summarized values are put in a category 'summary'.
-fn linux_schedstat_sum(nodeexportervalues: &mut Vec<NodeExporterValues>)
+fn linux_schedstat_sum(nodeexporter: &mut Vec<NodeExporter>)
 {
     // schedstat: node_schedstat_waiting_seconds
-    if nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_waiting_seconds_total").count() > 0 {
-        for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_schedstat_waiting_seconds_total") {
-            record.node_exporter_category = "detail".to_string();
+    if nodeexporter.iter().filter(|r| r.name == "node_schedstat_waiting_seconds_total").count() > 0 {
+        for record in nodeexporter.iter_mut().filter(|r| r.name == "node_schedstat_waiting_seconds_total") {
+            record.category = "detail".to_string();
         }
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_schedstat_waiting_seconds_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_waiting_seconds_total").map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_waiting_seconds_total").map(|x| x.node_exporter_value).sum(),
+        nodeexporter.push(NodeExporter {
+            name: "node_schedstat_waiting_seconds_total".to_string(),
+            exporter_type: "counter".to_string(),
+            labels: "".to_string(),
+            category: "summary".to_string(),
+            exporter_timestamp: nodeexporter.iter().filter(|r| r.name == "node_schedstat_waiting_seconds_total").map(|x| x.exporter_timestamp).min().unwrap(),
+            value: nodeexporter.iter().filter(|r| r.name == "node_schedstat_waiting_seconds_total").map(|x| x.value).sum(),
+            ..Default::default()
         });
     }
     // schedstat: node_schedstat_timeslices
-    if nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_timeslices_total").count() > 0 {
-        for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_schedstat_timeslices_total") {
-            record.node_exporter_category = "detail".to_string();
+    if nodeexporter.iter().filter(|r| r.name == "node_schedstat_timeslices_total").count() > 0 {
+        for record in nodeexporter.iter_mut().filter(|r| r.name == "node_schedstat_timeslices_total") {
+            record.category = "detail".to_string();
         }
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_schedstat_timeslices_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_timeslices_total").map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_timeslices_total").map(|x| x.node_exporter_value).sum(),
+        nodeexporter.push(NodeExporter {
+            name: "node_schedstat_timeslices_total".to_string(),
+            exporter_type: "counter".to_string(),
+            labels: "".to_string(),
+            category: "summary".to_string(),
+            exporter_timestamp: nodeexporter.iter().filter(|r| r.name == "node_schedstat_timeslices_total").map(|x| x.exporter_timestamp).min().unwrap(),
+            value: nodeexporter.iter().filter(|r| r.name == "node_schedstat_timeslices_total").map(|x| x.value).sum(),
+            ..Default::default()
         });
     }
     // schedstat: node_schedstat_running_seconds
-    if nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_running_seconds_total").count() > 0 {
-        for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_schedstat_running_seconds_total") {
-            record.node_exporter_category = "detail".to_string();
+    if nodeexporter.iter().filter(|r| r.name == "node_schedstat_running_seconds_total").count() > 0 {
+        for record in nodeexporter.iter_mut().filter(|r| r.name == "node_schedstat_running_seconds_total") {
+            record.category = "detail".to_string();
         }
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_schedstat_running_seconds_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_running_seconds_total").map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_schedstat_running_seconds_total").map(|x| x.node_exporter_value).sum(),
+        nodeexporter.push(NodeExporter {
+            name: "node_schedstat_running_seconds_total".to_string(),
+            exporter_type: "counter".to_string(),
+            labels: "".to_string(),
+            category: "summary".to_string(),
+            exporter_timestamp: nodeexporter.iter().filter(|r| r.name == "node_schedstat_running_seconds_total").map(|x| x.exporter_timestamp).min().unwrap(),
+            value: nodeexporter.iter().filter(|r| r.name == "node_schedstat_running_seconds_total").map(|x| x.value).sum(),
+            ..Default::default()
         });
     }
 }
@@ -534,77 +458,85 @@ fn linux_schedstat_sum(nodeexportervalues: &mut Vec<NodeExporterValues>)
 /// The original values are kept, but put in category 'detail'.
 /// The summarized values are put in a category 'summary'.
 /// TBD: category node_cpu_guest_seconds
-fn linux_cpu_sum(nodeexportervalues: &mut Vec<NodeExporterValues>)
+fn linux_cpu_sum(nodeexporter: &mut Vec<NodeExporter>)
 {
     // cpu_seconds_total:
-    if nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").count() > 0 {
-        for record in nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == "node_cpu_seconds_total") {
-            record.node_exporter_category = "detail".to_string();
+    if nodeexporter.iter().filter(|r| r.name == "node_cpu_seconds_total").count() > 0 {
+        for record in nodeexporter.iter_mut().filter(|r| r.name == "node_cpu_seconds_total") {
+            record.category = "detail".to_string();
         }
         // idle
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_cpu_seconds_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "_idle".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("idle")).map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("idle")).map(|x| x.node_exporter_value).sum(),
+        nodeexporter.push(NodeExporter {
+            name: "node_cpu_seconds_total".to_string(),
+            exporter_type: "counter".to_string(),
+            labels: "_idle".to_string(),
+            category: "summary".to_string(),
+            exporter_timestamp: nodeexporter.iter().filter(|r| r.name == "node_cpu_seconds_total").filter(|r| r.labels.contains("idle")).map(|x| x.exporter_timestamp).min().unwrap(),
+            value: nodeexporter.iter().filter(|r| r.name == "node_cpu_seconds_total").filter(|r| r.labels.contains("idle")).map(|x| x.value).sum(),
+            ..Default::default()
         });
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_cpu_seconds_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "_irq".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("_irq")).map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("_irq")).map(|x| x.node_exporter_value).sum(),
+        nodeexporter.push(NodeExporter {
+            name: "node_cpu_seconds_total".to_string(),
+            exporter_type: "counter".to_string(),
+            labels: "_irq".to_string(),
+            category: "summary".to_string(),
+            exporter_timestamp: nodeexporter.iter().filter(|r| r.name == "node_cpu_seconds_total").filter(|r| r.labels.contains("_irq")).map(|x| x.exporter_timestamp).min().unwrap(),
+            value: nodeexporter.iter().filter(|r| r.name == "node_cpu_seconds_total").filter(|r| r.labels.contains("_irq")).map(|x| x.value).sum(),
+            ..Default::default()
         });
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_cpu_seconds_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "_softirq".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("_softirq")).map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("_softirq")).map(|x| x.node_exporter_value).sum(),
+        nodeexporter.push(NodeExporter {
+            name: "node_cpu_seconds_total".to_string(),
+            exporter_type: "counter".to_string(),
+            labels: "_softirq".to_string(),
+            category: "summary".to_string(),
+            exporter_timestamp: nodeexporter.iter().filter(|r| r.name == "node_cpu_seconds_total").filter(|r| r.labels.contains("_softirq")).map(|x| x.exporter_timestamp).min().unwrap(),
+            value: nodeexporter.iter().filter(|r| r.name == "node_cpu_seconds_total").filter(|r| r.labels.contains("_softirq")).map(|x| x.value).sum(),
+            ..Default::default()
         });
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_cpu_seconds_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "_system".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("system")).map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("system")).map(|x| x.node_exporter_value).sum(),
+        nodeexporter.push(NodeExporter {
+            name: "node_cpu_seconds_total".to_string(),
+            exporter_type: "counter".to_string(),
+            labels: "_system".to_string(),
+            category: "summary".to_string(),
+            exporter_timestamp: nodeexporter.iter().filter(|r| r.name == "node_cpu_seconds_total").filter(|r| r.labels.contains("system")).map(|x| x.exporter_timestamp).min().unwrap(),
+            value: nodeexporter.iter().filter(|r| r.name == "node_cpu_seconds_total").filter(|r| r.labels.contains("system")).map(|x| x.value).sum(),
+            ..Default::default()
         });
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_cpu_seconds_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "_user".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("user")).map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("user")).map(|x| x.node_exporter_value).sum(),
+        nodeexporter.push(NodeExporter {
+            name: "node_cpu_seconds_total".to_string(),
+            exporter_type: "counter".to_string(),
+            labels: "_user".to_string(),
+            category: "summary".to_string(),
+            exporter_timestamp: nodeexporter.iter().filter(|r| r.name == "node_cpu_seconds_total").filter(|r| r.labels.contains("user")).map(|x| x.exporter_timestamp).min().unwrap(),
+            value: nodeexporter.iter().filter(|r| r.name == "node_cpu_seconds_total").filter(|r| r.labels.contains("user")).map(|x| x.value).sum(),
+            ..Default::default()
         });
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_cpu_seconds_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "_iowait".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("iowait")).map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("iowait")).map(|x| x.node_exporter_value).sum(),
+        nodeexporter.push(NodeExporter {
+            name: "node_cpu_seconds_total".to_string(),
+            exporter_type: "counter".to_string(),
+            labels: "_iowait".to_string(),
+            category: "summary".to_string(),
+            exporter_timestamp: nodeexporter.iter().filter(|r| r.name == "node_cpu_seconds_total").filter(|r| r.labels.contains("iowait")).map(|x| x.exporter_timestamp).min().unwrap(),
+            value: nodeexporter.iter().filter(|r| r.name == "node_cpu_seconds_total").filter(|r| r.labels.contains("iowait")).map(|x| x.value).sum(),
+            ..Default::default()
         });
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_cpu_seconds_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "_nice".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("nice")).map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("nice")).map(|x| x.node_exporter_value).sum(),
+        nodeexporter.push(NodeExporter {
+            name: "node_cpu_seconds_total".to_string(),
+            exporter_type: "counter".to_string(),
+            labels: "_nice".to_string(),
+            category: "summary".to_string(),
+            exporter_timestamp: nodeexporter.iter().filter(|r| r.name == "node_cpu_seconds_total").filter(|r| r.labels.contains("nice")).map(|x| x.exporter_timestamp).min().unwrap(),
+            value: nodeexporter.iter().filter(|r| r.name == "node_cpu_seconds_total").filter(|r| r.labels.contains("nice")).map(|x| x.value).sum(),
+            ..Default::default()
         });
-        nodeexportervalues.push(NodeExporterValues {
-            node_exporter_name: "node_cpu_seconds_total".to_string(),
-            node_exporter_type: "counter".to_string(),
-            node_exporter_labels: "_steal".to_string(),
-            node_exporter_category: "summary".to_string(),
-            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("steal")).map(|x| x.node_exporter_timestamp).min().unwrap(),
-            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == "node_cpu_seconds_total").filter(|r| r.node_exporter_labels.contains("steal")).map(|x| x.node_exporter_value).sum(),
+        nodeexporter.push(NodeExporter {
+            name: "node_cpu_seconds_total".to_string(),
+            exporter_type: "counter".to_string(),
+            labels: "_steal".to_string(),
+            category: "summary".to_string(),
+            exporter_timestamp: nodeexporter.iter().filter(|r| r.name == "node_cpu_seconds_total").filter(|r| r.labels.contains("steal")).map(|x| x.exporter_timestamp).min().unwrap(),
+            value: nodeexporter.iter().filter(|r| r.name == "node_cpu_seconds_total").filter(|r| r.labels.contains("steal")).map(|x| x.value).sum(),
+            ..Default::default()
         });
     }
 }
@@ -612,7 +544,6 @@ fn linux_cpu_sum(nodeexportervalues: &mut Vec<NodeExporterValues>)
 #[cfg(test)]
 mod tests {
     use super::*;
-    //use crate::utility_test::*;
 
     #[test]
     fn unit_parse_node_exporter_non_prometheus_data() {
@@ -640,7 +571,7 @@ mod tests {
                 "value": 0
             },
         "#.to_string();
-        let result = AllStoredNodeExporterValues::parse_nodeexporter(fake_http_data);
+        let result = AllNodeExporter::parse_nodeexporter(fake_http_data);
         assert_eq!(result.len(), 0);
     }
 
@@ -651,9 +582,9 @@ mod tests {
         # TYPE go_memstats_gc_cpu_fraction gauge
         go_memstats_gc_cpu_fraction 2.4938682471175543e-06
         "#.to_string();
-        let result = AllStoredNodeExporterValues::parse_nodeexporter(fake_http_data);
-        assert_eq!(&result[0].node_exporter_name, "go_memstats_gc_cpu_fraction");
-        assert_eq!(result[0].node_exporter_value, 2.4938682471175543e-6);
+        let result = AllNodeExporter::parse_nodeexporter(fake_http_data);
+        assert_eq!(&result[0].name, "go_memstats_gc_cpu_fraction");
+        assert_eq!(result[0].value, 2.4938682471175543e-6);
     }
 
     #[test]
@@ -665,9 +596,9 @@ mod tests {
         node_network_transmit_packets_total{device="eth1"} 2716
         node_network_transmit_packets_total{device="lo"} 7085
         "#.to_string();
-        let result = AllStoredNodeExporterValues::parse_nodeexporter(fake_http_data);
-        assert_eq!(&result[0].node_exporter_name, "node_network_transmit_packets_total");
-        assert_eq!(result[0].node_exporter_value, 680.0);
+        let result = AllNodeExporter::parse_nodeexporter(fake_http_data);
+        assert_eq!(&result[0].name, "node_network_transmit_packets_total");
+        assert_eq!(result[0].value, 680.0);
     }
 
     #[test]
@@ -677,9 +608,9 @@ mod tests {
         # TYPE node_vmstat_pgfault untyped
         node_vmstat_pgfault 718165
         "#.to_string();
-        let result = AllStoredNodeExporterValues::parse_nodeexporter(fake_http_data);
-        assert_eq!(&result[0].node_exporter_name, "node_vmstat_pgfault");
-        assert_eq!(result[0].node_exporter_value, 718165.0);
+        let result = AllNodeExporter::parse_nodeexporter(fake_http_data);
+        assert_eq!(&result[0].name, "node_vmstat_pgfault");
+        assert_eq!(result[0].value, 718165.0);
     }
 
     #[test]
@@ -695,7 +626,7 @@ mod tests {
         go_gc_duration_seconds_sum 0.000609084
         go_gc_duration_seconds_count 11
         "#.to_string();
-        let result = AllStoredNodeExporterValues::parse_nodeexporter(fake_http_data);
+        let result = AllNodeExporter::parse_nodeexporter(fake_http_data);
         assert_eq!(result.len(), 0);
     }
 
@@ -722,7 +653,7 @@ request_duration_bucket{le="+Inf",} 3.0
 request_duration_count 3.0
 request_duration_sum 22.978489699999997
         "#.to_string();
-        let result = AllStoredNodeExporterValues::parse_nodeexporter(fake_http_data);
+        let result = AllNodeExporter::parse_nodeexporter(fake_http_data);
         assert_eq!(result.len(), 0);
     }
 
@@ -735,15 +666,8 @@ request_duration_sum 22.978489699999997
         }
         let port = utility::get_port_node_exporter();
 
-        let allstorednodeexportervalues = AllStoredNodeExporterValues::read_nodeexporter(&vec![&hostname], &vec![&port], 1).await;
+        let allnodeexporter = AllNodeExporter::read_nodeexporter(&vec![&hostname], &vec![&port], 1).await;
 
-        /*
-        let mut allstorednodeexportervalues = AllStoredNodeExporterValues { stored_nodeexportervalues: Vec::new() };
-        let node_exporter_values = AllStoredNodeExporterValues::read_http(hostname.as_str(), port.as_str());
-        AllStoredNodeExporterValues::add_to_vector(node_exporter_values, format!("{}:{}",hostname, port).as_ref(), &mut allstorednodeexportervalues);
-        // a node exporter endpoint will generate entries in the stored_nodeexportervalues vector.
-
-         */
-        assert!(!allstorednodeexportervalues.stored_nodeexportervalues.is_empty());
+        assert!(!allnodeexporter.nodeexporter.is_empty());
     }
 }

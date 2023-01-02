@@ -52,7 +52,6 @@ impl AllClocks {
                         let mut clocks = AllClocks::read_http(host, port);
                         clocks.iter_mut().for_each(|r| r.timestamp = Some(detail_snapshot_time));
                         clocks.iter_mut().for_each(|r| r.hostname_port = Some(format!("{}:{}", host, port)));
-                        //clocks.hostname_port = Some(format!("{}:{}"), host, port));
                         tx.send(clocks).expect("error sending data via tx");
                     });
                 }

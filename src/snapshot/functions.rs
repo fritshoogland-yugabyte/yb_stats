@@ -275,7 +275,7 @@ pub async fn perform_snapshot(
     let arc_hosts_clone = arc_hosts.clone();
     let arc_ports_clone = arc_ports.clone();
     let handle = tokio::spawn(async move {
-        statements::AllStoredStatements::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
+        statements::AllStatements::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
     });
     handles.push(handle);
 
@@ -433,7 +433,7 @@ pub async fn snapshot_diff(
     let metrics_diff = metrics::SnapshotDiffBTreeMapsMetrics::snapshot_diff(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp)?;
     metrics_diff.print(&hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable).await;
 
-    let statements_diff = statements::SnapshotDiffBTreeMapStatements::snapshot_diff(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp)?;
+    let statements_diff = statements::StatementsDiff::snapshot_diff(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp)?;
     statements_diff.print(&hostname_filter, options.sql_length).await;
 
     let nodeexporter_diff = node_exporter::NodeExporterDiff::snapshot_diff(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp)?;
@@ -481,7 +481,7 @@ pub async fn adhoc_metrics_diff(
     let first_snapshot_time = Local::now();
 
     let metrics = Arc::new(Mutex::new(metrics::SnapshotDiffBTreeMapsMetrics::new()));
-    let statements = Arc::new(Mutex::new(statements::SnapshotDiffBTreeMapStatements::new()));
+    let statements = Arc::new(Mutex::new(statements::StatementsDiff::new()));
     let node_exporter = Arc::new(Mutex::new(node_exporter::NodeExporterDiff::new()));
 
     let hosts = Arc::new(Mutex::new(hosts));
@@ -592,7 +592,7 @@ pub async fn adhoc_diff(
     let first_snapshot_time = Local::now();
 
     let metrics = Arc::new(Mutex::new(metrics::SnapshotDiffBTreeMapsMetrics::new()));
-    let statements = Arc::new(Mutex::new(statements::SnapshotDiffBTreeMapStatements::new()));
+    let statements = Arc::new(Mutex::new(statements::StatementsDiff::new()));
     let node_exporter = Arc::new(Mutex::new(node_exporter::NodeExporterDiff::new()));
     let entities = Arc::new(Mutex::new(entities::EntitiesDiff::new()));
     let masters = Arc::new(Mutex::new(masters::MastersDiff::new()));

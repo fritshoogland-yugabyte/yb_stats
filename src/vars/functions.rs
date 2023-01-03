@@ -1,18 +1,18 @@
-//! Module for reading the /api/v1/varz output for the master and tablet server.
+//! The impls and functions
 //!
-use chrono::{DateTime, Local};
+use chrono::Local;
 use regex::Regex;
-use std::{sync::mpsc::channel, time::Instant, collections::BTreeMap};
-//use serde_derive::{Serialize,Deserialize};
+use std::{sync::mpsc::channel, time::Instant};
 use log::*;
 use colored::*;
 use anyhow::Result;
 use crate::utility;
 use crate::snapshot;
-use crate::vars::{AllVars, AllStoredVars, StoredVars};
+use crate::vars::{AllVars, Vars, VarsDiff, VarsDiffFields};
 use crate::Opts;
 
-impl AllStoredVars {
+impl AllVars {
+    pub fn new() -> Self { Default::default() }
     pub async fn perform_snapshot(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
@@ -23,20 +23,17 @@ impl AllStoredVars {
         info!("begin snapshot");
         let timer = Instant::now();
 
-        let allvars = AllStoredVars::read_vars(hosts, ports, parallel).await;
-        snapshot::save_snapshot(snapshot_number, "vars", allvars.stored_vars)?;
+        let allvars = AllVars::read_vars(hosts, ports, parallel).await;
+        snapshot::save_snapshot_json(snapshot_number, "vars", allvars.vars)?;
 
         info!("end snapshot: {:?}", timer.elapsed());
         Ok(())
-    }
-    pub fn new() -> Self {
-        Default::default()
     }
     pub async fn read_vars(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize,
-    ) -> AllStoredVars
+    ) -> AllVars
     {
         info!("begin parallel http read");
         let timer = Instant::now();
@@ -49,8 +46,10 @@ impl AllStoredVars {
                     let tx = tx.clone();
                     s.spawn(move |_| {
                         let detail_snapshot_time = Local::now();
-                        let vars = AllStoredVars::read_http(host, port);
-                        tx.send((format!("{}:{}", host, port), detail_snapshot_time, vars)).expect("error sending data via tx");
+                        let mut vars = AllVars::read_http(host, port);
+                        vars.timestamp = Some(detail_snapshot_time);
+                        vars.hostname_port = Some(format!("{}:{}", host, port));
+                        tx.send(vars).expect("error sending data via tx");
                     });
                 }
             }
@@ -58,49 +57,33 @@ impl AllStoredVars {
 
         info!("end parallel http read {:?}", timer.elapsed());
 
-        let mut allstoredvars = AllStoredVars::new();
+        let mut allvars = AllVars::new();
 
-        for (hostname_port, detail_snapshot_time, vars) in rx {
-            allstoredvars.split_into_vectors(vars, &hostname_port, detail_snapshot_time);
+        for vars in rx
+        {
+            allvars.vars.push(vars);
         }
 
-        allstoredvars
-    }
-    fn split_into_vectors(
-        &mut self,
-        allvars: AllVars,
-        hostname_port: &str,
-        detail_snapshot_time: DateTime<Local>,
-    )
-    {
-        for var in allvars.flags {
-            self.stored_vars.push( StoredVars {
-                hostname_port: hostname_port.to_string(),
-                timestamp: detail_snapshot_time,
-                name: var.name.to_string(),
-                value: var.value.to_string(),
-                vars_type: var.vars_type.to_string(),
-            });
-        }
+        allvars
     }
     pub fn read_http(
         host: &str,
         port: &str,
-    ) -> AllVars
+    ) -> Vars
     {
         let data_from_http = utility::http_get(host, port, "api/v1/varz");
-        AllStoredVars::parse_vars(data_from_http, host, port)
+        AllVars::parse_vars(data_from_http, host, port)
     }
     fn parse_vars(
-        vars_data: String,
+        http_data: String,
         host: &str,
         port: &str,
-    ) -> AllVars
+    ) -> Vars
     {
-        serde_json::from_str( &vars_data )
+        serde_json::from_str( &http_data )
             .unwrap_or_else( |e| {
                 debug!("({}:{}) could not parse /api/v1/varz json data for varz, error: {}", host, port, e);
-                AllVars { flags: Vec::new() }
+                Vars::default()
             })
     }
     pub async fn print(
@@ -110,133 +93,90 @@ impl AllStoredVars {
         stat_name_filter: &Regex,
     )
     {
-        info!("print vars");
-
-        for row in self.stored_vars.iter() {
-            if hostname_filter.is_match(&row.hostname_port.clone())
-                && stat_name_filter.is_match( &row.name.clone())
+        for host_entry in self.vars.iter()
+        {
+            if hostname_filter.is_match(&host_entry.hostname_port.clone().expect("hostname:port should be set"))
             {
-                if row.vars_type == *"Default" && ! *details_enable {
-                    continue;
+                for flag in &host_entry.flags
+                {
+                    if stat_name_filter.is_match(&flag.name) {
+                        if flag.vars_type == *"Default"
+                            && !*details_enable
+                        {
+                            continue;
+                        };
+                        println!("{:20} {:50} {:40} {}",
+                                 &host_entry.hostname_port.clone().expect("hostname:port should be set"),
+                                 flag.name,
+                                 flag.value,
+                                 flag.vars_type
+                        );
+                    }
                 };
-                println!("{:20} {:50} {:40} {}", row.hostname_port, row.name, row.value, row.vars_type);
             };
         };
     }
 }
 
-#[derive(Debug)]
-pub struct SnapshotDiffStoredVars {
-    pub first_value: String,
-    pub first_vars_type: String,
-    pub second_value: String,
-    pub second_vars_type: String,
-}
-
-impl SnapshotDiffStoredVars {
-    fn first_snapshot( storedvars: StoredVars ) -> Self
-    {
-        Self
-        {
-            first_value: storedvars.value.to_string(),
-            first_vars_type: storedvars.vars_type,
-            second_value: "".to_string(),
-            second_vars_type: "".to_string(),
-        }
-    }
-    fn second_snapshot_new( storedvars: StoredVars ) -> Self
-    {
-        Self
-        {
-            first_value: "".to_string(),
-            first_vars_type: "".to_string(),
-            second_value: storedvars.value.to_string(),
-            second_vars_type: storedvars.vars_type,
-        }
-    }
-    fn second_snapshot_existing( storedvars_diff_row: &mut SnapshotDiffStoredVars, storedvars: StoredVars ) -> Self
-    {
-        Self
-        {
-            first_value: storedvars_diff_row.first_value.to_string(),
-            first_vars_type: storedvars_diff_row.first_vars_type.to_string(),
-            second_value: storedvars.value.to_string(),
-            second_vars_type: storedvars.vars_type,
-        }
-    }
-}
-type BTreeMapSnapshotDiffVars = BTreeMap<(String, String), SnapshotDiffStoredVars>;
-
-#[derive(Default)]
-pub struct SnapshotDiffBTreeMapsVars {
-    pub btreemap_snapshotdiff_vars: BTreeMapSnapshotDiffVars,
-}
-
-impl SnapshotDiffBTreeMapsVars {
+impl VarsDiff {
+    pub fn new() -> Self { Default::default() }
     pub fn snapshot_diff(
         begin_snapshot: &String,
         end_snapshot: &String,
-    ) -> Result<SnapshotDiffBTreeMapsVars>
+    ) -> Result<VarsDiff>
     {
-        let mut allstoredvars = AllStoredVars::new();
-        allstoredvars.stored_vars = snapshot::read_snapshot(begin_snapshot, "vars")?;
+        let mut varsdiff = VarsDiff::new();
 
-        let mut vars_snapshot_diff = SnapshotDiffBTreeMapsVars::first_snapshot(allstoredvars);
+        let mut allvars = AllVars::new();
+        allvars.vars = snapshot::read_snapshot_json(begin_snapshot, "vars")?;
+        varsdiff.first_snapshot(allvars);
 
-        let mut allstoredvars = AllStoredVars::new();
-        allstoredvars.stored_vars = snapshot::read_snapshot(end_snapshot, "vars")?;
-        vars_snapshot_diff.second_snapshot(allstoredvars);
+        let mut allvars = AllVars::new();
+        allvars.vars = snapshot::read_snapshot_json(end_snapshot, "vars")?;
+        varsdiff.second_snapshot(allvars);
 
-        Ok(vars_snapshot_diff)
-    }
-    pub fn new() -> Self {
-        Default::default()
+        Ok(varsdiff)
     }
     fn first_snapshot(
-        allstoredvars: AllStoredVars,
-    ) -> SnapshotDiffBTreeMapsVars
+        &mut self,
+        allvars: AllVars,
+    )
     {
-        let mut snapshotdiff_btreemaps = SnapshotDiffBTreeMapsVars {
-            btreemap_snapshotdiff_vars: Default::default(),
-        };
-        for row in allstoredvars.stored_vars.into_iter() {
-            match snapshotdiff_btreemaps.btreemap_snapshotdiff_vars.get_mut(&(row.hostname_port.to_string(), row.name.to_string()) ) {
-                Some( _vars_row ) => {
-                    error!("Found second entry for first entry of vars based on hostname, name: {}, {}", &row.hostname_port, &row.name);
-                },
-                None => {
-                    snapshotdiff_btreemaps.btreemap_snapshotdiff_vars.insert(
-                        (row.hostname_port.to_string(), row.name.to_string()),
-                        SnapshotDiffStoredVars::first_snapshot(row)
-                    );
-                },
-            };
+        for vars in allvars.vars
+        {
+            for var in vars.flags
+            {
+                self.btreevarsdiff
+                    .entry((vars.hostname_port.clone().expect("hostname:port should be set"), var.name.clone()) )
+                    .and_modify(|_| error!("Duplicate hostname:port + var name entry: {}, {}", vars.hostname_port.clone().expect("hostname:port should be set"), var.name))
+                    .or_insert( VarsDiffFields {
+                        first_value: var.value,
+                        first_vars_type: var.vars_type,
+                        ..Default::default()
+                    });
+            }
         }
-        snapshotdiff_btreemaps
     }
     fn second_snapshot(
         &mut self,
-        allstoredvars: AllStoredVars,
+        allvars: AllVars,
     )
     {
-        for row in allstoredvars.stored_vars.into_iter() {
-            match self.btreemap_snapshotdiff_vars.get_mut( &(row.hostname_port.to_string(), row.name.to_string()) ) {
-                Some( vars_row ) => {
-                    if vars_row.first_value == row.value
-                    && vars_row.first_vars_type == row.vars_type
-                    {
-                        self.btreemap_snapshotdiff_vars.remove( &(row.hostname_port.to_string(), row.name.to_string()) );
-                    } else {
-                        *vars_row = SnapshotDiffStoredVars::second_snapshot_existing(vars_row, row);
-                    }
-                },
-                None => {
-                    self.btreemap_snapshotdiff_vars.insert(
-                        (row.hostname_port.to_string(), row.name.to_string()),
-                        SnapshotDiffStoredVars::second_snapshot_new(row)
-                    );
-                },
-
+        for vars in allvars.vars
+        {
+            for var in vars.flags
+            {
+                self.btreevarsdiff
+                    .entry((vars.hostname_port.clone().expect("hostname:port should be set"), var.name.clone()) )
+                    .and_modify(|varsdifffields| {
+                        varsdifffields.second_value = var.value.clone();
+                        varsdifffields.second_vars_type = var.vars_type.clone();
+                    })
+                    .or_insert( VarsDiffFields {
+                        second_value: var.value,
+                        second_vars_type: var.vars_type,
+                        ..Default::default()
+                    });
             }
         }
     }
@@ -244,25 +184,31 @@ impl SnapshotDiffBTreeMapsVars {
         &self,
     )
     {
-        for ((hostname_port, name), row) in self.btreemap_snapshotdiff_vars.iter() {
-            // first value empty means a server started/became available during the snapshot. Do not report
-            if row.first_value.is_empty() || row.second_value.is_empty() {
-                //println!("{} {:20} Vars: {:50} {:40} {}", "+".to_string().green(), hostname_port, name, row.second_value, row.second_vars_type);
+        for ((hostname_port, name), row) in self.btreevarsdiff.iter() {
+            if row.first_value == row.second_value
+                && row.first_vars_type == row.second_vars_type
+                || row.first_value.is_empty()
+                || row.second_value.is_empty()
+            {
                 continue;
-            // second value empty means a server stopped during the snapshot. Do not report
-            //} else if row.second_value.is_empty() {
-            //   //println!("{} {:20} Vars: {:50} {:40} {}", "-".to_string().red(), hostname_port, name, row.first_value, row.first_vars_type);
-            //    continue;
-            } else {
+            }
+            else
+            {
                 print!("{} {:20} Vars: {:50} ", "*".to_string().yellow(), hostname_port, name);
-                if row.first_value != row.second_value {
+                if row.first_value != row.second_value
+                {
                     print!("{}->{} ", row.first_value.yellow(), row.second_value.yellow());
-                } else {
+                }
+                else
+                {
                     print!("{} ", row.second_value);
                 };
-                if row.first_vars_type != row.second_vars_type {
+                if row.first_vars_type != row.second_vars_type
+                {
                     println!("{}->{}", row.first_vars_type.yellow(), row.second_vars_type.yellow());
-                } else {
+                }
+                else
+                {
                     println!("{}", row.second_vars_type);
                 };
             };
@@ -275,8 +221,8 @@ impl SnapshotDiffBTreeMapsVars {
         parallel: usize,
     )
     {
-        let allstoredvars = AllStoredVars::read_vars(hosts, ports, parallel).await;
-        SnapshotDiffBTreeMapsVars::first_snapshot(allstoredvars);
+        let allvars = AllVars::read_vars(hosts, ports, parallel).await;
+        self.first_snapshot(allvars);
     }
     pub async fn adhoc_read_second_snapshot(
         &mut self,
@@ -285,8 +231,8 @@ impl SnapshotDiffBTreeMapsVars {
         parallel: usize,
     )
     {
-        let allstoredvars = AllStoredVars::read_vars(hosts, ports, parallel).await;
-        self.second_snapshot(allstoredvars);
+        let allvars = AllVars::read_vars(hosts, ports, parallel).await;
+        self.second_snapshot(allvars);
     }
 }
 
@@ -299,16 +245,17 @@ pub async fn print_vars(
 {
     let hostname_filter = utility::set_regex(&options.hostname_match);
     let stat_name_filter = utility::set_regex(&options.stat_name_match);
-    match options.print_vars.as_ref().unwrap() {
+    match options.print_vars.as_ref().unwrap()
+    {
         Some(snapshot_number) => {
-            let mut allstoredvars = AllStoredVars::new();
-            allstoredvars.stored_vars = snapshot::read_snapshot(snapshot_number, "vars")?;
 
-            allstoredvars.print(&options.details_enable, &hostname_filter, &stat_name_filter).await;
+            let mut allvars = AllVars::new();
+            allvars.vars = snapshot::read_snapshot_json(snapshot_number, "vars")?;
+            allvars.print(&options.details_enable, &hostname_filter, &stat_name_filter).await;
         }
         None => {
-            let allstoredvars = AllStoredVars::read_vars(&hosts, &ports, parallel).await;
-            allstoredvars.print(&options.details_enable, &hostname_filter, &stat_name_filter).await;
+            let allvars = AllVars::read_vars(&hosts, &ports, parallel).await;
+            allvars.print(&options.details_enable, &hostname_filter, &stat_name_filter).await;
         }
     }
     Ok(())
@@ -317,7 +264,6 @@ pub async fn print_vars(
 #[cfg(test)]
 mod tests {
     use super::*;
-    //use crate::utility_test::*;
 
     #[test]
     fn unit_parse_regular_vars() {
@@ -378,7 +324,7 @@ mod tests {
     ]
 }
 "#.to_string();
-        let result = AllStoredVars::parse_vars(gflags, "", "");
+        let result = AllVars::parse_vars(gflags, "", "");
         assert_eq!(result.flags[0].name, "log_filename");
         assert_eq!(result.flags[0].value, "yb-master");
         assert_eq!(result.flags[0].vars_type, "NodeInfo");
@@ -390,10 +336,10 @@ mod tests {
         let hostname = utility::get_hostname_master();
         let port = utility::get_port_master();
 
-        let allstoredvars = AllStoredVars::read_vars(&vec![&hostname], &vec![&port], 1).await;
+        let allvars = AllVars::read_vars(&vec![&hostname], &vec![&port], 1).await;
 
         // the master must have gflags
-        assert!(!allstoredvars.stored_vars.is_empty());
+        assert!(!allvars.vars.is_empty());
     }
     #[tokio::test]
     async fn integration_parse_vars_tserver()
@@ -401,9 +347,9 @@ mod tests {
         let hostname = utility::get_hostname_tserver();
         let port = utility::get_port_tserver();
 
-        let allstoredvars = AllStoredVars::read_vars(&vec![&hostname], &vec![&port], 1).await;
+        let allvars = AllVars::read_vars(&vec![&hostname], &vec![&port], 1).await;
 
         // the master must have gflags
-        assert!(!allstoredvars.stored_vars.is_empty());
+        assert!(!allvars.vars.is_empty());
     }
 }

@@ -49,8 +49,8 @@ impl AllMemTrackers {
                     s.spawn(move |_| {
                         let detail_snapshot_time = Local::now();
                         let mut memtrackers = AllMemTrackers::read_http(host, port);
-                        memtrackers.iter_mut().for_each(|r| r.timestamp = Some(detail_snapshot_time));
-                        memtrackers.iter_mut().for_each(|r| r.hostname_port = Some(format!("{}:{}", host, port)));
+                        memtrackers.iter_mut().for_each(|r| r.timestamp = detail_snapshot_time);
+                        memtrackers.iter_mut().for_each(|r| r.hostname_port = format!("{}:{}", host, port));
                         tx.send(memtrackers).expect("error sending data via tx");
                     });
                 }
@@ -157,12 +157,14 @@ impl AllMemTrackers {
         info!("print_memtrackers");
 
         let mut previous_hostname_port = String::from("");
-        for row in &self.memtrackers{
-            if hostname_filter.is_match(&row.hostname_port.clone().expect("hostname:port should be set"))
-                && stat_name_filter.is_match(&row.id) {
-                if row.hostname_port.clone().expect("hostname:port should be set" ) != previous_hostname_port {
+        for row in &self.memtrackers
+        {
+            if hostname_filter.is_match(&row.hostname_port.clone())
+                && stat_name_filter.is_match(&row.id)
+            {
+                if row.hostname_port.clone() != previous_hostname_port {
                     println!("{}", "-".repeat(174));
-                    println!("Host: {}, Snapshot time: {}", &row.hostname_port.clone().expect("hostname:port should be set"), row.timestamp.expect("timestamp should be set"));
+                    println!("Host: {}, Snapshot time: {}", &row.hostname_port.clone(), row.timestamp);
                     println!("{}", "-".repeat(174));
                     println!("{:20} {:90} {:>20} {:>20} {:>20}",
                              "hostname_port",
@@ -171,9 +173,9 @@ impl AllMemTrackers {
                              "peak_consumption",
                              "limit");
                     println!("{}", "-".repeat(174));
-                    previous_hostname_port = row.hostname_port.clone().expect("hostname:port should be set");
+                    previous_hostname_port = row.hostname_port.clone();
                 }
-                println!("{:20} {:90} {:>20} {:>20} {:>20}", row.hostname_port.clone().expect("hostname:port should be set"), row.id.replace("&gt;", ">"), row.current_consumption, row.peak_consumption, row.limit)
+                println!("{:20} {:90} {:>20} {:>20} {:>20}", row.hostname_port.clone(), row.id.replace("&gt;", ">"), row.current_consumption, row.peak_consumption, row.limit)
             }
         }
         Ok(())

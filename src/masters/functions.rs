@@ -57,10 +57,8 @@ impl Masters {
                     s.spawn(move |_| {
                         let detail_snapshot_time = Local::now();
                         let mut masters = Masters::read_http(host, port);
-                        for master in masters.masters.iter_mut() {
-                            master.hostname_port = Some(format!("{}:{}", host, port));
-                            master.timestamp = Some(detail_snapshot_time);
-                        }
+                        masters.masters.iter_mut().for_each(|r| r.timestamp = Some(detail_snapshot_time));
+                        masters.masters.iter_mut().for_each(|r| r.hostname_port = Some(format!("{}:{}", host, port)));
                         tx.send(masters).expect("error sending data via tx");
                     });
                 }
@@ -106,11 +104,12 @@ impl Masters {
     {
         for row in &self.masters {
             // if details_enable is true then always continue
-            // if details_enable is false, then hostname_port must equal leader_hostname,
-            // so only the master leader info is printed.
-            if row.hostname_port.as_ref().unwrap() != &leader_hostname
-                && !*details_enable {
-                continue
+            // if details_enable is false, then hostname_port must equal to leader_hostname,
+            // so only the masters information from the master leader is printed.
+            if row.hostname_port != Some(leader_hostname.clone())
+                && !*details_enable
+            {
+                continue;
             }
             // first row
             if *details_enable {
@@ -217,13 +216,11 @@ impl MastersDiff {
         let mut masters = Masters::new();
         masters.masters = snapshot::read_snapshot_json(begin_snapshot, "masters")?;
         let master_leader = AllIsLeader::return_leader_snapshot(begin_snapshot)?;
-
         mastersdiff.first_snapshot(masters, master_leader);
 
         let mut masters = Masters::new();
         masters.masters = read_snapshot_json(end_snapshot, "masters")?;
         let master_leader = AllIsLeader::return_leader_snapshot(end_snapshot)?;
-
         mastersdiff.second_snapshot(masters, master_leader);
 
         Ok(mastersdiff)
@@ -318,7 +315,6 @@ impl MastersDiff {
             .iter()
             .filter(|r| r.hostname_port.as_ref().unwrap().clone() == master_leader.clone())
         {
-            //println!("{}", master.instance_id.permanent_uuid.clone());
             self.btreemastersdiff
                 .entry(master.instance_id.permanent_uuid.clone())
                 .and_modify(|mastersdifffields| {

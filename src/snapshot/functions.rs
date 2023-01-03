@@ -310,21 +310,21 @@ pub async fn perform_snapshot(
     let arc_hosts_clone = arc_hosts.clone();
     let arc_ports_clone = arc_ports.clone();
     let handle = tokio::spawn(async move {
-        tservers::AllStoredTabletServers::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
+        tservers::AllTabletServers::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
     });
     handles.push(handle);
 
     let arc_hosts_clone = arc_hosts.clone();
     let arc_ports_clone = arc_ports.clone();
     let handle = tokio::spawn(async move {
-        vars::AllStoredVars::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
+        vars::AllVars::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
     });
     handles.push(handle);
 
     let arc_hosts_clone = arc_hosts.clone();
     let arc_ports_clone = arc_ports.clone();
     let handle = tokio::spawn(async move {
-        versions::AllStoredVersions::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
+        versions::AllVersions::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
     });
     handles.push(handle);
 
@@ -339,7 +339,7 @@ pub async fn perform_snapshot(
         let arc_hosts_clone = arc_hosts.clone();
         let arc_ports_clone = arc_ports.clone();
         let handle = tokio::spawn(async move {
-            threads::AllStoredThreads::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
+            threads::AllThreads::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
         });
         handles.push(handle);
     };
@@ -439,20 +439,19 @@ pub async fn snapshot_diff(
     let nodeexporter_diff = node_exporter::NodeExporterDiff::snapshot_diff(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp)?;
     nodeexporter_diff.print(&hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
 
-    //let entities_diff = entities::SnapshotDiffBTreeMapsEntities::snapshot_diff(&begin_snapshot, &end_snapshot, &options.details_enable)?;
     let entities_diff = entities::EntitiesDiff::snapshot_diff(&begin_snapshot, &end_snapshot)?;
     entities_diff.print();
 
     let masters_diff = masters::MastersDiff::snapshot_diff(&begin_snapshot, &end_snapshot)?;
     masters_diff.print();
 
-    let tabletservers_diff = tservers::SnapshotDiffBTreeMapsTabletServers::snapshot_diff(&begin_snapshot, &end_snapshot)?;
+    let tabletservers_diff = tservers::TabletServersDiff::snapshot_diff(&begin_snapshot, &end_snapshot)?;
     tabletservers_diff.print();
 
-    let vars_diff = vars::SnapshotDiffBTreeMapsVars::snapshot_diff(&begin_snapshot, &end_snapshot)?;
+    let vars_diff = vars::VarsDiff::snapshot_diff(&begin_snapshot, &end_snapshot)?;
     vars_diff.print();
 
-    let versions_diff = versions::SnapshotDiffBTreeMapsVersions::snapshot_diff(&begin_snapshot, &end_snapshot)?;
+    let versions_diff = versions::VersionsDiff::snapshot_diff(&begin_snapshot, &end_snapshot)?;
     versions_diff.print(&hostname_filter);
 
     Ok(())
@@ -597,9 +596,9 @@ pub async fn adhoc_diff(
     let node_exporter = Arc::new(Mutex::new(node_exporter::NodeExporterDiff::new()));
     let entities = Arc::new(Mutex::new(entities::EntitiesDiff::new()));
     let masters = Arc::new(Mutex::new(masters::MastersDiff::new()));
-    let tablet_servers = Arc::new(Mutex::new(tservers::SnapshotDiffBTreeMapsTabletServers::new()));
-    let versions = Arc::new(Mutex::new(versions::SnapshotDiffBTreeMapsVersions::new()));
-    let vars = Arc::new(Mutex::new(vars::SnapshotDiffBTreeMapsVars::new()));
+    let tablet_servers = Arc::new(Mutex::new(tservers::TabletServersDiff::new()));
+    let versions = Arc::new(Mutex::new(versions::VersionsDiff::new()));
+    let vars = Arc::new(Mutex::new(vars::VarsDiff::new()));
 
     let hosts = Arc::new(Mutex::new(hosts));
     let ports = Arc::new(Mutex::new(ports));

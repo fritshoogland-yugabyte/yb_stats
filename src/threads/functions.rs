@@ -1,16 +1,18 @@
+//! The impls and functions
+//!
 use chrono::Local;
 use std::{sync::mpsc::channel, time::Instant};
-//use serde_derive::{Serialize,Deserialize};
 use regex::Regex;
 use scraper::{ElementRef, Html, Selector};
 use log::*;
 use anyhow::Result;
 use crate::utility;
 use crate::snapshot;
-use crate::threads::{Threads, StoredThreads, AllStoredThreads};
+use crate::threads::{Threads, AllThreads};
 use crate::Opts;
 
-impl AllStoredThreads {
+impl AllThreads {
+    pub fn new() -> Self { Default::default() }
     pub async fn perform_snapshot(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
@@ -21,19 +23,18 @@ impl AllStoredThreads {
         info!("begin snapshot");
         let timer = Instant::now();
 
-        let allstoredthreads = AllStoredThreads::read_threads(hosts, ports, parallel).await;
-        snapshot::save_snapshot(snapshot_number, "threads", allstoredthreads.stored_threads)?;
+        let allthreads = AllThreads::read_threads(hosts, ports, parallel).await;
+        snapshot::save_snapshot_json(snapshot_number, "threads", allthreads.threads)?;
 
         info!("end snapshot: {:?}", timer.elapsed());
 
         Ok(())
     }
-    pub fn new() -> Self { Default::default() }
     pub async fn read_threads (
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize,
-    ) -> AllStoredThreads
+    ) -> AllThreads
     {
         info!("begin parallel http read");
         let timer = Instant::now();
@@ -47,8 +48,10 @@ impl AllStoredThreads {
                     let tx = tx.clone();
                     s.spawn(move |_| {
                         let detail_snapshot_time = Local::now();
-                        let threads = AllStoredThreads::read_http(host, port);
-                        tx.send((format!("{}:{}", host, port), detail_snapshot_time, threads)).expect("error sending data via tx (threads)");
+                        let mut threads = AllThreads::read_http(host, port);
+                        threads.iter_mut().for_each(|r| r.timestamp = detail_snapshot_time);
+                        threads.iter_mut().for_each(|r| r.hostname_port = format!("{}:{}", host, port));
+                        tx.send(threads).expect("error sending data via tx");
                     });
                 }
             }
@@ -56,22 +59,17 @@ impl AllStoredThreads {
 
         info!("end parallel http read {:?}", timer.elapsed());
 
-        let mut allstoredthreads = AllStoredThreads::new();
+        let mut allthreads = AllThreads::new();
 
-        for (hostname_port, detail_snapshot_time, threads) in rx {
-            for thread in threads {
-                allstoredthreads.stored_threads.push(StoredThreads {
-                    hostname_port: hostname_port.to_string(),
-                    timestamp: detail_snapshot_time,
-                    thread_name: thread.thread_name.to_string(),
-                    cumulative_user_cpu_s: thread.cumulative_user_cpu_s.to_string(),
-                    cumulative_kernel_cpu_s: thread.cumulative_kernel_cpu_s.to_string(),
-                    cumulative_iowait_cpu_s: thread.cumulative_iowait_cpu_s.to_string(),
-                    stack: thread.stack.to_string(),
-                });
+        for threads in rx
+        {
+            for thread in threads
+            {
+                allthreads.threads.push(thread);
             }
         }
-        allstoredthreads
+
+        allthreads
     }
     fn read_http(
         host: &str,
@@ -79,7 +77,7 @@ impl AllStoredThreads {
     ) -> Vec<Threads>
     {
         let data_from_http = utility::http_get(host, port, "threadz?group=all");
-        AllStoredThreads::parse_threads(data_from_http)
+        AllThreads::parse_threads(data_from_http)
     }
     fn parse_threads(
         http_data: String
@@ -87,7 +85,7 @@ impl AllStoredThreads {
     {
         let mut threads: Vec<Threads> = Vec::new();
         let function_regex = Regex::new(r"@\s+0x[[:xdigit:]]+\s+(\S+)\n").unwrap();
-        if let Some(table) = AllStoredThreads::find_table(&http_data)
+        if let Some(table) = AllThreads::find_table(&http_data)
         {
             let (headers, rows) = table;
 
@@ -140,6 +138,7 @@ impl AllStoredThreads {
                     cumulative_kernel_cpu_s: take_or_missing(&mut row, cumul_kernel_cpus_pos),
                     cumulative_iowait_cpu_s: take_or_missing(&mut row, cumul_iowaits_pos),
                     stack: final_stack,
+                    ..Default::default()
                 });
             }
         }
@@ -169,9 +168,8 @@ impl AllStoredThreads {
         hostname_filter: &Regex
     ) -> Result<()>
     {
-        info!("print threads");
         let mut previous_hostname_port = String::from("");
-        for row in &self.stored_threads
+        for row in &self.threads
         {
             if hostname_filter.is_match(&row.hostname_port)
             {
@@ -207,13 +205,13 @@ pub async fn print_threads(
     let hostname_filter = utility::set_regex(&options.hostname_match);
     match options.print_threads.as_ref().unwrap() {
         Some(snapshot_number) => {
-            let mut allstoredthreads = AllStoredThreads::new();
-            allstoredthreads.stored_threads = snapshot::read_snapshot(snapshot_number, "threads")?;
-            allstoredthreads.print(&hostname_filter)?;
+            let mut allthreads = AllThreads::new();
+            allthreads.threads = snapshot::read_snapshot_json(snapshot_number, "threads")?;
+            allthreads.print(&hostname_filter)?;
         },
         None => {
-            let allstoredthreads = AllStoredThreads::read_threads(&hosts, &ports, parallel).await;
-            allstoredthreads.print(&hostname_filter)?;
+            let allthreads = AllThreads::read_threads(&hosts, &ports, parallel).await;
+            allthreads.print(&hostname_filter)?;
         },
     }
     Ok(())
@@ -222,7 +220,6 @@ pub async fn print_threads(
 #[cfg(test)]
 mod tests {
     use super::*;
-    //use crate::utility_test::*;
 
     #[test]
     fn unit_parse_threads_data() {
@@ -351,7 +348,7 @@ Total number of threads: 4</pre></td></tr>
 </table><div class='yb-bottom-spacer'></div></div>
 <footer class='footer'><div class='yb-footer container text-muted'><pre class='message'><i class="fa-lg fa fa-gift" aria-hidden="true"></i> Congratulations on installing YugabyteDB. We'd like to welcome you to the community with a free t-shirt and pack of stickers! Please claim your reward here: <a href='https://www.yugabyte.com/community-rewards/'>https://www.yugabyte.com/community-rewards/</a></pre><pre>version 2.13.0.0 build 42 revision cd3c1a4bb1cca183be824851f8158ebbffd1d3d8 build_type RELEASE built at 06 Mar 2022 03:13:49 UTC
 server uuid 4ce571a18f8c4a9a8b35246222d12025 local time 2022-03-16 12:33:37.634419</pre></div></footer></body></html>"#.to_string();
-        let result = AllStoredThreads::parse_threads(threads);
+        let result = AllThreads::parse_threads(threads);
         // this results in 33 Threads
         assert_eq!(result.len(), 33);
         // and the thread name is Master_reactorx-6127
@@ -369,19 +366,19 @@ server uuid 4ce571a18f8c4a9a8b35246222d12025 local time 2022-03-16 12:33:37.6344
         let hostname = utility::get_hostname_master();
         let port = utility::get_port_master();
 
-        let allstoredthreads = AllStoredThreads::read_threads(&vec![&hostname], &vec![&port], 1).await;
+        let allthreads = AllThreads::read_threads(&vec![&hostname], &vec![&port], 1).await;
         // the master returns more than one thread.
-        assert!(allstoredthreads.stored_threads.len() > 1);
+        assert!(allthreads.threads.len() > 1);
     }
     #[tokio::test]
     async fn integration_parse_threadsdata_tserver() {
         let hostname = utility::get_hostname_tserver();
         let port = utility::get_port_tserver();
 
-        let allstoredthreads = AllStoredThreads::read_threads(&vec![&hostname], &vec![&port], 1).await;
+        let allthreads = AllThreads::read_threads(&vec![&hostname], &vec![&port], 1).await;
 
         // the tablet server returns more than one thread.
-        assert!(allstoredthreads.stored_threads.len() > 1);
+        assert!(allthreads.threads.len() > 1);
     }
 
 }

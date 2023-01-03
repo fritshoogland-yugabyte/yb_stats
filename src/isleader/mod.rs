@@ -19,8 +19,8 @@
 //! - [crate::entities::EntitiesDiff::print] -> [crate::isleader::AllIsLeader::return_leader_snapshot]
 //! - [crate::masters::MastersDiff::snapshot_diff] -> [crate::isleader::AllIsLeader::return_leader_snapshot]
 //! - [crate::masters::MastersDiff::print] -> [crate::isleader::AllIsLeader::return_leader_snapshot]
-//! - [crate::tservers::AllStoredTabletServers::print] -> [crate::isleader::AllIsLeader::return_leader_snapshot]
-//! - [crate::tservers::SnapshotDiffBTreeMapsTabletServers::snapshot_diff] -> [crate::isleader::AllIsLeader::return_leader_snapshot]
+//! - [crate::tservers::TabletServersDiff::print] -> [crate::isleader::AllIsLeader::return_leader_snapshot]
+//! - [crate::tservers::TabletServersDiff::snapshot_diff] -> [crate::isleader::AllIsLeader::return_leader_snapshot]
 //! ---
 //! - [crate::clocks::AllClocks::print] -> [crate::isleader::AllIsLeader::return_leader_http]
 //! - [crate::clocks::AllClocks::print_latency] -> [crate::isleader::AllIsLeader::return_leader_http]
@@ -31,9 +31,9 @@
 //! - [crate::masters::MastersDiff::adhoc_read_first_snapshot] -> [crate::isleader::AllIsLeader::return_leader_http]
 //! - [crate::masters::MastersDiff::adhoc_read_second_snapshot] -> [crate::isleader::AllIsLeader::return_leader_http]
 //! - [crate::masters::Masters::print] -> [crate::isleader::AllIsLeader::return_leader_http]
-//! - [crate::tservers::AllStoredTabletServers::print_adhoc] -> [crate::isleader::AllIsLeader::return_leader_http]
-//! - [crate::tservers::SnapshotDiffBTreeMapsTabletServers::adhoc_read_first_snapshot] -> [crate::isleader::AllIsLeader::return_leader_http]
-//! - [crate::tservers::SnapshotDiffBTreeMapsTabletServers::adhoc_read_second_snapshot] -> [crate::isleader::AllIsLeader::return_leader_http]
+//! - [crate::tservers::TabletServersDiff::adhoc_read_first_snapshot] -> [crate::isleader::AllIsLeader::return_leader_http]
+//! - [crate::tservers::TabletServersDiff::adhoc_read_second_snapshot] -> [crate::isleader::AllIsLeader::return_leader_http]
+//! - [crate::tservers::TabletServersDiff::print] -> [crate::isleader::AllIsLeader::return_leader_http]
 //!
 mod structs;
 mod functions;

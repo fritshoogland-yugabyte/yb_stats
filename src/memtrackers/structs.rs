@@ -7,9 +7,9 @@ use chrono::{DateTime, Local};
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct MemTrackers {
     /// yb_stats added to allow understanding the snapshot timestamp.
-    pub hostname_port: Option<String>,
+    pub hostname_port: String,
     /// yb_stats added to allow understanding the snapshot timestamp.
-    pub timestamp: Option<DateTime<Local>>,
+    pub timestamp: DateTime<Local>,
     pub id: String,
     pub current_consumption: String,
     pub peak_consumption: String,

@@ -1,17 +1,26 @@
-//use serde_derive::{Serialize,Deserialize};
-use chrono::{DateTime, Local};
-use std::{sync::mpsc::channel, time::Instant, collections::{HashMap, BTreeMap}};
+//! The impls and functions
+//!
+use chrono::Local;
+use std::{sync::mpsc::channel, time::Instant};
 use log::*;
 use colored::*;
 use anyhow::Result;
 use crate::isleader::AllIsLeader;
 use crate::utility;
 use crate::snapshot;
-use crate::tservers::{StoredTabletServers, StoredPathMetrics, AllTabletServers, AllStoredTabletServers};
+use crate::tservers::{TabletServers, AllTabletServers, TabletServersDiff, TabletServersDiffFields};
 use crate::Opts;
 
+impl TabletServers {
+    pub fn new() -> Self {
+        Default::default()
+    }
+}
 
-impl AllStoredTabletServers {
+impl AllTabletServers {
+    pub fn new() -> Self {
+        Default::default()
+    }
     pub async fn perform_snapshot(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
@@ -22,22 +31,18 @@ impl AllStoredTabletServers {
         info!("begin snapshot");
         let timer = Instant::now();
 
-        let alltabletservers = AllStoredTabletServers::read_tabletservers(hosts, ports, parallel).await;
-        snapshot::save_snapshot(snapshot_number,"tablet_servers", alltabletservers.stored_tabletservers)?;
-        snapshot::save_snapshot(snapshot_number,"tablet_servers_pathmetrics", alltabletservers.stored_pathmetrics)?;
+        let alltabletservers = AllTabletServers::read_tabletservers(hosts, ports, parallel).await;
+        snapshot::save_snapshot_json(snapshot_number,"tablet_servers", alltabletservers.tabletservers)?;
 
         info!("end snapshot: {:?}", timer.elapsed());
 
         Ok(())
     }
-    pub fn new() -> Self {
-        Default::default()
-    }
     pub async fn read_tabletservers(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize,
-    ) -> AllStoredTabletServers
+    ) -> AllTabletServers
     {
         info!("begin parallel http read");
         let timer = Instant::now();
@@ -50,8 +55,11 @@ impl AllStoredTabletServers {
                     let tx = tx.clone();
                     s.spawn(move |_| {
                         let detail_snapshot_time = Local::now();
-                        let tablet_servers = AllStoredTabletServers::read_http(host, port);
-                        tx.send((format!("{}:{}", host, port), detail_snapshot_time, tablet_servers)).expect("error sending data via tx");
+                        let mut tablet_servers = AllTabletServers::read_http(host, port);
+                        tablet_servers.tabletservers.iter_mut().for_each(|(_,v)| v.timestamp = Some(detail_snapshot_time));
+                        tablet_servers.tabletservers.iter_mut().for_each(|(_,v)| v.hostname_port = Some(format!("{}:{}", host, port)));
+                        tablet_servers.tabletservers.iter_mut().for_each(|(k,v)| v.tablet_server_hostname_port = Some(k.to_string()));
+                        tx.send(tablet_servers).expect("error sending data via tx");
                     });
                 }
             }
@@ -59,319 +67,249 @@ impl AllStoredTabletServers {
 
         info!("end parallel http read {:?}", timer.elapsed());
 
-        let mut allstoredtabletservers = AllStoredTabletServers::new();
+        let mut alltabletservers = AllTabletServers::new();
 
-        for (hostname_port, detail_snapshot_time, tablet_servers) in rx {
-            allstoredtabletservers.split_into_vectors(tablet_servers, &hostname_port, detail_snapshot_time);
-        }
-
-        allstoredtabletservers
-    }
-    fn split_into_vectors(
-        &mut self,
-        alltabletservers: AllTabletServers,
-        hostname_port: &str,
-        detail_snapshot_time: DateTime<Local>,
-    )
-    {
-        for (servername, serverstatus) in alltabletservers.tabletservers.iter() {
-            self.stored_tabletservers.push( StoredTabletServers {
-                hostname_port: hostname_port.to_string(),
-                timestamp: detail_snapshot_time,
-                tserver_hostname_port: servername.to_string(),
-                time_since_hb: serverstatus.time_since_hb.to_string(),
-                time_since_hb_sec: serverstatus.time_since_hb_sec,
-                status: serverstatus.status.to_string(),
-                uptime_seconds: serverstatus.uptime_seconds,
-                ram_used: serverstatus.ram_used.to_string(),
-                ram_used_bytes: serverstatus.ram_used_bytes,
-                num_sst_files: serverstatus.num_sst_files,
-                total_sst_file_size: serverstatus.total_sst_file_size.to_string(),
-                total_sst_file_size_bytes: serverstatus.total_sst_file_size_bytes,
-                uncompressed_sst_file_size: serverstatus.uncompressed_sst_file_size.to_string(),
-                uncompressed_sst_file_size_bytes: serverstatus.uncompressed_sst_file_size_bytes,
-                read_ops_per_sec: serverstatus.read_ops_per_sec,
-                write_ops_per_sec: serverstatus.write_ops_per_sec,
-                user_tablets_total: serverstatus.user_tablets_total,
-                user_tablets_leaders: serverstatus.user_tablets_leaders,
-                system_tablets_total: serverstatus.system_tablets_total,
-                system_tablets_leaders: serverstatus.system_tablets_leaders,
-                active_tablets: serverstatus.active_tablets,
-                cloud: serverstatus.cloud.to_string(),
-                region: serverstatus.region.to_string(),
-                zone: serverstatus.zone.to_string(),
-            });
-            for pathmetrics in serverstatus.path_metrics.iter() {
-                self.stored_pathmetrics.push( StoredPathMetrics {
-                    hostname_port: hostname_port.to_string(),
-                    timestamp: detail_snapshot_time,
-                    tserver_hostname_port: servername.to_string(),
-                    path: pathmetrics.path.to_string(),
-                    space_used: pathmetrics.space_used,
-                    total_space_size: pathmetrics.total_space_size,
-                });
+        for fetched_tabletservers in rx
+        {
+            for (_, tabletserver_data) in fetched_tabletservers.tabletservers
+            {
+                alltabletservers.tabletservers.push(tabletserver_data);
             }
         }
+
+        alltabletservers
     }
     pub fn read_http(
         host: &str,
         port: &str,
-    ) -> AllTabletServers
+    ) -> TabletServers
     {
         let data_from_http = utility::http_get(host, port, "api/v1/tablet-servers");
-        AllStoredTabletServers::parse_tabletservers(data_from_http, host, port)
+        AllTabletServers::parse_tabletservers(data_from_http, host, port)
     }
     fn parse_tabletservers(
-        tabletservers_data: String,
+        http_data: String,
         host: &str,
         port: &str,
-    ) -> AllTabletServers {
-        serde_json::from_str(&tabletservers_data)
+    ) -> TabletServers {
+        serde_json::from_str(&http_data)
             .unwrap_or_else(|e| {
                 debug!("({}:{}) could not parse /api/v1/tablet-servers json data for masters, error: {}", host, port, e);
-                AllTabletServers { tabletservers: HashMap::new() }
+                TabletServers::new()
             })
     }
     pub fn print(
         &self,
-        snapshot_number: &String,
         details_enable: &bool,
+        leader_hostname: String,
     ) -> Result<()>
     {
-        info!("print tablet servers");
-
-        let leader_hostname = AllIsLeader::return_leader_snapshot(snapshot_number)?;
-
-        for row in &self.stored_tabletservers {
-            if row.hostname_port == leader_hostname
-            && !*details_enable {
-                println!("{:20} {} Cloud: {}, Region: {}, Zone: {}", row.tserver_hostname_port, row.status, row.cloud, row.region, row.zone);
-                println!("{} HB time: {}, Uptime: {}, Ram {}", " ".repeat(20), row.time_since_hb, row.uptime_seconds, row.ram_used);
-                println!("{} SST files: nr: {}, size: {}, uncompressed: {}", " ".repeat(20), row.num_sst_files, row.total_sst_file_size, row.uncompressed_sst_file_size);
-                println!("{} ops read: {}, write: {}", " ".repeat(20), row.read_ops_per_sec, row.write_ops_per_sec);
-                println!("{} tablets: active: {}, user (leader/total): {}/{}, system (leader/total): {}/{}", " ".repeat(20), row.active_tablets, row.user_tablets_leaders, row.user_tablets_total, row.system_tablets_leaders, row.system_tablets_total);
-                for pathmetric in self.stored_pathmetrics.iter()
-                    .filter(|x| x.hostname_port == row.hostname_port)
-                    .filter(|x| x.tserver_hostname_port == row.tserver_hostname_port) {
-                    println!("{} Path: {}, total: {}, used: {} ({:.2}%)", " ".repeat(20), pathmetric.path, pathmetric.total_space_size, pathmetric.space_used, (pathmetric.space_used as f64/pathmetric.total_space_size as f64)*100.0);
-                }
+        for row in &self.tabletservers {
+            // if details_enable is true then always continue
+            // if details_enable is false, then hostname_port must be equal to leader_hostname,
+            // so only the masters information from the master leader is printed.
+            if row.hostname_port != Some(leader_hostname.clone())
+                && !*details_enable
+            {
+                continue;
             }
-            if *details_enable {
-                println!("{} {:20} {} Cloud: {}, Region: {}, Zone: {}", row.hostname_port, row.tserver_hostname_port, row.status, row.cloud, row.region, row.zone);
-                println!("{} {} HB time: {}, Uptime: {}, Ram {}", row.hostname_port, " ".repeat(20), row.time_since_hb, row.uptime_seconds, row.ram_used);
-                println!("{} {} SST files: nr: {}, size: {}, uncompressed: {}", row.hostname_port, " ".repeat(20), row.num_sst_files, row.total_sst_file_size, row.uncompressed_sst_file_size);
-                println!("{} {} ops read: {}, write: {}", row.hostname_port, " ".repeat(20), row.read_ops_per_sec, row.write_ops_per_sec);
-                println!("{} {} tablets: active: {}, user (leader/total): {}/{}, system (leader/total): {}/{}", row.hostname_port, " ".repeat(20), row.active_tablets, row.user_tablets_leaders, row.user_tablets_total, row.system_tablets_leaders, row.system_tablets_total);
-                for pathmetric in self.stored_pathmetrics.iter()
-                    .filter(|x| x.hostname_port == row.hostname_port)
-                    .filter(|x| x.tserver_hostname_port == row.tserver_hostname_port) {
-                    println!("{} {} Path: {}, total: {}, used: {} ({:.2}%)", row.hostname_port, " ".repeat(20), pathmetric.path, pathmetric.total_space_size, pathmetric.space_used, (pathmetric.space_used as f64/pathmetric.total_space_size as f64)*100.0);
-                }
+            if *details_enable
+            {
+                print!("{} ", row.hostname_port.as_ref().expect("hostname:port should be set"));
+            };
+            println!("{:20} {} Placement: {}.{}.{}",
+                     row.tablet_server_hostname_port.clone().expect("tablet-server hostname:port should be set"),
+                     row.status,
+                     row.cloud,
+                     row.region,
+                     row.zone
+            );
+            if *details_enable
+            {
+                print!("{} ", row.hostname_port.as_ref().expect("hostname:port should be set"));
+            };
+            println!("{} HB time: {}, Uptime: {}, Ram {}",
+                     " ".repeat(20),
+                     row.time_since_hb,
+                     row.uptime_seconds,
+                     row.ram_used
+            );
+            if *details_enable
+            {
+                print!("{} ", row.hostname_port.as_ref().expect("hostname:port should be set"));
+            };
+            println!("{} SST files: nr: {}, size: {}, uncompressed: {}",
+                     " ".repeat(20),
+                     row.num_sst_files,
+                     row.total_sst_file_size,
+                     row.uncompressed_sst_file_size
+            );
+            if *details_enable
+            {
+                print!("{} ", row.hostname_port.as_ref().expect("hostname:port should be set"));
+            };
+            println!("{} ops read: {}, write: {}",
+                     " ".repeat(20),
+                     row.read_ops_per_sec,
+                     row.write_ops_per_sec
+            );
+            if *details_enable
+            {
+                print!("{} ", row.hostname_port.as_ref().expect("hostname:port should be set"));
+            };
+            println!("{} tablets: active: {}, user (leader/total): {}/{}, system (leader/total): {}/{}",
+                     " ".repeat(20),
+                     row.active_tablets,
+                     row.user_tablets_leaders,
+                     row.user_tablets_total,
+                     row.system_tablets_leaders,
+                     row.system_tablets_total
+            );
+            for path_metric in row.path_metrics.iter()
+            {
+                if *details_enable
+                {
+                    print!("{} ", row.hostname_port.as_ref().expect("hostname:port should be set"));
+                };
+                println!("{} Path: {}, total: {}, used: {} ({:.2}%)",
+                         " ".repeat(20),
+                         path_metric.path,
+                         path_metric.total_space_size,
+                         path_metric.space_used,
+                         (path_metric.space_used as f64 / path_metric.total_space_size as f64) * 100.0);
             }
         }
         Ok(())
     }
-    pub async fn print_adhoc(
-        &self,
-        details_enable: &bool,
-        hosts: &Vec<&str>,
-        ports: &Vec<&str>,
-        parallel: usize,
-    ) -> Result<()>
-    {
-        info!("print adhoc tablet servers");
-
-        let leader_hostname = AllIsLeader::return_leader_http(hosts, ports, parallel).await;
-
-        for row in &self.stored_tabletservers {
-            if row.hostname_port == leader_hostname
-                && !*details_enable {
-                println!("{:20} {} Cloud: {}, Region: {}, Zone: {}", row.tserver_hostname_port, row.status, row.cloud, row.region, row.zone);
-                println!("{} HB time: {}, Uptime: {}, Ram {}", " ".repeat(20), row.time_since_hb, row.uptime_seconds, row.ram_used);
-                println!("{} SST files: nr: {}, size: {}, uncompressed: {}", " ".repeat(20), row.num_sst_files, row.total_sst_file_size, row.uncompressed_sst_file_size);
-                println!("{} ops read: {}, write: {}", " ".repeat(20), row.read_ops_per_sec, row.write_ops_per_sec);
-                println!("{} tablets: active: {}, user (leader/total): {}/{}, system (leader/total): {}/{}", " ".repeat(20), row.active_tablets, row.user_tablets_leaders, row.user_tablets_total, row.system_tablets_leaders, row.system_tablets_total);
-                for pathmetric in self.stored_pathmetrics.iter()
-                    .filter(|x| x.hostname_port == row.hostname_port)
-                    .filter(|x| x.tserver_hostname_port == row.tserver_hostname_port) {
-                    println!("{} Path: {}, total: {}, used: {} ({:.2}%)", " ".repeat(20), pathmetric.path, pathmetric.total_space_size, pathmetric.space_used, (pathmetric.space_used as f64/pathmetric.total_space_size as f64)*100.0);
-                }
-            }
-            if *details_enable {
-                println!("{} {:20} {} Cloud: {}, Region: {}, Zone: {}", row.hostname_port, row.tserver_hostname_port, row.status, row.cloud, row.region, row.zone);
-                println!("{} {} HB time: {}, Uptime: {}, Ram {}", row.hostname_port, " ".repeat(20), row.time_since_hb, row.uptime_seconds, row.ram_used);
-                println!("{} {} SST files: nr: {}, size: {}, uncompressed: {}", row.hostname_port, " ".repeat(20), row.num_sst_files, row.total_sst_file_size, row.uncompressed_sst_file_size);
-                println!("{} {} ops read: {}, write: {}", " ".repeat(20), row.hostname_port, row.read_ops_per_sec, row.write_ops_per_sec);
-                println!("{} {} tablets: active: {}, user (leader/total): {}/{}, system (leader/total): {}/{}", row.hostname_port, " ".repeat(20), row.active_tablets, row.user_tablets_leaders, row.user_tablets_total, row.system_tablets_leaders, row.system_tablets_total);
-                for pathmetric in self.stored_pathmetrics.iter()
-                    .filter(|x| x.hostname_port == row.hostname_port)
-                    .filter(|x| x.tserver_hostname_port == row.tserver_hostname_port) {
-                    println!("{} {} Path: {}, total: {}, used: {} ({:.2}%)", row.hostname_port, " ".repeat(20), pathmetric.path, pathmetric.total_space_size, pathmetric.space_used, (pathmetric.space_used as f64/pathmetric.total_space_size as f64)*100.0);
-                }
-            }
-        }
-        Ok(())
-    }
 }
 
-#[derive(Debug)]
-pub struct SnapshotDiffStoredTabletServers {
-    pub first_status: String,
-    pub first_uptime_seconds: i64,
-    pub second_status: String,
-    pub second_uptime_seconds: i64,
-}
-
-impl SnapshotDiffStoredTabletServers {
-    fn first_snapshot( storedtabletservers: StoredTabletServers ) -> Self
-    {
-        Self {
-            first_status: storedtabletservers.status,
-            first_uptime_seconds: storedtabletservers.uptime_seconds,
-            second_status: "".to_string(),
-            second_uptime_seconds: 0,
-        }
-    }
-    fn second_snapshot_new( storedtabletservers: StoredTabletServers ) -> Self
-    {
-        Self {
-            first_status: "".to_string(),
-            first_uptime_seconds: 0,
-            second_status: storedtabletservers.status,
-            second_uptime_seconds: storedtabletservers.uptime_seconds,
-        }
-    }
-    fn second_snapshot_existing( storedtabletservers_diff_row: &mut SnapshotDiffStoredTabletServers, storedtabletservers: StoredTabletServers ) -> Self
-    {
-        Self {
-            first_status: storedtabletservers_diff_row.first_status.to_string(),
-            first_uptime_seconds: storedtabletservers_diff_row.first_uptime_seconds,
-            second_status: storedtabletservers.status,
-            second_uptime_seconds: storedtabletservers.uptime_seconds,
-        }
-    }
-}
-
-type BTreeMapSnapshotDiffTabletServers = BTreeMap<String, SnapshotDiffStoredTabletServers>;
-
-#[derive(Default)]
-pub struct SnapshotDiffBTreeMapsTabletServers {
-    pub btreemap_snapshotdiff_tabletservers: BTreeMapSnapshotDiffTabletServers,
-    pub master_found: bool,
-}
-
-impl SnapshotDiffBTreeMapsTabletServers {
+impl TabletServersDiff {
+    pub fn new() -> Self { Default::default() }
     pub fn snapshot_diff(
         begin_snapshot: &String,
         end_snapshot: &String,
-    ) -> Result<SnapshotDiffBTreeMapsTabletServers>
+    ) -> Result<TabletServersDiff>
     {
-        let mut allstoredtabletservers = AllStoredTabletServers::new();
-        allstoredtabletservers.stored_tabletservers = snapshot::read_snapshot(begin_snapshot, "tablet_servers")?;
-        allstoredtabletservers.stored_pathmetrics = snapshot::read_snapshot(begin_snapshot, "tablet_servers_pathmetrics")?;
+        let mut tabletserversdiff = TabletServersDiff::new();
 
+        let mut tabletservers = AllTabletServers::new();
+        tabletservers.tabletservers = snapshot::read_snapshot_json(begin_snapshot, "tablet_servers")?;
         let master_leader = AllIsLeader::return_leader_snapshot(begin_snapshot)?;
-        let mut tabletservers_snapshot_diff = SnapshotDiffBTreeMapsTabletServers::new();
-        tabletservers_snapshot_diff.first_snapshot(allstoredtabletservers, master_leader);
+        tabletserversdiff.first_snapshot(tabletservers, master_leader);
 
-        let mut allstoredtabletservers = AllStoredTabletServers::new();
-        allstoredtabletservers.stored_tabletservers = snapshot::read_snapshot(end_snapshot, "tablet_servers")?;
-        allstoredtabletservers.stored_pathmetrics = snapshot::read_snapshot(end_snapshot, "tablet_servers_pathmetrics")?;
-
+        let mut tabletservers = AllTabletServers::new();
+        tabletservers.tabletservers = snapshot::read_snapshot_json(end_snapshot, "tablet_servers")?;
         let master_leader = AllIsLeader::return_leader_snapshot(end_snapshot)?;
-        tabletservers_snapshot_diff.second_snapshot(allstoredtabletservers, master_leader);
+        tabletserversdiff.second_snapshot(tabletservers, master_leader);
 
-        Ok(tabletservers_snapshot_diff)
-    }
-    pub fn new() -> Self {
-        Default::default()
+        Ok(tabletserversdiff)
     }
     fn first_snapshot(
         &mut self,
-        allstoredtabletservers: AllStoredTabletServers,
+        tablet_servers: AllTabletServers,
         master_leader: String,
     )
     {
         if master_leader == *"" {
             self.master_found = false;
-            return;
+            return
         } else {
             self.master_found = true;
-        };
-        trace!("first snapshot: master_leader: {}, found: {}", master_leader, self.master_found);
+        }
 
-        for row in allstoredtabletservers.stored_tabletservers.into_iter().filter(|r| r.hostname_port == master_leader.clone()) {
-            match self.btreemap_snapshotdiff_tabletservers.get_mut( &row.tserver_hostname_port ) {
-                Some( _tabletserver_row ) => {
-                    error!("Found second entry for first entry of tablet server, based on tablet server hostname:port: {}", &row.tserver_hostname_port);
-                },
-                None => {
-                    trace!("first snapshot: add tablet server: {}", row.tserver_hostname_port.to_string() );
-                    self.btreemap_snapshotdiff_tabletservers.insert(
-                        row.tserver_hostname_port.to_string(),
-                        SnapshotDiffStoredTabletServers::first_snapshot(row)
-                    );
-                },
-            }
-        };
+        for tablet_server in tablet_servers.tabletservers
+            .iter()
+            .filter(|r| r.hostname_port == Some(master_leader.clone()))
+        {
+            self.btreetabletserversdiff
+                .entry(tablet_server.tablet_server_hostname_port.clone().expect("tablet server hostname port should be set"))
+                .and_modify(|_| error!("Duplicate tablet server hostname port: {}", tablet_server.tablet_server_hostname_port.clone().expect("tablet server hostname port should be set")))
+                .or_insert( TabletServersDiffFields {
+                    first_status: tablet_server.status.clone(),
+                    first_uptime_seconds: tablet_server.uptime_seconds,
+                    ..Default::default()
+                });
+        }
     }
     fn second_snapshot(
         &mut self,
-        allstoredtabletserver: AllStoredTabletServers,
+        tablet_servers: AllTabletServers,
         master_leader: String,
     )
     {
-        if master_leader == *"" {
+        if master_leader == *""
+        {
             self.master_found = false;
-            return;
-        } else {
+            return
+        }
+        else
+        {
             self.master_found = true;
-        };
-        trace!("second snapshot: master_leader: {}, found: {}", master_leader, self.master_found);
-
-        for row in allstoredtabletserver.stored_tabletservers.into_iter().filter(|r| r.hostname_port == master_leader.clone()) {
-            match self.btreemap_snapshotdiff_tabletservers.get_mut( &row.tserver_hostname_port ) {
-                Some( tabletserver_row ) => {
-                    if tabletserver_row.first_status == row.status
-                        && tabletserver_row.first_uptime_seconds <= row.uptime_seconds
-                    {
-                        trace!("second snapshot: tablet server idential:remove: {}", row.tserver_hostname_port.to_string() );
-                        self.btreemap_snapshotdiff_tabletservers.remove( &row.tserver_hostname_port.clone() );
-                    } else  {
-                        trace!("second snapshot: tablet server CHANGED: {}", row.tserver_hostname_port.to_string() );
-                        *tabletserver_row = SnapshotDiffStoredTabletServers::second_snapshot_existing(tabletserver_row, row);
-                    }
-                },
-                None => {
-                    trace!("second snapshot: new tablet server: {}", row.tserver_hostname_port.to_string() );
-                    self.btreemap_snapshotdiff_tabletservers.insert( row.tserver_hostname_port.clone(), SnapshotDiffStoredTabletServers::second_snapshot_new(row));
-                },
-            }
+        }
+        for tablet_server in tablet_servers.tabletservers
+            .iter()
+            .filter(|r| r.hostname_port == Some(master_leader.clone()))
+        {
+            self.btreetabletserversdiff
+                .entry(tablet_server.tablet_server_hostname_port.clone().expect("tablet server hostname port shoud be set"))
+                .and_modify(|tabletserverfields| {
+                    tabletserverfields.second_status = tablet_server.status.clone();
+                    tabletserverfields.second_uptime_seconds = tablet_server.uptime_seconds;
+                })
+                .or_insert( TabletServersDiffFields {
+                    second_status: tablet_server.status.clone(),
+                    second_uptime_seconds: tablet_server.uptime_seconds,
+                    ..Default::default()
+                });
         }
     }
     pub fn print(
         &self,
     )
     {
-       if ! self.master_found {
-           println!("Master leader was not found in hosts specified, skipping tablet servers diff.");
-           return;
-       }
-        for (hostname, status) in self.btreemap_snapshotdiff_tabletservers.iter() {
-            if status.second_status == *"" {
+        if ! self.master_found
+        {
+            println!("Master leader was not found in hosts specified, skipping tablet servers diff.");
+            return;
+        }
+        for (hostname, status) in self.btreetabletserversdiff.iter() {
+            // If first and second snapshot status fields are identical,
+            // and the first_uptime is lesser than or equal to the second uptime,
+            // there is no indication anything extraordinary has happened.
+            //
+            // What we want to be notified of is if the status has changed,
+            // or if the first uptime is higher than the second uptime,
+            // indicating a tablet server restart.
+            if status.first_status == status.second_status
+                && status.first_uptime_seconds <= status.second_uptime_seconds
+            {
+                continue;
+            }
+            if status.second_status == *""
+            {
                 println!("{} Tserver:  {}, status: {}, uptime: {} s", "-".to_string().red(), hostname, status.first_status, status.first_uptime_seconds);
-            } else if status.first_status == *"" {
+            }
+            else if status.first_status == *""
+            {
                 println!("{} Tserver:  {}, status: {}, uptime: {} s", "+".to_string().green(), hostname, status.second_status, status.second_uptime_seconds);
-            } else {
+            }
+            else
+            {
                 print!("{} Tserver:  {}, ", "*".to_string().yellow(), hostname);
-                if status.first_status != status.second_status {
+                if status.first_status != status.second_status
+                {
                     print!("status: {}->{}, ", status.first_status.to_string().yellow(), status.second_status.to_string().yellow());
-                } else {
+                }
+                else
+                {
                     print!("status: {}, ", status.first_status);
                 };
-                if status.second_uptime_seconds < status.first_uptime_seconds {
-                    println!("uptime: {}->{} (reboot)", status.first_uptime_seconds.to_string().yellow(), status.second_uptime_seconds.to_string().yellow());
-                } else {
+                if status.second_uptime_seconds < status.first_uptime_seconds
+                {
+                    println!("uptime: {}->{}", status.first_uptime_seconds.to_string().yellow(), status.second_uptime_seconds.to_string().yellow());
+                }
+                else
+                {
                     println!("uptime: {}", status.second_uptime_seconds);
                 };
             };
@@ -384,9 +322,9 @@ impl SnapshotDiffBTreeMapsTabletServers {
         parallel: usize,
     )
     {
-        let allstoredtabletservers = AllStoredTabletServers::read_tabletservers(hosts, ports, parallel).await;
+        let alltabletservers = AllTabletServers::read_tabletservers(hosts, ports, parallel).await;
         let master_leader = AllIsLeader::return_leader_http(hosts, ports, parallel).await;
-        self.first_snapshot(allstoredtabletservers, master_leader);
+        self.first_snapshot(alltabletservers, master_leader);
     }
     pub async fn adhoc_read_second_snapshot(
         &mut self,
@@ -395,9 +333,9 @@ impl SnapshotDiffBTreeMapsTabletServers {
         parallel: usize,
     )
     {
-        let allstoredtabletservers = AllStoredTabletServers::read_tabletservers(hosts, ports, parallel).await;
+        let alltabletservers = AllTabletServers::read_tabletservers(hosts, ports, parallel).await;
         let master_leader = AllIsLeader::return_leader_http(hosts, ports, parallel).await;
-        self.second_snapshot(allstoredtabletservers, master_leader);
+        self.second_snapshot(alltabletservers, master_leader);
     }
 }
 
@@ -411,25 +349,29 @@ pub async fn print_tablet_servers(
     match options.print_tablet_servers.as_ref().unwrap() {
         Some(snapshot_number) => {
 
-            let mut allstoredtabletservers = AllStoredTabletServers::new();
-            allstoredtabletservers.stored_tabletservers = snapshot::read_snapshot(snapshot_number, "tablet_servers")?;
-            allstoredtabletservers.stored_pathmetrics = snapshot::read_snapshot(snapshot_number, "tablet_servers_pathmetrics")?;
+            let mut alltabletservers = AllTabletServers::new();
+            alltabletservers.tabletservers = snapshot::read_snapshot_json(snapshot_number, "tablet_servers")?;
+            let leader_hostname = AllIsLeader::return_leader_snapshot(snapshot_number)?;
 
-            allstoredtabletservers.print(snapshot_number, &options.details_enable)?;
+            alltabletservers.print(&options.details_enable, leader_hostname)?;
 
         }
         None => {
-            let allstoredtabletservers = AllStoredTabletServers::read_tabletservers(&hosts, &ports, parallel).await;
-            allstoredtabletservers.print_adhoc(&options.details_enable, &hosts, &ports, parallel).await?;
+
+            let alltabletservers = AllTabletServers::read_tabletservers(&hosts, &ports, parallel).await;
+            let leader_hostname = AllIsLeader::return_leader_http(&hosts, &ports, parallel).await;
+
+            alltabletservers.print(&options.details_enable, leader_hostname)?;
+
         }
     }
     Ok(())
 }
 
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    //use crate::utility_test::*;
 
     #[test]
     fn unit_parse_tabletserver_data() {
@@ -472,7 +414,7 @@ mod tests {
     }
 }
         "#.to_string();
-        let result = AllStoredTabletServers::parse_tabletservers(json, "", "");
+        let result = AllTabletServers::parse_tabletservers(json, "", "");
         for (_servername, serverstatus) in result.tabletservers.iter() {
             assert_eq!(serverstatus.status, "ALIVE");
         }
@@ -483,10 +425,8 @@ mod tests {
         let hostname = utility::get_hostname_master();
         let port = utility::get_port_master();
 
-        let allstoredtabletservers = AllStoredTabletServers::read_tabletservers(&vec![&hostname], &vec![&port], 1).await;
+        let alltabletservers = AllTabletServers::read_tabletservers(&vec![&hostname], &vec![&port], 1).await;
 
-        assert!(!allstoredtabletservers.stored_tabletservers.is_empty());
-        assert!(!allstoredtabletservers.stored_pathmetrics.is_empty());
-
+        assert!(!alltabletservers.tabletservers.is_empty());
     }
 }

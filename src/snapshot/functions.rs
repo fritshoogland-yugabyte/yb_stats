@@ -361,7 +361,7 @@ pub async fn perform_snapshot(
     let arc_hosts_clone = arc_hosts.clone();
     let arc_ports_clone = arc_ports.clone();
     let handle = tokio::spawn(async move {
-        rpcs::AllStoredConnections::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
+        rpcs::AllRpcs::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
     });
     handles.push(handle);
 

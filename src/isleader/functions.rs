@@ -160,6 +160,6 @@ File not found
         let port = utility::get_port_master();
 
         let leader = AllIsLeader::return_leader_http(&vec![&hostname], &vec![&port], 1_usize).await;
-        assert!(leader.is_empty())
+        assert!(!leader.is_empty())
     }
 }

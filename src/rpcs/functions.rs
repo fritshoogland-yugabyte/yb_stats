@@ -1,56 +1,29 @@
-//use serde_derive::{Serialize,Deserialize};
-use chrono::{DateTime, Local};
-use std::{sync::mpsc::channel, collections::BTreeMap, time::Instant};
+//! The impls and functions
+//!
+use chrono::Local;
+use std::{fmt, sync::mpsc::channel, collections::BTreeMap, time::Instant};
 use log::*;
 use regex::Regex;
 use anyhow::Result;
-use crate::rpcs::AllConnections::{Connections, InAndOutboundConnections};
 use crate::utility;
 use crate::snapshot;
-use crate::rpcs::{AllConnections, YsqlConnection, StoredYsqlConnection, StoredInboundRpc, InboundConnection, AllStoredConnections, StoredCqlDetails, StoredOutboundRpc, StoredHeaders};
+use crate::rpcs::{Rpcs, AllRpcs, CQLCallDetailsPB, RpcConnectionDetailsPB, RpcCallState, RequestHeader, StateType, CqlConnectionDetails, RemoteMethodPB};
+use crate::rpcs::Rpcs::{Ysql, Rpc};
 use crate::Opts;
 
-impl StoredYsqlConnection {
-    fn new(hostname_port: &str,
-           timestamp: DateTime<Local>,
-           connection: YsqlConnection,
-    ) -> Self {
-        Self {
-            hostname_port: hostname_port.to_string(),
-            timestamp,
-            process_start_time: connection.process_start_time.to_string(),
-            application_name: connection.application_name.to_string(),
-            backend_type: connection.backend_type.to_string(),
-            backend_status: connection.backend_status.to_string(),
-            db_oid: connection.db_oid.unwrap_or_default(),
-            db_name: connection.db_name.unwrap_or_default(),
-            host: connection.host.unwrap_or_default(),
-            port: connection.port.unwrap_or_default(),
-            query: connection.query.unwrap_or_default(),
-            query_start_time: connection.query_start_time.unwrap_or_default(),
-            transaction_start_time: connection.transaction_start_time.unwrap_or_default(),
-            process_running_for_ms: connection.process_running_for_ms.unwrap_or_default(),
-            transaction_running_for_ms: connection.transaction_running_for_ms.unwrap_or_default(),
-            query_running_for_ms: connection.query_running_for_ms.unwrap_or_default(),
-        }
+impl fmt::Display for RpcCallState {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+impl fmt::Display for StateType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
 
-impl StoredInboundRpc {
-    fn new(hostname_port: &str, timestamp: DateTime<Local>, serial_number: u32, inboundrpc: &InboundConnection) -> Self {
-        Self {
-            hostname_port: hostname_port.to_string(),
-            timestamp,
-            remote_ip: inboundrpc.remote_ip.to_string(),
-            state: inboundrpc.state.to_string(),
-            processed_call_count: inboundrpc.processed_call_count.unwrap_or_default(),
-            serial_nr: serial_number,
-        }
-    }
-}
-
-impl AllStoredConnections {
-    // called from snapshot::perform_snapshot
+impl AllRpcs {
+    pub fn new() -> Self { Default::default() }
     pub async fn perform_snapshot(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
@@ -61,22 +34,17 @@ impl AllStoredConnections {
         info!("begin snapshot");
         let timer = Instant::now();
 
-        let allconnections = AllStoredConnections::read_connections(hosts, ports, parallel).await;
-        snapshot::save_snapshot(snapshot_number, "ysqlrpc", allconnections.stored_ysqlconnections)?;
-        snapshot::save_snapshot(snapshot_number, "inboundrpc", allconnections.stored_inboundrpcs)?;
-        snapshot::save_snapshot(snapshot_number, "outboundrpc", allconnections.stored_outboundrpcs)?;
-        snapshot::save_snapshot(snapshot_number, "cqldetails", allconnections.stored_cqldetails)?;
-        snapshot::save_snapshot(snapshot_number, "headers", allconnections.stored_headers)?;
+        let allrpcs = AllRpcs::read_rpcs(hosts, ports, parallel).await;
+        snapshot::save_snapshot_json(snapshot_number, "rpcs", allrpcs.rpcs)?;
 
         info!("end snapshot: {:?}", timer.elapsed());
         Ok(())
     }
-    pub fn new() -> Self { Default::default() }
-    pub async fn read_connections(
+    pub async fn read_rpcs(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
         parallel: usize,
-    ) -> AllStoredConnections
+    ) -> AllRpcs
     {
         info!("begin parallel http read");
         let timer = Instant::now();
@@ -89,8 +57,20 @@ impl AllStoredConnections {
                     let tx = tx.clone();
                     s.spawn(move |_| {
                         let detail_snapshot_time = Local::now();
-                        let connections = AllStoredConnections::read_http(host, port);
-                        tx.send((format!("{}:{}", host, port), detail_snapshot_time, connections)).expect("error sending data via tx (masters)");
+                        let mut rpcs = AllRpcs::read_http(host, port);
+                        match rpcs
+                        {
+                            Ysql { ref mut hostname_port, ref mut timestamp, .. } => {
+                                *hostname_port = Some(format!("{}:{}", host, port));
+                                *timestamp = Some(detail_snapshot_time);
+                            }
+                            Rpc { ref mut hostname_port, ref mut timestamp, .. } => {
+                                *hostname_port = Some(format!("{}:{}", host, port));
+                                *timestamp = Some(detail_snapshot_time);
+                            }
+                            _ => {}
+                        }
+                        tx.send(rpcs).expect("error sending data via tx");
                     });
                 }
             }
@@ -98,123 +78,32 @@ impl AllStoredConnections {
 
         info!("end parallel http read {:?}", timer.elapsed());
 
-        let mut allstoredconnections = AllStoredConnections::new();
+        let mut allrpcs = AllRpcs::new();
 
-        for (hostname_port, detail_snapshot_time, connections) in rx {
-            allstoredconnections.split_into_vectors(connections, &hostname_port, detail_snapshot_time);
+        for rpcs in rx
+        {
+            allrpcs.rpcs.push(rpcs);
         }
 
-        allstoredconnections
+        allrpcs
     }
     pub fn read_http(
         host: &str,
         port: &str,
-    ) -> AllConnections
+    ) -> Rpcs
     {
         let data_from_http = utility::http_get(host, port, "rpcz");
-        AllStoredConnections::parse_connections(data_from_http, host, port)
+        AllRpcs::parse_rpcs(data_from_http, host, port)
     }
-    fn parse_connections(
-        connections: String,
+    fn parse_rpcs(
+        http_data: String,
         host: &str,
         port: &str,
-    ) -> AllConnections {
-        serde_json::from_str(&connections).unwrap_or_else(|e| {
+    ) -> Rpcs {
+        serde_json::from_str(&http_data).unwrap_or_else(|e| {
             debug!("Could not parse {}:{}/rpcz json data for rpcs, error: {}", host, port, e);
-            AllConnections::Empty {}
+            Rpcs::Empty {}
         })
-    }
-    pub fn split_into_vectors(
-        &mut self,
-        allconnections: AllConnections,
-        hostname: &str,
-        detail_snapshot_time: DateTime<Local>,
-    )
-    {
-        match allconnections {
-            Connections { connections } => {
-                for ysqlconnection in connections {
-                    trace!("add ysqlconnection, hostname: {}, {:?}", hostname, &ysqlconnection);
-                    self.stored_ysqlconnections.push( StoredYsqlConnection::new( hostname, detail_snapshot_time, ysqlconnection) );
-                }
-            },
-            InAndOutboundConnections { inbound_connections, outbound_connections } => {
-                for (serial_number, inboundrpc) in (0_u32..).zip(inbound_connections.unwrap_or_default().into_iter()) {
-                    trace!("add inboundrpc, hostname: {}, {:?}", hostname, inboundrpc);
-                    self.stored_inboundrpcs.push(StoredInboundRpc::new(hostname, detail_snapshot_time, serial_number, &inboundrpc));
-                    let keyspace = match inboundrpc.connection_details.as_ref() {
-                        Some( connection_details )  => {
-                            connection_details.cql_connection_details.keyspace.clone()
-                        },
-                        None => String::from("")
-                    };
-                    for calls_in_flight in inboundrpc.calls_in_flight.unwrap_or_default() {
-                        if let Some ( cql_details ) = calls_in_flight.cql_details {
-                            for call_detail in cql_details.call_details {
-                                self.stored_cqldetails.push(StoredCqlDetails {
-                                    hostname_port: hostname.to_string(),
-                                    timestamp: detail_snapshot_time,
-                                    remote_ip: inboundrpc.remote_ip.to_string(),
-                                    keyspace: keyspace.to_owned(),
-                                    elapsed_millis: calls_in_flight.elapsed_millis,
-                                    cql_details_type: cql_details.call_type.clone(),
-                                    sql_id: call_detail.sql_id.unwrap_or_default(),
-                                    sql_string: call_detail.sql_string,
-                                    params: call_detail.params.unwrap_or_default(),
-                                    serial_nr: serial_number,
-                                });
-                            }
-                        };
-                        if let Some ( header) = calls_in_flight.header {
-                            self.stored_headers.push( StoredHeaders {
-                                hostname_port: hostname.to_string(),
-                                timestamp: detail_snapshot_time,
-                                remote_ip: inboundrpc.remote_ip.to_string(),
-                                call_id: header.call_id,
-                                remote_method_service_name: header.remote_method.service_name.to_string(),
-                                remote_method_method_name: header.remote_method.method_name.to_string(),
-                                timeout_millis: header.timeout_millis,
-                                elapsed_millis: calls_in_flight.elapsed_millis,
-                                state: calls_in_flight.state.unwrap_or_default(),
-                                serial_nr: serial_number,
-                            });
-                        };
-                    }
-                };
-
-                for (serial_number, outboundrpc) in (0_u32..).zip(outbound_connections.unwrap_or_default().into_iter()) {
-                    trace!("add outboundrpc, hostname: {}, {:?}", hostname, outboundrpc);
-                    self.stored_outboundrpcs.push(StoredOutboundRpc {
-                        hostname_port: hostname.to_string(),
-                        timestamp: detail_snapshot_time,
-                        remote_ip: outboundrpc.remote_ip.to_string(),
-                        state: outboundrpc.state.to_string(),
-                        processed_call_count: outboundrpc.processed_call_count.unwrap_or_default(),
-                        sending_bytes: outboundrpc.sending_bytes.unwrap_or_default(),
-                        serial_nr: serial_number,
-                    });
-                    for calls_in_flight in outboundrpc.calls_in_flight.unwrap_or_default() {
-                        if let Some ( header) = calls_in_flight.header {
-                            self.stored_headers.push( StoredHeaders {
-                                hostname_port: hostname.to_string(),
-                                timestamp: detail_snapshot_time,
-                                remote_ip: outboundrpc.remote_ip.to_string(),
-                                call_id: header.call_id,
-                                remote_method_service_name: header.remote_method.service_name.to_string(),
-                                remote_method_method_name: header.remote_method.method_name.to_string(),
-                                timeout_millis: header.timeout_millis,
-                                elapsed_millis: calls_in_flight.elapsed_millis,
-                                state: calls_in_flight.state.unwrap_or_default(),
-                                serial_nr: serial_number,
-                            });
-                        };
-                    }
-                }
-            },
-            _ => {
-                info!("No match: hostname: {}; {:?}", hostname, allconnections);
-            },
-        }
     }
     pub fn print(
         &self,
@@ -222,67 +111,114 @@ impl AllStoredConnections {
         hostname_filter: &Regex,
     ) -> Result<()>
     {
-        info!("print connections");
-
         let mut endpoint_count: BTreeMap<String, (usize, usize)> = BTreeMap::new();
-        for row in &self.stored_ysqlconnections
-        {
-            if row.backend_status == "active"
+        for rpcs in &self.rpcs {
+            match rpcs
             {
-                endpoint_count
-                    .entry(row.hostname_port.clone())
-                    .and_modify(|(active, total)| { *active +=1; *total += 1} )
-                    .or_insert((1,1));
+                Ysql { connections, hostname_port, .. } =>
+                    {
+                        for connection in connections
+                        {
+                            // active inbound ysql
+                            if connection.backend_status == "active"
+                            {
+                                endpoint_count
+                                    .entry(hostname_port.clone().expect("hostname:port should be set"))
+                                    .and_modify(|(active, total)| {
+                                        *active += 1;
+                                        *total += 1
+                                    })
+                                    .or_insert((1, 1));
+                            }
+                            // inactive inbound ysql
+                            else {
+                                endpoint_count
+                                    .entry(hostname_port.clone().expect("hostname:port should be set"))
+                                    .and_modify(|(_, total)| { *total += 1 })
+                                    .or_insert((0, 1));
+                            }
+                        }
+                    }
+                Rpc { inbound_connections, outbound_connections, hostname_port, .. } =>
+                    {
+                        for inbound in inbound_connections.as_ref().unwrap_or(&Vec::new())
+                        {
+                            // active cql, always inbound
+                            if inbound.calls_in_flight
+                                .as_ref()
+                                .unwrap_or(&Vec::new())
+                                .iter()
+                                .any(|calls_in_flight| calls_in_flight.cql_details.is_some())
+                            {
+                                endpoint_count
+                                    .entry(hostname_port.clone().expect("hostname:port should be set"))
+                                    .and_modify(|(active, total)| {
+                                        *active += 1;
+                                        *total += 1
+                                    })
+                                    .or_insert((1, 1));
+                            }
+                            // active inbound rpc
+                            else if inbound.calls_in_flight
+                                .as_ref()
+                                .unwrap_or(&Vec::new())
+                                .iter()
+                                .any(|calls_in_flight| calls_in_flight.header.is_some())
+                            {
+                                endpoint_count
+                                    .entry(hostname_port.clone().expect("hostname:port should be set"))
+                                    .and_modify(|(active, total)| {
+                                        *active += 1;
+                                        *total += 1
+                                    })
+                                    .or_insert((1, 1));
+                            }
+                            // inactive inbound rpc
+                            else {
+                                endpoint_count
+                                    .entry(hostname_port.clone().expect("hostname:port should be set"))
+                                    .and_modify(|(_, total)| { *total += 1 })
+                                    .or_insert((0, 1));
+                            };
+                        };
+                        for outbound in outbound_connections.as_ref().unwrap_or(&Vec::new())
+                        {
+                            // active outbound rpc
+                            if outbound.calls_in_flight
+                                .as_ref()
+                                .unwrap_or(&Vec::new())
+                                .iter()
+                                .any(|calls_in_flight| calls_in_flight.header.is_some())
+                            {
+                                endpoint_count
+                                    .entry(hostname_port.clone().expect("hostname:port should be set"))
+                                    .and_modify(|(active, total)| {
+                                        *active += 1;
+                                        *total += 1
+                                    })
+                                    .or_insert((1, 1));
+                            }
+                            // active cql, should always be inbound
+                            if outbound.calls_in_flight
+                                .as_ref()
+                                .unwrap_or(&Vec::new())
+                                .iter()
+                                .any(|calls_in_flight| calls_in_flight.cql_details.is_some())
+                            {
+                                error!("Found outbound calls_in_flight.cql_details?")
+                            }
+                            // inactive outbound rpc
+                            else {
+                                endpoint_count
+                                    .entry(hostname_port.clone().expect("hostname:port should be set"))
+                                    .and_modify(|(_, total)| { *total += 1 })
+                                    .or_insert((0, 1));
+                            }
+                        }
+                    }
+                _ => {}
             }
-            else
-            {
-                endpoint_count
-                    .entry(row.hostname_port.clone())
-                    .and_modify(|(_active, total)| *total +=1)
-                    .or_insert((0,1));
-            }
-        }
-        for row in &self.stored_inboundrpcs
-        {
-            // active cql
-            if self.stored_cqldetails.iter().any(|r| r.hostname_port == row.hostname_port && r.remote_ip == row.remote_ip && r.serial_nr == row.serial_nr)
-            {
-                endpoint_count
-                    .entry(row.hostname_port.clone())
-                    .and_modify(|(active, total)| { *active +=1; *total += 1} )
-                    .or_insert((1,1));
-            }
-            // active rpc
-            else if self.stored_headers.iter().any(|r| r.hostname_port == row.hostname_port && r.remote_ip == row.remote_ip && r.serial_nr == row.serial_nr)
-            {
-                endpoint_count
-                    .entry(row.hostname_port.clone())
-                    .and_modify(|(active, total)| { *active +=1; *total += 1} )
-                    .or_insert((1,1));
-            } else {
-                // inactive rpc
-                endpoint_count
-                    .entry(row.hostname_port.clone())
-                    .and_modify(|(_active, total)| *total +=1)
-                    .or_insert((0,1));
-            }
-        }
-        for row in &self.stored_outboundrpcs
-        {
-            // active rpc
-            if self.stored_headers.iter().any(|r| r.hostname_port == row.hostname_port && r.remote_ip == row.remote_ip && r.serial_nr == row.serial_nr)
-            {
-                endpoint_count
-                    .entry(row.hostname_port.clone())
-                    .and_modify(|(active, total)| { *active +=1; *total += 1} )
-                    .or_insert((1,1));
-            } else {
-                // inactive rpc
-                endpoint_count
-                    .entry(row.hostname_port.clone())
-                    .and_modify(|(_active, total)| *total +=1)
-                    .or_insert((0,1));
-            }
+            debug!("{:#?}", rpcs);
         }
         let mut previous_hostname = String::new();
         for (endpoint, (active, inactive)) in &endpoint_count {
@@ -292,7 +228,7 @@ impl AllStoredConnections {
                 if *current_hostname != previous_hostname {
                     println!("\n{}", "-".repeat(120));
                     if !current_port.is_empty() {
-                        self.print_details(previous_hostname, details_enable, &endpoint_count);
+                        self.print_details(previous_hostname, details_enable);
                     }
 
                     print!("{}", current_hostname);
@@ -302,7 +238,8 @@ impl AllStoredConnections {
             };
         }
         println!("\n{}", "-".repeat(120));
-        self.print_details(previous_hostname, details_enable, &endpoint_count);
+        self.print_details(previous_hostname, details_enable);
+
 
         Ok(())
     }
@@ -310,74 +247,266 @@ impl AllStoredConnections {
         &self,
         hostname: String,
         details_enable: &bool,
-        endpoint_count: &BTreeMap<String,(usize, usize)>,
     )
     {
         let mut activity_counter = 0;
-        for (endpoint, (_active, _inactive)) in endpoint_count {
-            if endpoint.split(':').next().unwrap() == hostname {
-                // YSQL connections have a 1:1 relationship
-                for row in self.stored_ysqlconnections.iter().filter(|r| r.hostname_port == *endpoint)
-                {
-                    if row.backend_status == "active" || *details_enable {
-                        println!("{}<-{:30} {:6} {:>6} ms db:{}, q:{}", row.hostname_port, format!("{}:{}", row.host, row.port), row.backend_status, row.query_running_for_ms, row.db_name, row.query);
-                        activity_counter+=1;
-                    }
-                }
-                for row in self.stored_inboundrpcs.iter().filter(|r| r.hostname_port == *endpoint)
-                {
-                    // YCQL connections have a 1:1 relationship
-                    if let Some(cql) = self.stored_cqldetails.iter().find(|r| r.hostname_port == row.hostname_port && r.remote_ip == row.remote_ip && r.serial_nr == row.serial_nr) {
-                        println!("{}<-{:30} {:6}  {:>6} ms ks:{}, q: {}", cql.hostname_port, cql.remote_ip, cql.cql_details_type, cql.elapsed_millis, cql.keyspace, cql.sql_string);
-                        activity_counter+=1;
-                    }
-                    // inbound RPCs can have multiple requests
-                    for (counter, header) in self.stored_headers.iter().filter(|r| r.hostname_port == row.hostname_port && r.remote_ip == row.remote_ip && r.serial_nr == row.serial_nr).enumerate()
+        for rpcs in &self.rpcs
+        {
+            match rpcs
+            {
+                Ysql { connections, hostname_port, .. } =>
                     {
-                        if counter == 0
+                        if hostname_port
+                            .clone()
+                            .expect("hostname:port should be set")
+                            .split(':')
+                            .next()
+                            .unwrap() == hostname
                         {
-                            println!("{}<-{:30}  {:6} {:>6} ms {}:{}", header.hostname_port, header.remote_ip, header.state, header.elapsed_millis, header.remote_method_service_name, header.remote_method_method_name);
-                            activity_counter += 1;
+                            for connection in connections
+                            {
+                                // active inbound ysql
+                                if connection.backend_status == "active"
+                                {
+                                    println!("{:30}<-{:30} {:6} {:>6} ms db:{}, q:{}",
+                                             hostname_port
+                                                 .clone()
+                                                 .expect("hostname:port should be set"),
+                                             format!("{}:{}",
+                                                     connection.host.as_ref().unwrap_or(&"".to_string()),
+                                                     &connection.port.as_ref().unwrap_or(&"".to_string())
+                                             ),
+                                             connection.backend_status,
+                                             connection.query_running_for_ms
+                                                 .unwrap_or_default(),
+                                             connection.db_name
+                                                 .as_ref()
+                                                 .unwrap_or(&"".to_string()),
+                                             connection.query
+                                                 .as_ref()
+                                                 .unwrap_or(&"".to_string()),
+                                    );
+                                    activity_counter += 1;
+                                }
+                                // inactive inbound ysql
+                                else if *details_enable
+                                {
+                                    let remote_host = if connection.host
+                                        .clone()
+                                        .unwrap_or_default()
+                                        .is_empty()
+                                        && connection.port
+                                        .clone()
+                                        .unwrap_or_default()
+                                        .is_empty()
+                                    {
+                                        format!("background:{}", connection.backend_type.clone())
+                                    }
+                                    else
+                                    {
+                                        format!("{}:{}",
+                                             connection.host
+                                                 .clone()
+                                                 .unwrap_or_default(),
+                                             connection.port
+                                                 .clone()
+                                                 .unwrap_or_default(),
+                                        )
+                                    };
+                                    println!("{:30}<-{:30} {:6} {:>6} ms db:{}, q:{}",
+                                             hostname_port
+                                                 .clone()
+                                                 .expect("hostname:port should be set"),
+                                             remote_host,
+                                             connection.backend_status.clone(),
+                                             connection.query_running_for_ms
+                                                 .unwrap_or_default(),
+                                             connection.db_name
+                                                 .as_ref()
+                                                 .unwrap_or(&"".to_string()),
+                                             connection.query
+                                                 .as_ref()
+                                                 .unwrap_or(&"".to_string()),
+                                    );
+                                    activity_counter += 1;
+                                }
+                            }
                         }
-                        else
-                        {
-                            println!("{:50}  {:6} {:>6} ms {}:{}", "", header.state, header.elapsed_millis, header.remote_method_service_name, header.remote_method_method_name);
-                            activity_counter += 1;
-                        };
                     }
-                    // idle inbound connections have a 1:1 relationship, because it's just an open connection
-                    if self.stored_headers.iter().filter(|r| r.hostname_port == row.hostname_port && r.remote_ip == row.remote_ip && r.serial_nr == row.serial_nr).count() == 0 && *details_enable
+                Rpc { inbound_connections, outbound_connections, hostname_port, .. } =>
                     {
-                        println!("{}<-{:30} {:6}", row.hostname_port, row.remote_ip, row.state);
-                        activity_counter+=1;
-                    }
-                }
-                for row in self.stored_outboundrpcs.iter().filter(|r| r.hostname_port == *endpoint)
-                {
-                    // outbound RPCs can have multiple requests
-                    for (counter, header) in self.stored_headers.iter().filter(|r| r.hostname_port == row.hostname_port && r.remote_ip == row.remote_ip && r.serial_nr == row.serial_nr).enumerate()
-                    {
-                        if counter == 0
+                        if hostname_port
+                            .clone()
+                            .expect("hostname:port should be set")
+                            .split(':')
+                            .next()
+                            .unwrap() == hostname
                         {
-                            println!("{}->{:30}  {:6} {:>6} ms {}:{}", header.hostname_port, header.remote_ip, header.state, header.elapsed_millis, header.remote_method_service_name, header.remote_method_method_name);
-                            activity_counter+=1;
+                            for inbound in inbound_connections
+                                .as_ref()
+                                .unwrap_or(&Vec::new())
+                            {
+                                // for both YCQL and RPC inbound requests, active requests are identified by having 'calls_in_flight'.
+                                // for YCQL, calls_in_flight.cql_details has information.
+                                // for RPC, calls_in_flight.header is information.
+                                for calls_in_flight in inbound.calls_in_flight
+                                    .as_ref()
+                                    .unwrap_or(&Vec::new())
+                                    .iter()
+                                {
+                                    for call_details in &calls_in_flight.cql_details
+                                        .as_ref()
+                                        .unwrap_or(&CQLCallDetailsPB::default())
+                                        .call_details
+                                    {
+                                        println!("{:30}<-{:30}  {:6} #{:6} {:>6} ms {:17} ks:{}, q: {}",
+                                                 hostname_port
+                                                     .clone()
+                                                     .expect("hostname:port should be set"),
+                                                 inbound.remote_ip,
+                                                 inbound.state,
+                                                 inbound.processed_call_count
+                                                     .unwrap_or_default(),
+                                                 calls_in_flight.elapsed_millis
+                                                     .unwrap_or_default(),
+                                                 calls_in_flight.cql_details
+                                                     .as_ref()
+                                                     .unwrap_or(&CQLCallDetailsPB::default())
+                                                     .call_type
+                                                     .as_ref()
+                                                     .unwrap_or(&"".to_string()),
+                                                 inbound.connection_details
+                                                     .as_ref()
+                                                     .unwrap_or(&RpcConnectionDetailsPB::default())
+                                                     .cql_connection_details
+                                                     .as_ref()
+                                                     .unwrap_or(&CqlConnectionDetails::default())
+                                                     .keyspace
+                                                     .as_ref()
+                                                     .unwrap_or(&"".to_string()),
+                                                 call_details.sql_string
+                                                     .as_ref()
+                                                     .unwrap_or(&"".to_string()),
+                                        );
+                                        activity_counter += 1;
+                                    }
+                                    if calls_in_flight.header.is_some()
+                                    {
+                                        println!("{:30}<-{:30}  {:6} #{:>6} {:>6} ms {:17} {}:{}",
+                                            hostname_port
+                                                .clone()
+                                                .expect("hostname:port should be set"),
+                                            inbound.remote_ip,
+                                            inbound.state,
+                                            inbound.processed_call_count
+                                               .unwrap_or_default(),
+                                            calls_in_flight.elapsed_millis
+                                               .unwrap_or_default(),
+                                            calls_in_flight.state
+                                               .as_ref()
+                                               .unwrap_or(&RpcCallState::default()),
+                                            calls_in_flight.header
+                                               .as_ref()
+                                               .unwrap_or(&RequestHeader::default())
+                                               .remote_method
+                                               .as_ref()
+                                               .unwrap_or(&RemoteMethodPB::default())
+                                               .service_name,
+                                            calls_in_flight.header
+                                               .as_ref()
+                                               .unwrap_or(&RequestHeader::default())
+                                               .remote_method
+                                               .as_ref()
+                                               .unwrap_or(&RemoteMethodPB::default())
+                                               .method_name,
+                                        );
+                                        activity_counter += 1;
+                                    }
+                                }
+                                if inbound.calls_in_flight.is_none()
+                                    && *details_enable
+                                {
+                                    println!("{:30}<-{:30}  {:6} #{:>6}",
+                                             hostname_port
+                                                 .clone()
+                                                 .expect("hostname:port should be set"),
+                                             inbound.remote_ip,
+                                             inbound.state,
+                                             inbound.processed_call_count
+                                                 .unwrap_or_default(),
+                                    );
+                                    activity_counter += 1;
+
+                                }
+                            }
+                            for outbound in outbound_connections
+                                .as_ref()
+                                .unwrap_or(&Vec::new())
+                            {
+                                for calls_in_flight in outbound.calls_in_flight
+                                    .as_ref()
+                                    .unwrap_or(&Vec::new())
+                                    .iter()
+                                {
+                                    if calls_in_flight.header.is_some()
+                                    {
+                                        println!("{:30}->{:30}  {:6} #{:>6} {:>6} ms {:17} {}:{}",
+                                                 hostname_port
+                                                     .clone()
+                                                     .expect("hostname:port should be set"),
+                                                 outbound.remote_ip,
+                                                 outbound.state,
+                                                 outbound.processed_call_count
+                                                     .unwrap_or_default(),
+                                                 calls_in_flight.elapsed_millis
+                                                     .unwrap_or_default(),
+                                                 calls_in_flight.state
+                                                     .as_ref()
+                                                     .unwrap_or(&RpcCallState::default()),
+                                                 calls_in_flight.header
+                                                     .as_ref()
+                                                     .unwrap_or(&RequestHeader::default())
+                                                     .remote_method
+                                                     .as_ref()
+                                                     .unwrap_or(&RemoteMethodPB::default())
+                                                     .service_name,
+                                                 calls_in_flight.header
+                                                     .as_ref()
+                                                     .unwrap_or(&RequestHeader::default())
+                                                     .remote_method
+                                                     .as_ref()
+                                                     .unwrap_or(&RemoteMethodPB::default())
+                                                     .method_name
+                                        );
+                                        activity_counter += 1;
+                                    }
+                                    if calls_in_flight.cql_details.is_some()
+                                    {
+                                        error!("Found outbound calls_in_flight.cql_details?");
+                                    }
+                                }
+                                if outbound.calls_in_flight.is_none()
+                                    && *details_enable
+                                {
+                                    println!("{:30}->{:30}  {:6} #{:>6}",
+                                             hostname_port
+                                                 .clone()
+                                                 .expect("hostname:port should be set"),
+                                             outbound.remote_ip,
+                                             outbound.state,
+                                             outbound.processed_call_count
+                                                 .unwrap_or_default(),
+                                    );
+                                    activity_counter += 1;
+                                }
+                            }
                         }
-                        else
-                        {
-                            println!("{:50}  {:6} {:>6} ms {}:{}", "", header.state, header.elapsed_millis, header.remote_method_service_name, header.remote_method_method_name);
-                            activity_counter += 1;
-                        }
                     }
-                    // idle outbound connections have a 1:1 relationship, because it's just en open connection
-                    if self.stored_headers.iter().filter(|r| r.hostname_port == row.hostname_port && r.remote_ip == row.remote_ip && r.serial_nr == row.serial_nr).count() == 0 && *details_enable
-                    {
-                        println!("{}->{:30}  {:6}", row.hostname_port, row.remote_ip, row.state);
-                        activity_counter+=1;
-                    }
-                }
+                _ => {}
             }
         }
-        if activity_counter > 0 {
+        if activity_counter > 0
+        {
             println!("{}", "-".repeat(120));
         }
     }
@@ -392,24 +521,23 @@ pub async fn print_rpcs(
 ) -> Result<()>
 {
     let hostname_filter = utility::set_regex(&options.hostname_match);
-    // unwrap() removes/evaluates the first Option<>, match evaluates the the second Option<>.
-    match options.print_rpcs.as_ref().unwrap() {
-        // a snapshot_number provided, read snapshots and print data.
-        Some(snapshot_number) => {
-            let mut allstoredconnections = AllStoredConnections::new();
-            allstoredconnections.stored_ysqlconnections = snapshot::read_snapshot(snapshot_number, "ysqlrpc")?;
-            allstoredconnections.stored_inboundrpcs = snapshot::read_snapshot(snapshot_number, "inboundrpc")?;
-            allstoredconnections.stored_outboundrpcs = snapshot::read_snapshot(snapshot_number, "outboundrpc")?;
-            allstoredconnections.stored_cqldetails = snapshot::read_snapshot(snapshot_number, "cqldetails")?;
-            allstoredconnections.stored_headers = snapshot::read_snapshot(snapshot_number, "headers")?;
 
-            allstoredconnections.print(&options.details_enable, &hostname_filter)?;
-        },
-        // no snapshot number was provided, obtain data from the endpoints
-        None => {
-            let allstoredconnections = AllStoredConnections::read_connections(&hosts, &ports, parallel).await;
-            allstoredconnections.print(&options.details_enable, &hostname_filter)?;
-        },
+    // unwrap() removes/evaluates the first Option<>, match evaluates the the second Option<>.
+    match options.print_rpcs
+        .as_ref()
+        .unwrap()
+    {
+        Some(snapshot_number) =>
+        {
+            let mut allrpcs = AllRpcs::new();
+            allrpcs.rpcs = snapshot::read_snapshot_json(snapshot_number, "rpcs")?;
+            allrpcs.print(&options.details_enable, &hostname_filter)?;
+        }
+        None =>
+        {
+            let allrpcs = AllRpcs::read_rpcs(&hosts, &ports, parallel).await;
+            allrpcs.print(&options.details_enable, &hostname_filter)?;
+        }
     }
     Ok(())
 }
@@ -434,13 +562,17 @@ mod tests {
     ]
 }
         "#.to_string();
-        let result = AllStoredConnections::parse_connections(json,"","");
-        let mut allstoredconnections = AllStoredConnections::new();
-        allstoredconnections.split_into_vectors(result,"", Local::now());
-        assert_eq!(allstoredconnections.stored_ysqlconnections[0].process_start_time,"2022-08-11 10:06:23.639902+00");
-        assert_eq!(allstoredconnections.stored_ysqlconnections[0].application_name,"");
-        assert_eq!(allstoredconnections.stored_ysqlconnections[0].backend_type,"checkpointer");
-        assert_eq!(allstoredconnections.stored_ysqlconnections[0].backend_status,"");
+        let result = AllRpcs::parse_rpcs(json, "", "");
+        match result {
+            Ysql { connections,.. } =>
+            {
+                assert_eq!(connections[0].process_start_time, "2022-08-11 10:06:23.639902+00");
+                assert_eq!(connections[0].application_name, "");
+                assert_eq!(connections[0].backend_type, "checkpointer");
+                assert_eq!(connections[0].backend_status, "");
+            }
+            _ => {},
+        }
     }
 
     #[test]
@@ -469,21 +601,23 @@ mod tests {
     ]
 }
         "#.to_string();
-        let result = AllStoredConnections::parse_connections(json,"","");
-        let mut allstoredconnections = AllStoredConnections::new();
-        allstoredconnections.split_into_vectors(result,"", Local::now());
-        assert_eq!(allstoredconnections.stored_ysqlconnections[0].db_oid,13285);
-        assert_eq!(allstoredconnections.stored_ysqlconnections[0].db_name,"yugabyte");
-        assert_eq!(allstoredconnections.stored_ysqlconnections[0].query,"insert into t select x from generate_series(1,100000000) x;");
-        assert_eq!(allstoredconnections.stored_ysqlconnections[0].query_start_time,"2022-08-12 14:20:38.366499+00");
-        assert_eq!(allstoredconnections.stored_ysqlconnections[0].query_running_for_ms,1824);
+        let result = AllRpcs::parse_rpcs(json, "", "");
+        match result {
+            Ysql { connections, .. } =>
+                {
+                    assert_eq!(connections[0].db_oid.unwrap_or_default(), 13285);
+                    assert_eq!(connections[0].db_name.clone().unwrap_or_default(), "yugabyte");
+                    assert_eq!(connections[0].query.clone().unwrap_or_default(), "insert into t select x from generate_series(1,100000000) x;");
+                    assert_eq!(connections[0].query_start_time.clone().unwrap_or_default(), "2022-08-12 14:20:38.366499+00");
+                    assert_eq!(connections[0].query_running_for_ms.unwrap_or_default(), 1824);
+                }
+            _ => {}
+        }
     }
 
     #[test]
     fn unit_parse_inboundrpc_idle_ycql() {
-        /*
-         * This is how a simple, inactive simple connection via ycqlsh looks like.
-         */
+         // This is how a simple, inactive simple connection via ycqlsh looks like.
         let json = r#"
 {
     "inbound_connections": [
@@ -500,22 +634,24 @@ mod tests {
     ]
 }
         "#.to_string();
-        let result = AllStoredConnections::parse_connections(json,"","");
-        let mut allstoredconnections = AllStoredConnections::new();
-        allstoredconnections.split_into_vectors(result,"", Local::now());
-        assert_eq!(allstoredconnections.stored_inboundrpcs[0].remote_ip,"127.0.0.1:33086");
-        assert_eq!(allstoredconnections.stored_inboundrpcs[0].state,"OPEN");
-        assert_eq!(allstoredconnections.stored_inboundrpcs[0].processed_call_count,2);
-        assert_eq!(allstoredconnections.stored_inboundrpcs[1].remote_ip,"127.0.0.1:33084");
-        assert_eq!(allstoredconnections.stored_inboundrpcs[1].state,"OPEN");
-        assert_eq!(allstoredconnections.stored_inboundrpcs[1].processed_call_count,13);
+        let result = AllRpcs::parse_rpcs(json, "", "");
+        match result {
+            Rpc { inbound_connections, .. } =>
+                {
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0].remote_ip, "127.0.0.1:33086");
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0].state, StateType::OPEN);
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0].processed_call_count.unwrap_or_default(), 2);
+                    assert_eq!(inbound_connections.as_ref().unwrap()[1].remote_ip, "127.0.0.1:33084");
+                    assert_eq!(inbound_connections.as_ref().unwrap()[1].state, StateType::OPEN);
+                    assert_eq!(inbound_connections.as_ref().unwrap()[1].processed_call_count.unwrap_or_default(), 13);
+                }
+            _ => {}
+        }
     }
 
     #[test]
     fn unit_parse_inboundrpc_active_query_ycql() {
-        /*
-         * This is how an active query via ycqlsh looks like.
-         */
+         // This is how an active query via ycqlsh looks like.
         let json = r#"
 {
     "inbound_connections": [
@@ -545,27 +681,28 @@ mod tests {
     ]
 }
         "#.to_string();
-        let result = AllStoredConnections::parse_connections(json,"","");
-        let mut allstoredconnections = AllStoredConnections::new();
-        allstoredconnections.split_into_vectors(result,"", Local::now());
-        assert_eq!(allstoredconnections.stored_inboundrpcs[0].remote_ip,"127.0.0.1:35518");
-        assert_eq!(allstoredconnections.stored_inboundrpcs[0].state,"OPEN");
-        assert_eq!(allstoredconnections.stored_inboundrpcs[0].processed_call_count,20);
-        assert_eq!(allstoredconnections.stored_cqldetails[0].keyspace,"cr");
-        assert_eq!(allstoredconnections.stored_cqldetails[0].cql_details_type,"QUERY");
-        assert_eq!(allstoredconnections.stored_cqldetails[0].sql_string,"select avg(permit), avg(permit_recheck), avg( handgun), avg( long_gun), avg( other), avg( multiple), avg( admin), avg( prepawn_handgun), avg( prepawn_long_gun), avg( prepawn_other), avg( redemption_handgun), avg( redemption_long_gun), avg( redemption_other), avg( returned_handgun), avg( returned_long_gun), avg( returned_other), avg( rentals_handgun), avg( rentals_long_gun), avg( private_sale_handgun), avg( private_sale_long_gun), avg( private_sale_other), avg( return_to_seller_handgun), avg( return_to_seller_long_gun), avg( return_to_seller_other), avg( totals) from fa_bg_checks;");
+        let result = AllRpcs::parse_rpcs(json, "", "");
+
+        match result {
+            Rpc { inbound_connections, .. } =>
+                {
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0].remote_ip, "127.0.0.1:35518");
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0].state, StateType::OPEN);
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0].processed_call_count.unwrap_or_default(), 20);
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0].connection_details.as_ref().unwrap().cql_connection_details.as_ref().unwrap().keyspace.as_ref().unwrap(), "cr");
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0].calls_in_flight.as_ref().unwrap()[0].cql_details.as_ref().unwrap().call_type.as_ref().unwrap(), "QUERY");
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0].calls_in_flight.as_ref().unwrap()[0].cql_details.as_ref().unwrap().call_details[0].sql_string.as_ref().unwrap(), "select avg(permit), avg(permit_recheck), avg( handgun), avg( long_gun), avg( other), avg( multiple), avg( admin), avg( prepawn_handgun), avg( prepawn_long_gun), avg( prepawn_other), avg( redemption_handgun), avg( redemption_long_gun), avg( redemption_other), avg( returned_handgun), avg( returned_long_gun), avg( returned_other), avg( rentals_handgun), avg( rentals_long_gun), avg( private_sale_handgun), avg( private_sale_long_gun), avg( private_sale_other), avg( return_to_seller_handgun), avg( return_to_seller_long_gun), avg( return_to_seller_other), avg( totals) from fa_bg_checks;");
+                }
+            _ => {}
+        }
     }
 
-    /*
-     * Please mind clippy remains on complaining about invisible characters despite  #[allow(clippy::invisible_characters)]
-     * I know there are invisible characters in the params, but this is an actual sample of the params.
-     */
+     // Please mind clippy remains on complaining about invisible characters despite  #[allow(clippy::invisible_characters)]
+     // I know there are invisible characters in the params, but this is an actual sample of the params.
     #[test]
     #[allow(clippy::invisible_characters)]
     fn unit_parse_inboundrpc_active_batch_query_ycql() {
-        /*
-         * This is how an active batch query via ycqlsh looks like.
-         */
+         // This is how an active batch query via ycqlsh looks like.
         let json = r#"
 {
     "inbound_connections": [
@@ -694,29 +831,60 @@ mod tests {
     ]
 }
         "#.to_string();
-        let result = AllStoredConnections::parse_connections(json,"","");
-        let mut allstoredconnections = AllStoredConnections::new();
-        allstoredconnections.split_into_vectors(result,"", Local::now());
-        assert_eq!(allstoredconnections.stored_inboundrpcs[0].remote_ip,"127.0.0.1:35692");
-        assert_eq!(allstoredconnections.stored_inboundrpcs[0].state,"OPEN");
-        assert_eq!(allstoredconnections.stored_inboundrpcs[0].processed_call_count,135);
-        assert_eq!(allstoredconnections.stored_cqldetails[0].keyspace,"cr");
-        assert_eq!(allstoredconnections.stored_cqldetails[0].cql_details_type,"BATCH");
-        assert_eq!(allstoredconnections.stored_cqldetails[0].sql_id,"344cf13216c84b621b82d4c212f04b0a");
-        assert_eq!(allstoredconnections.stored_cqldetails[0].sql_string,"INSERT INTO cr.fa_bg_checks (year_month, state, permit, permit_recheck, handgun, long_gun, other, multiple, admin, prepawn_handgun, prepawn_long_gun, prepawn_other, redemption_handgun, redemption_long_gun, redemption_other, returned_handgun, returned_long_gun, returned_other, rentals_handgun, rentals_long_gun, private_sale_handgun, private_sale_long_gun, private_sale_other, return_to_seller_handgun, return_to_seller_long_gun, return_to_seller_other, totals) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        assert_eq!(allstoredconnections.stored_cqldetails[0].params,"[2008-06, Alabama, \0\0\0\0, n/a, \0\0\u{1c},, \0\0\u{1c}\u{1c}, n/a, \0\0\u{1}B, \0\0\0\0, \0\0\0\t, \0\0\0\u{b}, n/a, \0\0\u{5}\u{f}, \0\0\u{5}\u{81}, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, \0\0D.]");
-        assert_eq!(allstoredconnections.stored_cqldetails[0].cql_details_type,"BATCH");
-        assert_eq!(allstoredconnections.stored_cqldetails[19].sql_id,"344cf13216c84b621b82d4c212f04b0a");
-        assert_eq!(allstoredconnections.stored_cqldetails[19].sql_string,"INSERT INTO cr.fa_bg_checks (year_month, state, permit, permit_recheck, handgun, long_gun, other, multiple, admin, prepawn_handgun, prepawn_long_gun, prepawn_other, redemption_handgun, redemption_long_gun, redemption_other, returned_handgun, returned_long_gun, returned_other, rentals_handgun, rentals_long_gun, private_sale_handgun, private_sale_long_gun, private_sale_other, return_to_seller_handgun, return_to_seller_long_gun, return_to_seller_other, totals) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        assert_eq!(allstoredconnections.stored_cqldetails[19].params,"[2008-06, Louisiana, \0\0\0\0, n/a, \0\0\u{19}\u{00cd}, \0\0\u{14}L, n/a, \0\0\0\u{00da}, \0\0\0\0, \0\0\0\u{5}, \0\0\0\u{3}, n/a, \0\0\u{2}\u{0192}, \0\0\u{3}@, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, \0\04\u{00be}]");
+        let result = AllRpcs::parse_rpcs(json, "", "");
+        match result {
+            Rpc { inbound_connections, .. } =>
+                {
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0].remote_ip, "127.0.0.1:35692");
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0].state, StateType::OPEN);
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0].processed_call_count.unwrap_or_default(), 135);
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0]
+                                   .connection_details.as_ref().unwrap()
+                                   .cql_connection_details.as_ref().unwrap()
+                                   .keyspace.as_ref().unwrap(), "cr");
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0]
+                                   .calls_in_flight.as_ref().unwrap()[0]
+                                   .cql_details.as_ref().unwrap()
+                                   .call_type.as_ref().unwrap(), "BATCH");
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0]
+                                   .calls_in_flight.as_ref().unwrap()[0]
+                                   .cql_details.as_ref().unwrap()
+                                   .call_details[0]
+                                   .sql_id.as_ref().unwrap(), "344cf13216c84b621b82d4c212f04b0a");
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0]
+                                   .calls_in_flight.as_ref().unwrap()[0]
+                                   .cql_details.as_ref().unwrap()
+                                   .call_details[0]
+                                   .sql_string.as_ref().unwrap(), "INSERT INTO cr.fa_bg_checks (year_month, state, permit, permit_recheck, handgun, long_gun, other, multiple, admin, prepawn_handgun, prepawn_long_gun, prepawn_other, redemption_handgun, redemption_long_gun, redemption_other, returned_handgun, returned_long_gun, returned_other, rentals_handgun, rentals_long_gun, private_sale_handgun, private_sale_long_gun, private_sale_other, return_to_seller_handgun, return_to_seller_long_gun, return_to_seller_other, totals) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0]
+                                   .calls_in_flight.as_ref().unwrap()[0]
+                                   .cql_details.as_ref().unwrap()
+                                   .call_details[0]
+                                   .params.as_ref().unwrap(), "[2008-06, Alabama, \0\0\0\0, n/a, \0\0\u{1c},, \0\0\u{1c}\u{1c}, n/a, \0\0\u{1}B, \0\0\0\0, \0\0\0\t, \0\0\0\u{b}, n/a, \0\0\u{5}\u{f}, \0\0\u{5}\u{81}, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, \0\0D.]");
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0]
+                                   .calls_in_flight.as_ref().unwrap()[0]
+                                   .cql_details.as_ref().unwrap()
+                                   .call_details[19]
+                                   .sql_id.as_ref().unwrap(), "344cf13216c84b621b82d4c212f04b0a");
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0]
+                                   .calls_in_flight.as_ref().unwrap()[0]
+                                   .cql_details.as_ref().unwrap()
+                                   .call_details[19]
+                                   .sql_string.as_ref().unwrap(), "INSERT INTO cr.fa_bg_checks (year_month, state, permit, permit_recheck, handgun, long_gun, other, multiple, admin, prepawn_handgun, prepawn_long_gun, prepawn_other, redemption_handgun, redemption_long_gun, redemption_other, returned_handgun, returned_long_gun, returned_other, rentals_handgun, rentals_long_gun, private_sale_handgun, private_sale_long_gun, private_sale_other, return_to_seller_handgun, return_to_seller_long_gun, return_to_seller_other, totals) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0]
+                                   .calls_in_flight.as_ref().unwrap()[0]
+                                   .cql_details.as_ref().unwrap()
+                                   .call_details[19]
+                                   .params.as_ref().unwrap(), "[2008-06, Louisiana, \0\0\0\0, n/a, \0\0\u{19}\u{00cd}, \0\0\u{14}L, n/a, \0\0\0\u{00da}, \0\0\0\0, \0\0\0\u{5}, \0\0\0\u{3}, n/a, \0\0\u{2}\u{0192}, \0\0\u{3}@, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, \0\04\u{00be}]");
+                }
+            _ => {}
+        }
     }
 
     #[test]
     fn unit_parse_inboundrpc_and_outboundrpc_simple_tabletserver() {
-        /*
-         * This is the simple, most usual form of inbound and outbound connections for tablet server and master.
-         * The entries can have a more verbose form when they are active.
-         */
+         // This is the simple, most usual form of inbound and outbound connections for tablet server and master.
+         // The entries can have a more verbose form when they are active.
         let json = r#"
 {
     "inbound_connections":
@@ -738,26 +906,26 @@ mod tests {
     ]
 }
         "#.to_string();
-        let result = AllStoredConnections::parse_connections(json,"","");
-        let mut allstoredconnections = AllStoredConnections::new();
-        allstoredconnections.split_into_vectors(result,"", Local::now());
-        // inbound
-        assert_eq!(allstoredconnections.stored_inboundrpcs[0].remote_ip, "172.158.40.206:38776");
-        assert_eq!(allstoredconnections.stored_inboundrpcs[0].state, "OPEN");
-        assert_eq!(allstoredconnections.stored_inboundrpcs[0].processed_call_count, 314238);
-        // outbound
-        assert_eq!(allstoredconnections.stored_outboundrpcs[0].remote_ip, "172.158.40.206:9100");
-        assert_eq!(allstoredconnections.stored_outboundrpcs[0].state, "OPEN");
-        assert_eq!(allstoredconnections.stored_outboundrpcs[0].processed_call_count, 316390);
-        assert_eq!(allstoredconnections.stored_outboundrpcs[0].sending_bytes, 0);
+        let result = AllRpcs::parse_rpcs(json, "", "");
+        match result {
+            Rpc { inbound_connections, outbound_connections, .. } =>
+                {
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0].remote_ip, "172.158.40.206:38776");
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0].state, StateType::OPEN);
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0].processed_call_count.unwrap_or_default(), 314238);
+                    assert_eq!(outbound_connections.as_ref().unwrap()[0].remote_ip, "172.158.40.206:9100");
+                    assert_eq!(outbound_connections.as_ref().unwrap()[0].state, StateType::OPEN);
+                    assert_eq!(outbound_connections.as_ref().unwrap()[0].processed_call_count.unwrap_or_default(), 316390);
+                    assert_eq!(outbound_connections.as_ref().unwrap()[0].sending_bytes.unwrap_or_default(), 0);
+                }
+            _ => {}
+        }
     }
 
     #[test]
     fn unit_parse_outboundrpc_simple_tabletserver() {
-        /*
-         * This is the simple, most usual form of outbound connections for tablet server and master.
-         * The entries can have a more verbose form when they are active.
-         */
+         // This is the simple, most usual form of outbound connections for tablet server and master.
+         // The entries can have a more verbose form when they are active.
         let json = r#"
 {
     "outbound_connections": [
@@ -812,22 +980,23 @@ mod tests {
     ]
 }
         "#.to_string();
-        let result = AllStoredConnections::parse_connections(json,"","");
-        let mut allstoredconnections = AllStoredConnections::new();
-        allstoredconnections.split_into_vectors(result,"", Local::now());
-        // outbound
-        assert_eq!(allstoredconnections.stored_outboundrpcs[0].remote_ip, "192.168.66.80:7100");
-        assert_eq!(allstoredconnections.stored_outboundrpcs[0].state, "OPEN");
-        assert_eq!(allstoredconnections.stored_outboundrpcs[0].processed_call_count, 3526);
-        assert_eq!(allstoredconnections.stored_outboundrpcs[0].sending_bytes, 0);
+        let result = AllRpcs::parse_rpcs(json, "", "");
+        match result {
+            Rpc { outbound_connections, .. } =>
+                {
+                    assert_eq!(outbound_connections.as_ref().unwrap()[0].remote_ip, "192.168.66.80:7100");
+                    assert_eq!(outbound_connections.as_ref().unwrap()[0].state, StateType::OPEN);
+                    assert_eq!(outbound_connections.as_ref().unwrap()[0].processed_call_count.unwrap_or_default(), 3526);
+                    assert_eq!(outbound_connections.as_ref().unwrap()[0].sending_bytes.unwrap_or_default(), 0);
+                }
+            _ => {}
+        }
     }
 
     #[test]
     fn unit_parse_inboundrpc_only_simple_tabletserver() {
-        /*
-         * This is the simple, most usual form of inbound connections for tablet server and master.
-         * The entries can have a more verbose form when they are active.
-         */
+         // This is the simple, most usual form of inbound connections for tablet server and master.
+         // The entries can have a more verbose form when they are active.
         let json = r#"
 {
     "inbound_connections":
@@ -840,13 +1009,16 @@ mod tests {
     ]
 }
         "#.to_string();
-        let result = AllStoredConnections::parse_connections(json,"","");
-        let mut allstoredconnections = AllStoredConnections::new();
-        allstoredconnections.split_into_vectors(result,"", Local::now());
-        // inbound
-        assert_eq!(allstoredconnections.stored_inboundrpcs[0].remote_ip, "172.158.40.206:38776");
-        assert_eq!(allstoredconnections.stored_inboundrpcs[0].state, "OPEN");
-        assert_eq!(allstoredconnections.stored_inboundrpcs[0].processed_call_count, 314238);
+        let result = AllRpcs::parse_rpcs(json, "", "");
+        match result {
+            Rpc { inbound_connections, .. } =>
+                {
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0].remote_ip, "172.158.40.206:38776");
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0].state, StateType::OPEN);
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0].processed_call_count.unwrap_or_default(), 314238);
+                }
+            _ => {}
+        }
     }
 
     #[test]
@@ -915,43 +1087,96 @@ mod tests {
     ]
 }
         "#.to_string();
-        let result = AllStoredConnections::parse_connections(json,"","");
-        let mut allstoredconnections = AllStoredConnections::new();
-        allstoredconnections.split_into_vectors(result,"", Local::now());
-        // inbound
-        assert_eq!(allstoredconnections.stored_inboundrpcs[0].remote_ip,"192.168.66.82:51316");
-        assert_eq!(allstoredconnections.stored_inboundrpcs[0].state,"OPEN");
-        assert_eq!(allstoredconnections.stored_inboundrpcs[0].processed_call_count,74);
-        assert_eq!(allstoredconnections.stored_headers[0].call_id,3160);
-        assert_eq!(allstoredconnections.stored_headers[0].remote_method_service_name,"yb.consensus.ConsensusService");
-        assert_eq!(allstoredconnections.stored_headers[0].remote_method_method_name,"UpdateConsensus");
-        assert_eq!(allstoredconnections.stored_headers[0].timeout_millis,3000);
-        assert_eq!(allstoredconnections.stored_headers[0].elapsed_millis,6);
-        // outbound
-        assert_eq!(allstoredconnections.stored_outboundrpcs[0].remote_ip,"172.158.40.206:9100");
-        assert_eq!(allstoredconnections.stored_outboundrpcs[0].state,"OPEN");
-        assert_eq!(allstoredconnections.stored_outboundrpcs[0].processed_call_count,316390);
-        assert_eq!(allstoredconnections.stored_outboundrpcs[0].sending_bytes,0);
-        assert_eq!(allstoredconnections.stored_headers[1].call_id,4595);
-        assert_eq!(allstoredconnections.stored_headers[1].remote_method_service_name,"yb.tserver.TabletServerService");
-        assert_eq!(allstoredconnections.stored_headers[1].remote_method_method_name,"Write");
-        assert_eq!(allstoredconnections.stored_headers[1].timeout_millis,119994);
-        assert_eq!(allstoredconnections.stored_headers[1].elapsed_millis,84);
-        assert_eq!(allstoredconnections.stored_headers[1].state,"SENT");
-        assert_eq!(allstoredconnections.stored_headers[2].call_id,4615);
-        assert_eq!(allstoredconnections.stored_headers[2].remote_method_service_name,"yb.tserver.TabletServerService");
-        assert_eq!(allstoredconnections.stored_headers[2].remote_method_method_name,"Write");
-        assert_eq!(allstoredconnections.stored_headers[2].timeout_millis,119991);
-        assert_eq!(allstoredconnections.stored_headers[2].elapsed_millis,7);
-        assert_eq!(allstoredconnections.stored_headers[2].state,"SENT");
+        let result = AllRpcs::parse_rpcs(json, "", "");
+
+        match result {
+            Rpc { inbound_connections, outbound_connections, .. } =>
+                {
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0].remote_ip, "192.168.66.82:51316");
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0].state, StateType::OPEN);
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0].processed_call_count.unwrap_or_default(), 74);
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0]
+                                   .calls_in_flight.as_ref().unwrap()[0]
+                                   .header.as_ref().unwrap()
+                                   .call_id.unwrap_or_default(), 3160);
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0]
+                                   .calls_in_flight.as_ref().unwrap()[0]
+                                   .header.as_ref().unwrap()
+                                   .remote_method.as_ref().unwrap()
+                                   .service_name.clone(), "yb.consensus.ConsensusService");
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0]
+                                   .calls_in_flight.as_ref().unwrap()[0]
+                                   .header.as_ref().unwrap()
+                                   .remote_method.as_ref().unwrap()
+                                   .method_name.clone(), "UpdateConsensus");
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0]
+                                   .calls_in_flight.as_ref().unwrap()[0]
+                                   .header.as_ref().unwrap()
+                                   .timeout_millis.unwrap_or_default(), 3000);
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0]
+                                   .calls_in_flight.as_ref().unwrap()[0]
+                                   .elapsed_millis.unwrap_or_default(), 6);
+
+                    assert_eq!(outbound_connections.as_ref().unwrap()[0].remote_ip, "172.158.40.206:9100");
+                    assert_eq!(outbound_connections.as_ref().unwrap()[0].state, StateType::OPEN);
+                    assert_eq!(outbound_connections.as_ref().unwrap()[0].processed_call_count.unwrap_or_default(), 316390);
+                    assert_eq!(outbound_connections.as_ref().unwrap()[0]
+                                   .calls_in_flight.as_ref().unwrap()[0]
+                                   .header.as_ref().unwrap()
+                                   .call_id.unwrap_or_default(), 4595);
+                    assert_eq!(outbound_connections.as_ref().unwrap()[0]
+                                   .calls_in_flight.as_ref().unwrap()[0]
+                                   .header.as_ref().unwrap()
+                                   .remote_method.as_ref().unwrap()
+                                   .service_name.clone(), "yb.tserver.TabletServerService");
+                    assert_eq!(outbound_connections.as_ref().unwrap()[0]
+                                   .calls_in_flight.as_ref().unwrap()[0]
+                                   .header.as_ref().unwrap()
+                                   .remote_method.as_ref().unwrap()
+                                   .method_name.clone(), "Write");
+                    assert_eq!(outbound_connections.as_ref().unwrap()[0]
+                                   .calls_in_flight.as_ref().unwrap()[0]
+                                   .header.as_ref().unwrap()
+                                   .timeout_millis.unwrap_or_default(), 119994);
+                    assert_eq!(outbound_connections.as_ref().unwrap()[0]
+                                   .calls_in_flight.as_ref().unwrap()[0]
+                                   .elapsed_millis.unwrap_or_default(), 84);
+                    assert_eq!(outbound_connections.as_ref().unwrap()[0]
+                                   .calls_in_flight.as_ref().unwrap()[0]
+                                   .state.as_ref().unwrap(), &RpcCallState::SENT);
+                    assert_eq!(outbound_connections.as_ref().unwrap()[0]
+                                   .calls_in_flight.as_ref().unwrap()[1]
+                                   .header.as_ref().unwrap()
+                                   .call_id.unwrap_or_default(), 4615);
+                    assert_eq!(outbound_connections.as_ref().unwrap()[0]
+                                   .calls_in_flight.as_ref().unwrap()[1]
+                                   .header.as_ref().unwrap()
+                                   .remote_method.as_ref().unwrap()
+                                   .service_name.clone(), "yb.tserver.TabletServerService");
+                    assert_eq!(outbound_connections.as_ref().unwrap()[0]
+                                   .calls_in_flight.as_ref().unwrap()[1]
+                                   .header.as_ref().unwrap()
+                                   .remote_method.as_ref().unwrap()
+                                   .method_name.clone(), "Write");
+                    assert_eq!(outbound_connections.as_ref().unwrap()[0]
+                                   .calls_in_flight.as_ref().unwrap()[1]
+                                   .header.as_ref().unwrap()
+                                   .timeout_millis.unwrap_or_default(), 119991);
+                    assert_eq!(outbound_connections.as_ref().unwrap()[0]
+                                   .calls_in_flight.as_ref().unwrap()[1]
+                                   .elapsed_millis.unwrap_or_default(), 7);
+                    assert_eq!(outbound_connections.as_ref().unwrap()[0]
+                                   .calls_in_flight.as_ref().unwrap()[1]
+                                   .state.as_ref().unwrap(), &RpcCallState::SENT);
+                }
+            _ => {}
+        }
     }
 
     #[test]
     fn unit_parse_inboundrpc_and_outboundrpc_master_server() {
-        /*
-         * It turns out the master can have a different format with lesser JSON fields used.
-         * The below outbound_connections JSON document is an example of that.
-         */
+         // It turns out the master can have a different format with lesser JSON fields used.
+         // The below outbound_connections JSON document is an example of that.
         let json = r#"
 {
         "inbound_connections": [
@@ -1029,50 +1254,90 @@ mod tests {
         ]
     }
         "#.to_string();
-        let result = AllStoredConnections::parse_connections(json,"","");
-        let mut allstoredconnections = AllStoredConnections::new();
-        allstoredconnections.split_into_vectors(result,"", Local::now());
-        // inbound
-        assert_eq!(allstoredconnections.stored_inboundrpcs[0].remote_ip, "192.168.66.80:53856");
-        assert_eq!(allstoredconnections.stored_inboundrpcs[0].state, "OPEN");
-        assert_eq!(allstoredconnections.stored_inboundrpcs[0].processed_call_count, 186);
-        // outbound
-        assert_eq!(allstoredconnections.stored_outboundrpcs[0].remote_ip, "192.168.66.80:7100");
+        let result = AllRpcs::parse_rpcs(json, "", "");
+        match result {
+            Rpc { inbound_connections, outbound_connections, .. } =>
+                {
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0].remote_ip, "192.168.66.80:53856");
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0].state, StateType::OPEN);
+                    assert_eq!(inbound_connections.as_ref().unwrap()[0].processed_call_count.unwrap_or_default(), 186);
+
+                    assert_eq!(outbound_connections.as_ref().unwrap()[0].remote_ip, "192.168.66.80:7100");
+                }
+            _ => {}
+        }
     }
 
     #[tokio::test]
     async fn integration_parse_rpcs_tserver() {
         let hostname = utility::get_hostname_tserver();
         let port = utility::get_port_tserver();
-        let allstoredconnections = AllStoredConnections::read_connections(&vec![&hostname], &vec![&port], 1_usize).await;
-        // a tserver / port 9000 does not have YSQL rpcs, port 13000 has.
-        assert!(allstoredconnections.stored_ysqlconnections.is_empty());
-        // a tserver will have inbound RPCs, even RF=1 / 1 tserver. NOPE, no inbound RPCS for tserver with RF1
-        //assert!(!stored_inboundrpc.is_empty());
-        // a tserver will have outbound RPCs, even RF=1 / 1 tserver.
-        assert!(!allstoredconnections.stored_outboundrpcs.is_empty());
+        let allrpcs = AllRpcs::read_rpcs(&vec![&hostname], &vec![&port], 1_usize).await;
+        for rpcs in allrpcs.rpcs {
+            match rpcs {
+                Ysql { connections, .. } =>
+                    {
+                        // a tserver / port 9000 does not have YSQL rpcs, port 13000 has.
+                        assert!(connections.is_empty())
+                    }
+                Rpc { outbound_connections, .. } =>
+                    {
+                        // a tserver will have inbound RPCs, even RF=1 / 1 tserver. NOPE, no inbound RPCS for tserver with RF1
+                        //assert!(!inbound_connections.is_empty());
+                        // a tserver will have outbound RPCs, even RF=1 / 1 tserver.
+                        assert!(!outbound_connections.unwrap().is_empty());
+                    }
+                _ => {}
+            }
+        }
     }
+
     #[tokio::test]
     async fn integration_parse_rpcs_master() {
         let hostname = utility::get_hostname_master();
         let port = utility::get_port_master();
-        let allstoredconnections = AllStoredConnections::read_connections(&vec![&hostname], &vec![&port], 1_usize).await;
-        // a master / port 7000 does not have YSQL rpcs, port 13000 has.
-        assert!(allstoredconnections.stored_ysqlconnections.is_empty());
-        // a master will have inbound RPCs, even RF=1 / 1 tserver.
-        assert!(!allstoredconnections.stored_inboundrpcs.is_empty());
+        let allrpcs = AllRpcs::read_rpcs(&vec![&hostname], &vec![&port], 1_usize).await;
+
+        for rpcs in allrpcs.rpcs {
+            match rpcs {
+                Ysql { connections, .. } =>
+                    {
+                        // a master / port 7000 does not have YSQL rpcs, port 13000 has.
+                        assert!(connections.is_empty())
+                    }
+                Rpc { inbound_connections, .. } =>
+                    {
+                        // a master will have inbound RPCs, even RF=1 / 1 tserver.
+                        assert!(!inbound_connections.unwrap().is_empty());
+                        //assert!(!outbound_connections.is_empty());
+                    }
+                _ => {}
+            }
+        }
     }
+
     #[tokio::test]
     async fn integration_parse_rpcs_ysql() {
         let hostname = utility::get_hostname_ysql();
         let port = utility::get_port_ysql();
-        let allstoredconnections = AllStoredConnections::read_connections(&vec![&hostname], &vec![&port], 1_usize).await;
+        let allrpcs = AllRpcs::read_rpcs(&vec![&hostname], &vec![&port], 1_usize).await;
 
-        // ysql does have a single RPC connection by default after startup, which is the checkpointer process
-        assert!(!allstoredconnections.stored_ysqlconnections.is_empty());
-        // ysql does not have inbound RPCs
-        assert!(allstoredconnections.stored_inboundrpcs.is_empty());
-        // ysql does not have outbound RPCs
-        assert!(allstoredconnections.stored_outboundrpcs.is_empty());
+        for rpcs in allrpcs.rpcs {
+            match rpcs {
+                Ysql { connections, .. } =>
+                    {
+                        // ysql does have a single RPC connection by default after startup, which is the checkpointer process
+                        assert!(!connections.is_empty())
+                    }
+                Rpc { inbound_connections, outbound_connections, .. } =>
+                    {
+                        // ysql does not have inbound RPCs
+                        assert!(inbound_connections.unwrap().is_empty());
+                        // ysql does not have outbound RPCs
+                        assert!(outbound_connections.unwrap().is_empty());
+                    }
+                _ => {}
+            }
+        }
     }
 }

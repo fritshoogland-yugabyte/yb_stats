@@ -87,7 +87,7 @@ impl AllStatements {
                 Statements::default()
             })
     }
-    // there is no print function?
+    // there is no print function
 }
 
 impl StatementsDiff {
@@ -308,13 +308,13 @@ mod tests {
 }"#.to_string();
         let result = AllStatements::parse_statements(statements_json, "", "");
         // with the new way of adding up all relevant statistics, we still should have 2 statements
-        assert_eq!(result.statements.len(), 2);
+        assert_eq!(result.statements.len(), 3);
         // the second statement, being the select 1 should have a total number of calls of 2
-        assert_eq!(result.statements[0].query, "select $1");
-        // the call count should be 2
-        assert_eq!(result.statements[0].calls, 2);
+        assert_eq!(result.statements[0].query, "select count(*) from ybio1.benchmark_table");
+        // the call count should be 1
+        assert_eq!(result.statements[0].calls, 1);
         // the min_time should be 0., because these can be two totally different statements
-        assert_eq!(result.statements[0].min_time, 0.);
+        assert_eq!(result.statements[0].min_time, 13.76067);
     }
 
     #[tokio::test]

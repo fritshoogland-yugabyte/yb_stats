@@ -153,6 +153,7 @@ File not found
         assert_eq!(result.status, "");
     }
 
+    #[ignore = "the master specified might not be the leader, and thus fail the test"]
     #[tokio::test]
     async fn integration_find_master_leader() {
 

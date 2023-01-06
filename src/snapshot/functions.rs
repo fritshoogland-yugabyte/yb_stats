@@ -166,30 +166,6 @@ impl Snapshot {
         Ok((begin_snapshot.to_string(), end_snapshot.to_string(), begin_snapshot_row.clone()))
     }
 }
-/// This is the general yb_stat wide save_snapshot function.
-pub fn save_snapshot<T: Serialize>(
-    snapshot_number: i32,
-    filename: &str,
-    vector: Vec<T>,
-) -> Result<()>
-{
-    let current_directory = env::current_dir()?;
-    let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number.to_string());
-
-    let filepath = &current_snapshot_directory.join(filename);
-    let file = fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .open(filepath)
-        .with_context(|| format!("Error saving snapshot: {}", filepath.display()))?;
-    let mut writer = csv::Writer::from_writer(file);
-    for row in vector {
-        writer.serialize(row)?;
-    }
-    writer.flush()?;
-
-    Ok(())
-}
 /// This is the general yb_stat wide save_snapshot_json function.
 pub fn save_snapshot_json<T: Serialize>(
     snapshot_number: i32,
@@ -223,30 +199,6 @@ pub fn read_snapshot_json<T: for<'de> Deserialize<'de>>(
     };
     Ok(vector)
 }
-/// This is the general yb_stat wide read_snapshot function.
-pub fn read_snapshot<T: for<'de> Deserialize<'de>>(
-    snapshot_number: &String,
-    filename: &str,
-) -> Result<Vec<T>>
-{
-    let mut vector = Vec::new();
-
-    let current_directory = env::current_dir()?;
-    let current_snapshot_directory = current_directory.join("yb_stats.snapshots").join(snapshot_number);
-
-    let filepath = &current_snapshot_directory.join(filename);
-    let file = fs::File::open(filepath)
-        .with_context(|| format!("Error reading snapshot: {}", filepath.display()))?;
-
-    let mut reader = csv::Reader::from_reader(file);
-    for row in reader.deserialize() {
-        let data: T = row?;
-        vector.push(data);
-    };
-
-    Ok(vector)
-}
-
 /// The function to perform a general snapshot resulting in CSV files.
 pub async fn perform_snapshot(
     hosts: Vec<&'static str>,
@@ -268,7 +220,7 @@ pub async fn perform_snapshot(
     let arc_hosts_clone = arc_hosts.clone();
     let arc_ports_clone = arc_ports.clone();
     let handle = tokio::spawn(async move {
-        metrics::AllStoredMetrics::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
+        metrics::AllMetricEntity::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
     });
     handles.push(handle);
 
@@ -430,7 +382,7 @@ pub async fn snapshot_diff(
 
     let (begin_snapshot, end_snapshot, begin_snapshot_row) = Snapshot::read_begin_end_snapshot_from_user(options.begin, options.end)?;
 
-    let metrics_diff = metrics::SnapshotDiffBTreeMapsMetrics::snapshot_diff(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp)?;
+    let metrics_diff = metrics::MetricEntityDiff::snapshot_diff(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &options.details_enable)?;
     metrics_diff.print(&hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable).await;
 
     let statements_diff = statements::StatementsDiff::snapshot_diff(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp)?;
@@ -480,19 +432,22 @@ pub async fn adhoc_metrics_diff(
 
     let first_snapshot_time = Local::now();
 
-    let metrics = Arc::new(Mutex::new(metrics::SnapshotDiffBTreeMapsMetrics::new()));
+    let metrics = Arc::new(Mutex::new(metrics::MetricEntityDiff::new()));
     let statements = Arc::new(Mutex::new(statements::StatementsDiff::new()));
     let node_exporter = Arc::new(Mutex::new(node_exporter::NodeExporterDiff::new()));
 
     let hosts = Arc::new(Mutex::new(hosts));
     let ports = Arc::new(Mutex::new(ports));
+
     let mut handles = vec![];
 
     let clone_metrics = metrics.clone();
     let clone_hosts = hosts.clone();
     let clone_ports = ports.clone();
+    let details_enable = options.details_enable;
+
     let handle = tokio::spawn(async move {
-        clone_metrics.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+        clone_metrics.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel, details_enable).await;
     });
     handles.push(handle);
 
@@ -531,8 +486,10 @@ pub async fn adhoc_metrics_diff(
     let clone_metrics = metrics.clone();
     let clone_hosts = hosts.clone();
     let clone_ports = ports.clone();
+    let details_enable = options.details_enable;
+
     let handle = tokio::spawn(async move {
-        clone_metrics.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel, &first_snapshot_time).await;
+        clone_metrics.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel, &first_snapshot_time, details_enable).await;
     });
     handles.push(handle);
 
@@ -591,7 +548,7 @@ pub async fn adhoc_diff(
 
     let first_snapshot_time = Local::now();
 
-    let metrics = Arc::new(Mutex::new(metrics::SnapshotDiffBTreeMapsMetrics::new()));
+    let metrics = Arc::new(Mutex::new(metrics::MetricEntityDiff::new()));
     let statements = Arc::new(Mutex::new(statements::StatementsDiff::new()));
     let node_exporter = Arc::new(Mutex::new(node_exporter::NodeExporterDiff::new()));
     let entities = Arc::new(Mutex::new(entities::EntitiesDiff::new()));
@@ -602,13 +559,15 @@ pub async fn adhoc_diff(
 
     let hosts = Arc::new(Mutex::new(hosts));
     let ports = Arc::new(Mutex::new(ports));
+    let details_enable = options.details_enable;
+
     let mut handles = vec![];
 
     let clone_metrics = metrics.clone();
     let clone_hosts = hosts.clone();
     let clone_ports = ports.clone();
     let handle = tokio::spawn(async move {
-        clone_metrics.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+        clone_metrics.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel, details_enable).await;
     });
     handles.push(handle);
 
@@ -686,8 +645,10 @@ pub async fn adhoc_diff(
     let clone_metrics = metrics.clone();
     let clone_hosts = hosts.clone();
     let clone_ports = ports.clone();
+    let details_enable = options.details_enable;
+
     let handle = tokio::spawn(async move {
-        clone_metrics.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel, &first_snapshot_time).await;
+        clone_metrics.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel, &first_snapshot_time, details_enable).await;
     });
     handles.push(handle);
 

@@ -1,12 +1,19 @@
+//! The structs
 use chrono::{DateTime, Local};
 use std::collections::{BTreeMap};
+/// The root struct for deserializing `/metrics`.
 ///
-/// Struct to represent the metric entities found in the YugabyteDB master and tserver metrics endpoint.
+/// Struct to represent the metric entities found in the YugabyteDB
+/// - master
+/// - tablet server
+/// - YSQL
+/// metrics endpoint.
 ///
-/// The struct [MetricEntity] uses two child structs: [Attributes] and a vector of [Metrics].
+/// Mind the '[' at the top: this is a list of MetricEntity's.
 ///
 /// This is how a metric entity looks like:
 /// ```json
+/// [
 ///     {
 ///         "type": "cluster",
 ///         "id": "yb.cluster",
@@ -27,11 +34,14 @@ use std::collections::{BTreeMap};
 ///         ]
 ///     }
 /// ```
-/// The entity is the the type cluster, contains no attributes, and contains 3 metrics.
-/// This struct is used by serde to parse the json from the metrics endpoint into a struct.
-/// The attributes nested json can be empty, which is why this wrapped in an option.
+/// There can be more than one entity, typically in the master and tablet servers.
+/// Or one entity, typically in the YSQL server.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MetricEntity {
+    /// yb_stats added to allow understanding the source host.
+    pub hostname_port: Option<String>,
+    /// yb_stats added to allow understanding the timestamp.
+    pub timestamp: Option<DateTime<Local>>,
     /// The json output contains a field 'type', which is not allowed as struct field name.
     /// For that reason, the name of the field 'type' is changed to 'metrics_type' here.
     #[serde(rename = "type")]
@@ -40,10 +50,8 @@ pub struct MetricEntity {
     pub attributes: Option<Attributes>,
     pub metrics: Vec<Metrics>,
 }
-/// Struct to represent the attributes nested json found in a metric entity.
-/// This struct is used by serde to parse the json from the metrics endpoint into a struct.
+/// Struct to represent the attributes nested json found in a [MetricEntity] entity.
 /// Each of the fields in this json structure can be empty, which is why these are wrapped in options.
-/// This struct is used in the [MetricEntity] struct.
 /// This is how an Attributes json looks like:
 /// ```json
 ///       "attributes": {
@@ -52,7 +60,7 @@ pub struct MetricEntity {
 ///             "table_id": "000033e8000030008000000000004100"
 ///       }
 /// ```
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Attributes {
     pub namespace_name: Option<String>,
     pub table_name: Option<String>,
@@ -163,188 +171,64 @@ pub enum Metrics {
         value: bool,
     },
 }
-#[allow(rustdoc::private_intra_doc_links)]
-/// [StoredValues] is the format in which a [Metrics::MetricValue] is transformed into before it's used in the current 3 different ways of usage:
-/// - Perform a snapshot: the parsed http endpoint data is first stored in [MetricEntity] and [Metrics::MetricValue], after which it's transformed into [StoredValues] format which then is saved as CSV using serde.
-/// - Read a snapshot: the saved CSV data is read back into [StoredValues] using serde. Once in [StoredValues] format, it is added to the [AllStoredMetrics] super struct together with [StoredCountSum] and [StoredCountSumRows]. This is then diffed with another [AllStoredMetrics] struct using the [SnapshotDiffBTreeMapsMetrics::first_snapshot] and [SnapshotDiffBTreeMapsMetrics::second_snapshot] functions.
-/// - Ad-hoc mode: Read and parse the http endpoint data into [MetricEntity] and [Metrics::MetricValue], after which it's transformed into [StoredValues]. Once in [StoredValues] format, it is added to the [AllStoredMetrics] super struct together with [StoredCountSum] and [StoredCountSumRows]. This is then diffed with another [AllStoredMetrics] struct using the [SnapshotDiffBTreeMapsMetrics::first_snapshot] and [SnapshotDiffBTreeMapsMetrics::second_snapshot] functions.
-///
-/// This struct is used in a superstruct called [AllStoredMetrics].
-/// Th superstruct adds hostname and port and timestamp to the [MetricEntity] and [Metrics::MetricValue] data.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct StoredValues {
-    pub hostname_port: String,
-    pub timestamp: DateTime<Local>,
-    pub metric_type: String,
-    pub metric_id: String,
-    pub attribute_namespace: String,
-    pub attribute_table_name: String,
-    pub metric_name: String,
-    pub metric_value: i64,
+/// This struct is used by yb_stats for saving and loading the MetricEntity data.
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct AllMetricEntity {
+    pub metricentity: Vec<MetricEntity>,
 }
-#[allow(rustdoc::private_intra_doc_links)]
-/// [AllStoredMetrics] is a struct that functions as a superstruct for holding [StoredValues], [StoredCountSum] and [StoredCountSumRows].
-/// It is the main struct that is used when dealing with the statistics obtained from YugabyteDB metric endpoints.
+// diff
+/// BTreeMap for storing a metricentity value.
+///
+/// The key fields are: `hostname_port`, `metric_type`, `metric_id`, `metric_name`
+type BTreeMetricDiffValues = BTreeMap<(String, String, String, String), MetricDiffValues>;
+/// The struct that holds the first and second snapshot statistics.
 #[derive(Debug, Default)]
-pub struct AllStoredMetrics {
-    pub stored_values: Vec<StoredValues>,
-    pub stored_countsum: Vec<StoredCountSum>,
-    pub stored_countsumrows: Vec<StoredCountSumRows>,
-}
-#[allow(rustdoc::private_intra_doc_links)]
-/// [StoredCountSum] is the format in which a [Metrics::MetricCountSum] is transformed into before it's used in the current 3 different ways of usage:
-/// - Perform a snapshot: the parsed http endpoint data is first stored in [MetricEntity] and [Metrics::MetricCountSum], after which it's transformed into [StoredCountSum] format which then is saved as CSV using serde.
-/// - Read a snapshot: the saved CSV data is read back into [StoredCountSum] using serde. Once in [StoredCountSum] format, it is added to the [AllStoredMetrics] super struct together with [StoredCountSum] and [StoredCountSumRows]. This is then diffed with another [AllStoredMetrics] struct using the [SnapshotDiffBTreeMapsMetrics::first_snapshot] and [SnapshotDiffBTreeMapsMetrics::second_snapshot] functions.
-/// - Ad-hoc mode: Read and parse the http endpoint data into [MetricEntity] and [Metrics::MetricCountSum], after which it's transformed into [StoredCountSum]. Once in [StoredCountSum] format, it is added to the [AllStoredMetrics] super struct together with [StoredValues] and [StoredCountSumRows]. This is then diffed with another [AllStoredMetrics] struct using the [SnapshotDiffBTreeMapsMetrics::first_snapshot] and [SnapshotDiffBTreeMapsMetrics::second_snapshot] functions.
-///
-/// This struct is used in a superstruct called [AllStoredMetrics].
-/// This struct adds hostname and port and timestamp to the [MetricEntity] and [Metrics::MetricCountSum] data.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct StoredCountSum {
-    pub hostname_port: String,
-    pub timestamp: DateTime<Local>,
-    pub metric_type: String,
-    pub metric_id: String,
-    pub attribute_namespace: String,
-    pub attribute_table_name: String,
-    pub metric_name: String,
-    pub metric_total_count: u64,
-    pub metric_min: u64,
-    /// Please mind the f64, the other metrics are u64
-    pub metric_mean: f64,
-    pub metric_percentile_75: u64,
-    pub metric_percentile_95: u64,
-    pub metric_percentile_99: u64,
-    pub metric_percentile_99_9: u64,
-    pub metric_percentile_99_99: u64,
-    pub metric_max: u64,
-    pub metric_total_sum: u64,
-}
-#[allow(rustdoc::private_intra_doc_links)]
-/// [StoredCountSumRows] is the format in which a [Metrics::MetricCountSumRows] is transformed into before it's used in the current 3 different ways of usage:
-/// - Perform a snapshot: the parsed http endpoint data is first stored in [MetricEntity] and [Metrics::MetricCountSumRows], after which it's transformed into [StoredCountSumRows] format which then is saved as CSV using serde.
-/// - Read a snapshot: the saved CSV data is read back into [StoredCountSumRows] using serde. Once in [StoredCountSumRows] format, it is added to the [AllStoredMetrics] super struct together with [StoredValues] and [StoredCountSum]. This is then diffed with another [AllStoredMetrics] struct using the [SnapshotDiffBTreeMapsMetrics::first_snapshot] and [SnapshotDiffBTreeMapsMetrics::second_snapshot] functions.
-/// - Ad-hoc mode: Read and parse the http endpoint data into [MetricEntity] and [Metrics::MetricCountSumRows], after which it's transformed into [StoredCountSumRows]. Once in [StoredCountSumRows] format, it is added to the [AllStoredMetrics] super struct together with [StoredValues] and [StoredCountSum]. This is then diffed with another [AllStoredMetrics] struct using the [SnapshotDiffBTreeMapsMetrics::first_snapshot] and [SnapshotDiffBTreeMapsMetrics::second_snapshot] functions.
-///
-/// This struct is used in a superstruct called [AllStoredMetrics].
-/// This struct adds hostname and port and timestamp to the [MetricEntity] and [Metrics::MetricCountSumRows] data.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct StoredCountSumRows {
-    pub hostname_port: String,
-    pub timestamp: DateTime<Local>,
-    pub metric_type: String,
-    pub metric_id: String,
-    pub attribute_namespace: String,
-    pub attribute_table_name: String,
-    pub metric_name: String,
-    pub metric_count: u64,
-    pub metric_sum: u64,
-    pub metric_rows: u64,
-}
-#[allow(rustdoc::private_intra_doc_links)]
-/// [SnapshotDiffValues] is the struct that holds the value data for being able to diff it.
-/// It is used as the value in the [BTreeMapSnapshotDiffValues] BTreeMap, where the key is a record consisting of: hostname_port, metric_type, metric_id and metric_name.
-/// Therefore, this struct doesn't need to contain the metric_name.
-///
-/// The base data for the diff are first_snapshot_value and a second_snapshot_value.
-/// The extra statistic info is provided with the first_snapshot_time and second_snapshot_time times,
-/// which allows us to understand the timestamps of the two snapshots,
-/// which obviously allows us to calculate the amount of time between the two snapshots,
-/// and thus allows the calculation of the difference of the values per second.
-///
-/// The table_name and namespace are added so that we can show the table_name and namespace, in case the `--details-enable` switch is used.
-/// The table_name and namespace are not needed for uniqueness: that is guaranteed by the key of the BTreeMap, it's purely to have the ability to show table_name and namespace to the user.
-/// In the case of the metric not being a table, tablet or cdc metricentity, the table_name and namespace are filled with a "-".
-#[derive(Debug)]
-pub struct SnapshotDiffValues {
+pub struct MetricDiffValues {
     pub table_name: String,
     pub namespace: String,
     pub first_snapshot_time: DateTime<Local>,
+    pub first_value: i64,
     pub second_snapshot_time: DateTime<Local>,
-    pub first_snapshot_value: i64,
-    pub second_snapshot_value: i64,
+    pub second_value: i64,
 }
-#[allow(rustdoc::private_intra_doc_links)]
-/// [SnapshotDiffCountSum] is the struct that holds the countsum data for being able to diff it.
-/// It is used as the value in the [BTreeMapSnapshotDiffCountSum] BTreeMap, where the key is a record consisting of: hostname_port, metric_type, metric_id and metric_name.
-/// Therefore, this struct doesn't need to contain the metric_name.
+/// BTreeMap for storing a metricentity countsum.
 ///
-/// The base data for the diff are first_snapshot_total_count and second_snapshot_total_count and first_snapshot_total_sum and second_snapshot_total_sum.
-/// The extra statistic info is provided with the first_snapshot_time and second_snapshot_time times,
-/// which allows us to understand the timestamps of the two snapshots,
-/// which obviously allows us to calculate the amount of time between the two snapshots,
-/// and thus allows the calculation of the difference per second.
-///
-/// The 'count' is the number of times the statistic was hit, the 'sum' is the amount the statistic is about.
-/// This mostly is time, but sometimes be different, such as bytes or tasks, etc.
-///
-/// The table_name and namespace are added so that we can show the table_name and namespace, in case the `--details-enable` switch is used.
-/// The table_name and namespace are not needed for uniqueness: that is guaranteed by the key of the BTreeMap, it's purely to have the ability to show table_name and namespace to the user.
-/// In the case of the metric not being a table, tablet or cdc metricentity, the table_name and namespace are filled with a "-".
-#[derive(Debug)]
-pub struct SnapshotDiffCountSum {
+/// The key fields are: `hostname_port`, `metric_type`, `metric_id`, `metric_name`
+type BTreeMetricDiffCountSum = BTreeMap<(String, String, String, String), MetricDiffCountSum>;
+/// The struct that holds the first and second snapshot statistics.
+#[derive(Debug, Default)]
+pub struct MetricDiffCountSum {
     pub table_name: String,
     pub namespace: String,
     pub first_snapshot_time: DateTime<Local>,
+    pub first_total_sum: u64,
+    pub first_total_count: u64,
     pub second_snapshot_time: DateTime<Local>,
-    pub second_snapshot_total_count: u64,
-    pub second_snapshot_min: u64,
-    /// Please mind the f64, the other metrics are u64
-    pub second_snapshot_mean: f64,
-    pub second_snapshot_percentile_75: u64,
-    pub second_snapshot_percentile_95: u64,
-    pub second_snapshot_percentile_99: u64,
-    pub second_snapshot_percentile_99_9: u64,
-    pub second_snapshot_percentile_99_99: u64,
-    pub second_snapshot_max: u64,
-    pub second_snapshot_total_sum: u64,
-    pub first_snapshot_total_count: u64,
-    pub first_snapshot_total_sum: u64,
+    pub second_total_sum: u64,
+    pub second_total_count: u64,
 }
-#[allow(rustdoc::private_intra_doc_links)]
-/// [SnapshotDiffCountSumRows] is the struct that holds the countsumrows data for being able to diff it.
-/// It is used as the value in the [BTreeMapSnapshotDiffCountSumRows] BTreeMap, where the key is a record consisting of: hostname_port, metric_type, metric_id and metric_name.
-/// Therefore, this struct doesn't need to contain the metric_name.
-/// The data for [SnapshotDiffCountSumRows] comes from the 13000/YSQL endpoint uniquely. This metricentity is more limited, and doesn't use metric_id.
+/// BTreeMap for storing a metricentity countsum.
 ///
-/// The base data for the diff are first_snapshot_count, first_snapshot_sum and first_snapshot_rows, and second_snapshot_count, second_snapshot_sum and second_snapshot_rows.
-/// The extra statistic info is provided with the first_snapshot_time and second_snapshot_time times,
-/// which allows us to understand the timestamps of the two snapshots,
-/// which obviously allows us to calculate the amount of time between the two snapshots,
-/// and thus allows the calculation of the difference per second.
-///
-/// The 'count' is the number of times the statistic was hit, the 'sum' is the amount the statistic is about.
-/// The sum unit for CountSumRows/YSQL data currently is always milliseconds.
-///
-/// The table_name and namespace fields are taken from the parsed result, which always are "-", because these statistics don't specify these properties.
-#[derive(Debug)]
-pub struct SnapshotDiffCountSumRows {
+/// The key fields are: `hostname_port`, `metric_type`, `metric_id`, `metric_name`
+type BTreeMetricDiffCountSumRows = BTreeMap<(String, String, String, String), MetricDiffCountSumRows>;
+/// The struct that holds the first and second snapshot statistics.
+#[derive(Debug, Default)]
+pub struct MetricDiffCountSumRows {
     pub table_name: String,
     pub namespace: String,
     pub first_snapshot_time: DateTime<Local>,
+    pub first_count: u64,
+    pub first_sum: u64,
+    pub first_rows: u64,
     pub second_snapshot_time: DateTime<Local>,
-    pub first_snapshot_count: u64,
-    pub first_snapshot_sum: u64,
-    pub first_snapshot_rows: u64,
-    pub second_snapshot_count: u64,
-    pub second_snapshot_sum: u64,
-    pub second_snapshot_rows: u64,
+    pub second_count: u64,
+    pub second_sum: u64,
+    pub second_rows: u64,
 }
-
-type BTreeMapSnapshotDiffValues = BTreeMap<(String, String, String, String), SnapshotDiffValues>;
-type BTreeMapSnapshotDiffCountSum = BTreeMap<(String, String, String, String), SnapshotDiffCountSum>;
-type BTreeMapSnapshotDiffCountSumRows = BTreeMap<(String, String, String, String), SnapshotDiffCountSumRows>;
-
-#[allow(rustdoc::private_intra_doc_links)]
-/// The [SnapshotDiffBTreeMapsMetrics] struct holds 3 btreemaps for Values, CountSum and CountSumRows.
-/// Which are [BTreeMapSnapshotDiffValues], [BTreeMapSnapshotDiffCountSum] and [BTreeMapSnapshotDiffCountSumRows].
-/// The key for each of the btreemaps is a record of hostname_port, metric_type, metric_id and metric_name.
-/// Because the key holds the metric_name, the struct that is the value belonging to the key doesn't need to hold that.
-/// The values are the structs [SnapshotDiffValues], [SnapshotDiffCountSum] and [SnapshotDiffCountSumRows].
-/// The reason for the BTreeMap is to order the output in a consistent and logical way, and to be able to find entries back based on the key.
-#[derive(Default)]
-pub struct SnapshotDiffBTreeMapsMetrics {
-    pub btreemap_snapshotdiff_values: BTreeMapSnapshotDiffValues,
-    pub btreemap_snapshotdiff_countsum: BTreeMapSnapshotDiffCountSum,
-    pub btreemap_snapshotdiff_countsumrows: BTreeMapSnapshotDiffCountSumRows,
+/// Wrapper for holding the diffs
+#[derive(Debug, Default)]
+pub struct MetricEntityDiff {
+    pub btreemetricdiffvalue: BTreeMetricDiffValues,
+    pub btreemetricdiffcountsum: BTreeMetricDiffCountSum,
+    pub btreemetricdiffcountsumrows: BTreeMetricDiffCountSumRows,
 }

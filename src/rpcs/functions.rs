@@ -101,7 +101,7 @@ impl AllRpcs {
         port: &str,
     ) -> Rpcs {
         serde_json::from_str(&http_data).unwrap_or_else(|e| {
-            debug!("Could not parse {}:{}/rpcz json data for rpcs, error: {}", host, port, e);
+            debug!("Could not parse {}:{}/rpcz, error: {}", host, port, e);
             Rpcs::Empty {}
         })
     }

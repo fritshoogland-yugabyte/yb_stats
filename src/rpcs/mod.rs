@@ -10,7 +10,7 @@
 //! | YSQL         | port 13000   | [YsqlConnection]                          |
 //!
 //! The rpc functionality is called from:
-//! - [crate::snapshot::perform_snapshot] -> [crate::rpcs::AllStoredConnections::perform_snapshot] (general snapshot, saves rpc data)
+//! - [crate::snapshot::perform_snapshot] -> [crate::rpcs::AllRpcs::perform_snapshot] (general snapshot, saves rpc data)
 //! - [crate] -> [print_rpcs] (print adhoc (live) or snapshot rpc info)
 //!
 mod structs;

@@ -228,7 +228,7 @@ impl AllRpcs {
                 if *current_hostname != previous_hostname {
                     println!("\n{}", "-".repeat(120));
                     if !current_port.is_empty() {
-                        self.print_details(previous_hostname, details_enable);
+                        self.print_details(previous_hostname, details_enable, hostname_filter);
                     }
 
                     print!("{}", current_hostname);
@@ -238,7 +238,7 @@ impl AllRpcs {
             };
         }
         println!("\n{}", "-".repeat(120));
-        self.print_details(previous_hostname, details_enable);
+        self.print_details(previous_hostname, details_enable, hostname_filter);
 
 
         Ok(())
@@ -247,6 +247,7 @@ impl AllRpcs {
         &self,
         hostname: String,
         details_enable: &bool,
+        hostname_filter: &Regex,
     )
     {
         let mut activity_counter = 0;
@@ -262,13 +263,14 @@ impl AllRpcs {
                             .split(':')
                             .next()
                             .unwrap() == hostname
+                            && hostname_filter.is_match(&hostname_port.clone().expect("hostname:port should be set"))
                         {
                             for connection in connections
                             {
                                 // active inbound ysql
                                 if connection.backend_status == "active"
                                 {
-                                    println!("{:30}<-{:30} {:6} {:>6} ms db:{}, q:{}",
+                                    println!("{:30}<-{:30} {:6} {:5} {:>6} ms db:{}, q:{}",
                                              hostname_port
                                                  .clone()
                                                  .expect("hostname:port should be set"),
@@ -277,6 +279,7 @@ impl AllRpcs {
                                                      &connection.port.as_ref().unwrap_or(&"".to_string())
                                              ),
                                              connection.backend_status,
+                                             "",
                                              connection.query_running_for_ms
                                                  .unwrap_or_default(),
                                              connection.db_name
@@ -313,12 +316,13 @@ impl AllRpcs {
                                                  .unwrap_or_default(),
                                         )
                                     };
-                                    println!("{:30}<-{:30} {:6} {:>6} ms db:{}, q:{}",
+                                    println!("{:30}<-{:30} {:6} {:5} {:>6} ms db:{}, q:{}",
                                              hostname_port
                                                  .clone()
                                                  .expect("hostname:port should be set"),
                                              remote_host,
                                              connection.backend_status.clone(),
+                                             "",
                                              connection.query_running_for_ms
                                                  .unwrap_or_default(),
                                              connection.db_name
@@ -341,6 +345,7 @@ impl AllRpcs {
                             .split(':')
                             .next()
                             .unwrap() == hostname
+                            && hostname_filter.is_match(&hostname_port.clone().expect("hostname:port should be set"))
                         {
                             for inbound in inbound_connections
                                 .as_ref()
@@ -349,32 +354,60 @@ impl AllRpcs {
                                 // for both YCQL and RPC inbound requests, active requests are identified by having 'calls_in_flight'.
                                 // for YCQL, calls_in_flight.cql_details has information.
                                 // for RPC, calls_in_flight.header is information.
-                                for calls_in_flight in inbound.calls_in_flight
+                                for (calls_in_flight_counter, calls_in_flight) in inbound.calls_in_flight
                                     .as_ref()
                                     .unwrap_or(&Vec::new())
                                     .iter()
+                                    .enumerate()
                                 {
                                     for call_details in &calls_in_flight.cql_details
                                         .as_ref()
                                         .unwrap_or(&CQLCallDetailsPB::default())
                                         .call_details
                                     {
-                                        println!("{:30}<-{:30}  {:6} #{:6} {:>6} ms {:17} ks:{}, q: {}",
-                                                 hostname_port
-                                                     .clone()
-                                                     .expect("hostname:port should be set"),
-                                                 inbound.remote_ip,
-                                                 inbound.state,
-                                                 inbound.processed_call_count
-                                                     .unwrap_or_default(),
+                                        // this is an active inbound YCQL
+                                        // special case of call type: BATCH: count the number of call_details, and do not print all of them.
+                                        let call_type = if calls_in_flight.cql_details
+                                            .as_ref()
+                                            .unwrap_or(&CQLCallDetailsPB::default())
+                                            .call_type
+                                            .as_ref()
+                                            .unwrap_or(&"".to_string()) == "BATCH"
+                                        {
+                                            format!("BATCH ({})", calls_in_flight.cql_details.as_ref().unwrap_or(&CQLCallDetailsPB::default()).call_details.len())
+                                        }
+                                        else
+                                        {
+                                            // otherwise, just print the call type.
+                                            calls_in_flight.cql_details
+                                                .as_ref()
+                                                .unwrap_or(&CQLCallDetailsPB::default())
+                                                .call_type
+                                                .as_ref()
+                                                .unwrap_or(&"".to_string()).to_string()
+                                        };
+                                        // first call in flight to be printed gets the full details
+                                        if calls_in_flight_counter == 0
+                                        {
+                                            print!("{:30}<-{:30} {:6} #{:>6} ",
+                                                   hostname_port
+                                                       .clone()
+                                                       .expect("hostname:port should be set"),
+                                                   inbound.remote_ip,
+                                                   inbound.state,
+                                                   inbound.processed_call_count
+                                                       .unwrap_or_default(),
+                                            );
+                                        }
+                                        else
+                                        // others get spaces. this allows to see the multiple calls in flight
+                                        {
+                                            print!("{:75} ", "");
+                                        }
+                                        println!("{:>6} ms {:17} ks:{}, q: {}",
                                                  calls_in_flight.elapsed_millis
                                                      .unwrap_or_default(),
-                                                 calls_in_flight.cql_details
-                                                     .as_ref()
-                                                     .unwrap_or(&CQLCallDetailsPB::default())
-                                                     .call_type
-                                                     .as_ref()
-                                                     .unwrap_or(&"".to_string()),
+                                                 call_type,
                                                  inbound.connection_details
                                                      .as_ref()
                                                      .unwrap_or(&RpcConnectionDetailsPB::default())
@@ -389,17 +422,38 @@ impl AllRpcs {
                                                      .unwrap_or(&"".to_string()),
                                         );
                                         activity_counter += 1;
+                                        if calls_in_flight.cql_details
+                                            .as_ref()
+                                            .unwrap_or(&CQLCallDetailsPB::default())
+                                            .call_type
+                                            .as_ref()
+                                            .unwrap_or(&"".to_string()) == "BATCH"
+                                        {
+                                            break;
+                                        }
                                     }
+                                    // if header has entries, it is an active inbound RPC
                                     if calls_in_flight.header.is_some()
                                     {
-                                        println!("{:30}<-{:30}  {:6} #{:>6} {:>6} ms {:17} {}:{}",
-                                            hostname_port
-                                                .clone()
-                                                .expect("hostname:port should be set"),
-                                            inbound.remote_ip,
-                                            inbound.state,
-                                            inbound.processed_call_count
-                                               .unwrap_or_default(),
+                                        // first call in flight to be printed gets the full details
+                                        if calls_in_flight_counter == 0
+                                        {
+                                            print!("{:30}<-{:30} {:6} #{:>6} ",
+                                                   hostname_port
+                                                       .clone()
+                                                       .expect("hostname:port should be set"),
+                                                   inbound.remote_ip,
+                                                   inbound.state,
+                                                   inbound.processed_call_count
+                                                       .unwrap_or_default(),
+                                            );
+                                        }
+                                        else
+                                        // others get spaces. this allows to see the multiple calls in flight
+                                        {
+                                            print!("{:75} ", "");
+                                        }
+                                        println!("{:>6} ms {:17} {}:{}",
                                             calls_in_flight.elapsed_millis
                                                .unwrap_or_default(),
                                             calls_in_flight.state
@@ -423,10 +477,12 @@ impl AllRpcs {
                                         activity_counter += 1;
                                     }
                                 }
+                                // inactive inbound connections.
+                                // inactive connections do not have calls in flight.
                                 if inbound.calls_in_flight.is_none()
                                     && *details_enable
                                 {
-                                    println!("{:30}<-{:30}  {:6} #{:>6}",
+                                    println!("{:30}<-{:30} {:6} #{:>6}",
                                              hostname_port
                                                  .clone()
                                                  .expect("hostname:port should be set"),
@@ -443,21 +499,33 @@ impl AllRpcs {
                                 .as_ref()
                                 .unwrap_or(&Vec::new())
                             {
-                                for calls_in_flight in outbound.calls_in_flight
+                                for (calls_in_flight_counter, calls_in_flight) in outbound.calls_in_flight
                                     .as_ref()
                                     .unwrap_or(&Vec::new())
                                     .iter()
+                                    .enumerate()
                                 {
                                     if calls_in_flight.header.is_some()
                                     {
-                                        println!("{:30}->{:30}  {:6} #{:>6} {:>6} ms {:17} {}:{}",
-                                                 hostname_port
-                                                     .clone()
-                                                     .expect("hostname:port should be set"),
-                                                 outbound.remote_ip,
-                                                 outbound.state,
-                                                 outbound.processed_call_count
-                                                     .unwrap_or_default(),
+                                        // first call in flight to be printed gets the full details
+                                        if calls_in_flight_counter == 0
+                                        {
+                                            print!("{:30}->{:30} {:6} #{:>6} ",
+                                                   hostname_port
+                                                       .clone()
+                                                       .expect("hostname:port should be set"),
+                                                   outbound.remote_ip,
+                                                   outbound.state,
+                                                   outbound.processed_call_count
+                                                       .unwrap_or_default(),
+                                            );
+                                        }
+                                        else
+                                        // others get spaces. this allows to see the multiple calls in flight
+                                        {
+                                            print!("{:75} ", "");
+                                        }
+                                        println!("{:>6} ms {:17} {}:{}",
                                                  calls_in_flight.elapsed_millis
                                                      .unwrap_or_default(),
                                                  calls_in_flight.state
@@ -485,10 +553,12 @@ impl AllRpcs {
                                         error!("Found outbound calls_in_flight.cql_details?");
                                     }
                                 }
+                                // inactive outbound connections.
+                                // inactive connections do not have calls in flight.
                                 if outbound.calls_in_flight.is_none()
                                     && *details_enable
                                 {
-                                    println!("{:30}->{:30}  {:6} #{:>6}",
+                                    println!("{:30}->{:30} {:6} #{:>6}",
                                              hostname_port
                                                  .clone()
                                                  .expect("hostname:port should be set"),

@@ -283,7 +283,6 @@ pub async fn print_latencies(
 #[cfg(test)]
 mod tests {
     use super::*;
-    //use crate::utility_test::*;
 
     #[test]
     fn unit_parse_clocks_data() {
@@ -344,7 +343,6 @@ mod tests {
 </tr>
 </table>"#.to_string();
         let result = AllClocks::parse_clocks(threads);
-        // this results in 33 Threads
         assert_eq!(result.len(), 3);
 
         assert_eq!(result[0].server, "yb-1.local:9000  fa8b3f29b2a54eadb73ae546454ce1bb");

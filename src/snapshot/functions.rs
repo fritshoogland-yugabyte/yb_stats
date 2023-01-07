@@ -199,7 +199,7 @@ pub fn read_snapshot_json<T: for<'de> Deserialize<'de>>(
     };
     Ok(vector)
 }
-/// The function to perform a general snapshot resulting in CSV files.
+/// The function to perform a general snapshot resulting in JSON files.
 pub async fn perform_snapshot(
     hosts: Vec<&'static str>,
     ports: Vec<&'static str>,

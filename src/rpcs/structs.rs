@@ -6,7 +6,7 @@ use chrono::{DateTime, Local};
 ///
 /// This struct deserializes a number of actually different structs:
 /// 1. YSQL:
-/// ```text
+/// ```json
 /// {
 ///     "connections": [
 ///         {
@@ -21,7 +21,7 @@ use chrono::{DateTime, Local};
 /// The `connections` array is the externalisation of the `pg_stat_activity` view in YSQL.
 ///
 /// 2. tablet server, master, YCQL and YEDIS inbound connections:
-/// ```text
+/// ```json
 /// {
 ///     "inbound_connections": [
 ///         {
@@ -33,7 +33,7 @@ use chrono::{DateTime, Local};
 /// ```
 ///
 /// 3. tablet server, master outbound connections:
-/// ```text
+/// ```json
 /// "outbound_connections": [
 ///         {
 ///             "remote_ip": "192.168.66.82:9100",
@@ -137,6 +137,7 @@ pub struct RemoteMethodPB {
     pub method_name: String,
 }
 /// `src/yb/rpc/rpc_introspection.proto`
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq)]
 pub enum RpcCallState {
     #[default]
@@ -185,6 +186,7 @@ pub struct OutboundConnection {
 /// `src/yb/rpc/rpc_introspection.proto`
 ///
 /// Inside `RpcConnectionPB` definition.
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub enum StateType {
     UNKNOWN = 999,

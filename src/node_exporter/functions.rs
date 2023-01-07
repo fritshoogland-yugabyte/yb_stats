@@ -294,7 +294,7 @@ impl NodeExporterDiff {
     )
     {
         let allnodeexporter = AllNodeExporter::read_nodeexporter(hosts, ports, parallel).await;
-        self.second_snapshot(allnodeexporter, &first_snapshot_time);
+        self.second_snapshot(allnodeexporter, first_snapshot_time);
     }
 }
 

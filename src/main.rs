@@ -108,10 +108,10 @@ pub struct Opts {
     #[arg(short = 'l', long)]
     snapshot_list: bool,
     /// Output setting to specify the begin snapshot number for diff report.
-    #[arg(short = 'b', long, value_name = "snapshot nr")]
+    #[arg(short = 'b', long, value_name = "snapshot number")]
     begin: Option<i32>,
     /// Output setting to specify the end snapshot number for diff report.
-    #[arg(short = 'e', long, value_name = "snapshot nr")]
+    #[arg(short = 'e', long, value_name = "snapshot number")]
     end: Option<i32>,
     /// Print memtrackers data for the given snapshot number
     #[arg(long, value_name = "snapshot number")]
@@ -144,10 +144,10 @@ pub struct Opts {
     #[arg(long, value_name = "snapshot number")]
     print_rpcs: Option<Option<String>>,
     /// print clocks for the given snapshot number, or get current.
-    #[arg(long)]
+    #[arg(long, value_name = "snapshot_number")]
     print_clocks: Option<Option<String>>,
     /// print master leader tablet server latencies
-    #[arg(long)]
+    #[arg(long, value_name = "snapshot_number")]
     print_latencies: Option<Option<String>>,
     /// Print threads data for the given snapshot number, or get current.
     #[arg(long, value_name = "snapshot number")]

@@ -289,7 +289,7 @@ impl AllEntities
                     {
                         print!("{} ", entity.hostname_port.clone().unwrap());
                     }
-                    println!("Keyspace: {}.{} id: {}", row.keyspace_type, row.keyspace_name, row.keyspace_id);
+                    println!("Keyspace:     {}.{} id: {}", row.keyspace_type, row.keyspace_name, row.keyspace_id);
                 }
             }
             let object_oid_number = |oid: &str| -> u32 {

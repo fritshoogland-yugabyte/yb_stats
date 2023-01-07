@@ -60,7 +60,7 @@ impl AllStatements {
 
         for statements in rx
         {
-            if statements.statements.len() > 0
+            if statements.statements.is_empty()
             {
                 allstatements.statements.push(statements);
             }

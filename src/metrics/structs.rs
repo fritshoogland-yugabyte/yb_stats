@@ -1,4 +1,5 @@
 //! The structs
+//!
 use chrono::{DateTime, Local};
 use std::collections::{BTreeMap};
 /// The root struct for deserializing `/metrics`.
@@ -7,9 +8,11 @@ use std::collections::{BTreeMap};
 /// - master
 /// - tablet server
 /// - YSQL
-/// metrics endpoint.
+/// - YCQL
+/// metrics endpoints.
 ///
 /// Mind the '[' at the top: this is a list of MetricEntity's.
+/// Therefore, parsing this endpoint will result in a vector of structs.
 ///
 /// This is how a metric entity looks like:
 /// ```json
@@ -33,9 +36,17 @@ use std::collections::{BTreeMap};
 ///             }
 ///         ]
 ///     }
+/// ]
 /// ```
-/// There can be more than one entity, typically in the master and tablet servers.
-/// Or one entity, typically in the YSQL server.
+/// A master by default contains the entity types: cluster, server, table, tablet.
+/// A tablet server by default contains the entity types: server, table, tablet.
+/// A YSQL server by default contains the entity types: server.
+/// A YCQL server by default contains the entity types: server.
+/// A YEDIS server by default contains the entity types: server.
+///
+/// The number of table and tablet types changes based on the number of tables defined on the tablet server only.
+///
+/// Additional types cdc and cdcsdk can occur based on replication and xcluster replication.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MetricEntity {
     /// yb_stats added to allow understanding the source host.
@@ -171,7 +182,7 @@ pub enum Metrics {
         value: bool,
     },
 }
-/// This struct is used by yb_stats for saving and loading the MetricEntity data.
+/// This struct is used by yb_stats as a wrapper for saving and loading the MetricEntity data.
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct AllMetricEntity {
     pub metricentity: Vec<MetricEntity>,
@@ -196,6 +207,10 @@ pub struct MetricDiffValues {
 /// The key fields are: `hostname_port`, `metric_type`, `metric_id`, `metric_name`
 type BTreeMetricDiffCountSum = BTreeMap<(String, String, String, String), MetricDiffCountSum>;
 /// The struct that holds the first and second snapshot statistics.
+///
+/// Please mind the fields min, mean, percentile_* and max are not put in the diff struct.
+/// There is no mathematical way to make sense of these figures between the snapshots.
+/// Also, these statistics are flushed upon query, making these rather random.
 #[derive(Debug, Default)]
 pub struct MetricDiffCountSum {
     pub table_name: String,

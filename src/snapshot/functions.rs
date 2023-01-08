@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use crate::Opts;
-use crate::{clocks, entities, gflags, isleader, loglines, masters, mems, memtrackers, metrics, node_exporter, pprof, rpcs, statements, threads, tservers, utility, vars, versions, cluster_config};
+use crate::{clocks, entities, gflags, isleader, loglines, masters, mems, memtrackers, metrics, node_exporter, pprof, rpcs, statements, threads, tablet_servers, utility, vars, versions, cluster_config};
 use crate::snapshot::Snapshot;
 
 impl Snapshot {
@@ -262,7 +262,7 @@ pub async fn perform_snapshot(
     let arc_hosts_clone = arc_hosts.clone();
     let arc_ports_clone = arc_ports.clone();
     let handle = tokio::spawn(async move {
-        tservers::AllTabletServers::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
+        tablet_servers::AllTabletServers::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
     });
     handles.push(handle);
 
@@ -397,7 +397,7 @@ pub async fn snapshot_diff(
     let masters_diff = masters::MastersDiff::snapshot_diff(&begin_snapshot, &end_snapshot)?;
     masters_diff.print();
 
-    let tabletservers_diff = tservers::TabletServersDiff::snapshot_diff(&begin_snapshot, &end_snapshot)?;
+    let tabletservers_diff = tablet_servers::TabletServersDiff::snapshot_diff(&begin_snapshot, &end_snapshot)?;
     tabletservers_diff.print();
 
     let vars_diff = vars::VarsDiff::snapshot_diff(&begin_snapshot, &end_snapshot)?;
@@ -553,7 +553,7 @@ pub async fn adhoc_diff(
     let node_exporter = Arc::new(Mutex::new(node_exporter::NodeExporterDiff::new()));
     let entities = Arc::new(Mutex::new(entities::EntitiesDiff::new()));
     let masters = Arc::new(Mutex::new(masters::MastersDiff::new()));
-    let tablet_servers = Arc::new(Mutex::new(tservers::TabletServersDiff::new()));
+    let tablet_servers = Arc::new(Mutex::new(tablet_servers::TabletServersDiff::new()));
     let versions = Arc::new(Mutex::new(versions::VersionsDiff::new()));
     let vars = Arc::new(Mutex::new(vars::VarsDiff::new()));
 

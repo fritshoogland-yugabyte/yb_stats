@@ -38,7 +38,7 @@ mod mems;
 mod metrics;
 mod utility;
 mod isleader;
-mod tservers;
+mod tablet_servers;
 mod vars;
 mod clocks;
 mod cluster_config;
@@ -191,7 +191,7 @@ async fn main() -> Result<()>
         Opts { print_threads, ..          } if print_threads.is_some()         => threads::print_threads(hosts, ports, parallel, &options).await?,
         Opts { print_entities, ..         } if print_entities.is_some()        => entities::print_entities(hosts, ports, parallel, &options).await?,
         Opts { print_masters, ..          } if print_masters.is_some()         => masters::print_masters(hosts, ports, parallel, &options).await?,
-        Opts { print_tablet_servers, ..   } if print_tablet_servers.is_some()  => tservers::print_tablet_servers(hosts, ports, parallel, &options).await?,
+        Opts { print_tablet_servers, ..   } if print_tablet_servers.is_some()  => tablet_servers::print_tablet_servers(hosts, ports, parallel, &options).await?,
         Opts { print_vars, ..             } if print_vars.is_some()            => vars::print_vars(hosts, ports, parallel, &options).await?,
         Opts { print_clocks, ..           } if print_clocks.is_some()          => clocks::print_clocks(hosts, ports, parallel, &options).await?,
         Opts { print_latencies, ..        } if print_latencies.is_some()       => clocks::print_latencies(hosts, ports, parallel, &options).await?,

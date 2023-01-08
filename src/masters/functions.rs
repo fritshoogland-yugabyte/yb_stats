@@ -115,12 +115,17 @@ impl Masters {
             if *details_enable {
                 print!("{} ", row.hostname_port.as_ref().unwrap());
             };
-            // instance_id, cloud, region, zone
-            println!("{} {:?} Placement: {}.{}.{}",
-                     row.instance_id.permanent_uuid,
-                     row.role
-                         .as_ref()
-                         .unwrap_or(&PeerRole::UNKNOWN_ROLE),
+            // instance_id, role, cloud, region, zone
+            print!("{} ", row.instance_id.permanent_uuid);
+            match row.role.as_ref().unwrap_or(&PeerRole::default())
+            {
+                &PeerRole::LEADER => { print!("{} ", "LEADER".to_string().green().bold()) }
+                &PeerRole::FOLLOWER => { print!("{} ", "FOLLOWER".to_string().green()) }
+                &PeerRole::UNKNOWN_ROLE => { print!("{} ", "UNKNOWN_ROLE".to_string().red()) }
+                others => { print!("{} ", others.to_string().yellow())}
+            }
+            //{} Placement: {}.{}.{}",
+            println!("Placement: {}.{}.{}",
                      row.registration
                          .as_ref()
                          .and_then(|registration| registration.cloud_info.as_ref())

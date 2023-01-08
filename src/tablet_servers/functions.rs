@@ -117,9 +117,17 @@ impl AllTabletServers {
             {
                 print!("{} ", row.hostname_port.as_ref().expect("hostname:port should be set"));
             };
-            println!("{:20} {} Placement: {}.{}.{}",
-                     row.tablet_server_hostname_port.clone().expect("tablet-server hostname:port should be set"),
-                     row.status,
+            print!("{:20} ", row.tablet_server_hostname_port.clone().expect("tablet-server hostname:port should be set"));
+            // this highlights the status row, which makes it easier to spot non-alive (dead) servers.
+            if row.status == "ALIVE"
+            {
+                print!("{} ", row.status.green());
+            }
+            else
+            {
+                print!("{} ", row.status.red());
+            };
+            println!("Placement: {}.{}.{}",
                      row.cloud,
                      row.region,
                      row.zone

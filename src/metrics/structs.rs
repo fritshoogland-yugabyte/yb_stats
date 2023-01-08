@@ -62,6 +62,7 @@ pub struct MetricEntity {
     pub metrics: Vec<Metrics>,
 }
 /// Struct to represent the attributes nested json found in a [MetricEntity] entity.
+///
 /// Each of the fields in this json structure can be empty, which is why these are wrapped in options.
 /// This is how an Attributes json looks like:
 /// ```json
@@ -71,8 +72,19 @@ pub struct MetricEntity {
 ///             "table_id": "000033e8000030008000000000004100"
 ///       }
 /// ```
+/// For replication, there is an extra field: stream_id
+/// ```json
+///             "attributes": {
+///                 "stream_id": "face4edb05934e77b564857878cf5015",
+///                 "table_name": "table0",
+///                 "namespace_name": "test",
+///                 "table_id": "c70ffbbe28f14e84b0559c405ae20197"
+///             }
+/// ```
+/// For now, stream_id is only collected, not printed.
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Attributes {
+    pub stream_id: Option<String>,
     pub namespace_name: Option<String>,
     pub table_name: Option<String>,
     /// The table_id for a table is the table id, and thus does match the MetricEntity.id.

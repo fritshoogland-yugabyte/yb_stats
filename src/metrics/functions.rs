@@ -706,7 +706,7 @@ mod tests {
 
     #[test]
     /// cdc (change data capture) metrics value
-    /// Please mind type cdc has an extra, unique, attribute: stream_id. This is currently not parsed.
+    /// Please mind type cdc has an extra, unique, attribute: stream_id.
     fn unit_parse_metrics_cdc_value() {
         let json = r#"
 [
@@ -741,7 +741,7 @@ mod tests {
 
         #[test]
         /// cdc (change data capture) metrics value
-        /// Please mind type cdc has an extra, unique, attribute: stream_id. This is currently not parsed.
+        /// Please mind type cdc has an extra, unique, attribute: stream_id.
         fn unit_parse_metrics_cdc_countsum() {
             let json = r#"
     [

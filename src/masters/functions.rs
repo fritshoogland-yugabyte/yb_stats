@@ -115,8 +115,8 @@ impl Masters {
             if *details_enable {
                 print!("{} ", row.hostname_port.as_ref().unwrap());
             };
-            // instance_id, role, cloud, region, zone
             print!("{} ", row.instance_id.permanent_uuid);
+            // highlighted role
             match row.role.as_ref().unwrap_or(&PeerRole::default())
             {
                 &PeerRole::LEADER => { print!("{} ", "LEADER".to_string().green().bold()) }
@@ -124,7 +124,6 @@ impl Masters {
                 &PeerRole::UNKNOWN_ROLE => { print!("{} ", "UNKNOWN_ROLE".to_string().red()) }
                 others => { print!("{} ", others.to_string().yellow())}
             }
-            //{} Placement: {}.{}.{}",
             println!("Placement: {}.{}.{}",
                      row.registration
                          .as_ref()

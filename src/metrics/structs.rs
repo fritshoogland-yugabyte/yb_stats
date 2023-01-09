@@ -252,7 +252,7 @@ pub struct MetricDiffCountSumRows {
     pub second_sum: u64,
     pub second_rows: u64,
 }
-/// Wrapper for holding the diffs
+/// Wrapper struct for holding the diff btreemaps.
 #[derive(Debug, Default)]
 pub struct MetricEntityDiff {
     pub btreemetricdiffvalue: BTreeMetricDiffValues,

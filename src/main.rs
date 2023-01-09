@@ -104,6 +104,9 @@ pub struct Opts {
     /// Create an adhoc diff report only for metrics
     #[arg(long)]
     adhoc_metrics_diff: bool,
+    /// Create an adhoc diff report excluding metrics
+    #[arg(long)]
+    adhoc_nonmetrics_diff: bool,
     /// Lists the snapshots in the yb_stats.snapshots in the current directory.
     #[arg(short = 'l', long)]
     snapshot_list: bool,
@@ -199,6 +202,7 @@ async fn main() -> Result<()>
         Opts { print_log, ..              } if print_log.is_some()             => loglines::print_loglines(hosts, ports, parallel, &options).await?,
         Opts { tail_log, ..               } if *tail_log                       => loglines::tail_loglines(hosts, ports, parallel, &options).await?,
         Opts { adhoc_metrics_diff, ..     } if *adhoc_metrics_diff             => snapshot::adhoc_metrics_diff(hosts, ports, parallel, &options).await?,
+        Opts { adhoc_nonmetrics_diff, ..     } if *adhoc_nonmetrics_diff             => snapshot::adhoc_nonmetrics_diff(hosts, ports, parallel, &options).await?,
         Opts { print_gflags, ..           } if print_gflags.is_some()          => gflags::print_gflags(hosts, ports, parallel, &options).await?,
         Opts { print_cluster_config, ..           } if print_cluster_config.is_some()          => cluster_config::print_cluster_config(hosts, ports, parallel, &options).await?,
         _                                                                      => snapshot::adhoc_diff(hosts, ports, parallel, &options).await?,

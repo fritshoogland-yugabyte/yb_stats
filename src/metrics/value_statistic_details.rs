@@ -381,9 +381,16 @@ impl ValueStatistics {
         table.insert("proxy_request_bytes_yb_server_GenericService_ServerClock", "bytes","counter");
         table.insert("proxy_request_bytes_yb_server_GenericService_SetFlag", "bytes","counter");
         table.insert("proxy_request_bytes_yb_tserver_RemoteBootstrapService_BeginRemoteBootstrapSession", "bytes","counter"); // 2.15.2.0
+        table.insert("proxy_request_bytes_yb_tserver_RemoteBootstrapService_ChangePeerRole", "bytes","counter"); // 2.17.0.0
+        table.insert("proxy_request_bytes_yb_tserver_RemoteBootstrapService_CheckRemoteBootstrapSessionActive", "bytes","counter");
         table.insert("proxy_request_bytes_yb_tserver_RemoteBootstrapService_EndRemoteBootstrapSession", "bytes","counter"); // 2.15.2.0
         table.insert("proxy_request_bytes_yb_tserver_RemoteBootstrapService_FetchData", "bytes","counter"); // 2.15.2.0
+        table.insert("proxy_request_bytes_yb_tserver_RemoteBootstrapService_KeepLogAnchorAlive", "bytes","counter"); // 2.17.0.0
+        table.insert("proxy_request_bytes_yb_tserver_RemoteBootstrapService_RegisterLogAnchor", "bytes","counter"); // 2.17.0.0
+        table.insert("proxy_request_bytes_yb_tserver_RemoteBootstrapService_RemoveRemoteBootstrapSession", "bytes","counter"); // 2.17.0.0
         table.insert("proxy_request_bytes_yb_tserver_RemoteBootstrapService_RemoveSession", "bytes","counter"); // 2.15.2.0
+        table.insert("proxy_request_bytes_yb_tserver_RemoteBootstrapService_UnregisterLogAnchor", "bytes","counter"); // 2.17.0.0
+        table.insert("proxy_request_bytes_yb_tserver_RemoteBootstrapService_UpdateLogAnchor", "bytes","counter"); // 2.17.0.0
         table.insert("proxy_request_bytes_yb_tserver_TabletServerAdminService_AddTableToTablet", "bytes","counter");
         table.insert("proxy_request_bytes_yb_tserver_TabletServerAdminService_AlterSchema", "bytes","counter");
         table.insert("proxy_request_bytes_yb_tserver_TabletServerAdminService_BackfillDone", "bytes","counter");
@@ -635,8 +642,15 @@ impl ValueStatistics {
         table.insert("proxy_response_bytes_yb_server_GenericService_ServerClock", "bytes","counter");
         table.insert("proxy_response_bytes_yb_server_GenericService_SetFlag", "bytes","counter");
         table.insert("proxy_response_bytes_yb_tserver_RemoteBootstrapService_BeginRemoteBootstrapSession", "bytes","counter"); // 2.15.2.0
+        table.insert("proxy_response_bytes_yb_tserver_RemoteBootstrapService_ChangePeerRole", "bytes","counter"); // 2.17.0.0
+        table.insert("proxy_response_bytes_yb_tserver_RemoteBootstrapService_CheckRemoteBootstrapSessionActive", "bytes","counter"); // 2.17.0.0
         table.insert("proxy_response_bytes_yb_tserver_RemoteBootstrapService_EndRemoteBootstrapSession", "bytes","counter"); // 2.15.2.0
         table.insert("proxy_response_bytes_yb_tserver_RemoteBootstrapService_FetchData", "bytes","counter"); // 2.15.2.0
+        table.insert("proxy_response_bytes_yb_tserver_RemoteBootstrapService_KeepLogAnchorAlive", "bytes","counter"); // 2.17.0.0
+        table.insert("proxy_response_bytes_yb_tserver_RemoteBootstrapService_RegisterLogAnchor", "bytes","counter"); // 2.17.0.0
+        table.insert("proxy_response_bytes_yb_tserver_RemoteBootstrapService_RemoveRemoteBootstrapSession", "bytes","counter"); // 2.17.0.0
+        table.insert("proxy_response_bytes_yb_tserver_RemoteBootstrapService_UnregisterLogAnchor", "bytes","counter"); // 2.17.0.0
+        table.insert("proxy_response_bytes_yb_tserver_RemoteBootstrapService_UpdateLogAnchor", "bytes","counter"); // 2.17.0.0
         table.insert("proxy_response_bytes_yb_tserver_TabletServerAdminService_AddTableToTablet", "bytes","counter");
         table.insert("proxy_response_bytes_yb_tserver_TabletServerAdminService_AlterSchema", "bytes","counter");
         table.insert("proxy_response_bytes_yb_tserver_TabletServerAdminService_BackfillDone", "bytes","counter");

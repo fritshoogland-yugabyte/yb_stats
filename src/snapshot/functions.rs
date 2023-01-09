@@ -436,8 +436,8 @@ pub async fn adhoc_metrics_diff(
     let statements = Arc::new(Mutex::new(statements::StatementsDiff::new()));
     let node_exporter = Arc::new(Mutex::new(node_exporter::NodeExporterDiff::new()));
 
-    let hosts = Arc::new(Mutex::new(hosts));
-    let ports = Arc::new(Mutex::new(ports));
+    let hosts = Arc::new(hosts);
+    let ports = Arc::new(ports);
 
     let mut handles = vec![];
 
@@ -447,7 +447,7 @@ pub async fn adhoc_metrics_diff(
     let details_enable = options.details_enable;
 
     let handle = tokio::spawn(async move {
-        clone_metrics.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel, details_enable).await;
+        clone_metrics.lock().await.adhoc_read_first_snapshot(&clone_hosts, &clone_ports, parallel, details_enable).await;
     });
     handles.push(handle);
 
@@ -455,7 +455,7 @@ pub async fn adhoc_metrics_diff(
     let clone_hosts = hosts.clone();
     let clone_ports = ports.clone();
     let handle = tokio::spawn(async move {
-        clone_statements.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+        clone_statements.lock().await.adhoc_read_first_snapshot(&clone_hosts, &clone_ports, parallel).await;
     });
     handles.push(handle);
 
@@ -463,7 +463,7 @@ pub async fn adhoc_metrics_diff(
     let clone_hosts = hosts.clone();
     let clone_ports = ports.clone();
     let handle = tokio::spawn(async move {
-        clone_node_exporter.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+        clone_node_exporter.lock().await.adhoc_read_first_snapshot(&clone_hosts, &clone_ports, parallel).await;
     });
     handles.push(handle);
 
@@ -489,7 +489,7 @@ pub async fn adhoc_metrics_diff(
     let details_enable = options.details_enable;
 
     let handle = tokio::spawn(async move {
-        clone_metrics.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel, &first_snapshot_time, details_enable).await;
+        clone_metrics.lock().await.adhoc_read_second_snapshot(&clone_hosts, &clone_ports, parallel, &first_snapshot_time, details_enable).await;
     });
     handles.push(handle);
 
@@ -497,7 +497,7 @@ pub async fn adhoc_metrics_diff(
     let clone_hosts = hosts.clone();
     let clone_ports = ports.clone();
     let handle = tokio::spawn(async move {
-        clone_statements.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel, &first_snapshot_time).await;
+        clone_statements.lock().await.adhoc_read_second_snapshot(&clone_hosts, &clone_ports, parallel, &first_snapshot_time).await;
     });
     handles.push(handle);
 
@@ -505,7 +505,7 @@ pub async fn adhoc_metrics_diff(
     let clone_hosts = hosts.clone();
     let clone_ports = ports.clone();
     let handle = tokio::spawn(async move {
-        clone_node_exporter.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel, &first_snapshot_time).await;
+        clone_node_exporter.lock().await.adhoc_read_second_snapshot(&clone_hosts, &clone_ports, parallel, &first_snapshot_time).await;
     });
     handles.push(handle);
 
@@ -523,6 +523,141 @@ pub async fn adhoc_metrics_diff(
     Ok(())
 }
 
+pub async fn adhoc_nonmetrics_diff(
+    hosts: Vec<&'static str>,
+    ports: Vec<&'static str>,
+    parallel: usize,
+    options: &Opts,
+) -> Result<()>
+{
+    let timer = Instant::now();
+
+    let _stat_name_filter = utility::set_regex(&options.stat_name_match);
+    let hostname_filter = utility::set_regex(&options.hostname_match);
+    let _table_name_filter = utility::set_regex(&options.table_name_match);
+
+    let first_snapshot_time = Local::now();
+
+    let entities = Arc::new(Mutex::new(entities::EntitiesDiff::new()));
+    let masters = Arc::new(Mutex::new(masters::MastersDiff::new()));
+    let tablet_servers = Arc::new(Mutex::new(tablet_servers::TabletServersDiff::new()));
+    let versions = Arc::new(Mutex::new(versions::VersionsDiff::new()));
+    let vars = Arc::new(Mutex::new(vars::VarsDiff::new()));
+
+    let hosts = Arc::new(hosts);
+    let ports = Arc::new(ports);
+    let _details_enable = options.details_enable;
+
+    let mut handles = vec![];
+
+    let clone_entities = entities.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_entities.lock().await.adhoc_read_first_snapshot(&clone_hosts, &clone_ports, parallel).await;
+    });
+    handles.push(handle);
+
+    let clone_masters = masters.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_masters.lock().await.adhoc_read_first_snapshot(&clone_hosts, &clone_ports, parallel).await;
+    });
+    handles.push(handle);
+
+    let clone_tablet_servers = tablet_servers.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_tablet_servers.lock().await.adhoc_read_first_snapshot(&clone_hosts, &clone_ports, parallel).await;
+    });
+    handles.push(handle);
+
+    let clone_vars = vars.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_vars.lock().await.adhoc_read_first_snapshot(&clone_hosts, &clone_ports, parallel).await;
+    });
+    handles.push(handle);
+
+    let clone_versions = versions.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_versions.lock().await.adhoc_read_first_snapshot(&clone_hosts, &clone_ports, parallel).await;
+    });
+    handles.push(handle);
+
+    for handle in handles {
+        handle.await.unwrap();
+    }
+    info!("ad-hoc metrics diff first snapshot end: {:?}", timer.elapsed());
+
+    println!("Begin ad-hoc in-memory snapshot created, press enter to create end snapshot for difference calculation.");
+    let mut input = String::new();
+    stdin().read_line(&mut input).expect("failed");
+
+    let timer = Instant::now();
+
+    let second_snapshot_time = Local::now();
+    let mut handles = vec![];
+
+    let clone_entities = entities.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_entities.lock().await.adhoc_read_second_snapshot(&clone_hosts, &clone_ports, parallel).await;
+    });
+    handles.push(handle);
+
+    let clone_masters = masters.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_masters.lock().await.adhoc_read_second_snapshot(&clone_hosts, &clone_ports, parallel).await;
+    });
+    handles.push(handle);
+
+    let clone_tablet_servers = tablet_servers.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_tablet_servers.lock().await.adhoc_read_second_snapshot(&clone_hosts, &clone_ports, parallel).await;
+    });
+    handles.push(handle);
+
+    let clone_vars = vars.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_vars.lock().await.adhoc_read_second_snapshot(&clone_hosts, &clone_ports, parallel).await;
+    });
+    handles.push(handle);
+
+    let clone_versions = versions.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_versions.lock().await.adhoc_read_second_snapshot(&clone_hosts, &clone_ports, parallel).await;
+    });
+    handles.push(handle);
+
+    for handle in handles {
+        handle.await.unwrap();
+    }
+    info!("ad-hoc metrics diff second snapshot end: {:?}", timer.elapsed());
+
+    println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time - first_snapshot_time).num_milliseconds() as f64 / 1000_f64);
+    entities.lock().await.print();
+    masters.lock().await.print();
+    tablet_servers.lock().await.print();
+    vars.lock().await.print();
+    versions.lock().await.print(&hostname_filter);
+
+    Ok(())
+}
 /// This function shows the difference report for the adhoc (in memory) snapshot data that allows to show a difference:
 /// - metrics (value, coarse_histogram/countsum, ysql/countsumrows)
 /// - statements (ysql)
@@ -557,8 +692,8 @@ pub async fn adhoc_diff(
     let versions = Arc::new(Mutex::new(versions::VersionsDiff::new()));
     let vars = Arc::new(Mutex::new(vars::VarsDiff::new()));
 
-    let hosts = Arc::new(Mutex::new(hosts));
-    let ports = Arc::new(Mutex::new(ports));
+    let hosts = Arc::new(hosts);
+    let ports = Arc::new(ports);
     let details_enable = options.details_enable;
 
     let mut handles = vec![];
@@ -567,7 +702,7 @@ pub async fn adhoc_diff(
     let clone_hosts = hosts.clone();
     let clone_ports = ports.clone();
     let handle = tokio::spawn(async move {
-        clone_metrics.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel, details_enable).await;
+        clone_metrics.lock().await.adhoc_read_first_snapshot(&clone_hosts, &clone_ports, parallel, details_enable).await;
     });
     handles.push(handle);
 
@@ -575,7 +710,7 @@ pub async fn adhoc_diff(
     let clone_hosts = hosts.clone();
     let clone_ports = ports.clone();
     let handle = tokio::spawn(async move {
-        clone_statements.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+        clone_statements.lock().await.adhoc_read_first_snapshot(&clone_hosts, &clone_ports, parallel).await;
     });
     handles.push(handle);
 
@@ -583,7 +718,7 @@ pub async fn adhoc_diff(
     let clone_hosts = hosts.clone();
     let clone_ports = ports.clone();
     let handle = tokio::spawn(async move {
-        clone_node_exporter.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+        clone_node_exporter.lock().await.adhoc_read_first_snapshot(&clone_hosts, &clone_ports, parallel).await;
     });
     handles.push(handle);
 
@@ -591,7 +726,7 @@ pub async fn adhoc_diff(
     let clone_hosts = hosts.clone();
     let clone_ports = ports.clone();
     let handle = tokio::spawn(async move {
-        clone_entities.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+        clone_entities.lock().await.adhoc_read_first_snapshot(&clone_hosts, &clone_ports, parallel).await;
     });
     handles.push(handle);
 
@@ -599,7 +734,7 @@ pub async fn adhoc_diff(
     let clone_hosts = hosts.clone();
     let clone_ports = ports.clone();
     let handle = tokio::spawn(async move {
-        clone_masters.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+        clone_masters.lock().await.adhoc_read_first_snapshot(&clone_hosts, &clone_ports, parallel).await;
     });
     handles.push(handle);
 
@@ -607,7 +742,7 @@ pub async fn adhoc_diff(
     let clone_hosts = hosts.clone();
     let clone_ports = ports.clone();
     let handle = tokio::spawn(async move {
-        clone_tablet_servers.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+        clone_tablet_servers.lock().await.adhoc_read_first_snapshot(&clone_hosts, &clone_ports, parallel).await;
     });
     handles.push(handle);
 
@@ -615,7 +750,7 @@ pub async fn adhoc_diff(
     let clone_hosts = hosts.clone();
     let clone_ports = ports.clone();
     let handle = tokio::spawn(async move {
-        clone_vars.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+        clone_vars.lock().await.adhoc_read_first_snapshot(&clone_hosts, &clone_ports, parallel).await;
     });
     handles.push(handle);
 
@@ -623,7 +758,7 @@ pub async fn adhoc_diff(
     let clone_hosts = hosts.clone();
     let clone_ports = ports.clone();
     let handle = tokio::spawn(async move {
-        clone_versions.lock().await.adhoc_read_first_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+        clone_versions.lock().await.adhoc_read_first_snapshot(&clone_hosts, &clone_ports, parallel).await;
     });
     handles.push(handle);
 
@@ -648,7 +783,7 @@ pub async fn adhoc_diff(
     let details_enable = options.details_enable;
 
     let handle = tokio::spawn(async move {
-        clone_metrics.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel, &first_snapshot_time, details_enable).await;
+        clone_metrics.lock().await.adhoc_read_second_snapshot(&clone_hosts, &clone_ports, parallel, &first_snapshot_time, details_enable).await;
     });
     handles.push(handle);
 
@@ -656,7 +791,7 @@ pub async fn adhoc_diff(
     let clone_hosts = hosts.clone();
     let clone_ports = ports.clone();
     let handle = tokio::spawn(async move {
-        clone_statements.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel, &first_snapshot_time).await;
+        clone_statements.lock().await.adhoc_read_second_snapshot(&clone_hosts, &clone_ports, parallel, &first_snapshot_time).await;
     });
     handles.push(handle);
 
@@ -664,7 +799,7 @@ pub async fn adhoc_diff(
     let clone_hosts = hosts.clone();
     let clone_ports = ports.clone();
     let handle = tokio::spawn(async move {
-        clone_node_exporter.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel, &first_snapshot_time).await;
+        clone_node_exporter.lock().await.adhoc_read_second_snapshot(&clone_hosts, &clone_ports, parallel, &first_snapshot_time).await;
     });
     handles.push(handle);
 
@@ -672,7 +807,7 @@ pub async fn adhoc_diff(
     let clone_hosts = hosts.clone();
     let clone_ports = ports.clone();
     let handle = tokio::spawn(async move {
-        clone_entities.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+        clone_entities.lock().await.adhoc_read_second_snapshot(&clone_hosts, &clone_ports, parallel).await;
     });
     handles.push(handle);
 
@@ -680,7 +815,7 @@ pub async fn adhoc_diff(
     let clone_hosts = hosts.clone();
     let clone_ports = ports.clone();
     let handle = tokio::spawn(async move {
-        clone_masters.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+        clone_masters.lock().await.adhoc_read_second_snapshot(&clone_hosts, &clone_ports, parallel).await;
     });
     handles.push(handle);
 
@@ -688,7 +823,7 @@ pub async fn adhoc_diff(
     let clone_hosts = hosts.clone();
     let clone_ports = ports.clone();
     let handle = tokio::spawn(async move {
-        clone_tablet_servers.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+        clone_tablet_servers.lock().await.adhoc_read_second_snapshot(&clone_hosts, &clone_ports, parallel).await;
     });
     handles.push(handle);
 
@@ -696,7 +831,7 @@ pub async fn adhoc_diff(
     let clone_hosts = hosts.clone();
     let clone_ports = ports.clone();
     let handle = tokio::spawn(async move {
-        clone_vars.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+        clone_vars.lock().await.adhoc_read_second_snapshot(&clone_hosts, &clone_ports, parallel).await;
     });
     handles.push(handle);
 
@@ -704,7 +839,7 @@ pub async fn adhoc_diff(
     let clone_hosts = hosts.clone();
     let clone_ports = ports.clone();
     let handle = tokio::spawn(async move {
-        clone_versions.lock().await.adhoc_read_second_snapshot(clone_hosts.lock().await.as_ref(), clone_ports.lock().await.as_ref(), parallel).await;
+        clone_versions.lock().await.adhoc_read_second_snapshot(&clone_hosts, &clone_ports, parallel).await;
     });
     handles.push(handle);
 

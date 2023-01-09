@@ -633,23 +633,19 @@ impl EntitiesDiff {
         &self,
     )
     {
+        debug!("entering print function");
         if !self.master_found {
             println!("Master leader was not found in hosts specified, skipping entity diff.");
             return;
         }
-        let is_system_keyspace = |keyspace: &str| -> bool {
-            matches!(keyspace, "00000000000000000000000000000001" |   // ycql system
-                               "00000000000000000000000000000002" |   // ycql system_schema
-                               "00000000000000000000000000000003" |   // ycql system_auth
-                               "00000001000030008000000000000000" |   // ysql template1
-                               "000033e5000030008000000000000000")    // ysql template0
-        };
+        //let is_system_keyspace = |keyspace: &str| -> bool {
+        //    matches!(keyspace, "00000000000000000000000000000001" |   // ycql system
+        //                       "00000000000000000000000000000002" |   // ycql system_schema
+        //                       "00000000000000000000000000000003" |   // ycql system_auth
+        //                       "00000001000030008000000000000000" |   // ysql template1
+        //                       "000033e5000030008000000000000000")    // ysql template0
+        //};
         for (keyspace_id, keyspace_row) in &self.btreekeyspacediff {
-            // do not report system keyspaces
-            if is_system_keyspace(keyspace_id.as_str())
-            {
-                continue;
-            }
             if keyspace_row.first_keyspace_name == keyspace_row.second_keyspace_name
                 && keyspace_row.first_keyspace_type == keyspace_row.second_keyspace_type
             {
@@ -782,12 +778,11 @@ impl EntitiesDiff {
         };
         for (table_id, table_row) in &self.btreetablesdiff {
             // skip system keyspaces
-            if is_system_keyspace(table_row.first_keyspace_id.as_str())
-                || is_system_keyspace(table_row.second_keyspace_id.as_str())
-            {
-                continue;
-            }
-
+            //if is_system_keyspace(table_row.first_keyspace_id.as_str())
+            //    || is_system_keyspace(table_row.second_keyspace_id.as_str())
+            //{
+            //    continue;
+            //}
             if table_row.first_keyspace_id == table_row.second_keyspace_id
                 && table_row.first_table_name  == table_row.second_table_name
                 && table_row.first_state == table_row.second_state
@@ -804,14 +799,14 @@ impl EntitiesDiff {
                 // ysql table_id has got the OID number in it,
                 // the below function takes that, and tests if it's below 16384.
                 // ysql oid numbers below 16384 are system/catalog tables.
-                if object_oid_number(table_id.as_str()) < 16384
-                    && &self.btreekeyspacediff
-                    .get(&table_row.second_keyspace_id.clone())
-                    .map(|r| r.second_keyspace_type.clone())
-                    .unwrap_or_default() == "ysql"
-                {
-                    continue;
-                }
+                //if object_oid_number(table_id.as_str()) < 16384
+                //    && &self.btreekeyspacediff
+                //    .get(&table_row.second_keyspace_id.clone())
+                //    .map(|r| r.second_keyspace_type.clone())
+                //    .unwrap_or_default() == "ysql"
+                //{
+                //    continue;
+                //}
                 // if the table is colocated, it means it does not have one or more tablets
                 // directly linked to the table.
                 // To check for colocation:
@@ -858,14 +853,14 @@ impl EntitiesDiff {
                 // ysql table_id has got the OID number in it,
                 // the below function takes that, and tests if it's below 16384.
                 // ysql oid numbers below 16384 are system/catalog tables.
-                if object_oid_number(table_id.as_str()) < 16384
-                    && &self.btreekeyspacediff
-                    .get(&table_row.first_keyspace_id)
-                    .map(|r| r.first_keyspace_type.clone())
-                    .unwrap_or_default() == "ysql"
-                {
-                    continue;
-                }
+                //if object_oid_number(table_id.as_str()) < 16384
+                //    && &self.btreekeyspacediff
+                //    .get(&table_row.first_keyspace_id)
+                //    .map(|r| r.first_keyspace_type.clone())
+                //    .unwrap_or_default() == "ysql"
+                //{
+                //    continue;
+                //}
                 // if the table is colocated, it means it does not have one or more tablets
                 // directly linked to the table.
                 // normally (non-colocated) one or more tablets are linked to a table.
@@ -962,11 +957,12 @@ impl EntitiesDiff {
                 && tablet_row.first_leader == tablet_row.second_leader
             {
                 // the tablet data of the first and second snapshot is alike: nothing has changed.
+                debug!("tablet: {}, state: {}-{}, leader: {}-{}", tablet_id, tablet_row.first_state, tablet_row.second_state, tablet_row.first_leader, tablet_row.second_leader);
                 continue;
             }
             // first snapshot fields are empty, which means second snapshot fields are filled out:
             // this is an added tablet.
-            else if tablet_row.first_table_id.is_empty()
+            if tablet_row.first_table_id.is_empty()
                 && tablet_row.first_state.is_empty()
                 && tablet_row.first_leader.is_empty()
             {
@@ -1005,7 +1001,7 @@ impl EntitiesDiff {
             }
             // second snapshot fields are empty, which means first snapshot fields are filled out:
             // this is a deleted tablet object.
-            else if tablet_row.second_table_id.is_empty()
+            if tablet_row.second_table_id.is_empty()
                 && tablet_row.second_state.is_empty()
                 && tablet_row.second_leader.is_empty()
             {
@@ -1115,7 +1111,7 @@ impl EntitiesDiff {
                 continue;
             }
             // if the first replica info is empty, it means a replica was added.
-            else if replica_row.first_replica_type.is_empty()
+            if replica_row.first_replica_type.is_empty()
                 && replica_row.first_addr.is_empty()
             {
                 println!("{} Replica:  {}.{}.{}.{}.{}, Type: {}",

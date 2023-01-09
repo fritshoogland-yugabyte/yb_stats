@@ -147,7 +147,7 @@ impl MetricEntityDiff {
                                     name.clone()
                                 ))
                                 .and_modify(|row| {
-                                    if *details_enable
+                                    if !*details_enable
                                         && (metricentity.metrics_type.clone() == "table"
                                         || metricentity.metrics_type.clone() == "tablet"
                                         || metricentity.metrics_type.clone() == "cdc"
@@ -155,7 +155,7 @@ impl MetricEntityDiff {
                                     {
                                         row.first_value += value;
                                     } else {
-                                        warn!("Duplicate entry: hostname_port: {}, metrics_type: {}, id: {}, name: {}",
+                                        warn!("First snapshot duplicate entry: hostname_port: {}, metrics_type: {}, id: {}, name: {}",
                                             metricentity.hostname_port
                                                 .clone()
                                                 .expect("hostname:port should be set"),
@@ -211,7 +211,7 @@ impl MetricEntityDiff {
                                     name.clone()
                                 ))
                                 .and_modify(|row| {
-                                    if *details_enable
+                                    if !*details_enable
                                         && (metricentity.metrics_type.clone() == "table"
                                         || metricentity.metrics_type.clone() == "tablet"
                                         || metricentity.metrics_type.clone() == "cdc"
@@ -220,7 +220,7 @@ impl MetricEntityDiff {
                                         row.first_total_count += total_count;
                                         row.first_total_sum += total_sum;
                                     } else {
-                                        warn!("Duplicate entry: hostname_port: {}, metrics_type: {}, id: {}, name: {}",
+                                        warn!("First snapshot duplicate entry: hostname_port: {}, metrics_type: {}, id: {}, name: {}",
                                             metricentity.hostname_port
                                                 .clone()
                                                 .expect("hostname:port should be set"),
@@ -268,7 +268,7 @@ impl MetricEntityDiff {
                                     name.clone()
                                 ))
                                 .and_modify(|_| {
-                                    warn!("Duplicate entry: hostname_port: {}, metrics_type: {}, id: {}, name: {}",
+                                    warn!("First snapshot duplicate entry: hostname_port: {}, metrics_type: {}, id: {}, name: {}",
                                             metricentity.hostname_port
                                                 .clone()
                                                 .expect("hostname:port should be set"),

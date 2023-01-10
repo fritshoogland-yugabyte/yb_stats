@@ -240,7 +240,7 @@ impl AllEntities
                                     {
                                         if &r.server_uuid == tablet.leader.as_ref().unwrap_or(&"".to_string())
                                         {
-                                            format!("{}", &r.addr)
+                                            format!("{}", &r.addr.split(':').next().unwrap_or_default())
                                         }
                                         else
                                         {

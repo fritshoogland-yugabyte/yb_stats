@@ -168,7 +168,7 @@ pub struct Opts {
     #[arg(long, value_name = "nr", default_value = "80")]
     sql_length: usize,
     /// Get the hostname for the tablet leader of a colocated YSQL database.
-    #[arg(long, hide = true)]
+    #[arg(long, hide = true, value_name = "ysql colocated database name")]
     get_coloc_leader_host: Option<String>,
 }
 

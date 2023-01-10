@@ -71,7 +71,7 @@ use std::{time::Instant, sync::mpsc::channel};
 use log::*;
 use regex::Regex;
 use colored::*;
-use anyhow::Result;
+use anyhow::{Result, bail};
 use crate::isleader::AllIsLeader;
 use crate::utility;
 use crate::snapshot;
@@ -192,6 +192,98 @@ impl AllEntities
                 debug!("({}:{}) could not parse /dump-entities json data for entities, error: {}", host, port, e);
                 Entities::new()
             })
+    }
+    pub fn print_coloc_leader_host(
+        &self,
+        leader_hostname: String,
+        colocated_database: &String,
+    ) -> Result<()>
+    {
+        for entity in self.entities.iter()
+        {
+            // select the information from the master leader
+            if entity.hostname_port.ne(&Some(leader_hostname.clone()))
+            {
+                continue;
+            }
+            // investigate keyspaces
+            for row in &entity.keyspaces
+            {
+                if row.keyspace_name != colocated_database.clone()
+                {
+                    debug!("Found keyspace: {}, is not {}", row.keyspace_name, colocated_database.clone());
+                    continue;
+                }
+                // a ysql keyspace is not removed from keyspaces when it's dropped.
+                // to identify a dropped keyspace, we can count the number of tables that reside in it.
+                // if the number is 0, it is a dropped keyspace.
+                if row.keyspace_type == "ysql"
+                    && entity.tables.iter()
+                    .filter(|r| r.keyspace_id == row.keyspace_id)
+                    .count() > 0
+                {
+                    // a ysql keyspace is a colocated keyspace if it a tablet exists
+                    // with the following table_id: <keyspace_id>.colocated.parent.uuid
+                    if entity.tablets.iter()
+                        .any(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id))
+                    {
+                        // We got a colocated YSQL database!
+                        for tablet in entity.tablets
+                            .iter()
+                            .filter(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id))
+                        {
+                            let leader_host = tablet.replicas
+                                .clone()
+                                .unwrap_or_default()
+                                .iter()
+                                .map(|r|
+                                    {
+                                        if &r.server_uuid == tablet.leader.as_ref().unwrap_or(&"".to_string())
+                                        {
+                                            format!("{}", &r.addr)
+                                        }
+                                        else
+                                        {
+                                            "".to_string()
+                                        }
+                                    })
+                                .collect::<String>();
+                            if !leader_host.is_empty()
+                            {
+                                println!("{}", leader_host);
+                                return Ok(())
+                            }
+                            else
+                            {
+                                bail!("No tablet leader host found.");
+                            };
+                        }
+                    }
+                    else
+                    {
+                       bail!("Database {} is not colocated!", colocated_database.clone());
+                    };
+                }
+                else
+                {
+                    if row.keyspace_type != "ysql"
+                    {
+                        bail!("Database found, but not of type ysql: {}", row.keyspace_type);
+                    }
+                    else if entity.tables.iter()
+                        .filter(|r| r.keyspace_id == row.keyspace_id)
+                        .count() == 0
+                    {
+                        bail!("Database found, but number of tablets is zero: YSQL database is dropped.");
+                    }
+                    else
+                    {
+                        bail!("Database found, but not suitable for unknown reason. This should not happen.")
+                    }
+                }
+            }
+        }
+        bail!("Database name not found.")
     }
     pub fn print(
         &self,
@@ -1318,6 +1410,22 @@ pub async fn print_entities(
             allentities.print(&table_name_filter, &options.details_enable, leader_hostname)?;
         },
     }
+    Ok(())
+}
+
+pub async fn print_coloc_leader_host(
+    hosts: Vec<&str>,
+    ports: Vec<&str>,
+    parallel: usize,
+    options: &Opts,
+) -> Result<()>
+{
+    let colocated_database = &options.get_coloc_leader_host.as_ref().unwrap();
+
+    let allentities = AllEntities::read_entities(&hosts, &ports, parallel).await;
+    let leader_hostname = AllIsLeader::return_leader_http(&hosts, &ports, parallel).await;
+    allentities.print_coloc_leader_host(leader_hostname, colocated_database)?;
+
     Ok(())
 }
 

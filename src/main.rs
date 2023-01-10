@@ -167,6 +167,9 @@ pub struct Opts {
     /// Output setting for the length of the SQL text to display
     #[arg(long, value_name = "nr", default_value = "80")]
     sql_length: usize,
+    /// Get the hostname for the tablet leader of a colocated YSQL database.
+    #[arg(long, hide = true)]
+    get_coloc_leader_host: Option<String>,
 }
 
 /// The entrypoint of the executable.
@@ -205,6 +208,7 @@ async fn main() -> Result<()>
         Opts { adhoc_nonmetrics_diff, ..     } if *adhoc_nonmetrics_diff             => snapshot::adhoc_nonmetrics_diff(hosts, ports, parallel, &options).await?,
         Opts { print_gflags, ..           } if print_gflags.is_some()          => gflags::print_gflags(hosts, ports, parallel, &options).await?,
         Opts { print_cluster_config, ..           } if print_cluster_config.is_some()          => cluster_config::print_cluster_config(hosts, ports, parallel, &options).await?,
+        Opts { get_coloc_leader_host, ..           } if get_coloc_leader_host.is_some()          => entities::print_coloc_leader_host(hosts, ports, parallel, &options).await?,
         _                                                                      => snapshot::adhoc_diff(hosts, ports, parallel, &options).await?,
     };
     // if we are allowed to write, and changed_options does contain values, write them to '.env'

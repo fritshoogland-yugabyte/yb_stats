@@ -61,7 +61,7 @@ impl AllVersions {
 
         let mut allversions = AllVersions::new();
 
-        for version in rx
+        for version in rx.iter().filter( |r| !r.git_hash.is_empty() )
         {
             allversions.versions.push(version);
         }

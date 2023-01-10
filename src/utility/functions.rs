@@ -64,7 +64,7 @@ pub fn http_get(
 ) -> String
 {
     if let Ok(data_from_web_request) = reqwest::blocking::Client::builder()
-        .timeout(Duration::from_secs(10))
+        .connect_timeout(Duration::from_millis(200))
         .danger_accept_invalid_certs(ACCEPT_INVALID_CERTS)
         .build()
         .unwrap()

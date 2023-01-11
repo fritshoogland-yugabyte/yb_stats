@@ -28,7 +28,7 @@ impl ValueStatistics {
             Some(lookup) => lookup,
             None =>
             {
-                info!("The metric {} is not found!", argument);
+                info!("statistic not found! -> table.insert(\"{}\",\"?\",\"?\");", argument);
                 Self::lookup(self, "?")
             },
         }
@@ -39,6 +39,24 @@ impl ValueStatistics {
         let mut table = ValueStatistics { valuestatisticdetails: HashMap::new() };
         // special row for unknown values. Do NOT remove!
         table.insert("?", "?", "?");
+        table.insert("active_background_compaction_input_bytes_added","bytes","gauge"); // 2.17.2
+        table.insert("active_background_compaction_input_bytes_removed","bytes","gauge"); // 2.17.2
+        table.insert("active_background_compaction_input_files_added","files","gauge"); // 2.17.2
+        table.insert("active_background_compaction_input_files_removed","files","gauge"); // 2.17.2
+        table.insert("active_background_compaction_tasks_added","tasks","gauge"); // 2.17.2
+        table.insert("active_background_compaction_tasks_removed","tasks","gauge"); // 2.17.2
+        table.insert("active_full_compaction_input_bytes_added","bytes","gauge"); // 2.17.2
+        table.insert("active_full_compaction_input_bytes_removed","bytes","gauge"); // 2.17.2
+        table.insert("active_full_compaction_input_files_added","files","gauge"); // 2.17.2
+        table.insert("active_full_compaction_input_files_removed","files","gauge"); // 2.17.2
+        table.insert("active_full_compaction_tasks_added","tasks","gauge"); // 2.17.2
+        table.insert("active_full_compaction_tasks_removed","tasks","gauge"); // 2.17.2
+        table.insert("active_post_split_compaction_input_bytes_added","bytes","gauge"); // 2.17.2
+        table.insert("active_post_split_compaction_input_bytes_removed","bytes","gauge"); // 2.17.2
+        table.insert("active_post_split_compaction_input_files_added","files","gauge"); // 2.17.2
+        table.insert("active_post_split_compaction_input_files_removed","files","gauge"); // 2.17.2
+        table.insert("active_post_split_compaction_tasks_added","tasks","gauge"); // 2.17.2
+        table.insert("active_post_split_compaction_tasks_removed","tasks","gauge"); // 2.17.2
         table.insert("active_task_metrics_compaction_input_bytes_added", "bytes", "gauge");
         table.insert("active_task_metrics_compaction_input_bytes_removed", "bytes", "gauge");
         table.insert("active_task_metrics_compaction_input_files_added", "files", "gauge");
@@ -130,6 +148,9 @@ impl ValueStatistics {
         table.insert("mem_tracker_OperationsFromDisk", "bytes","gauge");
         table.insert("mem_tracker_Read_Buffer", "bytes","gauge");
         table.insert("mem_tracker_Read_Buffer_CQL", "bytes","gauge");
+        table.insert("mem_tracker_Read_Buffer_CQL_Reading","bytes","gauge"); // 2.17.2
+        table.insert("mem_tracker_Read_Buffer_CQL_Receive","bytes","gauge"); // 2.17.2
+        table.insert("mem_tracker_Read_Buffer_CQL_Sending","bytes","gauge"); // 2.17.2
         table.insert("mem_tracker_Read_Buffer_Inbound_RPC", "bytes","gauge");
         table.insert("mem_tracker_Read_Buffer_Inbound_RPC_Reading", "bytes","gauge");
         table.insert("mem_tracker_Read_Buffer_Inbound_RPC_Receive", "bytes","gauge");
@@ -148,6 +169,30 @@ impl ValueStatistics {
         table.insert("mem_tracker_Tablets", "bytes","gauge");
         table.insert("mem_tracker_log_cache", "bytes","gauge");
         table.insert("mem_tracker_operation_tracker", "bytes","gauge");
+        table.insert("nonactive_background_compaction_input_bytes_added","bytes","gauge"); // 2.17.2
+        table.insert("nonactive_background_compaction_input_bytes_removed","bytes","gauge"); // 2.17.2
+        table.insert("nonactive_background_compaction_input_files_added","files","gauge"); // 2.17.2
+        table.insert("nonactive_background_compaction_input_files_removed","files","gauge"); // 2.17.2
+        table.insert("nonactive_background_compaction_tasks_added","tasks","gauge"); // 2.17.2
+        table.insert("nonactive_background_compaction_tasks_removed","tasks","gauge"); // 2.17.2
+        table.insert("nonactive_full_compaction_input_bytes_added","bytes","gauge"); // 2.17.2
+        table.insert("nonactive_full_compaction_input_bytes_removed","bytes","gauge"); // 2.17.2
+        table.insert("nonactive_full_compaction_input_files_added","files","gauge"); // 2.17.2
+        table.insert("nonactive_full_compaction_input_files_removed","files","gauge"); // 2.17.2
+        table.insert("nonactive_full_compaction_tasks_added","tasks","gauge"); // 2.17.2
+        table.insert("nonactive_full_compaction_tasks_removed","tasks","gauge"); // 2.17.2
+        table.insert("nonactive_post_split_compaction_input_bytes_added","bytes","gauge"); // 2.17.2
+        table.insert("nonactive_post_split_compaction_input_bytes_removed","bytes","gauge"); // 2.17.2
+        table.insert("nonactive_post_split_compaction_input_files_added","files","gauge"); // 2.17.2
+        table.insert("nonactive_post_split_compaction_input_files_removed","files","gauge"); // 2.17.2
+        table.insert("nonactive_post_split_compaction_tasks_added","tasks","gauge"); // 2.17.2
+        table.insert("nonactive_post_split_compaction_tasks_removed","tasks","gauge"); // 2.17.2
+        table.insert("nonactive_task_metrics_compaction_input_bytes_added","bytes","gauge"); // 2.17.2
+        table.insert("nonactive_task_metrics_compaction_input_bytes_removed","bytes","gauge"); // 2.17.2
+        table.insert("nonactive_task_metrics_compaction_input_files_added","files","gauge"); // 2.17.2
+        table.insert("nonactive_task_metrics_compaction_input_files_removed","files","gauge"); // 2.17.2
+        table.insert("nonactive_task_metrics_compaction_tasks_added","tasks","gauge"); // 2.17.2
+        table.insert("nonactive_task_metrics_compaction_tasks_removed","tasks","gauge"); // 2.17.2
         table.insert("not_leader_rejections", "rejections","counter");
         table.insert("num_entries_with_type_10_loaded", "entries","counter");
         table.insert("num_entries_with_type_11_loaded", "entries","counter");
@@ -165,12 +210,32 @@ impl ValueStatistics {
         table.insert("num_tablet_servers_dead", "entries","gauge");
         table.insert("num_tablet_servers_live", "entries","gauge");
         table.insert("operation_memory_pressure_rejections", "rejections","counter");
+        table.insert("paused_background_compaction_input_bytes_added","bytes","gauge"); // 2.17.2
+        table.insert("paused_background_compaction_input_bytes_removed","bytes","gauge"); // 2.17.2
+        table.insert("paused_background_compaction_input_files_added","files","gauge"); // 2.17.2
+        table.insert("paused_background_compaction_input_files_removed","files","gauge"); // 2.17.2
+        table.insert("paused_background_compaction_tasks_added","tasks","gauge"); // 2.17.2
+        table.insert("paused_background_compaction_tasks_removed","tasks","gauge"); // 2.17.2
+        table.insert("paused_full_compaction_input_bytes_added","bytes","gauge"); // 2.17.2
+        table.insert("paused_full_compaction_input_bytes_removed","bytes","gauge"); // 2.17.2
+        table.insert("paused_full_compaction_input_files_added","files","gauge"); // 2.17.2
+        table.insert("paused_full_compaction_input_files_removed","files","gauge"); // 2.17.2
+        table.insert("paused_full_compaction_tasks_added","tasks","gauge"); // 2.17.2
+        table.insert("paused_full_compaction_tasks_removed","tasks","gauge"); // 2.17.2
+        table.insert("paused_post_split_compaction_input_bytes_added","bytes","gauge"); // 2.17.2
+        table.insert("paused_post_split_compaction_input_bytes_removed","bytes","gauge"); // 2.17.2
+        table.insert("paused_post_split_compaction_input_files_added","files","gauge"); // 2.17.2
+        table.insert("paused_post_split_compaction_input_files_removed","files","gauge"); // 2.17.2
+        table.insert("paused_post_split_compaction_tasks_added","tasks","gauge"); // 2.17.2
+        table.insert("paused_post_split_compaction_tasks_removed","tasks","gauge"); // 2.17.2
         table.insert("paused_task_metrics_compaction_input_bytes_added", "bytes","gauge");
         table.insert("paused_task_metrics_compaction_input_bytes_removed", "bytes","gauge");
         table.insert("paused_task_metrics_compaction_input_files_added", "files","gauge");
         table.insert("paused_task_metrics_compaction_input_files_removed", "files","gauge");
         table.insert("paused_task_metrics_compaction_tasks_added", "tasks","gauge");
         table.insert("paused_task_metrics_compaction_tasks_removed", "tasks","gauge");
+        table.insert("pg_response_cache_hits","hits","counter"); // 2.17.2
+        table.insert("pg_response_cache_queries","hits","counter"); // 2.17.2
         table.insert("pgsql_consistent_prefix_read_rows", "rows","counter");
         table.insert("proxy_request_bytes_yb_consensus_ConsensusService_ChangeConfig", "bytes","counter");
         table.insert("proxy_request_bytes_yb_consensus_ConsensusService_GetConsensusState", "bytes","counter");
@@ -274,6 +339,7 @@ impl ValueStatistics {
         table.insert("proxy_request_bytes_yb_master_MasterReplication_GetCDCDBStreamInfo", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterReplication_GetCDCStream", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterReplication_GetReplicationStatus", "bytes","counter"); // 2.17
+        table.insert("proxy_request_bytes_yb_master_MasterReplication_GetTableSchemaFromSysCatalog","bytes","counter"); // 2.17.2
         table.insert("proxy_request_bytes_yb_master_MasterReplication_GetUDTypeMetadata", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterReplication_GetUniverseReplication", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterReplication_GetXClusterEstimatedDataLoss", "bytes","counter"); // 2.17
@@ -420,6 +486,7 @@ impl ValueStatistics {
         table.insert("proxy_request_bytes_yb_tserver_TabletServerService_GetTserverCatalogVersionInfo", "bytes","counter");
         table.insert("proxy_request_bytes_yb_tserver_TabletServerService_ImportData", "bytes","counter");
         table.insert("proxy_request_bytes_yb_tserver_TabletServerService_IsTabletServerReady", "bytes","counter");
+        table.insert("proxy_request_bytes_yb_tserver_TabletServerService_ListMasterServers","bytes","counter"); // 2.17.2
         table.insert("proxy_request_bytes_yb_tserver_TabletServerService_ListTablets", "bytes","counter");
         table.insert("proxy_request_bytes_yb_tserver_TabletServerService_ListTabletsForTabletServer", "bytes","counter");
         table.insert("proxy_request_bytes_yb_tserver_TabletServerService_NoOp", "bytes","counter");
@@ -535,6 +602,7 @@ impl ValueStatistics {
         table.insert("proxy_response_bytes_yb_master_MasterReplication_GetCDCDBStreamInfo", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterReplication_GetCDCStream", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterReplication_GetReplicationStatus", "bytes","counter"); // 2.17
+        table.insert("proxy_response_bytes_yb_master_MasterReplication_GetTableSchemaFromSysCatalog","bytes","counter"); // 2.17.2
         table.insert("proxy_response_bytes_yb_master_MasterReplication_GetUDTypeMetadata", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterReplication_GetUniverseReplication", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterReplication_GetXClusterEstimatedDataLoss", "bytes","counter"); // 2.17
@@ -680,6 +748,7 @@ impl ValueStatistics {
         table.insert("proxy_response_bytes_yb_tserver_TabletServerService_GetTserverCatalogVersionInfo", "bytes","counter");
         table.insert("proxy_response_bytes_yb_tserver_TabletServerService_ImportData", "bytes","counter");
         table.insert("proxy_response_bytes_yb_tserver_TabletServerService_IsTabletServerReady", "bytes","counter");
+        table.insert("proxy_response_bytes_yb_tserver_TabletServerService_ListMasterServers","bytes","counter"); // 2.17.2
         table.insert("proxy_response_bytes_yb_tserver_TabletServerService_ListTablets", "bytes","counter");
         table.insert("proxy_response_bytes_yb_tserver_TabletServerService_ListTabletsForTabletServer", "bytes","counter");
         table.insert("proxy_response_bytes_yb_tserver_TabletServerService_NoOp", "bytes","counter");
@@ -693,6 +762,24 @@ impl ValueStatistics {
         table.insert("proxy_response_bytes_yb_tserver_TabletServerService_UpdateTransactionWaitingForStatus", "bytes","counter");
         table.insert("proxy_response_bytes_yb_tserver_TabletServerService_VerifyTableRowRange", "bytes","counter");
         table.insert("proxy_response_bytes_yb_tserver_TabletServerService_Write", "bytes","counter");
+        table.insert("queued_background_compaction_input_bytes_added","bytes","gauge"); // 2.17.2
+        table.insert("queued_background_compaction_input_bytes_removed","bytes","gauge"); // 2.17.2
+        table.insert("queued_background_compaction_input_files_added","files","gauge"); // 2.17.2
+        table.insert("queued_background_compaction_input_files_removed","files","gauge"); // 2.17.2
+        table.insert("queued_background_compaction_tasks_added","tasks","gauge"); // 2.17.2
+        table.insert("queued_background_compaction_tasks_removed","tasks","gauge"); // 2.17.2
+        table.insert("queued_full_compaction_input_bytes_added","bytes","gauge"); // 2.17.2
+        table.insert("queued_full_compaction_input_bytes_removed","bytes","gauge"); // 2.17.2
+        table.insert("queued_full_compaction_input_files_added","files","gauge"); // 2.17.2
+        table.insert("queued_full_compaction_input_files_removed","files","gauge"); // 2.17.2
+        table.insert("queued_full_compaction_tasks_added","tasks","gauge"); // 2.17.2
+        table.insert("queued_full_compaction_tasks_removed","tasks","gauge"); // 2.17.2
+        table.insert("queued_post_split_compaction_input_bytes_added","bytes","gauge"); // 2.17.2
+        table.insert("queued_post_split_compaction_input_bytes_removed","bytes","gauge"); // 2.17.2
+        table.insert("queued_post_split_compaction_input_files_added","files","gauge"); // 2.17.2
+        table.insert("queued_post_split_compaction_input_files_removed","files","gauge"); // 2.17.2
+        table.insert("queued_post_split_compaction_tasks_added","tasks","gauge"); // 2.17.2
+        table.insert("queued_post_split_compaction_tasks_removed","tasks","gauge"); // 2.17.2
         table.insert("queued_task_metrics_compaction_input_bytes_added", "bytes","gauge");
         table.insert("queued_task_metrics_compaction_input_bytes_removed", "bytes","gauge");
         table.insert("queued_task_metrics_compaction_input_files_added", "files","gauge");
@@ -955,6 +1042,7 @@ impl ValueStatistics {
         table.insert("service_request_bytes_yb_master_MasterReplication_GetCDCDBStreamInfo", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterReplication_GetCDCStream", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterReplication_GetReplicationStatus", "bytes","counter"); // 2.17
+        table.insert("service_request_bytes_yb_master_MasterReplication_GetTableSchemaFromSysCatalog","bytes","counter"); // 2.17.2
         table.insert("service_request_bytes_yb_master_MasterReplication_GetUDTypeMetadata", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterReplication_GetUniverseReplication", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterReplication_GetXClusterEstimatedDataLoss", "bytes","counter"); // 2.17
@@ -1136,6 +1224,7 @@ impl ValueStatistics {
         table.insert("service_request_bytes_yb_tserver_TabletServerService_GetTserverCatalogVersionInfo", "bytes","counter");
         table.insert("service_request_bytes_yb_tserver_TabletServerService_ImportData", "bytes","counter");
         table.insert("service_request_bytes_yb_tserver_TabletServerService_IsTabletServerReady", "bytes","counter");
+        table.insert("service_request_bytes_yb_tserver_TabletServerService_ListMasterServers","bytes","counter"); // 2.17.2
         table.insert("service_request_bytes_yb_tserver_TabletServerService_ListTablets", "bytes","counter");
         table.insert("service_request_bytes_yb_tserver_TabletServerService_ListTabletsForTabletServer", "bytes","counter");
         table.insert("service_request_bytes_yb_tserver_TabletServerService_NoOp", "bytes","counter");
@@ -1284,6 +1373,7 @@ impl ValueStatistics {
         table.insert("service_response_bytes_yb_master_MasterReplication_GetCDCDBStreamInfo", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterReplication_GetCDCStream", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterReplication_GetReplicationStatus", "bytes","counter"); // 2.17
+        table.insert("service_response_bytes_yb_master_MasterReplication_GetTableSchemaFromSysCatalog","bytes","counter"); // 2.17.2
         table.insert("service_response_bytes_yb_master_MasterReplication_GetUDTypeMetadata", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterReplication_GetUniverseReplication", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterReplication_GetXClusterEstimatedDataLoss", "bytes","counter"); // 2.17
@@ -1465,6 +1555,7 @@ impl ValueStatistics {
         table.insert("service_response_bytes_yb_tserver_TabletServerService_GetTserverCatalogVersionInfo", "bytes","counter");
         table.insert("service_response_bytes_yb_tserver_TabletServerService_ImportData", "bytes","counter");
         table.insert("service_response_bytes_yb_tserver_TabletServerService_IsTabletServerReady", "bytes","counter");
+        table.insert("service_response_bytes_yb_tserver_TabletServerService_ListMasterServers","bytes","counter"); // 2.17.2
         table.insert("service_response_bytes_yb_tserver_TabletServerService_ListTablets", "bytes","counter");
         table.insert("service_response_bytes_yb_tserver_TabletServerService_ListTabletsForTabletServer", "bytes","counter");
         table.insert("service_response_bytes_yb_tserver_TabletServerService_NoOp", "bytes","counter");

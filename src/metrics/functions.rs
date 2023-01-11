@@ -503,7 +503,9 @@ impl MetricEntityDiff {
                         let table_info = if row.namespace.is_empty() && row.table_name.is_empty()
                         {
                             "".to_string()
-                        } else {
+                        }
+                        else
+                        {
                             format!("{}.{}", row.namespace, row.table_name)
                         };
 
@@ -588,7 +590,9 @@ impl MetricEntityDiff {
                         let table_info = if row.namespace.is_empty() && row.table_name.is_empty()
                         {
                             "".to_string()
-                        } else {
+                        }
+                        else
+                        {
                             format!("{}.{}", row.namespace, row.table_name)
                         };
                         println!("{:20} {:8} {:32} {:30} {:70} {:15}        {:>15.3} /s avg: {:9.0} tot: {:>15.3} {:10}",

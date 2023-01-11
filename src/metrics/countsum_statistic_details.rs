@@ -22,6 +22,7 @@ impl CountSumStatistics {
         match self.countsumstatisticsdetails.get(&argument.to_string()) {
             Some(lookup) => lookup,
             None => {
+                info!("statistic not found! -> table.insert(\"{}\",\"?\",\"?\");", argument);
                 Self::lookup(self, "?")
             },
         }
@@ -47,9 +48,13 @@ impl CountSumStatistics {
         table.insert("Truncate_Tablet_Task", "microseconds","counter");
         table.insert("admin_triggered_compaction_pool_queue_time_us", "microseconds","counter");
         table.insert("admin_triggered_compaction_pool_run_time_us", "microseconds","counter");
+        table.insert("deadlock_probe_latency","milliseconds","counter"); // 2.17.2
+        table.insert("deadlock_size","transactions","counter"); // 2.17.2
         table.insert("dns_resolve_latency_during_init_proxy", "microseconds","counter");
         table.insert("dns_resolve_latency_during_sys_catalog_setup", "microseconds","counter");
         table.insert("dns_resolve_latency_during_update_raft_config", "microseconds","counter");
+        table.insert("full_compaction_pool_queue_time_us","microseconds","counter"); // 2.17.2
+        table.insert("full_compaction_pool_run_time_us","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_outbound_call_queue_time", "microseconds","counter");
         table.insert("handler_latency_outbound_call_send_time", "microseconds","counter");
         table.insert("handler_latency_outbound_call_time_to_response", "microseconds","counter");
@@ -63,6 +68,7 @@ impl CountSumStatistics {
         table.insert("handler_latency_yb_cdc_CDCService_GetCheckpoint", "microseconds","counter");
         table.insert("handler_latency_yb_cdc_CDCService_GetLastOpId", "microseconds","counter");
         table.insert("handler_latency_yb_cdc_CDCService_GetLatestEntryOpId", "microseconds","counter");
+        table.insert("handler_latency_yb_cdc_CDCService_GetTabletListToPollForCDC","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_cdc_CDCService_IsBootstrapRequired", "microseconds","counter");
         table.insert("handler_latency_yb_cdc_CDCService_ListTablets", "microseconds","counter");
         table.insert("handler_latency_yb_cdc_CDCService_SetCDCCheckpoint", "microseconds","counter");
@@ -92,6 +98,7 @@ impl CountSumStatistics {
         table.insert("handler_latency_yb_cqlserver_CQLServerService_ProcessRequest", "microseconds","counter");
         table.insert("handler_latency_yb_cqlserver_CQLServerService_QueueResponse", "microseconds","counter");
         table.insert("handler_latency_yb_cqlserver_SQLProcessor_AnalyzeRequest", "microseconds","counter");
+        table.insert("handler_latency_yb_cqlserver_SQLProcessor_DeleteStmt","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_cqlserver_SQLProcessor_ExecuteRequest", "microseconds","counter");
         table.insert("handler_latency_yb_cqlserver_SQLProcessor_InsertStmt", "microseconds","counter");
         table.insert("handler_latency_yb_cqlserver_SQLProcessor_NumFlushesToExecute", "operations","counter");
@@ -101,7 +108,22 @@ impl CountSumStatistics {
         table.insert("handler_latency_yb_cqlserver_SQLProcessor_ParseRequest", "microseconds","counter");
         table.insert("handler_latency_yb_cqlserver_SQLProcessor_ResponseSize", "bytes","counter");
         table.insert("handler_latency_yb_cqlserver_SQLProcessor_SelectStmt", "microseconds","counter");
+        table.insert("handler_latency_yb_cqlserver_SQLProcessor_Transaction","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_cqlserver_SQLProcessor_UpdateStmt","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_cqlserver_SQLProcessor_UseStmt", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterAdmin_AddTransactionStatusTablet","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterAdmin_CheckIfPitrActive","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterAdmin_CompactSysCatalog","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterAdmin_CreateTransactionStatusTable","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterAdmin_DdlLog","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterAdmin_DeleteNotServingTablet","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterAdmin_DisableTabletSplitting","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterAdmin_FlushSysCatalog","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterAdmin_FlushTables","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterAdmin_IsFlushTablesDone","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterAdmin_IsInitDbDone","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterAdmin_IsTabletSplittingComplete","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterAdmin_SplitTablet","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterBackupService_CreateSnapshot", "microseconds","counter");
         table.insert("handler_latency_yb_master_MasterBackupService_CreateSnapshotSchedule", "microseconds","counter");
         table.insert("handler_latency_yb_master_MasterBackupService_DeleteSnapshot", "microseconds","counter");
@@ -111,26 +133,110 @@ impl CountSumStatistics {
         table.insert("handler_latency_yb_master_MasterBackupService_ListSnapshotSchedules", "microseconds","counter");
         table.insert("handler_latency_yb_master_MasterBackupService_ListSnapshots", "microseconds","counter");
         table.insert("handler_latency_yb_master_MasterBackupService_RestoreSnapshot", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterBackup_CreateSnapshot","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterBackup_CreateSnapshotSchedule","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterBackup_DeleteSnapshot","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterBackup_DeleteSnapshotSchedule","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterBackup_EditSnapshotSchedule","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterBackup_ImportSnapshotMeta","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterBackup_ListSnapshotRestorations","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterBackup_ListSnapshotSchedules","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterBackup_ListSnapshots","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterBackup_RestoreSnapshot","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterBackup_RestoreSnapshotSchedule","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterClient_GetTableLocations", "microseconds","counter");
         table.insert("handler_latency_yb_master_MasterClient_GetTabletLocations", "microseconds","counter");
         table.insert("handler_latency_yb_master_MasterClient_GetTransactionStatusTablets", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterClient_GetYsqlCatalogConfig","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterClient_RedisConfigGet","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterClient_RedisConfigSet","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterClient_ReservePgsqlOids", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterCluster_AreLeadersOnPreferredOnly","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterCluster_ChangeLoadBalancerState","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterCluster_ChangeMasterClusterConfig","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterCluster_DumpState","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterCluster_GetAutoFlagsConfig", "microseconds","counter"); // 2.15.2.1
+        table.insert("handler_latency_yb_master_MasterCluster_GetLeaderBlacklistCompletion","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterCluster_GetLoadBalancerState","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterCluster_GetLoadMoveCompletion","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterCluster_GetMasterClusterConfig","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterCluster_GetMasterRegistration", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterCluster_IsLoadBalanced","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterCluster_IsLoadBalancerIdle","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterCluster_IsMasterLeaderServiceReady","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterCluster_ListLiveTabletServers","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterCluster_ListMasterRaftPeers","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterCluster_ListMasters","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterCluster_ListTabletServers", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterCluster_PromoteAutoFlags","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterCluster_RemovedMasterUpdate","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterCluster_SetPreferredZones","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterDcl_AlterRole","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterDcl_CreateRole","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterDcl_DeleteRole","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterDcl_GetPermissions","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterDcl_GrantRevokePermission","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterDcl_GrantRevokeRole","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterDdl_AlterNamespace","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterDdl_AlterTable","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterDdl_BackfillIndex","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterDdl_CreateNamespace", "microseconds","counter");
         table.insert("handler_latency_yb_master_MasterDdl_CreateTable", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterDdl_CreateTablegroup","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterDdl_CreateUDType","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterDdl_DeleteNamespace","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterDdl_DeleteTable", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterDdl_DeleteTablegroup","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterDdl_DeleteUDType","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterDdl_GetBackfillJobs","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterDdl_GetColocatedTabletSchema","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterDdl_GetNamespaceInfo", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterDdl_GetTableDiskSize","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterDdl_GetTableSchema", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterDdl_GetTablegroupSchema","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterDdl_GetUDTypeInfo","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterDdl_IsAlterTableDone","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterDdl_IsCreateNamespaceDone","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterDdl_IsCreateTableDone", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterDdl_IsDeleteNamespaceDone","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterDdl_IsDeleteTableDone", "microseconds","counter");
         table.insert("handler_latency_yb_master_MasterDdl_IsTruncateTableDone", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterDdl_LaunchBackfillIndexForTable","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterDdl_ListNamespaces", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterDdl_ListTablegroups","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterDdl_ListTables", "microseconds","counter"); // 2.15.3.0
+        table.insert("handler_latency_yb_master_MasterDdl_ListUDTypes","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterDdl_TruncateTable", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterEncryption_AddUniverseKeys","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterEncryption_ChangeEncryptionInfo","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterEncryption_GetUniverseKeyRegistry", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterEncryption_HasUniverseKeyInMemory","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterEncryption_IsEncryptionEnabled","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterHeartbeat_TSHeartbeat", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterReplication_AlterUniverseReplication","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterReplication_ChangeXClusterRole","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterReplication_CreateCDCStream","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterReplication_DeleteCDCStream","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterReplication_DeleteUniverseReplication","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterReplication_GetCDCDBStreamInfo","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterReplication_GetCDCStream","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterReplication_GetReplicationStatus","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterReplication_GetTableSchemaFromSysCatalog","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterReplication_GetUDTypeMetadata","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterReplication_GetUniverseReplication","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterReplication_GetXClusterEstimatedDataLoss","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterReplication_GetXClusterSafeTime","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterReplication_IsBootstrapRequired","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterReplication_IsSetupUniverseReplicationDone","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterReplication_ListCDCStreams","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterReplication_SetUniverseReplicationEnabled","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterReplication_SetupNSUniverseReplication","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterReplication_SetupUniverseReplication","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterReplication_UpdateCDCStream","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterReplication_UpdateConsumerOnProducerMetadata","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterReplication_UpdateConsumerOnProducerSplit","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterReplication_ValidateReplicationInfo","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterReplication_WaitForReplicationDrain","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterService_AddUniverseKeys", "microseconds","counter");
         table.insert("handler_latency_yb_master_MasterService_AlterNamespace", "microseconds","counter");
         table.insert("handler_latency_yb_master_MasterService_AlterRole", "microseconds","counter");
@@ -240,6 +346,8 @@ impl CountSumStatistics {
         table.insert("handler_latency_yb_tserver_PgClientService_GetCatalogMasterVersion", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_PgClientService_GetDatabaseInfo", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_PgClientService_GetTableDiskSize", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_PgClientService_GetTserverCatalogVersionInfo","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_tserver_PgClientService_GetTserverCatalogVersionInfo","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_tserver_PgClientService_Heartbeat", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_PgClientService_InsertSequenceTuple", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_PgClientService_IsInitDbDone", "microseconds","counter");
@@ -277,11 +385,13 @@ impl CountSumStatistics {
         table.insert("handler_latency_yb_tserver_TabletServerAdminService_FlushTablets", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_TabletServerAdminService_GetSafeTime", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_TabletServerAdminService_GetTransactionStatusAtParticipant", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerAdminService_PrepareDeleteTransactionTablet","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_tserver_TabletServerAdminService_RemoveTableFromTablet", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_TabletServerAdminService_SplitTablet", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_TabletServerAdminService_TabletSnapshotOp", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_TabletServerAdminService_TestRetry", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_TabletServerAdminService_UpdateTransaction", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerAdminService_UpdateTransactionTablesVersion","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_tserver_TabletServerAdminService_UpgradeYsql", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_TabletServerBackupService_TabletSnapshotOp", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_TabletServerForwardService_Read", "microseconds","counter");
@@ -298,6 +408,8 @@ impl CountSumStatistics {
         table.insert("handler_latency_yb_tserver_TabletServerService_GetTserverCatalogVersionInfo", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_TabletServerService_ImportData", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_TabletServerService_IsTabletServerReady", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerService_ListMasterServers","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_tserver_TabletServerService_ListMasterServers","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_tserver_TabletServerService_ListTablets", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_TabletServerService_ListTabletsForTabletServer", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_TabletServerService_NoOp", "microseconds","counter");
@@ -330,6 +442,7 @@ impl CountSumStatistics {
         table.insert("post_split_trigger_compaction_pool_queue_time_us", "microseconds","counter");
         table.insert("post_split_trigger_compaction_pool_run_time_us", "microseconds","counter");
         table.insert("ql_read_latency", "microseconds","counter");
+        table.insert("ql_write_latency","microseconds","counter"); // 2.17.2
         table.insert("read_time_wait", "microseconds","counter"); // 2.15.3.2
         table.insert("redis_read_latency", "microseconds","counter");
         table.insert("rocksdb_bytes_per_multiget", "bytes","counter");
@@ -350,9 +463,12 @@ impl CountSumStatistics {
         table.insert("snapshot_read_inflight_wait_duration", "microseconds","counter");
         table.insert("transaction_pool_cache", "microseconds","counter");
         table.insert("ts_bootstrap_time", "microseconds","counter");
+        table.insert("wait_queue_resume_waiter_pool_queue_time_us","microseconds","counter"); // 2.17.2
+        table.insert("wait_queue_resume_waiter_pool_run_time_us","microseconds","counter"); // 2.17.2
         table.insert("write_lock_latency", "microseconds","counter");
         table.insert("write_op_duration_client_propagated_consistency", "microseconds","counter");
         table.insert("ycql_queries_system_auth_resource_role_permission_index", "microseconds","counter");
+        table.insert("ycql_queries_system_auth_resource_role_permissions_index","?","counter"); // 2.17.2
         table.insert("ycql_queries_system_auth_role_permissions", "microseconds","counter");
         table.insert("ycql_queries_system_auth_roles", "microseconds","counter");
         table.insert("ycql_queries_system_local", "microseconds","counter");

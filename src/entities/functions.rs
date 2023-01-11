@@ -1093,7 +1093,7 @@ impl EntitiesDiff {
             }
             // second snapshot fields are empty, which means first snapshot fields are filled out:
             // this is a deleted tablet object.
-            if tablet_row.second_table_id.is_empty()
+            else if tablet_row.second_table_id.is_empty()
                 && tablet_row.second_state.is_empty()
                 && tablet_row.second_leader.is_empty()
             {
@@ -1194,7 +1194,7 @@ impl EntitiesDiff {
                 }
             }
         }
-        for ((tablet_id, _server_uuid), replica_row) in &self.btreereplicasdiff
+        for ((tablet_id, _), replica_row) in &self.btreereplicasdiff
         {
             if replica_row.first_replica_type == replica_row.second_replica_type
                 && replica_row.first_addr == replica_row.second_addr
@@ -1206,8 +1206,9 @@ impl EntitiesDiff {
             if replica_row.first_replica_type.is_empty()
                 && replica_row.first_addr.is_empty()
             {
-                println!("{} Replica:  {}.{}.{}.{}.{}, Type: {}",
+                println!("{} Replica:  {}:{}.{}.{}.{}, Type: {}",
                     "+".to_string().green(),
+                    replica_row.second_addr,
                     self.btreetabletsdiff
                         .get(&tablet_id.clone())
                         .map(|tablet| {
@@ -1246,7 +1247,6 @@ impl EntitiesDiff {
                         } )
                         .unwrap_or_default(),
                     tablet_id,
-                    replica_row.second_addr,
                     replica_row.second_replica_type,
                 );
             }
@@ -1254,8 +1254,9 @@ impl EntitiesDiff {
             else if replica_row.second_replica_type.is_empty()
                 && replica_row.second_addr.is_empty()
             {
-                println!("{} Replica:  {}.{}.{}.{}.{}, Type: {}",
+                println!("{} Replica:  {}:{}.{}.{}.{}, Type: {}",
                          "-".to_string().red(),
+                         replica_row.first_addr,
                          self.btreetabletsdiff
                              .get(&tablet_id.clone())
                              .map(|tablet| {
@@ -1294,16 +1295,30 @@ impl EntitiesDiff {
                              } )
                              .unwrap_or_default(),
                          tablet_id,
-                         replica_row.first_addr,
-                         replica_row.first_replica_type
+                         replica_row.first_replica_type,
                 );
             }
             else
             {
                 // the entries have changed?
                 //println!("{} Replica: {}.{}.{}.{}.{}, Type: {}",
-                print!("{} Replica: {}.{}.{}.{}.",
+                print!("{} Replica: ",
                     "*".to_string().yellow(),
+                );
+                if replica_row.first_addr != replica_row.second_addr
+                {
+                    print!("{}->{}:",
+                        replica_row.first_addr.yellow(),
+                        replica_row.second_addr.yellow(),
+                    );
+                }
+                else
+                {
+                    print!("{}:",
+                        replica_row.second_addr,
+                    );
+                }
+                print!("{}.{}.{}.{}, ",
                     self.btreetabletsdiff
                         .get(&tablet_id.clone())
                         .map(|tablet| {
@@ -1343,19 +1358,6 @@ impl EntitiesDiff {
                         .unwrap_or_default(),
                     tablet_id,
                 );
-                if replica_row.first_addr != replica_row.second_addr
-                {
-                    print!("{}->{} ",
-                        replica_row.first_addr.yellow(),
-                        replica_row.second_addr.yellow(),
-                    );
-                }
-                else
-                {
-                    print!("{} ",
-                        replica_row.second_addr,
-                    );
-                }
                 if replica_row.first_replica_type != replica_row.second_replica_type
                 {
                     println!("Type: {}->{}",

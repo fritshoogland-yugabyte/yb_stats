@@ -333,7 +333,7 @@ impl MastersDiff {
                     mastersdifffields.second_placement_region = master.registration
                         .as_ref()
                         .and_then(|registration| registration.cloud_info.as_ref())
-                        .and_then(|cloud_info| cloud_info.placement_cloud.as_ref())
+                        .and_then(|cloud_info| cloud_info.placement_region.as_ref())
                         .unwrap_or(&"-".to_string())
                         .to_string();
                     mastersdifffields.second_placement_zone = master.registration
@@ -540,7 +540,7 @@ impl MastersDiff {
                     };
                     if row.first_placement_region != row.second_placement_region
                     {
-                        print!("Placement: {}->{}.",
+                        print!("{}->{}.",
                             row.first_placement_region.to_string().yellow(),
                             row.second_placement_region.to_string().yellow(),
                         );

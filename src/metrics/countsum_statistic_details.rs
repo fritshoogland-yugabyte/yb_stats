@@ -467,8 +467,8 @@ impl CountSumStatistics {
         table.insert("wait_queue_resume_waiter_pool_run_time_us","microseconds","counter"); // 2.17.2
         table.insert("write_lock_latency", "microseconds","counter");
         table.insert("write_op_duration_client_propagated_consistency", "microseconds","counter");
-        table.insert("ycql_queries_system_auth_resource_role_permission_index", "microseconds","counter");
-        table.insert("ycql_queries_system_auth_resource_role_permissions_index","?","counter"); // 2.17.2
+        //table.insert("ycql_queries_system_auth_resource_role_permission_index", "microseconds","counter"); // typo or name change?
+        table.insert("ycql_queries_system_auth_resource_role_permissions_index","microseconds","counter");
         table.insert("ycql_queries_system_auth_role_permissions", "microseconds","counter");
         table.insert("ycql_queries_system_auth_roles", "microseconds","counter");
         table.insert("ycql_queries_system_local", "microseconds","counter");
@@ -497,11 +497,13 @@ impl CountSumStatistics {
     fn suffix_lookup_countsum(unit: &str) -> String {
         let suffix = HashMap::from( [
             ("microseconds",    "us"),
+            ("milliseconds",    "ms"),
             ("operations",      "ops"),
             ("bytes",           "bytes"),
             ("files",           "files"),
             ("tasks",           "tasks"),
             ("requests",        "reqs"),
+            ("transactions",    "txs"),
             ("?",               "?"),
         ]);
         match suffix.get(unit) {
@@ -517,11 +519,13 @@ impl CountSumStatistics {
     fn divisor_lookup_countsum(unit: &str) -> i64 {
         let divisor = HashMap::from( [
             ("microseconds", 1000000_i64),
+            ("milliseconds",    1000_i64),
             ("operations",         1_i64),
             ("bytes",              1_i64),
             ("files",              1_i64),
             ("tasks",              1_i64),
             ("requests",           1_i64),
+            ("transactions",       1_i64),
             ("?",                  0_i64),
         ]);
         match divisor.get(unit) {

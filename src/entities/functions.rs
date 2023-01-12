@@ -290,6 +290,7 @@ impl AllEntities
         table_name_filter: &Regex,
         details_enable: &bool,
         leader_hostname: String,
+        hostname_filter: &Regex,
     ) -> Result<()>
     {
         let is_system_keyspace = |keyspace: &str| -> bool {
@@ -302,12 +303,19 @@ impl AllEntities
 
         for entity in self.entities.iter()
         {
+            // only pick the leader hostname if details_enable is not set
             if !*details_enable && entity.hostname_port.ne(&Some(leader_hostname.clone()))
+            {
+                continue;
+            }
+            // if details_enable is set, apply hostname_filter.
+            if *details_enable && !hostname_filter.is_match(entity.hostname_port.clone().unwrap().as_ref())
             {
                 continue;
             }
             for row in &entity.keyspaces
             {
+                // do not show "system" keyspaces with normal (non details-enable) usage.
                 if !*details_enable
                     && is_system_keyspace(row.keyspace_id.as_str())
                 {
@@ -1399,17 +1407,19 @@ pub async fn print_entities(
 ) -> Result<()>
 {
     let table_name_filter = utility::set_regex(&options.table_name_match);
+    let hostname_filter = utility::set_regex(&options.hostname_match);
+
     match options.print_entities.as_ref().unwrap() {
         Some(snapshot_number) => {
             let mut allentities = AllEntities::new();
             allentities.entities = snapshot::read_snapshot_json(snapshot_number, "entities")?;
             let leader_hostname = AllIsLeader::return_leader_snapshot(snapshot_number)?;
-            allentities.print(&table_name_filter, &options.details_enable, leader_hostname)?;
+            allentities.print(&table_name_filter, &options.details_enable, leader_hostname, &hostname_filter)?;
         },
         None => {
             let allentities = AllEntities::read_entities(&hosts, &ports, parallel).await;
             let leader_hostname = AllIsLeader::return_leader_http(&hosts, &ports, parallel).await;
-            allentities.print(&table_name_filter, &options.details_enable, leader_hostname)?;
+            allentities.print(&table_name_filter, &options.details_enable, leader_hostname, &hostname_filter)?;
         },
     }
     Ok(())

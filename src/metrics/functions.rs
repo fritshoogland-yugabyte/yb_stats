@@ -504,6 +504,10 @@ impl MetricEntityDiff {
                         {
                             "".to_string()
                         }
+                        else if row.namespace.is_empty()
+                        {
+                            row.table_name.clone()
+                        }
                         else
                         {
                             format!("{}.{}", row.namespace, row.table_name)
@@ -520,7 +524,9 @@ impl MetricEntityDiff {
                                  metadata.unit_suffix,
                                  ((row.second_value - row.first_value) as f64 / (row.second_snapshot_time - row.first_snapshot_time).num_milliseconds() as f64 * 1000_f64)
                         );
-                    } else {
+                    }
+                    else
+                    {
                         println!("{:20} {:8} {:70} {:15} {:6} {:>15.3} /s",
                                  hostname,
                                  metric_type,
@@ -542,7 +548,13 @@ impl MetricEntityDiff {
                         let table_info = if row.namespace.is_empty() && row.table_name.is_empty()
                         {
                             "".to_string()
-                        } else {
+                        }
+                        else if row.namespace.is_empty()
+                        {
+                           row.table_name.clone()
+                        }
+                        else
+                        {
                             format!("{}.{}", row.namespace, row.table_name)
                         };
                         println!("{:20} {:8} {:32} {:30} {:70} {:15} {:6} {:+15}",
@@ -590,6 +602,10 @@ impl MetricEntityDiff {
                         let table_info = if row.namespace.is_empty() && row.table_name.is_empty()
                         {
                             "".to_string()
+                        }
+                        else if row.namespace.is_empty()
+                        {
+                            row.table_name.clone()
                         }
                         else
                         {

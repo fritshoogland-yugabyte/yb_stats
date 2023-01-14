@@ -14,7 +14,7 @@ pub struct AllSysClusterConfigEntryPB {
 /// The root struct for deserializing `/api/v1/cluster-config`.
 ///
 /// This struct is the begin struct needed to parse the results from master:port/api/v1/cluster-config:
-/// ```text
+/// ```json
 /// {
 ///   "version": 0,
 ///   "cluster_uuid": "fc8f2d5e-9844-42af-9355-35d1f5dc64e5"

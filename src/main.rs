@@ -42,6 +42,7 @@ mod tablet_servers;
 mod vars;
 mod clocks;
 mod cluster_config;
+mod health_check;
 
 // constants
 const DEFAULT_HOSTS: &str = "192.168.66.80,192.168.66.81,192.168.66.82";
@@ -161,6 +162,9 @@ pub struct Opts {
     /// Print cluster-config for the given snapshot number, or get current.
     #[arg(long, value_name = "snapshot number")]
     print_cluster_config: Option<Option<String>>,
+    /// Print health-check for the given snapshot number, or get current.
+    #[arg(long, value_name = "snapshot number")]
+    print_health_check: Option<Option<String>>,
     /// Snapshot disable gathering of thread stacks from /threadz
     #[arg(long)]
     disable_threads: bool,
@@ -208,6 +212,7 @@ async fn main() -> Result<()>
         Opts { adhoc_nonmetrics_diff, ..     } if *adhoc_nonmetrics_diff             => snapshot::adhoc_nonmetrics_diff(hosts, ports, parallel, &options).await?,
         Opts { print_gflags, ..           } if print_gflags.is_some()          => gflags::print_gflags(hosts, ports, parallel, &options).await?,
         Opts { print_cluster_config, ..           } if print_cluster_config.is_some()          => cluster_config::print_cluster_config(hosts, ports, parallel, &options).await?,
+        Opts { print_health_check, ..           } if print_health_check.is_some()          => health_check::print_health_check(hosts, ports, parallel, &options).await?,
         Opts { get_coloc_leader_host, ..           } if get_coloc_leader_host.is_some()          => entities::print_coloc_leader_host(hosts, ports, parallel, &options).await?,
         _                                                                      => snapshot::adhoc_diff(hosts, ports, parallel, &options).await?,
     };

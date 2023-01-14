@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use crate::Opts;
-use crate::{clocks, entities, gflags, isleader, loglines, masters, mems, memtrackers, metrics, node_exporter, pprof, rpcs, statements, threads, tablet_servers, utility, vars, versions, cluster_config};
+use crate::{clocks, entities, gflags, isleader, loglines, masters, mems, memtrackers, metrics, node_exporter, pprof, rpcs, statements, threads, tablet_servers, utility, vars, versions, cluster_config, health_check};
 use crate::snapshot::Snapshot;
 
 impl Snapshot {
@@ -342,6 +342,13 @@ pub async fn perform_snapshot(
     let arc_ports_clone = arc_ports.clone();
     let handle = tokio::spawn(async move {
         cluster_config::AllSysClusterConfigEntryPB::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
+    });
+    handles.push(handle);
+
+    let arc_hosts_clone = arc_hosts.clone();
+    let arc_ports_clone = arc_ports.clone();
+    let handle = tokio::spawn(async move {
+        health_check::AllHealthCheck::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
     });
     handles.push(handle);
 

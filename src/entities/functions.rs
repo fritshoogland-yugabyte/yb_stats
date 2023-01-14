@@ -76,6 +76,7 @@ use crate::isleader::AllIsLeader;
 use crate::utility;
 use crate::snapshot;
 use crate::entities::{Entities, AllEntities, EntitiesDiff, KeyspaceDiff, TablesDiff, TabletsDiff, ReplicasDiff};
+use crate::health_check::AllHealthCheck;
 use crate::Opts;
 
 impl Entities {
@@ -196,7 +197,7 @@ impl AllEntities
     pub fn print_coloc_leader_host(
         &self,
         leader_hostname: String,
-        colocated_database: &String,
+        colocated_database: &str,
     ) -> Result<()>
     {
         for entity in self.entities.iter()
@@ -209,9 +210,9 @@ impl AllEntities
             // investigate keyspaces
             for row in &entity.keyspaces
             {
-                if row.keyspace_name != colocated_database.clone()
+                if row.keyspace_name != *colocated_database
                 {
-                    debug!("Found keyspace: {}, is not {}", row.keyspace_name, colocated_database.clone());
+                    debug!("Found keyspace: {}, is not {}", row.keyspace_name, colocated_database.to_owned());
                     continue;
                 }
                 // a ysql keyspace is not removed from keyspaces when it's dropped.
@@ -228,9 +229,9 @@ impl AllEntities
                         .any(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id))
                     {
                         // We got a colocated YSQL database!
-                        for tablet in entity.tablets
+                        if let Some(tablet) = entity.tablets
                             .iter()
-                            .filter(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id))
+                            .find(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id))
                         {
                             let leader_host = tablet.replicas
                                 .clone()
@@ -240,7 +241,7 @@ impl AllEntities
                                     {
                                         if &r.server_uuid == tablet.leader.as_ref().unwrap_or(&"".to_string())
                                         {
-                                            format!("{}", &r.addr.split(':').next().unwrap_or_default())
+                                            (&r.addr.split(':').next().unwrap_or_default()).to_string()
                                         }
                                         else
                                         {
@@ -261,11 +262,12 @@ impl AllEntities
                     }
                     else
                     {
-                       bail!("Database {} is not colocated!", colocated_database.clone());
+                       bail!("Database {} is not colocated!", colocated_database.to_owned());
                     };
                 }
                 else
                 {
+                    #[allow(clippy::collapsible_else_if)]
                     if row.keyspace_type != "ysql"
                     {
                         bail!("Database found, but not of type ysql: {}", row.keyspace_type);
@@ -291,6 +293,8 @@ impl AllEntities
         details_enable: &bool,
         leader_hostname: String,
         hostname_filter: &Regex,
+        dead_nodes: Vec<String>,
+        under_replicated_tablets: Vec<String>,
     ) -> Result<()>
     {
         let is_system_keyspace = |keyspace: &str| -> bool {
@@ -358,7 +362,23 @@ impl AllEntities
                             {
                                 print!("{} ", entity.hostname_port.clone().unwrap());
                             }
-                            println!("  Tablet:     {}.{}.{} state: {}", row.keyspace_type, row.keyspace_name, tablet.tablet_id, tablet.state);
+                            let under_replication_warning = if under_replicated_tablets
+                                .iter()
+                                .any(|r| *r == tablet.tablet_id)
+                            {
+                                "[UNDER REPLICATED]".yellow()
+                            }
+                            else
+                            {
+                                "".yellow()
+                            };
+                            println!("  Tablet:     {}.{}.{} state: {} {}",
+                                     row.keyspace_type,
+                                     row.keyspace_name,
+                                     tablet.tablet_id,
+                                     tablet.state,
+                                     under_replication_warning,
+                            );
                             // replicas
                             if *details_enable
                             {
@@ -371,11 +391,31 @@ impl AllEntities
                                     {
                                         if &r.server_uuid == tablet.leader.as_ref().unwrap_or(&"".to_string())
                                         {
-                                            format!("{}({}:LEADER), ", &r.addr, &r.replica_type)
+                                            let server_liveness_indicator = if dead_nodes
+                                                .iter()
+                                                .any(|dead_server| dead_server == &r.server_uuid)
+                                            {
+                                                "[DEAD]".red()
+                                            }
+                                            else
+                                            {
+                                                "".red()
+                                            };
+                                            format!("{}({}:LEADER{}), ", &r.addr, &r.replica_type, server_liveness_indicator)
                                         }
                                         else
                                         {
-                                            format!("{}({}), ", &r.addr, &r.replica_type)
+                                            let server_liveness_indicator = if dead_nodes
+                                                .iter()
+                                                .any(|dead_server| dead_server == &r.server_uuid)
+                                            {
+                                                "[DEAD]".red()
+                                            }
+                                            else
+                                            {
+                                                "".red()
+                                            };
+                                            format!("{}({}{}), ", &r.addr, &r.replica_type, server_liveness_indicator)
                                         }
                                     })
                                 .collect::<String>()
@@ -479,7 +519,17 @@ impl AllEntities
                     {
                         print!("{} ", entity.hostname_port.clone().unwrap());
                     }
-                    println!("  Tablet:     {}.{}.{}.{} state: {}",
+                    let under_replication_warning = if under_replicated_tablets
+                        .iter()
+                        .any(|r| *r == tablet.tablet_id)
+                    {
+                        "[UNDER REPLICATED]".yellow()
+                    }
+                    else
+                    {
+                        "".yellow()
+                    };
+                    println!("  Tablet:     {}.{}.{}.{} state: {} {}",
                              &entity.keyspaces
                                  .iter()
                                  .find(|r| r.keyspace_id == row.keyspace_id)
@@ -493,6 +543,7 @@ impl AllEntities
                              row.table_name,
                              tablet.tablet_id,
                              tablet.state,
+                             under_replication_warning,
                     );
                     // replicas
                     if *details_enable
@@ -506,11 +557,31 @@ impl AllEntities
                             {
                                 if &r.server_uuid == tablet.leader.as_ref().unwrap_or(&"".to_string())
                                 {
-                                    format!("{}({}:LEADER), ", &r.addr, &r.replica_type)
+                                    let server_liveness_indicator = if dead_nodes
+                                        .iter()
+                                        .any(|dead_server| dead_server == &r.server_uuid)
+                                    {
+                                        "[DEAD]".red()
+                                    }
+                                    else
+                                    {
+                                        "".red()
+                                    };
+                                    format!("{}({}:LEADER{}), ", &r.addr, &r.replica_type, server_liveness_indicator)
                                 }
                                 else
                                 {
-                                    format!("{}({}), ", &r.addr, &r.replica_type)
+                                    let server_liveness_indicator = if dead_nodes
+                                        .iter()
+                                        .any(|dead_server| dead_server == &r.server_uuid)
+                                    {
+                                        "[DEAD]".red()
+                                    }
+                                    else
+                                    {
+                                        "".red()
+                                    };
+                                    format!("{}({}{}), ", &r.addr, &r.replica_type, server_liveness_indicator)
                                 }
                             })
                         .collect::<String>()
@@ -1414,12 +1485,14 @@ pub async fn print_entities(
             let mut allentities = AllEntities::new();
             allentities.entities = snapshot::read_snapshot_json(snapshot_number, "entities")?;
             let leader_hostname = AllIsLeader::return_leader_snapshot(snapshot_number)?;
-            allentities.print(&table_name_filter, &options.details_enable, leader_hostname, &hostname_filter)?;
+            let (dead_nodes, under_replicated_tablets) = AllHealthCheck::return_dead_nodes_and_under_replicated_tablets_snapshot(snapshot_number, &leader_hostname)?;
+            allentities.print(&table_name_filter, &options.details_enable, leader_hostname, &hostname_filter, dead_nodes, under_replicated_tablets)?;
         },
         None => {
             let allentities = AllEntities::read_entities(&hosts, &ports, parallel).await;
             let leader_hostname = AllIsLeader::return_leader_http(&hosts, &ports, parallel).await;
-            allentities.print(&table_name_filter, &options.details_enable, leader_hostname, &hostname_filter)?;
+            let (dead_nodes, under_replicated_tablets) = AllHealthCheck::return_dead_nodes_and_under_replicated_tablets_http(&hosts, &ports, parallel, &leader_hostname).await?;
+            allentities.print(&table_name_filter, &options.details_enable, leader_hostname, &hostname_filter, dead_nodes, under_replicated_tablets)?;
         },
     }
     Ok(())

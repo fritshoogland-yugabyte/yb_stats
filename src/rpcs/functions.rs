@@ -400,8 +400,8 @@ impl AllRpcs {
                                             );
                                         }
                                         else
-                                        // others get spaces. this allows to see the multiple calls in flight
                                         {
+                                            // others get spaces. this allows to see the multiple calls in flight
                                             print!("{:75} ", "");
                                         }
                                         println!("{:>6} ms {:17} ks:{}, q: {}",
@@ -449,8 +449,8 @@ impl AllRpcs {
                                             );
                                         }
                                         else
-                                        // others get spaces. this allows to see the multiple calls in flight
                                         {
+                                            // others get spaces. this allows to see the multiple calls in flight
                                             print!("{:75} ", "");
                                         }
                                         println!("{:>6} ms {:17} {}:{}",
@@ -521,8 +521,8 @@ impl AllRpcs {
                                             );
                                         }
                                         else
-                                        // others get spaces. this allows to see the multiple calls in flight
                                         {
+                                            // others get spaces. this allows to see the multiple calls in flight
                                             print!("{:75} ", "");
                                         }
                                         println!("{:>6} ms {:17} {}:{}",

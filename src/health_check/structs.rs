@@ -43,3 +43,15 @@ pub struct Health_Check {
     // failed_tablets is visible on a tablet server
     pub failed_tablets: Option<Vec<String>>
 }
+// diff
+// we got only a single set of dead nodes and under replicated tablets for the cluster.
+// the idea is that the first and second vectors only hold the entries unique to them.
+#[derive(Debug, Default)]
+pub struct HealthCheckDiff {
+    pub first_dead_nodes: Vec<String>,
+    pub second_dead_nodes: Vec<String>,
+    pub first_under_replicated_tablets: Vec<String>,
+    pub second_under_replicated_tablets: Vec<String>,
+    pub master_found: bool,
+}
+

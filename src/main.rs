@@ -93,6 +93,9 @@ pub struct Opts {
     /// Create a performance diff report using a begin and an end snapshot number.
     #[arg(long)]
     snapshot_diff: bool,
+    /// Create a diff report using a begin and an end snapshot number without performance figures.
+    #[arg(long)]
+    snapshot_nonmetrics_diff: bool,
     /// Create an entity diff report using a begin and end snapshot number.
     #[arg(long)]
     entity_diff: bool,
@@ -192,6 +195,7 @@ async fn main() -> Result<()>
     match &options {
         Opts { snapshot, ..               } if *snapshot                       => snapshot::perform_snapshot(hosts, ports, parallel, &options).await?,
         Opts { snapshot_diff, ..          } if *snapshot_diff                  => snapshot::snapshot_diff(&options).await?,
+        Opts { snapshot_nonmetrics_diff, ..          } if *snapshot_nonmetrics_diff                  => snapshot::snapshot_nonmetrics_diff(&options).await?,
         Opts { snapshot_list, ..          } if *snapshot_list                  => snapshot::snapshot_diff(&options).await?,
         Opts { entity_diff, ..            } if *entity_diff                    => entities::entity_diff(&options).await?,
         Opts { masters_diff, ..           } if *masters_diff                   => masters::masters_diff(&options).await?,

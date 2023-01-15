@@ -218,10 +218,13 @@ impl TabletServersDiff {
         master_leader: String,
     )
     {
-        if master_leader == *"" {
+        if master_leader == *""
+        {
             self.master_found = false;
             return
-        } else {
+        }
+        else
+        {
             self.master_found = true;
         }
 
@@ -277,7 +280,7 @@ impl TabletServersDiff {
     {
         if ! self.master_found
         {
-            println!("Master leader was not found in hosts specified, skipping tablet servers diff.");
+            println!("Master leader was not found, skipping tablet servers diff.");
             return;
         }
         for (hostname, status) in self.btreetabletserversdiff.iter() {

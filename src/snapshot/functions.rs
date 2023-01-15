@@ -373,6 +373,7 @@ pub async fn perform_snapshot(
 /// - tablet servers (read via master leader)
 /// - vars
 /// - versions
+/// - health check (read via master leader)
 pub async fn snapshot_diff(
     options: &Opts,
 ) -> Result<()>
@@ -412,6 +413,55 @@ pub async fn snapshot_diff(
 
     let versions_diff = versions::VersionsDiff::snapshot_diff(&begin_snapshot, &end_snapshot)?;
     versions_diff.print(&hostname_filter);
+
+    let healthcheck_diff = health_check::HealthCheckDiff::snapshot_diff(&begin_snapshot, &end_snapshot)?;
+    healthcheck_diff.print();
+
+    Ok(())
+}
+
+
+/// This function shows the difference report for the snapshot data that allows to show a difference:
+/// - entities (read via master leader)
+/// - masters (read via master leader)
+/// - tablet servers (read via master leader)
+/// - vars
+/// - versions
+/// - health check (read via master leader)
+///
+/// The purpose of this function is to quickly determine significant changes for a cluster, not to
+/// look into performance.
+pub async fn snapshot_nonmetrics_diff(
+    options: &Opts,
+) -> Result<()>
+{
+    info!("snapshot diff");
+    if options.begin.is_none() || options.end.is_none() {
+        Snapshot::print()?;
+    }
+    if options.snapshot_list { return Ok(()) };
+
+    let hostname_filter = utility::set_regex(&options.hostname_match);
+
+    let (begin_snapshot, end_snapshot, _) = Snapshot::read_begin_end_snapshot_from_user(options.begin, options.end)?;
+
+    let entities_diff = entities::EntitiesDiff::snapshot_diff(&begin_snapshot, &end_snapshot)?;
+    entities_diff.print();
+
+    let masters_diff = masters::MastersDiff::snapshot_diff(&begin_snapshot, &end_snapshot)?;
+    masters_diff.print();
+
+    let tabletservers_diff = tablet_servers::TabletServersDiff::snapshot_diff(&begin_snapshot, &end_snapshot)?;
+    tabletservers_diff.print();
+
+    let vars_diff = vars::VarsDiff::snapshot_diff(&begin_snapshot, &end_snapshot)?;
+    vars_diff.print();
+
+    let versions_diff = versions::VersionsDiff::snapshot_diff(&begin_snapshot, &end_snapshot)?;
+    versions_diff.print(&hostname_filter);
+
+    let healthcheck_diff = health_check::HealthCheckDiff::snapshot_diff(&begin_snapshot, &end_snapshot)?;
+    healthcheck_diff.print();
 
     Ok(())
 }
@@ -550,6 +600,7 @@ pub async fn adhoc_nonmetrics_diff(
     let tablet_servers = Arc::new(Mutex::new(tablet_servers::TabletServersDiff::new()));
     let versions = Arc::new(Mutex::new(versions::VersionsDiff::new()));
     let vars = Arc::new(Mutex::new(vars::VarsDiff::new()));
+    let health_check = Arc::new(Mutex::new(health_check::HealthCheckDiff::new()));
 
     let hosts = Arc::new(hosts);
     let ports = Arc::new(ports);
@@ -596,6 +647,15 @@ pub async fn adhoc_nonmetrics_diff(
         clone_versions.lock().await.adhoc_read_first_snapshot(&clone_hosts, &clone_ports, parallel).await;
     });
     handles.push(handle);
+
+    let clone_health_check = health_check.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_health_check.lock().await.adhoc_read_first_snapshot(&clone_hosts, &clone_ports, parallel).await;
+    });
+    handles.push(handle);
+
 
     for handle in handles {
         handle.await.unwrap();
@@ -651,6 +711,14 @@ pub async fn adhoc_nonmetrics_diff(
     });
     handles.push(handle);
 
+    let clone_health_check = health_check.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_health_check.lock().await.adhoc_read_second_snapshot(&clone_hosts, &clone_ports, parallel).await;
+    });
+    handles.push(handle);
+
     for handle in handles {
         handle.await.unwrap();
     }
@@ -662,6 +730,7 @@ pub async fn adhoc_nonmetrics_diff(
     tablet_servers.lock().await.print();
     vars.lock().await.print();
     versions.lock().await.print(&hostname_filter);
+    health_check.lock().await.print();
 
     Ok(())
 }
@@ -698,6 +767,7 @@ pub async fn adhoc_diff(
     let tablet_servers = Arc::new(Mutex::new(tablet_servers::TabletServersDiff::new()));
     let versions = Arc::new(Mutex::new(versions::VersionsDiff::new()));
     let vars = Arc::new(Mutex::new(vars::VarsDiff::new()));
+    let health_check = Arc::new(Mutex::new(health_check::HealthCheckDiff::new()));
 
     let hosts = Arc::new(hosts);
     let ports = Arc::new(ports);
@@ -766,6 +836,14 @@ pub async fn adhoc_diff(
     let clone_ports = ports.clone();
     let handle = tokio::spawn(async move {
         clone_versions.lock().await.adhoc_read_first_snapshot(&clone_hosts, &clone_ports, parallel).await;
+    });
+    handles.push(handle);
+
+    let clone_health_check = health_check.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_health_check.lock().await.adhoc_read_first_snapshot(&clone_hosts, &clone_ports, parallel).await;
     });
     handles.push(handle);
 
@@ -850,6 +928,14 @@ pub async fn adhoc_diff(
     });
     handles.push(handle);
 
+    let clone_health_check = health_check.clone();
+    let clone_hosts = hosts.clone();
+    let clone_ports = ports.clone();
+    let handle = tokio::spawn(async move {
+        clone_health_check.lock().await.adhoc_read_second_snapshot(&clone_hosts, &clone_ports, parallel).await;
+    });
+    handles.push(handle);
+
     for handle in handles {
         handle.await.unwrap();
     }
@@ -864,6 +950,7 @@ pub async fn adhoc_diff(
     tablet_servers.lock().await.print();
     vars.lock().await.print();
     versions.lock().await.print(&hostname_filter);
+    health_check.lock().await.print();
 
     Ok(())
 }

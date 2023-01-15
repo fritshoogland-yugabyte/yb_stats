@@ -3,11 +3,12 @@
 use chrono::Local;
 use std::{sync::mpsc::channel, time::Instant};
 use log::*;
+use colored::*;
 use anyhow::{Result, Context};
 use crate::isleader::AllIsLeader;
 use crate::utility;
 use crate::snapshot;
-use crate::health_check::{AllHealthCheck, Health_Check};
+use crate::health_check::{AllHealthCheck, Health_Check, HealthCheckDiff};
 use crate::Opts;
 
 impl Health_Check {
@@ -109,20 +110,6 @@ impl AllHealthCheck {
         )?);
         Ok(())
     }
-    /*
-    pub fn get_dead_nodes_and_under_replicated_tablets(
-        &self,
-        leader_hostname: String,
-    ) -> Result<(Vec<String>, Vec<String>)>
-    {
-        self.health_check
-            .iter()
-            .find(|r| r.hostname_port == Some(leader_hostname.clone()))
-            .map(|r| (r.dead_nodes.as_ref().unwrap_or(&Vec::new()).to_owned(), r.under_replicated_tablets.as_ref().unwrap_or(&Vec::new()).to_owned()))
-            .with_context(|| "Unable to find current master leader")
-    }
-
-     */
     pub async fn return_dead_nodes_and_under_replicated_tablets_http(
         hosts: &Vec<&str>,
         ports: &Vec<&str>,
@@ -177,6 +164,145 @@ pub async fn print_health_check(
     }
     Ok(())
 }
+
+impl HealthCheckDiff {
+    pub fn new() -> Self { Default::default() }
+    pub fn snapshot_diff(
+        begin_snapshot: &String,
+        end_snapshot: &String,
+    ) -> Result<HealthCheckDiff>
+    {
+        let mut healthcheckdiff = HealthCheckDiff::new();
+
+        let mut allhealthcheck = AllHealthCheck::new();
+        allhealthcheck.health_check = snapshot::read_snapshot_json(begin_snapshot, "health-check")?;
+        let master_leader = AllIsLeader::return_leader_snapshot(begin_snapshot)?;
+        healthcheckdiff.first_snapshot(allhealthcheck, master_leader);
+
+        let mut allhealthcheck = AllHealthCheck::new();
+        allhealthcheck.health_check = snapshot::read_snapshot_json(end_snapshot, "health-check")?;
+        let master_leader = AllIsLeader::return_leader_snapshot(end_snapshot)?;
+        healthcheckdiff.second_snapshot(allhealthcheck, master_leader);
+
+        Ok(healthcheckdiff)
+    }
+    fn first_snapshot(
+        &mut self,
+        allhealthcheck: AllHealthCheck,
+        master_leader: String,
+    )
+    {
+        if master_leader == *""
+        {
+            self.master_found = false;
+            return
+        }
+        else
+        {
+            self.master_found = true;
+        }
+
+        for healthcheck in allhealthcheck.health_check
+            .iter()
+            .filter(|r| r.hostname_port == Some(master_leader.clone()))
+        {
+            self.first_dead_nodes = healthcheck.dead_nodes
+                .as_ref()
+                .unwrap_or(&Vec::new())
+                .to_vec()
+                .clone();
+            self.first_under_replicated_tablets = healthcheck.under_replicated_tablets
+                .as_ref()
+                .unwrap_or(&Vec::new())
+                .to_vec()
+                .clone();
+        }
+    }
+    fn second_snapshot(
+        &mut self,
+        allhealthcheck: AllHealthCheck,
+        master_leader: String,
+    )
+    {
+        for healthcheck in allhealthcheck.health_check
+            .iter()
+            .filter(|r| r.hostname_port == Some(master_leader.clone()))
+        {
+            self.second_dead_nodes = healthcheck.dead_nodes
+                .as_ref()
+                .unwrap_or(&Vec::new())
+                .to_vec()
+                .clone();
+            self.second_under_replicated_tablets = healthcheck.under_replicated_tablets
+                .as_ref()
+                .unwrap_or(&Vec::new())
+                .to_vec()
+                .clone();
+        }
+    }
+    pub fn print(
+        &self,
+    )
+    {
+        if !self.master_found
+        {
+            println!("Master leader was not found, skipping health-check diff.");
+            return;
+        }
+        for first_dead_node in &self.first_dead_nodes
+        {
+            if ! self.second_dead_nodes.iter().any(|r| r == first_dead_node )
+            {
+               println!("{} Health Check: dead node removed: {}", "-".to_string().green(), first_dead_node);
+            }
+        }
+        for second_dead_node in &self.second_dead_nodes
+        {
+            if ! self.first_dead_nodes.iter().any(|r| r == second_dead_node )
+            {
+                println!("{} Health Check: dead node found: {}", "+".to_string().red(), second_dead_node);
+            }
+        }
+        for first_under_replicated_tablet in &self.first_under_replicated_tablets
+        {
+            if ! self.second_under_replicated_tablets.iter().any(|r| r == first_under_replicated_tablet )
+            {
+                println!("{} Health Check: under replicated tablet removed: {}", "-".to_string().green(), first_under_replicated_tablet);
+            }
+        }
+        for second_under_replicated_tablet in &self.second_under_replicated_tablets
+        {
+            if ! self.first_under_replicated_tablets.iter().any(|r| r == second_under_replicated_tablet )
+            {
+                println!("{} Health Check: under replicated tablet found: {}", "+".to_string().red(), second_under_replicated_tablet);
+            }
+        }
+    }
+    pub async fn adhoc_read_first_snapshot(
+        &mut self,
+        hosts: &Vec<&str>,
+        ports: &Vec<&str>,
+        parallel: usize,
+    )
+    {
+        let allhealthcheck = AllHealthCheck::read_health_check(hosts, ports, parallel).await;
+        let master_leader = AllIsLeader::return_leader_http(hosts, ports, parallel).await;
+        self.first_snapshot(allhealthcheck, master_leader);
+    }
+    pub async fn adhoc_read_second_snapshot(
+        &mut self,
+        hosts: &Vec<&str>,
+        ports: &Vec<&str>,
+        parallel: usize,
+    )
+    {
+        let allhealthcheck = AllHealthCheck::read_health_check(hosts, ports, parallel).await;
+        let master_leader = AllIsLeader::return_leader_http(hosts, ports, parallel).await;
+        self.second_snapshot(allhealthcheck, master_leader);
+    }
+}
+
+
 
 #[cfg(test)]
 mod tests {

@@ -218,7 +218,8 @@ impl VersionsDiff {
             // is the a "first" entry empty, indicating it appeared between snapshots
             else if row.first_git_hash.is_empty()
             {
-                print!("{} {:20} Versions: ", "+".to_string().green(), hostname);
+                //print!("{} {:20} Versions: ", "+".to_string().green(), hostname);
+                print!("{} Versions: {:20}", "+".to_string().green(), hostname);
                 println!("{} b{} {} {} {}",
                          row.second_version_number,
                          row.second_build_number,
@@ -230,7 +231,8 @@ impl VersionsDiff {
             // is a "second" entry empty, indicating it disappeared between snapshots
             else if row.second_git_hash.is_empty()
             {
-                print!("{} {:20} Versions: ", "-".to_string().red(), hostname);
+                //print!("{} {:20} Versions: ", "-".to_string().red(), hostname);
+                print!("{} Versions: {:20}", "-".to_string().red(), hostname);
                 println!("{} b{} {} {} {}",
                          row.first_version_number,
                          row.first_build_number,
@@ -242,7 +244,8 @@ impl VersionsDiff {
             else
             {
                 // first and second fields are set, but not equal: changed versions
-                print!("{} {:20} Versions: ", "*".to_string().yellow(), hostname);
+                //print!("{} {:20} Versions: ", "*".to_string().yellow(), hostname);
+                print!("{} Versions: {:20} ", "*".to_string().yellow(), hostname);
                 if row.first_version_number != row.second_version_number
                 {
                     print!("{}->{} ", row.first_version_number.yellow(), row.second_version_number.yellow());

@@ -425,43 +425,62 @@ impl MastersDiff {
         }
         for (permanent_uuid, row) in &self.btreemastersdiff {
             debug!("uuid: {}", permanent_uuid);
-            if row.second_instance_seqno == 0
+            // first check: are both situations equal?
+            // if so, don't display anything: this is a diff.
+            #[allow(clippy::nonminimal_bool)]
+            if row.first_instance_seqno == row.second_instance_seqno
+                && row.first_start_time_us == row.second_start_time_us
+                && row.first_placement_cloud == row.second_placement_cloud
+                && row.first_placement_region == row.second_placement_region
+                && row.first_placement_cloud == row.second_placement_cloud
+                && row.first_role == row.second_role
+                && row.first_private_rpc_addresses == row.second_private_rpc_addresses
+                && row.first_http_addresses == row.second_http_addresses
             {
+                // rows are equal, continue loop
+                debug!("equal, next master");
+                continue;
+            }
+            else if row.second_instance_seqno == 0
+            {
+                // if the second_instance_seqno is zero, then the first_instance_seqno likely is
+                // non-zero, indicating that this master was alive in the first snapshot, and gone
+                // away in the second.
                 debug!("role: {}->{} placement: {}.{}.{}->{}.{}.{}", row.first_role, row.second_role, row.first_placement_cloud, row.first_placement_region, row.first_placement_cloud, row.second_placement_cloud, row.second_placement_region, row.second_placement_cloud);
                 // if the second instance_seqno is zero, it means the permanent_uuid is gone in the second snapshot.
                 // this means the masters is gone.
-                println!("{} Masters: {} Role: {}->{}, Previous placement: {}.{}.{}",
+                println!("{} Masters:  {} Role: {}, Previous placement: {}.{}.{}",
                     "-".to_string().red(),
                     permanent_uuid,
                     row.first_role,
-                    row.second_role.to_string().yellow(),
                     row.first_placement_cloud,
                     row.first_placement_region,
                     row.first_placement_zone,
                 );
                 debug!("Seq#:{}->{} Start time:{}->{}", row.first_instance_seqno, row.second_instance_seqno, row.first_start_time_us, row.second_start_time_us);
                 println!("{} Seq#: {}, Start time: {}",
-                    " ".repeat(43),
-                    row.second_instance_seqno,
-                    row.second_start_time_us,
+                    " ".repeat(44),
+                    row.first_instance_seqno,
+                    row.first_start_time_us,
                 );
                 debug!("rpc: {}->{}", row.first_private_rpc_addresses, row.second_private_rpc_addresses);
                 println!("{} RPC ( {} )",
-                    " ".repeat(43),
-                    row.second_private_rpc_addresses,
+                    " ".repeat(44),
+                    row.first_private_rpc_addresses,
                 );
                 debug!("http: {}->{}", row.first_http_addresses, row.second_http_addresses);
                 println!("{} HTTP ( {} )",
-                    " ".repeat(43),
-                    row.second_http_addresses,
+                    " ".repeat(44),
+                    row.first_http_addresses,
                 );
             }
             else if row.first_instance_seqno == 0
             {
-                // if the first instance_seqno is zero, it means the permanent_uuid has appeared after the first snapshot.
+                // if the first instance_seqno is zero, then the second_instance_seqno likely is
+                // non-zero, indicating that this master only was alive in the second snapshot.
                 // this means it's a new master.
                 debug!("role: {}->{} placement: {}.{}.{}->{}.{}.{}", row.first_role, row.second_role, row.first_placement_cloud, row.first_placement_region, row.first_placement_cloud, row.second_placement_cloud, row.second_placement_region, row.second_placement_cloud);
-                println!("{} Masters: {} Role: {}, Placement: {}.{}.{}",
+                println!("{} Masters:  {} Role: {}, Placement: {}.{}.{}",
                     "+".to_string().green(),
                     permanent_uuid,
                     row.second_role,
@@ -471,47 +490,28 @@ impl MastersDiff {
                 );
                 debug!("Seq#:{}->{} Start time:{}->{}", row.first_instance_seqno, row.second_instance_seqno, row.first_start_time_us, row.second_start_time_us);
                 println!("{} Seq#: {}, Start time: {}",
-                    " ".repeat(43),
+                    " ".repeat(44),
                     row.second_instance_seqno,
                     row.second_start_time_us,
                 );
                 debug!("rpc: {}->{}", row.first_private_rpc_addresses, row.second_private_rpc_addresses);
                 println!("{} RPC ( {} )",
-                    " ".repeat(43),
+                    " ".repeat(44),
                     row.second_private_rpc_addresses,
                 );
                 debug!("http: {}->{}", row.first_http_addresses, row.second_http_addresses);
                 println!("{} HTTP ( {} )",
-                    " ".repeat(43),
+                    " ".repeat(44),
                     row.second_http_addresses,
                 );
             }
             else
             {
-                // both rows do exist.
-                // now first see if they are equal.
-                // if so, return: nothing to see.
-                #[allow(clippy::nonminimal_bool)]
-                if row.first_instance_seqno == row.second_instance_seqno
-                    && row.first_start_time_us == row.second_start_time_us
-                    && row.first_placement_cloud == row.second_placement_cloud
-                    && row.first_placement_region == row.second_placement_region
-                    && row.first_placement_cloud == row.second_placement_cloud
-                    && row.first_role == row.second_role
-                    && row.first_private_rpc_addresses == row.second_private_rpc_addresses
-                    && row.first_http_addresses == row.second_http_addresses
-                {
-                    // rows are equal, continue loop
-                    debug!("equal, next master");
-                    continue;
-                }
-                else
-                {
                     // okay, so they are not equal.
                     // print out the master, and highlight the changes
 
                     // first row
-                    print!("{} Masters: {} ",
+                    print!("{} Masters:  {} ",
                         "=".to_string().yellow(),
                         permanent_uuid,
                     );
@@ -565,7 +565,7 @@ impl MastersDiff {
                     if row.first_instance_seqno != row.second_instance_seqno
                     {
                         print!("{} Seq#: {}->{} ",
-                            " ".repeat(34),
+                            " ".repeat(44),
                             row.first_instance_seqno.to_string().yellow(),
                             row.second_instance_seqno.to_string().yellow(),
                         );
@@ -573,7 +573,7 @@ impl MastersDiff {
                     else
                     {
                         print!("{} Seq#: {} ",
-                            " ".repeat(34),
+                            " ".repeat(44),
                             row.second_instance_seqno,
                         );
                     }
@@ -593,7 +593,7 @@ impl MastersDiff {
                     if row.first_private_rpc_addresses != row.second_private_rpc_addresses
                     {
                         println!("{} RPC: {}->{}",
-                            " ".repeat(34),
+                            " ".repeat(44),
                             row.first_private_rpc_addresses.clone().yellow(),
                             row.second_private_rpc_addresses.clone().yellow(),
                         );
@@ -601,7 +601,7 @@ impl MastersDiff {
                     else
                     {
                         println!("{} RPC: {}",
-                            " ".repeat(34),
+                            " ".repeat(44),
                             row.second_private_rpc_addresses,
                         );
                     }
@@ -610,7 +610,7 @@ impl MastersDiff {
                     if row.first_http_addresses != row.second_http_addresses
                     {
                         println!("{} HTTP: {}->{}",
-                            " ".repeat(34),
+                            " ".repeat(44),
                             row.first_http_addresses.clone().yellow(),
                             row.second_http_addresses.clone().yellow(),
                         );
@@ -618,11 +618,10 @@ impl MastersDiff {
                     else
                     {
                         println!("{} HTTP: {}",
-                            " ".repeat(34),
+                            " ".repeat(44),
                             row.second_http_addresses,
                         );
                     }
-                }
             }
         }
     }

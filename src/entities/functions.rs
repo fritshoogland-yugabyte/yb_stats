@@ -970,14 +970,14 @@ impl EntitiesDiff {
                 // ysql table_id has got the OID number in it,
                 // the below function takes that, and tests if it's below 16384.
                 // ysql oid numbers below 16384 are system/catalog tables.
-                //if object_oid_number(table_id.as_str()) < 16384
-                //    && &self.btreekeyspacediff
-                //    .get(&table_row.second_keyspace_id.clone())
-                //    .map(|r| r.second_keyspace_type.clone())
-                //    .unwrap_or_default() == "ysql"
-                //{
-                //    continue;
-                //}
+                if object_oid_number(table_id.as_str()) < 16384
+                    && &self.btreekeyspacediff
+                    .get(&table_row.second_keyspace_id.clone())
+                    .map(|r| r.second_keyspace_type.clone())
+                    .unwrap_or_default() == "ysql"
+                {
+                    continue;
+                }
                 // if the table is colocated, it means it does not have one or more tablets
                 // directly linked to the table.
                 // To check for colocation:
@@ -1024,14 +1024,14 @@ impl EntitiesDiff {
                 // ysql table_id has got the OID number in it,
                 // the below function takes that, and tests if it's below 16384.
                 // ysql oid numbers below 16384 are system/catalog tables.
-                //if object_oid_number(table_id.as_str()) < 16384
-                //    && &self.btreekeyspacediff
-                //    .get(&table_row.first_keyspace_id)
-                //    .map(|r| r.first_keyspace_type.clone())
-                //    .unwrap_or_default() == "ysql"
-                //{
-                //    continue;
-                //}
+                if object_oid_number(table_id.as_str()) < 16384
+                    && &self.btreekeyspacediff
+                    .get(&table_row.first_keyspace_id)
+                    .map(|r| r.first_keyspace_type.clone())
+                    .unwrap_or_default() == "ysql"
+                {
+                    continue;
+                }
                 // if the table is colocated, it means it does not have one or more tablets
                 // directly linked to the table.
                 // normally (non-colocated) one or more tablets are linked to a table.
@@ -1250,13 +1250,13 @@ impl EntitiesDiff {
                              self.btreereplicasdiff
                                  .iter()
                                  .find(|((replica_tablet_id, replica_server_uuid), _replicadiff)| replica_tablet_id == tablet_id && replica_server_uuid.clone() == tablet_row.first_leader )
-                                 .map(|((_replica_tablet_id, _replica_server_uuid), replicadiff)| replicadiff.first_addr.clone())
+                                 .map(|((_, _), replicadiff)| replicadiff.first_addr.clone())
                                  .unwrap_or_default()
                                  .yellow(),
                              self.btreereplicasdiff
                                  .iter()
                                  .find(|((replica_tablet_id, replica_server_uuid), _replicadiff)| replica_tablet_id == tablet_id && replica_server_uuid.clone() == tablet_row.second_leader )
-                                 .map(|((_replica_tablet_id, _replica_server_uuid), replicadiff)| replicadiff.second_addr.clone())
+                                 .map(|((_, _), replicadiff)| replicadiff.second_addr.clone())
                                  .unwrap_or_default()
                                  .yellow(),
                     );
@@ -1267,7 +1267,7 @@ impl EntitiesDiff {
                              self.btreereplicasdiff
                                  .iter()
                                  .find(|((replica_tablet_id, replica_server_uuid), _replicadiff)| replica_tablet_id == tablet_id && replica_server_uuid.clone() == tablet_row.second_leader )
-                                 .map(|((_replica_tablet_id, _replica_server_uuid), replicadiff)| replicadiff.second_addr.clone())
+                                 .map(|((_, _), replicadiff)| replicadiff.second_addr.clone())
                                  .unwrap_or_default(),
                     );
                 }
@@ -1480,15 +1480,18 @@ pub async fn print_entities(
     let table_name_filter = utility::set_regex(&options.table_name_match);
     let hostname_filter = utility::set_regex(&options.hostname_match);
 
-    match options.print_entities.as_ref().unwrap() {
-        Some(snapshot_number) => {
+    match options.print_entities.as_ref().unwrap()
+    {
+        Some(snapshot_number) =>
+        {
             let mut allentities = AllEntities::new();
             allentities.entities = snapshot::read_snapshot_json(snapshot_number, "entities")?;
             let leader_hostname = AllIsLeader::return_leader_snapshot(snapshot_number)?;
             let (dead_nodes, under_replicated_tablets) = AllHealthCheck::return_dead_nodes_and_under_replicated_tablets_snapshot(snapshot_number, &leader_hostname)?;
             allentities.print(&table_name_filter, &options.details_enable, leader_hostname, &hostname_filter, dead_nodes, under_replicated_tablets)?;
         },
-        None => {
+        None =>
+        {
             let allentities = AllEntities::read_entities(&hosts, &ports, parallel).await;
             let leader_hostname = AllIsLeader::return_leader_http(&hosts, &ports, parallel).await;
             let (dead_nodes, under_replicated_tablets) = AllHealthCheck::return_dead_nodes_and_under_replicated_tablets_http(&hosts, &ports, parallel, &leader_hostname).await?;

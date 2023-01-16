@@ -453,7 +453,7 @@ impl AllRpcs {
                                             // others get spaces. this allows to see the multiple calls in flight
                                             print!("{:75} ", "");
                                         }
-                                        println!("{:>6} ms {:17} {}:{}",
+                                        println!("{:>6} ms {:17} {}:{}  (timeout: {} ms)",
                                             calls_in_flight.elapsed_millis
                                                .unwrap_or_default(),
                                             calls_in_flight.state
@@ -473,6 +473,11 @@ impl AllRpcs {
                                                .as_ref()
                                                .unwrap_or(&RemoteMethodPB::default())
                                                .method_name,
+                                            calls_in_flight.header
+                                               .as_ref()
+                                               .unwrap_or(&RequestHeader::default())
+                                               .timeout_millis
+                                               .unwrap_or_default(),
                                         );
                                         activity_counter += 1;
                                     }
@@ -525,7 +530,7 @@ impl AllRpcs {
                                             // others get spaces. this allows to see the multiple calls in flight
                                             print!("{:75} ", "");
                                         }
-                                        println!("{:>6} ms {:17} {}:{}",
+                                        println!("{:>6} ms {:17} {}:{}  (timeout: {} ms)",
                                                  calls_in_flight.elapsed_millis
                                                      .unwrap_or_default(),
                                                  calls_in_flight.state
@@ -544,7 +549,12 @@ impl AllRpcs {
                                                      .remote_method
                                                      .as_ref()
                                                      .unwrap_or(&RemoteMethodPB::default())
-                                                     .method_name
+                                                     .method_name,
+                                                 calls_in_flight.header
+                                                     .as_ref()
+                                                     .unwrap_or(&RequestHeader::default())
+                                                     .timeout_millis
+                                                     .unwrap_or_default(),
                                         );
                                         activity_counter += 1;
                                     }

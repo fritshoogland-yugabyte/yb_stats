@@ -311,15 +311,17 @@ mod tests {
     #[test]
     fn unit_parse_simple() {
         let json = r#"
-{
-    "version":0,
-    "cluster_uuid":"6cfdbce0-b98d-4aed-a5ec-372a726258b2"
+        {
+  "dead_nodes": [],
+  "most_recent_uptime": 4434,
+  "under_replicated_tablets": []
 }
         "#.to_string();
         let result = AllHealthCheck::parse_health_check(json, "", "");
         //println!("{:#?}", result);
-        assert_eq!(result.version, 0);
-        assert_eq!(result.cluster_uuid, "6cfdbce0-b98d-4aed-a5ec-372a726258b2");
+        assert_eq!(result.dead_nodes.unwrap().len(), 0);
+        assert_eq!(result.most_recent_uptime.unwrap(), 4434);
+        assert_eq!(result.under_replicated_tablets.unwrap().len(), 0);
     }
 
     #[test]
@@ -347,10 +349,11 @@ mod tests {
   ]
 }
         "#.to_string();
-        let _result = AllHealthCheck::parse_cluster_config(json, "", "");
-        //println!("{:#?}", result);
-        //assert!(result.version, 0);
-        //assert!(result.cluster_uuid, "6cfdbce0-b98d-4aed-a5ec-372a726258b2");
+        let result = AllHealthCheck::parse_health_check(json, "", "");
+        assert_eq!(result.dead_nodes.as_ref().unwrap()[0], "b71db83686bb4f22a673875321d2499b");
+        assert_eq!(result.dead_nodes.as_ref().unwrap()[1], "26ab4e25230b462890c878c96c317baf");
+        assert_eq!(result.most_recent_uptime.unwrap(), 60497);
+        assert_eq!(result.under_replicated_tablets.as_ref().unwrap()[0], "3563bc4d087346908b9ac4081449d6bb");
     }
     #[tokio::test]
     async fn integration_parse_master_health_check() {

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["AllGFlags","The wrapper struct for the vector holding the gflags."],["GFlag","The root structure for deserializing the gflags This is taken from `/varz?raw`:"]]};

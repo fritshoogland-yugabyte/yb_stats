@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["AllHealthCheck","This struct is a wrapper for the HealthCheck struct."],["HealthCheckDiff",""],["Health_Check","The root struct for deserializing `/api/v1/health-check`."]]};

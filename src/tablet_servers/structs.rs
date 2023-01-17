@@ -43,7 +43,7 @@ use std::collections::BTreeMap;
 /// ```
 /// Mind the empty object that contains a map of the server objects (not a list!).
 ///
-/// Issue: The master /api/v1/tablet-servers endpoint might display incorrect/incomplete data #15655: https://github.com/yugabyte/yugabyte-db/issues/15655
+/// Issue: The master /api/v1/tablet-servers endpoint might display incorrect/incomplete data #15655: <https://github.com/yugabyte/yugabyte-db/issues/15655>
 ///
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct TabletServers {

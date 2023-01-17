@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":[["functions","The impls and functions."],["structs","The structs"]]};

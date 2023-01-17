@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["AllClocks","This struct is a wrapper for the Clocks struct."],["Clocks","The main struct containing the clocks information."]]};

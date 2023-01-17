@@ -1,0 +1,1507 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/node_exporter/node_exporter.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>node_exporter.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><div class="width-limiter"><nav class="sub"><a class="sub-logo-container" href="../../../yb_stats/index.html"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><span id="1">1</span>
+<span id="2">2</span>
+<span id="3">3</span>
+<span id="4">4</span>
+<span id="5">5</span>
+<span id="6">6</span>
+<span id="7">7</span>
+<span id="8">8</span>
+<span id="9">9</span>
+<span id="10">10</span>
+<span id="11">11</span>
+<span id="12">12</span>
+<span id="13">13</span>
+<span id="14">14</span>
+<span id="15">15</span>
+<span id="16">16</span>
+<span id="17">17</span>
+<span id="18">18</span>
+<span id="19">19</span>
+<span id="20">20</span>
+<span id="21">21</span>
+<span id="22">22</span>
+<span id="23">23</span>
+<span id="24">24</span>
+<span id="25">25</span>
+<span id="26">26</span>
+<span id="27">27</span>
+<span id="28">28</span>
+<span id="29">29</span>
+<span id="30">30</span>
+<span id="31">31</span>
+<span id="32">32</span>
+<span id="33">33</span>
+<span id="34">34</span>
+<span id="35">35</span>
+<span id="36">36</span>
+<span id="37">37</span>
+<span id="38">38</span>
+<span id="39">39</span>
+<span id="40">40</span>
+<span id="41">41</span>
+<span id="42">42</span>
+<span id="43">43</span>
+<span id="44">44</span>
+<span id="45">45</span>
+<span id="46">46</span>
+<span id="47">47</span>
+<span id="48">48</span>
+<span id="49">49</span>
+<span id="50">50</span>
+<span id="51">51</span>
+<span id="52">52</span>
+<span id="53">53</span>
+<span id="54">54</span>
+<span id="55">55</span>
+<span id="56">56</span>
+<span id="57">57</span>
+<span id="58">58</span>
+<span id="59">59</span>
+<span id="60">60</span>
+<span id="61">61</span>
+<span id="62">62</span>
+<span id="63">63</span>
+<span id="64">64</span>
+<span id="65">65</span>
+<span id="66">66</span>
+<span id="67">67</span>
+<span id="68">68</span>
+<span id="69">69</span>
+<span id="70">70</span>
+<span id="71">71</span>
+<span id="72">72</span>
+<span id="73">73</span>
+<span id="74">74</span>
+<span id="75">75</span>
+<span id="76">76</span>
+<span id="77">77</span>
+<span id="78">78</span>
+<span id="79">79</span>
+<span id="80">80</span>
+<span id="81">81</span>
+<span id="82">82</span>
+<span id="83">83</span>
+<span id="84">84</span>
+<span id="85">85</span>
+<span id="86">86</span>
+<span id="87">87</span>
+<span id="88">88</span>
+<span id="89">89</span>
+<span id="90">90</span>
+<span id="91">91</span>
+<span id="92">92</span>
+<span id="93">93</span>
+<span id="94">94</span>
+<span id="95">95</span>
+<span id="96">96</span>
+<span id="97">97</span>
+<span id="98">98</span>
+<span id="99">99</span>
+<span id="100">100</span>
+<span id="101">101</span>
+<span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
+<span id="108">108</span>
+<span id="109">109</span>
+<span id="110">110</span>
+<span id="111">111</span>
+<span id="112">112</span>
+<span id="113">113</span>
+<span id="114">114</span>
+<span id="115">115</span>
+<span id="116">116</span>
+<span id="117">117</span>
+<span id="118">118</span>
+<span id="119">119</span>
+<span id="120">120</span>
+<span id="121">121</span>
+<span id="122">122</span>
+<span id="123">123</span>
+<span id="124">124</span>
+<span id="125">125</span>
+<span id="126">126</span>
+<span id="127">127</span>
+<span id="128">128</span>
+<span id="129">129</span>
+<span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
+<span id="133">133</span>
+<span id="134">134</span>
+<span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
+<span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
+<span id="164">164</span>
+<span id="165">165</span>
+<span id="166">166</span>
+<span id="167">167</span>
+<span id="168">168</span>
+<span id="169">169</span>
+<span id="170">170</span>
+<span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
+<span id="177">177</span>
+<span id="178">178</span>
+<span id="179">179</span>
+<span id="180">180</span>
+<span id="181">181</span>
+<span id="182">182</span>
+<span id="183">183</span>
+<span id="184">184</span>
+<span id="185">185</span>
+<span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
+<span id="338">338</span>
+<span id="339">339</span>
+<span id="340">340</span>
+<span id="341">341</span>
+<span id="342">342</span>
+<span id="343">343</span>
+<span id="344">344</span>
+<span id="345">345</span>
+<span id="346">346</span>
+<span id="347">347</span>
+<span id="348">348</span>
+<span id="349">349</span>
+<span id="350">350</span>
+<span id="351">351</span>
+<span id="352">352</span>
+<span id="353">353</span>
+<span id="354">354</span>
+<span id="355">355</span>
+<span id="356">356</span>
+<span id="357">357</span>
+<span id="358">358</span>
+<span id="359">359</span>
+<span id="360">360</span>
+<span id="361">361</span>
+<span id="362">362</span>
+<span id="363">363</span>
+<span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
+<span id="367">367</span>
+<span id="368">368</span>
+<span id="369">369</span>
+<span id="370">370</span>
+<span id="371">371</span>
+<span id="372">372</span>
+<span id="373">373</span>
+<span id="374">374</span>
+<span id="375">375</span>
+<span id="376">376</span>
+<span id="377">377</span>
+<span id="378">378</span>
+<span id="379">379</span>
+<span id="380">380</span>
+<span id="381">381</span>
+<span id="382">382</span>
+<span id="383">383</span>
+<span id="384">384</span>
+<span id="385">385</span>
+<span id="386">386</span>
+<span id="387">387</span>
+<span id="388">388</span>
+<span id="389">389</span>
+<span id="390">390</span>
+<span id="391">391</span>
+<span id="392">392</span>
+<span id="393">393</span>
+<span id="394">394</span>
+<span id="395">395</span>
+<span id="396">396</span>
+<span id="397">397</span>
+<span id="398">398</span>
+<span id="399">399</span>
+<span id="400">400</span>
+<span id="401">401</span>
+<span id="402">402</span>
+<span id="403">403</span>
+<span id="404">404</span>
+<span id="405">405</span>
+<span id="406">406</span>
+<span id="407">407</span>
+<span id="408">408</span>
+<span id="409">409</span>
+<span id="410">410</span>
+<span id="411">411</span>
+<span id="412">412</span>
+<span id="413">413</span>
+<span id="414">414</span>
+<span id="415">415</span>
+<span id="416">416</span>
+<span id="417">417</span>
+<span id="418">418</span>
+<span id="419">419</span>
+<span id="420">420</span>
+<span id="421">421</span>
+<span id="422">422</span>
+<span id="423">423</span>
+<span id="424">424</span>
+<span id="425">425</span>
+<span id="426">426</span>
+<span id="427">427</span>
+<span id="428">428</span>
+<span id="429">429</span>
+<span id="430">430</span>
+<span id="431">431</span>
+<span id="432">432</span>
+<span id="433">433</span>
+<span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
+<span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
+<span id="441">441</span>
+<span id="442">442</span>
+<span id="443">443</span>
+<span id="444">444</span>
+<span id="445">445</span>
+<span id="446">446</span>
+<span id="447">447</span>
+<span id="448">448</span>
+<span id="449">449</span>
+<span id="450">450</span>
+<span id="451">451</span>
+<span id="452">452</span>
+<span id="453">453</span>
+<span id="454">454</span>
+<span id="455">455</span>
+<span id="456">456</span>
+<span id="457">457</span>
+<span id="458">458</span>
+<span id="459">459</span>
+<span id="460">460</span>
+<span id="461">461</span>
+<span id="462">462</span>
+<span id="463">463</span>
+<span id="464">464</span>
+<span id="465">465</span>
+<span id="466">466</span>
+<span id="467">467</span>
+<span id="468">468</span>
+<span id="469">469</span>
+<span id="470">470</span>
+<span id="471">471</span>
+<span id="472">472</span>
+<span id="473">473</span>
+<span id="474">474</span>
+<span id="475">475</span>
+<span id="476">476</span>
+<span id="477">477</span>
+<span id="478">478</span>
+<span id="479">479</span>
+<span id="480">480</span>
+<span id="481">481</span>
+<span id="482">482</span>
+<span id="483">483</span>
+<span id="484">484</span>
+<span id="485">485</span>
+<span id="486">486</span>
+<span id="487">487</span>
+<span id="488">488</span>
+<span id="489">489</span>
+<span id="490">490</span>
+<span id="491">491</span>
+<span id="492">492</span>
+<span id="493">493</span>
+<span id="494">494</span>
+<span id="495">495</span>
+<span id="496">496</span>
+<span id="497">497</span>
+<span id="498">498</span>
+<span id="499">499</span>
+<span id="500">500</span>
+<span id="501">501</span>
+<span id="502">502</span>
+<span id="503">503</span>
+<span id="504">504</span>
+<span id="505">505</span>
+<span id="506">506</span>
+<span id="507">507</span>
+<span id="508">508</span>
+<span id="509">509</span>
+<span id="510">510</span>
+<span id="511">511</span>
+<span id="512">512</span>
+<span id="513">513</span>
+<span id="514">514</span>
+<span id="515">515</span>
+<span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
+<span id="519">519</span>
+<span id="520">520</span>
+<span id="521">521</span>
+<span id="522">522</span>
+<span id="523">523</span>
+<span id="524">524</span>
+<span id="525">525</span>
+<span id="526">526</span>
+<span id="527">527</span>
+<span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
+<span id="531">531</span>
+<span id="532">532</span>
+<span id="533">533</span>
+<span id="534">534</span>
+<span id="535">535</span>
+<span id="536">536</span>
+<span id="537">537</span>
+<span id="538">538</span>
+<span id="539">539</span>
+<span id="540">540</span>
+<span id="541">541</span>
+<span id="542">542</span>
+<span id="543">543</span>
+<span id="544">544</span>
+<span id="545">545</span>
+<span id="546">546</span>
+<span id="547">547</span>
+<span id="548">548</span>
+<span id="549">549</span>
+<span id="550">550</span>
+<span id="551">551</span>
+<span id="552">552</span>
+<span id="553">553</span>
+<span id="554">554</span>
+<span id="555">555</span>
+<span id="556">556</span>
+<span id="557">557</span>
+<span id="558">558</span>
+<span id="559">559</span>
+<span id="560">560</span>
+<span id="561">561</span>
+<span id="562">562</span>
+<span id="563">563</span>
+<span id="564">564</span>
+<span id="565">565</span>
+<span id="566">566</span>
+<span id="567">567</span>
+<span id="568">568</span>
+<span id="569">569</span>
+<span id="570">570</span>
+<span id="571">571</span>
+<span id="572">572</span>
+<span id="573">573</span>
+<span id="574">574</span>
+<span id="575">575</span>
+<span id="576">576</span>
+<span id="577">577</span>
+<span id="578">578</span>
+<span id="579">579</span>
+<span id="580">580</span>
+<span id="581">581</span>
+<span id="582">582</span>
+<span id="583">583</span>
+<span id="584">584</span>
+<span id="585">585</span>
+<span id="586">586</span>
+<span id="587">587</span>
+<span id="588">588</span>
+<span id="589">589</span>
+<span id="590">590</span>
+<span id="591">591</span>
+<span id="592">592</span>
+<span id="593">593</span>
+<span id="594">594</span>
+<span id="595">595</span>
+<span id="596">596</span>
+<span id="597">597</span>
+<span id="598">598</span>
+<span id="599">599</span>
+<span id="600">600</span>
+<span id="601">601</span>
+<span id="602">602</span>
+<span id="603">603</span>
+<span id="604">604</span>
+<span id="605">605</span>
+<span id="606">606</span>
+<span id="607">607</span>
+<span id="608">608</span>
+<span id="609">609</span>
+<span id="610">610</span>
+<span id="611">611</span>
+<span id="612">612</span>
+<span id="613">613</span>
+<span id="614">614</span>
+<span id="615">615</span>
+<span id="616">616</span>
+<span id="617">617</span>
+<span id="618">618</span>
+<span id="619">619</span>
+<span id="620">620</span>
+<span id="621">621</span>
+<span id="622">622</span>
+<span id="623">623</span>
+<span id="624">624</span>
+<span id="625">625</span>
+<span id="626">626</span>
+<span id="627">627</span>
+<span id="628">628</span>
+<span id="629">629</span>
+<span id="630">630</span>
+<span id="631">631</span>
+<span id="632">632</span>
+<span id="633">633</span>
+<span id="634">634</span>
+<span id="635">635</span>
+<span id="636">636</span>
+<span id="637">637</span>
+<span id="638">638</span>
+<span id="639">639</span>
+<span id="640">640</span>
+<span id="641">641</span>
+<span id="642">642</span>
+<span id="643">643</span>
+<span id="644">644</span>
+<span id="645">645</span>
+<span id="646">646</span>
+<span id="647">647</span>
+<span id="648">648</span>
+<span id="649">649</span>
+<span id="650">650</span>
+<span id="651">651</span>
+<span id="652">652</span>
+<span id="653">653</span>
+<span id="654">654</span>
+<span id="655">655</span>
+<span id="656">656</span>
+<span id="657">657</span>
+<span id="658">658</span>
+<span id="659">659</span>
+<span id="660">660</span>
+<span id="661">661</span>
+<span id="662">662</span>
+<span id="663">663</span>
+<span id="664">664</span>
+<span id="665">665</span>
+<span id="666">666</span>
+<span id="667">667</span>
+<span id="668">668</span>
+<span id="669">669</span>
+<span id="670">670</span>
+<span id="671">671</span>
+<span id="672">672</span>
+<span id="673">673</span>
+<span id="674">674</span>
+<span id="675">675</span>
+<span id="676">676</span>
+<span id="677">677</span>
+<span id="678">678</span>
+<span id="679">679</span>
+<span id="680">680</span>
+<span id="681">681</span>
+<span id="682">682</span>
+<span id="683">683</span>
+<span id="684">684</span>
+<span id="685">685</span>
+<span id="686">686</span>
+<span id="687">687</span>
+<span id="688">688</span>
+<span id="689">689</span>
+<span id="690">690</span>
+<span id="691">691</span>
+<span id="692">692</span>
+<span id="693">693</span>
+<span id="694">694</span>
+<span id="695">695</span>
+<span id="696">696</span>
+<span id="697">697</span>
+<span id="698">698</span>
+<span id="699">699</span>
+<span id="700">700</span>
+<span id="701">701</span>
+<span id="702">702</span>
+<span id="703">703</span>
+<span id="704">704</span>
+<span id="705">705</span>
+<span id="706">706</span>
+<span id="707">707</span>
+<span id="708">708</span>
+<span id="709">709</span>
+<span id="710">710</span>
+<span id="711">711</span>
+<span id="712">712</span>
+<span id="713">713</span>
+<span id="714">714</span>
+<span id="715">715</span>
+<span id="716">716</span>
+<span id="717">717</span>
+<span id="718">718</span>
+<span id="719">719</span>
+<span id="720">720</span>
+<span id="721">721</span>
+<span id="722">722</span>
+<span id="723">723</span>
+<span id="724">724</span>
+<span id="725">725</span>
+<span id="726">726</span>
+<span id="727">727</span>
+<span id="728">728</span>
+<span id="729">729</span>
+<span id="730">730</span>
+<span id="731">731</span>
+<span id="732">732</span>
+<span id="733">733</span>
+<span id="734">734</span>
+<span id="735">735</span>
+<span id="736">736</span>
+<span id="737">737</span>
+<span id="738">738</span>
+<span id="739">739</span>
+<span id="740">740</span>
+<span id="741">741</span>
+<span id="742">742</span>
+<span id="743">743</span>
+<span id="744">744</span>
+<span id="745">745</span>
+<span id="746">746</span>
+<span id="747">747</span>
+<span id="748">748</span>
+<span id="749">749</span>
+<span id="750">750</span>
+<span id="751">751</span>
+<span id="752">752</span>
+<span id="753">753</span>
+</pre><pre class="rust"><code><span class="doccomment">//! The module for prometheus metrics from /metrics endpoint of node-exporter.
+</span><span class="kw">use </span>std::{sync::mpsc::channel, time::Instant};
+<span class="kw">use </span>chrono::{DateTime, Local};
+<span class="kw">use </span>prometheus_parse::Value;
+<span class="comment">//use serde_derive::{Serialize,Deserialize};
+</span><span class="kw">use </span>regex::Regex;
+<span class="kw">use </span>log::<span class="kw-2">*</span>;
+<span class="kw">use </span>anyhow::Result;
+<span class="kw">use </span><span class="kw">crate</span>::utility;
+<span class="kw">use </span><span class="kw">crate</span>::snapshot;
+<span class="kw">use </span><span class="kw">crate</span>::node_exporter::{SnapshotDiffBTreeMapNodeExporter, StoredNodeExporterValues, SnapshotDiffNodeExporter, NodeExporterValues};
+
+<span class="kw">impl </span>SnapshotDiffNodeExporter {
+    <span class="kw">fn </span>first_snapshot(storednodeexportervalues: StoredNodeExporterValues) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            first_snapshot_time: storednodeexportervalues.timestamp,
+            second_snapshot_time: storednodeexportervalues.timestamp,
+            node_exporter_type: storednodeexportervalues.node_exporter_type.to_string(),
+            category: storednodeexportervalues.node_exporter_category.to_string(),
+            first_value: storednodeexportervalues.node_exporter_value,
+            second_value: <span class="number">0.</span>,
+        }
+    }
+    <span class="kw">fn </span>second_snapshot_existing(storednodeexportervalues: StoredNodeExporterValues, nodeexporter_diff_row: <span class="kw-2">&amp;mut </span>SnapshotDiffNodeExporter) -&gt; <span class="self">Self
+    </span>{
+        <span class="self">Self </span>{
+            first_snapshot_time: nodeexporter_diff_row.first_snapshot_time,
+            second_snapshot_time: storednodeexportervalues.timestamp,
+            node_exporter_type: storednodeexportervalues.node_exporter_type.to_string(),
+            category: storednodeexportervalues.node_exporter_category.to_string(),
+            first_value: nodeexporter_diff_row.first_value,
+            second_value: storednodeexportervalues.node_exporter_value,
+        }
+    }
+    <span class="kw">fn </span>second_snapshot_new(storednodeexportervalues: StoredNodeExporterValues, first_snapshot_time: DateTime&lt;Local&gt;) -&gt; <span class="self">Self
+    </span>{
+        <span class="self">Self </span>{
+            first_snapshot_time,
+            second_snapshot_time: storednodeexportervalues.timestamp,
+            node_exporter_type: storednodeexportervalues.node_exporter_type.to_string(),
+            category: storednodeexportervalues.node_exporter_category.to_string(),
+            first_value: <span class="number">0.</span>,
+            second_value: storednodeexportervalues.node_exporter_value,
+        }
+    }
+}
+
+<span class="attribute">#[derive(Debug, Default)]
+</span><span class="kw">pub struct </span>AllStoredNodeExporterValues {
+    <span class="kw">pub </span>stored_nodeexportervalues: Vec&lt;StoredNodeExporterValues&gt;,
+}
+<span class="kw">impl </span>AllStoredNodeExporterValues {
+    <span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
+        Default::default()
+    }
+    <span class="kw">pub async fn </span>perform_snapshot(
+        hosts: <span class="kw-2">&amp;</span>Vec&lt;<span class="kw-2">&amp;</span>str&gt;,
+        ports: <span class="kw-2">&amp;</span>Vec&lt;<span class="kw-2">&amp;</span>str&gt;,
+        snapshot_number: i32,
+        parallel: usize,
+    )  -&gt; <span class="prelude-ty">Result</span>&lt;()&gt;
+    {
+        <span class="macro">info!</span>(<span class="string">&quot;begin snapshot&quot;</span>);
+        <span class="kw">let </span>timer = Instant::now();
+
+        <span class="kw">let </span>allstorednodeexportervalues = AllStoredNodeExporterValues::read_nodeexporter(hosts, ports, parallel).<span class="kw">await</span>;
+        snapshot::save_snapshot(snapshot_number, <span class="string">&quot;nodeexporter&quot;</span>, allstorednodeexportervalues.stored_nodeexportervalues)<span class="question-mark">?</span>;
+        <span class="comment">/*
+        allstorednodeexportervalues.save_snapshot(snapshot_number)
+            .unwrap_or_else(|e| {
+                error!(&quot;error saving snapshot: {}&quot;, e);
+                process::exit(1);
+            });
+
+         */
+
+        </span><span class="macro">info!</span>(<span class="string">&quot;end snapshot: {:?}&quot;</span>, timer.elapsed());
+        <span class="prelude-val">Ok</span>(())
+    }
+    <span class="comment">/*
+    fn save_snapshot(self, snapshot_number: i32) -&gt; Result&lt;(), Box&lt;dyn Error&gt;&gt;
+    {
+        let current_directory = env::current_dir()?;
+        let current_snapshot_directory = current_directory.join(&quot;yb_stats.snapshots&quot;).join(&amp;snapshot_number.to_string());
+
+        let nodeexporter_file = &amp;current_snapshot_directory.join(&quot;nodeexporter&quot;);
+        let file = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(nodeexporter_file)?;
+        let mut writer = csv::Writer::from_writer(file);
+        for row in self.stored_nodeexportervalues {
+            writer.serialize(row)?;
+        }
+        writer.flush()?;
+
+        Ok(())
+    }
+
+    fn read_snapshot( snapshot_number: &amp;String, ) -&gt; Result&lt;AllStoredNodeExporterValues, Box&lt;dyn Error&gt;&gt;
+    {
+        let mut allstorednodeexportervalues = AllStoredNodeExporterValues { stored_nodeexportervalues: Vec::new() };
+
+        let current_directory = env::current_dir()?;
+        let current_snapshot_directory = current_directory.join(&quot;yb_stats.snapshots&quot;).join(snapshot_number);
+
+        let nodeexporter_file = &amp;current_snapshot_directory.join(&quot;nodeexporter&quot;);
+        let file = fs::File::open(nodeexporter_file)?;
+
+        let mut reader = csv::Reader::from_reader(file);
+        for  row in reader.deserialize() {
+            let data: StoredNodeExporterValues = row?;
+            allstorednodeexportervalues.stored_nodeexportervalues.push(data);
+        }
+
+        Ok(allstorednodeexportervalues)
+    }
+
+     */
+    </span><span class="kw">pub async fn </span>read_nodeexporter(
+        hosts: <span class="kw-2">&amp;</span>Vec&lt;<span class="kw-2">&amp;</span>str&gt;,
+        ports: <span class="kw-2">&amp;</span>Vec&lt;<span class="kw-2">&amp;</span>str&gt;,
+        parallel: usize
+    ) -&gt; AllStoredNodeExporterValues
+    {
+        <span class="macro">info!</span>(<span class="string">&quot;begin parallel http read&quot;</span>);
+        <span class="kw">let </span>timer = Instant::now();
+
+        <span class="kw">let </span>pool = rayon::ThreadPoolBuilder::new().num_threads(parallel).build().unwrap();
+        <span class="kw">let </span>(tx, rx) = channel();
+        pool.scope(<span class="kw">move </span>|s| {
+            <span class="kw">for </span>host <span class="kw">in </span>hosts {
+                <span class="kw">for </span>port <span class="kw">in </span>ports {
+                    <span class="kw">let </span>tx = tx.clone();
+                    s.spawn(<span class="kw">move </span>|<span class="kw">_</span>| {
+                        <span class="kw">let </span>detail_snapshot_time = Local::now();
+                        <span class="kw">let </span>node_exporter_values = AllStoredNodeExporterValues::read_http(host, port);
+                        tx.send((<span class="macro">format!</span>(<span class="string">&quot;{}:{}&quot;</span>, host, port), detail_snapshot_time, node_exporter_values)).expect(<span class="string">&quot;error sending data via tx (node_exporter)&quot;</span>);
+                    });
+                }
+            }
+        });
+
+        <span class="macro">info!</span>(<span class="string">&quot;end parallel http read {:?}&quot;</span>, timer.elapsed());
+
+        <span class="comment">//let mut allstorednodeexportervalues = AllStoredNodeExporterValues { stored_nodeexportervalues: Vec::new() };
+        </span><span class="kw">let </span><span class="kw-2">mut </span>allstorednodeexportervalues = AllStoredNodeExporterValues::new();
+        <span class="kw">for </span>(hostname_port, _detail_snapshot_time, node_exporter_values) <span class="kw">in </span>rx {
+            AllStoredNodeExporterValues::add_to_vector(node_exporter_values, <span class="kw-2">&amp;</span>hostname_port, <span class="kw-2">&amp;mut </span>allstorednodeexportervalues);
+        }
+        allstorednodeexportervalues
+    }
+    <span class="kw">pub fn </span>read_http(
+        host: <span class="kw-2">&amp;</span>str,
+        port: <span class="kw-2">&amp;</span>str,
+    ) -&gt; Vec&lt;NodeExporterValues&gt;
+    {
+        <span class="kw">let </span>data_from_http = <span class="kw">if </span>utility::scan_host_port( host, port) {
+            utility::http_get(host, port, <span class="string">&quot;metrics&quot;</span>)
+        } <span class="kw">else </span>{
+            String::new()
+        };
+        AllStoredNodeExporterValues::parse_nodeexporter(data_from_http)
+    }
+    <span class="kw">fn </span>parse_nodeexporter( node_exporter_data: String ) -&gt; Vec&lt;NodeExporterValues&gt;
+    {
+        <span class="comment">// This is the actual parsing
+        </span><span class="kw">let </span>node_exporter_rows = prometheus_parse::Scrape::parse(node_exporter_data.lines().map(|s| <span class="prelude-val">Ok</span>(s.to_owned()))).unwrap();
+
+        <span class="comment">// post processing
+        </span><span class="kw">let </span><span class="kw-2">mut </span>nodeexportervalues: Vec&lt;NodeExporterValues&gt; = Vec::new();
+        <span class="kw">if </span>!node_exporter_rows.samples.is_empty()
+        {
+            <span class="kw">for </span>sample <span class="kw">in </span>node_exporter_rows.samples
+            {
+                <span class="comment">// Build a label of the different labels of a sample
+                </span><span class="kw">let </span><span class="kw-2">mut </span>label_temp = sample.labels.values().cloned().collect::&lt;Vec&lt;String&gt;&gt;();
+                label_temp.sort();
+                <span class="kw">let </span><span class="kw-2">mut </span>label = label_temp.join(<span class="string">&quot;_&quot;</span>);
+                label = <span class="kw">if </span>!label.is_empty() {
+                    <span class="macro">format!</span>(<span class="string">&quot;_{}&quot;</span>, label)
+                } <span class="kw">else </span>{
+                    label
+                };
+                <span class="comment">// Insert the sample into the nodeexportervalues vector.
+                // Currently, histogram and summary types are not used in YugabyteDB.
+                // YugabyteDB uses gauges and counters, but doesn&#39;t actually specify it.
+                // NodeExporter uses gauges, counters, untyped and one summary.
+                </span><span class="kw">match </span>sample.value {
+                    Value::Counter(val) =&gt; {
+                        nodeexportervalues.push(
+                            NodeExporterValues {
+                                node_exporter_name: sample.metric.to_string(),
+                                node_exporter_type: <span class="string">&quot;counter&quot;</span>.to_string(),
+                                node_exporter_labels: label,
+                                node_exporter_category: <span class="string">&quot;all&quot;</span>.to_string(),
+                                node_exporter_timestamp: sample.timestamp,
+                                node_exporter_value: val,
+                            }
+                        )
+                    },
+                    Value::Gauge(val) =&gt; {
+                        nodeexportervalues.push(
+                            NodeExporterValues {
+                                node_exporter_name: sample.metric.to_string(),
+                                node_exporter_type: <span class="string">&quot;gauge&quot;</span>.to_string(),
+                                node_exporter_labels: label,
+                                node_exporter_category: <span class="string">&quot;all&quot;</span>.to_string(),
+                                node_exporter_timestamp: sample.timestamp,
+                                node_exporter_value: val,
+                            }
+                        )
+                    },
+                    Value::Untyped(val) =&gt; {
+                        <span class="comment">// it turns out summary type _sum and _count values are untyped values.
+                        // so I remove them here.
+                        </span><span class="kw">if </span>sample.metric.ends_with(<span class="string">&quot;_sum&quot;</span>) || sample.metric.ends_with(<span class="string">&quot;_count&quot;</span>) { <span class="kw">continue </span>};
+                        <span class="comment">// untyped: not sure what it is.
+                        // I would say: probably a counter.
+                        </span>nodeexportervalues.push(
+                            NodeExporterValues {
+                                node_exporter_name: sample.metric.to_string(),
+                                node_exporter_type: <span class="string">&quot;counter&quot;</span>.to_string(),
+                                node_exporter_labels: label,
+                                node_exporter_category: <span class="string">&quot;all&quot;</span>.to_string(),
+                                node_exporter_timestamp: sample.timestamp,
+                                node_exporter_value: val,
+
+                            }
+                        )
+                    },
+                    Value::Histogram(_val) =&gt; {},
+                    Value::Summary(_val) =&gt; {},
+                }
+            }
+            nodeexporter_statistics_to_detail(<span class="kw-2">&amp;mut </span>nodeexportervalues);
+            linux_dm_to_detail(<span class="kw-2">&amp;mut </span>nodeexportervalues);
+            linux_softnet_sum(<span class="kw-2">&amp;mut </span>nodeexportervalues);
+            linux_schedstat_sum(<span class="kw-2">&amp;mut </span>nodeexportervalues);
+            linux_cpu_sum(<span class="kw-2">&amp;mut </span>nodeexportervalues);
+        }
+        nodeexportervalues
+    }
+    <span class="kw">fn </span>add_to_vector(
+        node_exporter_values: Vec&lt;NodeExporterValues&gt;,
+        hostname: <span class="kw-2">&amp;</span>str,
+        allstorednodeexportervalues: <span class="kw-2">&amp;mut </span>AllStoredNodeExporterValues,
+    )
+    {
+        <span class="kw">for </span>row <span class="kw">in </span>node_exporter_values {
+            <span class="kw">if </span>row.node_exporter_value &gt; <span class="number">0.0 </span>{
+                allstorednodeexportervalues.stored_nodeexportervalues.push(
+                    StoredNodeExporterValues {
+                        hostname_port: hostname.to_string(),
+                        timestamp: DateTime::from(row.node_exporter_timestamp),
+                        node_exporter_name: row.node_exporter_name.to_string(),
+                        node_exporter_type: row.node_exporter_type.to_string(),
+                        node_exporter_labels: row.node_exporter_labels.to_string(),
+                        node_exporter_category: row.node_exporter_category.to_string(),
+                        node_exporter_value: row.node_exporter_value,
+                    }
+                );
+            }
+        }
+    }
+}
+
+
+<span class="kw">impl </span>SnapshotDiffBTreeMapNodeExporter {
+    <span class="kw">pub fn </span>snapshot_diff (
+        begin_snapshot: <span class="kw-2">&amp;</span>String,
+        end_snapshot: <span class="kw-2">&amp;</span>String,
+        begin_snapshot_time: <span class="kw-2">&amp;</span>DateTime&lt;Local&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;SnapshotDiffBTreeMapNodeExporter&gt;
+    {
+        <span class="kw">let </span><span class="kw-2">mut </span>allstorednodeexportervalues = AllStoredNodeExporterValues::new();
+        allstorednodeexportervalues.stored_nodeexportervalues = snapshot::read_snapshot(begin_snapshot, <span class="string">&quot;nodeexporter&quot;</span>)<span class="question-mark">?</span>;
+
+        <span class="kw">let </span><span class="kw-2">mut </span>node_exporter_snapshot_diff = SnapshotDiffBTreeMapNodeExporter::new();
+        node_exporter_snapshot_diff.first_snapshot(allstorednodeexportervalues);
+
+        <span class="kw">let </span><span class="kw-2">mut </span>allstorednodeexportervalues = AllStoredNodeExporterValues::new();
+        allstorednodeexportervalues.stored_nodeexportervalues = snapshot::read_snapshot(end_snapshot, <span class="string">&quot;nodeexporter&quot;</span>)<span class="question-mark">?</span>;
+
+        node_exporter_snapshot_diff.second_snapshot(allstorednodeexportervalues, begin_snapshot_time);
+
+        <span class="prelude-val">Ok</span>(node_exporter_snapshot_diff)
+    }
+    <span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
+        Default::default()
+    }
+    <span class="kw">pub async fn </span>adhoc_read_first_snapshot (
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        hosts: <span class="kw-2">&amp;</span>Vec&lt;<span class="kw-2">&amp;</span>str&gt;,
+        ports: <span class="kw-2">&amp;</span>Vec&lt;<span class="kw-2">&amp;</span>str&gt;,
+        parallel: usize,
+    )
+    {
+        <span class="kw">let </span>allstorednodeexportervalues = AllStoredNodeExporterValues::read_nodeexporter(hosts, ports, parallel).<span class="kw">await</span>;
+        <span class="self">self</span>.first_snapshot(allstorednodeexportervalues);
+    }
+    <span class="kw">fn </span>first_snapshot(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        allstorednodeexportervalues: AllStoredNodeExporterValues
+    )
+    {
+        <span class="kw">for </span>row <span class="kw">in </span>allstorednodeexportervalues.stored_nodeexportervalues {
+            <span class="self">self</span>.btreemap_snapshotdiff_nodeexporter.insert(
+                (row.hostname_port.to_string(), <span class="macro">format!</span>(<span class="string">&quot;{}{}&quot;</span>, row.node_exporter_name, row.node_exporter_labels)),
+                SnapshotDiffNodeExporter::first_snapshot(row)
+            );
+        }
+    }
+    <span class="kw">pub async fn </span>adhoc_read_second_snapshot(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        hosts: <span class="kw-2">&amp;</span>Vec&lt;<span class="kw-2">&amp;</span>str&gt;,
+        ports: <span class="kw-2">&amp;</span>Vec&lt;<span class="kw-2">&amp;</span>str&gt;,
+        parallel: usize,
+        first_snapshot_time: <span class="kw-2">&amp;</span>DateTime&lt;Local&gt;,
+    )
+    {
+        <span class="kw">let </span>allstorednodeexporter = AllStoredNodeExporterValues::read_nodeexporter(hosts, ports, parallel).<span class="kw">await</span>;
+        <span class="self">self</span>.second_snapshot(allstorednodeexporter, first_snapshot_time);
+    }
+    <span class="kw">fn </span>second_snapshot(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        allstorednodeexporter: AllStoredNodeExporterValues,
+        first_snapshot_time: <span class="kw-2">&amp;</span>DateTime&lt;Local&gt;,
+    )
+    {
+        <span class="kw">for </span>row <span class="kw">in </span>allstorednodeexporter.stored_nodeexportervalues {
+            <span class="kw">match </span><span class="self">self</span>.btreemap_snapshotdiff_nodeexporter.get_mut( <span class="kw-2">&amp;</span>(row.hostname_port.to_string(), <span class="macro">format!</span>(<span class="string">&quot;{}{}&quot;</span>,row.node_exporter_name, row.node_exporter_labels)) )
+            {
+                <span class="prelude-val">Some</span>(nodeexporter_diff_row) =&gt; {
+                   <span class="kw-2">*</span>nodeexporter_diff_row =  SnapshotDiffNodeExporter::second_snapshot_existing(row, nodeexporter_diff_row)
+                },
+                <span class="prelude-val">None </span>=&gt; {
+                    <span class="self">self</span>.btreemap_snapshotdiff_nodeexporter.insert(
+                        (row.hostname_port.to_string(), <span class="macro">format!</span>(<span class="string">&quot;{}{}&quot;</span>, row.node_exporter_name, row.node_exporter_labels)),
+                        SnapshotDiffNodeExporter::second_snapshot_new(row, <span class="kw-2">*</span>first_snapshot_time)
+                    );
+                },
+            }
+        }
+    }
+    <span class="kw">pub fn </span>print(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        hostname_filter: <span class="kw-2">&amp;</span>Regex,
+        stat_name_filter: <span class="kw-2">&amp;</span>Regex,
+        gauges_enable: <span class="kw-2">&amp;</span>bool,
+        details_enable: <span class="kw-2">&amp;</span>bool,
+    )
+    {
+        <span class="kw">for </span>((hostname, nodeexporter_name), nodeexporter_row) <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.btreemap_snapshotdiff_nodeexporter {
+            <span class="kw">if </span>hostname_filter.is_match(hostname)
+                &amp;&amp; stat_name_filter.is_match(nodeexporter_name)
+                &amp;&amp; nodeexporter_row.second_value - nodeexporter_row.first_value != <span class="number">0.0
+                </span>&amp;&amp; nodeexporter_row.node_exporter_type == <span class="string">&quot;counter&quot; </span>{
+                <span class="kw">if </span><span class="kw-2">*</span>details_enable &amp;&amp; nodeexporter_row.category == <span class="string">&quot;summary&quot; </span>{ <span class="kw">continue </span>};
+                <span class="kw">if </span>! <span class="kw-2">*</span>details_enable &amp;&amp; nodeexporter_row.category == <span class="string">&quot;detail&quot; </span>{ <span class="kw">continue </span>};
+                <span class="macro">println!</span>(<span class="string">&quot;{:20} {:8} {:73} {:19.6} {:15.3} /s&quot;</span>,
+                         hostname,
+                         nodeexporter_row.node_exporter_type,
+                         nodeexporter_name,
+                         nodeexporter_row.second_value - nodeexporter_row.first_value,
+                         (nodeexporter_row.second_value - nodeexporter_row.first_value) / (nodeexporter_row.second_snapshot_time - nodeexporter_row.first_snapshot_time).num_seconds() <span class="kw">as </span>f64,
+                );
+            }
+            <span class="kw">if </span>hostname_filter.is_match(hostname)
+                &amp;&amp; stat_name_filter.is_match(nodeexporter_name)
+                &amp;&amp; nodeexporter_row.node_exporter_type == <span class="string">&quot;gauge&quot;
+                </span>&amp;&amp; <span class="kw-2">*</span>gauges_enable {
+                <span class="kw">if </span><span class="kw-2">*</span>details_enable &amp;&amp; nodeexporter_row.category == <span class="string">&quot;summary&quot; </span>{ <span class="kw">continue </span>};
+                <span class="kw">if </span>! <span class="kw-2">*</span>details_enable &amp;&amp; nodeexporter_row.category == <span class="string">&quot;detail&quot; </span>{ <span class="kw">continue </span>};
+                <span class="macro">println!</span>(<span class="string">&quot;{:20} {:8} {:73} {:19.6} {:+15}&quot;</span>,
+                         hostname,
+                         nodeexporter_row.node_exporter_type,
+                         nodeexporter_name,
+                         nodeexporter_row.second_value,
+                         nodeexporter_row.second_value - nodeexporter_row.first_value
+                );
+            }
+        }
+    }
+}
+
+<span class="kw">fn </span>nodeexporter_statistics_to_detail(nodeexportervalues: <span class="kw-2">&amp;mut </span>[NodeExporterValues])
+{
+    <span class="comment">// anything that starts with process_ is node_exporter process
+    </span><span class="kw">for </span>record <span class="kw">in </span>nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name.starts_with(<span class="string">&quot;process_&quot;</span>)) {
+        record.node_exporter_category = <span class="string">&quot;detail&quot;</span>.to_string();
+    }
+    <span class="comment">// anything that start with promhttp_ is the node_exporter http server
+    </span><span class="kw">for </span>record <span class="kw">in </span>nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name.starts_with(<span class="string">&quot;promhttp_&quot;</span>)) {
+        record.node_exporter_category = <span class="string">&quot;detail&quot;</span>.to_string();
+    }
+    <span class="comment">// anything that starts with go_ are statistics about the node_exporter process
+    </span><span class="kw">for </span>record <span class="kw">in </span>nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name.starts_with(<span class="string">&quot;go_&quot;</span>)) {
+        record.node_exporter_category = <span class="string">&quot;detail&quot;</span>.to_string();
+    }
+    <span class="comment">// anything that starts with node_scrape_collector is about the node_exporter scraper
+    </span><span class="kw">for </span>record <span class="kw">in </span>nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name.starts_with(<span class="string">&quot;node_scrape_collector_&quot;</span>)) {
+        record.node_exporter_category = <span class="string">&quot;detail&quot;</span>.to_string();
+    }
+    <span class="comment">// any record that contains a label that contains &#39;dm-&#39; is a specification of a block device, and not the block device itself
+    </span><span class="kw">for </span>record <span class="kw">in </span>nodeexportervalues.iter_mut().filter(|r| r.node_exporter_labels.contains(<span class="string">&quot;dm-&quot;</span>)) {
+        record.node_exporter_category = <span class="string">&quot;detail&quot;</span>.to_string();
+    }
+}
+
+<span class="kw">fn </span>linux_dm_to_detail(nodeexportervalues: <span class="kw-2">&amp;mut </span>[NodeExporterValues])
+{
+    <span class="comment">// any record that contains a label that contains &#39;dm-&#39; is a specification of a block device, and not the block device itself
+    </span><span class="kw">for </span>record <span class="kw">in </span>nodeexportervalues.iter_mut().filter(|r| r.node_exporter_labels.contains(<span class="string">&quot;dm-&quot;</span>)) {
+        record.node_exporter_category = <span class="string">&quot;detail&quot;</span>.to_string();
+    }
+}
+
+<span class="kw">fn </span>linux_softnet_sum(nodeexportervalues: <span class="kw-2">&amp;mut </span>Vec&lt;NodeExporterValues&gt;)
+{
+    <span class="comment">// softnet: node_softnet_processed_total
+    </span><span class="kw">if </span>nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_softnet_processed_total&quot;</span>).count() &gt; <span class="number">0 </span>{
+        <span class="comment">// make current records detail records
+        </span><span class="kw">for </span>record <span class="kw">in </span>nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == <span class="string">&quot;node_softnet_processed_total&quot;</span>) {
+            record.node_exporter_category = <span class="string">&quot;detail&quot;</span>.to_string();
+        }
+        <span class="comment">// add a summary record
+        </span>nodeexportervalues.push(NodeExporterValues {
+            node_exporter_name: <span class="string">&quot;node_softnet_processed_total&quot;</span>.to_string(),
+            node_exporter_type: <span class="string">&quot;counter&quot;</span>.to_string(),
+            node_exporter_labels: <span class="string">&quot;&quot;</span>.to_string(),
+            node_exporter_category: <span class="string">&quot;summary&quot;</span>.to_string(),
+            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_softnet_processed_total&quot;</span>).map(|x| x.node_exporter_timestamp).min().unwrap(),
+            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_softnet_processed_total&quot;</span>).map(|x| x.node_exporter_value).sum(),
+        });
+    }
+    <span class="comment">// softnet: node_softnet_dropped_total
+    </span><span class="kw">if </span>nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_softnet_dropped_total&quot;</span>).count() &gt; <span class="number">0 </span>{
+        <span class="comment">// make current records detail records
+        </span><span class="kw">for </span>record <span class="kw">in </span>nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == <span class="string">&quot;node_softnet_dropped_total&quot;</span>) {
+            record.node_exporter_category = <span class="string">&quot;detail&quot;</span>.to_string();
+        }
+        <span class="comment">// add a summary record
+        </span>nodeexportervalues.push(NodeExporterValues {
+            node_exporter_name: <span class="string">&quot;node_softnet_dropped_total&quot;</span>.to_string(),
+            node_exporter_type: <span class="string">&quot;counter&quot;</span>.to_string(),
+            node_exporter_labels: <span class="string">&quot;&quot;</span>.to_string(),
+            node_exporter_category: <span class="string">&quot;summary&quot;</span>.to_string(),
+            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_softnet_dropped_total&quot;</span>).map(|x| x.node_exporter_timestamp).min().unwrap(),
+            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_softnet_dropped_total&quot;</span>).map(|x| x.node_exporter_value).sum(),
+        });
+    }
+    <span class="comment">// softnet: node_softnet_times_squeezed_total
+    </span><span class="kw">if </span>nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_softnet_times_squeezed_total&quot;</span>).count() &gt; <span class="number">0 </span>{
+        <span class="kw">for </span>record <span class="kw">in </span>nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == <span class="string">&quot;node_softnet_times_squeezed_total&quot;</span>) {
+            record.node_exporter_category = <span class="string">&quot;detail&quot;</span>.to_string();
+        }
+        nodeexportervalues.push(NodeExporterValues {
+            node_exporter_name: <span class="string">&quot;node_softnet_times_squeezed_total&quot;</span>.to_string(),
+            node_exporter_type: <span class="string">&quot;counter&quot;</span>.to_string(),
+            node_exporter_labels: <span class="string">&quot;&quot;</span>.to_string(),
+            node_exporter_category: <span class="string">&quot;summary&quot;</span>.to_string(),
+            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_softnet_times_squeezed_total&quot;</span>).map(|x| x.node_exporter_timestamp).min().unwrap(),
+            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_softnet_times_squeezed_total&quot;</span>).map(|x| x.node_exporter_value).sum(),
+        });
+    }
+}
+<span class="doccomment">/// Scheduler statistics summarization.
+///
+/// Scheduler statistics are provided per logical CPU. That is the most correct way to show these statistics.
+/// However: that is not very easy for a human to read.
+/// For that reason, this function sums up the total amounts of the schedstat statistics:
+/// - schedstat_waiting (task runnable, but not running on CPU, waiting for runtime)
+/// - schedstat_running (task runnable and running on CPU)
+/// - schedstat_timeslices (the number of timeslices executed)
+/// The original values are kept, but put in category &#39;detail&#39;.
+/// The summarized values are put in a category &#39;summary&#39;.
+</span><span class="kw">fn </span>linux_schedstat_sum(nodeexportervalues: <span class="kw-2">&amp;mut </span>Vec&lt;NodeExporterValues&gt;)
+{
+    <span class="comment">// schedstat: node_schedstat_waiting_seconds
+    </span><span class="kw">if </span>nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_schedstat_waiting_seconds_total&quot;</span>).count() &gt; <span class="number">0 </span>{
+        <span class="kw">for </span>record <span class="kw">in </span>nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == <span class="string">&quot;node_schedstat_waiting_seconds_total&quot;</span>) {
+            record.node_exporter_category = <span class="string">&quot;detail&quot;</span>.to_string();
+        }
+        nodeexportervalues.push(NodeExporterValues {
+            node_exporter_name: <span class="string">&quot;node_schedstat_waiting_seconds_total&quot;</span>.to_string(),
+            node_exporter_type: <span class="string">&quot;counter&quot;</span>.to_string(),
+            node_exporter_labels: <span class="string">&quot;&quot;</span>.to_string(),
+            node_exporter_category: <span class="string">&quot;summary&quot;</span>.to_string(),
+            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_schedstat_waiting_seconds_total&quot;</span>).map(|x| x.node_exporter_timestamp).min().unwrap(),
+            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_schedstat_waiting_seconds_total&quot;</span>).map(|x| x.node_exporter_value).sum(),
+        });
+    }
+    <span class="comment">// schedstat: node_schedstat_timeslices
+    </span><span class="kw">if </span>nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_schedstat_timeslices_total&quot;</span>).count() &gt; <span class="number">0 </span>{
+        <span class="kw">for </span>record <span class="kw">in </span>nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == <span class="string">&quot;node_schedstat_timeslices_total&quot;</span>) {
+            record.node_exporter_category = <span class="string">&quot;detail&quot;</span>.to_string();
+        }
+        nodeexportervalues.push(NodeExporterValues {
+            node_exporter_name: <span class="string">&quot;node_schedstat_timeslices_total&quot;</span>.to_string(),
+            node_exporter_type: <span class="string">&quot;counter&quot;</span>.to_string(),
+            node_exporter_labels: <span class="string">&quot;&quot;</span>.to_string(),
+            node_exporter_category: <span class="string">&quot;summary&quot;</span>.to_string(),
+            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_schedstat_timeslices_total&quot;</span>).map(|x| x.node_exporter_timestamp).min().unwrap(),
+            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_schedstat_timeslices_total&quot;</span>).map(|x| x.node_exporter_value).sum(),
+        });
+    }
+    <span class="comment">// schedstat: node_schedstat_running_seconds
+    </span><span class="kw">if </span>nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_schedstat_running_seconds_total&quot;</span>).count() &gt; <span class="number">0 </span>{
+        <span class="kw">for </span>record <span class="kw">in </span>nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == <span class="string">&quot;node_schedstat_running_seconds_total&quot;</span>) {
+            record.node_exporter_category = <span class="string">&quot;detail&quot;</span>.to_string();
+        }
+        nodeexportervalues.push(NodeExporterValues {
+            node_exporter_name: <span class="string">&quot;node_schedstat_running_seconds_total&quot;</span>.to_string(),
+            node_exporter_type: <span class="string">&quot;counter&quot;</span>.to_string(),
+            node_exporter_labels: <span class="string">&quot;&quot;</span>.to_string(),
+            node_exporter_category: <span class="string">&quot;summary&quot;</span>.to_string(),
+            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_schedstat_running_seconds_total&quot;</span>).map(|x| x.node_exporter_timestamp).min().unwrap(),
+            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_schedstat_running_seconds_total&quot;</span>).map(|x| x.node_exporter_value).sum(),
+        });
+    }
+}
+<span class="doccomment">/// CPU statistics summarization.
+///
+/// CPU statistics are provided per logical CPU. That is the most correct way to show these statistics.
+/// However: that is not very easy for a human to read.
+/// For that reason, this function sums up the total amounts of the cpu statistics:
+/// - user      : amount of time running in normal (user) mode.
+/// - system    : amount of time running in kernel (system) mode.
+/// - nice      : amount of time running in normal mode with a changed priority.
+/// - irq       : amount of time running for interrupt CPU usage.
+/// - softirq   : amount of time running deferrable functions (non-urgent interruptable kernel functions).
+/// - idle      : amount of time NOT running.
+/// - iowait    : this is a special case. There is no IO wait time in the kernel. Instead for regular, buffered, IO, linux keeps a counter of outstanding IOs, and tries to map idle time to these, based on idle time availability.
+///               More advanced IO interfaces mostly do not increase this counter, such as io_submit/io_getevents.
+/// - steal     : this too is a special case: this is the time the hypervisor did not get CPU slices. Higher values for this could indicate CPU oversubscription by the hypervisor.
+///
+/// The original values are kept, but put in category &#39;detail&#39;.
+/// The summarized values are put in a category &#39;summary&#39;.
+/// TBD: category node_cpu_guest_seconds
+</span><span class="kw">fn </span>linux_cpu_sum(nodeexportervalues: <span class="kw-2">&amp;mut </span>Vec&lt;NodeExporterValues&gt;)
+{
+    <span class="comment">// cpu_seconds_total:
+    </span><span class="kw">if </span>nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_cpu_seconds_total&quot;</span>).count() &gt; <span class="number">0 </span>{
+        <span class="kw">for </span>record <span class="kw">in </span>nodeexportervalues.iter_mut().filter(|r| r.node_exporter_name == <span class="string">&quot;node_cpu_seconds_total&quot;</span>) {
+            record.node_exporter_category = <span class="string">&quot;detail&quot;</span>.to_string();
+        }
+        <span class="comment">// idle
+        </span>nodeexportervalues.push(NodeExporterValues {
+            node_exporter_name: <span class="string">&quot;node_cpu_seconds_total&quot;</span>.to_string(),
+            node_exporter_type: <span class="string">&quot;counter&quot;</span>.to_string(),
+            node_exporter_labels: <span class="string">&quot;_idle&quot;</span>.to_string(),
+            node_exporter_category: <span class="string">&quot;summary&quot;</span>.to_string(),
+            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_cpu_seconds_total&quot;</span>).filter(|r| r.node_exporter_labels.contains(<span class="string">&quot;idle&quot;</span>)).map(|x| x.node_exporter_timestamp).min().unwrap(),
+            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_cpu_seconds_total&quot;</span>).filter(|r| r.node_exporter_labels.contains(<span class="string">&quot;idle&quot;</span>)).map(|x| x.node_exporter_value).sum(),
+        });
+        nodeexportervalues.push(NodeExporterValues {
+            node_exporter_name: <span class="string">&quot;node_cpu_seconds_total&quot;</span>.to_string(),
+            node_exporter_type: <span class="string">&quot;counter&quot;</span>.to_string(),
+            node_exporter_labels: <span class="string">&quot;_irq&quot;</span>.to_string(),
+            node_exporter_category: <span class="string">&quot;summary&quot;</span>.to_string(),
+            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_cpu_seconds_total&quot;</span>).filter(|r| r.node_exporter_labels.contains(<span class="string">&quot;_irq&quot;</span>)).map(|x| x.node_exporter_timestamp).min().unwrap(),
+            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_cpu_seconds_total&quot;</span>).filter(|r| r.node_exporter_labels.contains(<span class="string">&quot;_irq&quot;</span>)).map(|x| x.node_exporter_value).sum(),
+        });
+        nodeexportervalues.push(NodeExporterValues {
+            node_exporter_name: <span class="string">&quot;node_cpu_seconds_total&quot;</span>.to_string(),
+            node_exporter_type: <span class="string">&quot;counter&quot;</span>.to_string(),
+            node_exporter_labels: <span class="string">&quot;_softirq&quot;</span>.to_string(),
+            node_exporter_category: <span class="string">&quot;summary&quot;</span>.to_string(),
+            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_cpu_seconds_total&quot;</span>).filter(|r| r.node_exporter_labels.contains(<span class="string">&quot;_softirq&quot;</span>)).map(|x| x.node_exporter_timestamp).min().unwrap(),
+            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_cpu_seconds_total&quot;</span>).filter(|r| r.node_exporter_labels.contains(<span class="string">&quot;_softirq&quot;</span>)).map(|x| x.node_exporter_value).sum(),
+        });
+        nodeexportervalues.push(NodeExporterValues {
+            node_exporter_name: <span class="string">&quot;node_cpu_seconds_total&quot;</span>.to_string(),
+            node_exporter_type: <span class="string">&quot;counter&quot;</span>.to_string(),
+            node_exporter_labels: <span class="string">&quot;_system&quot;</span>.to_string(),
+            node_exporter_category: <span class="string">&quot;summary&quot;</span>.to_string(),
+            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_cpu_seconds_total&quot;</span>).filter(|r| r.node_exporter_labels.contains(<span class="string">&quot;system&quot;</span>)).map(|x| x.node_exporter_timestamp).min().unwrap(),
+            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_cpu_seconds_total&quot;</span>).filter(|r| r.node_exporter_labels.contains(<span class="string">&quot;system&quot;</span>)).map(|x| x.node_exporter_value).sum(),
+        });
+        nodeexportervalues.push(NodeExporterValues {
+            node_exporter_name: <span class="string">&quot;node_cpu_seconds_total&quot;</span>.to_string(),
+            node_exporter_type: <span class="string">&quot;counter&quot;</span>.to_string(),
+            node_exporter_labels: <span class="string">&quot;_user&quot;</span>.to_string(),
+            node_exporter_category: <span class="string">&quot;summary&quot;</span>.to_string(),
+            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_cpu_seconds_total&quot;</span>).filter(|r| r.node_exporter_labels.contains(<span class="string">&quot;user&quot;</span>)).map(|x| x.node_exporter_timestamp).min().unwrap(),
+            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_cpu_seconds_total&quot;</span>).filter(|r| r.node_exporter_labels.contains(<span class="string">&quot;user&quot;</span>)).map(|x| x.node_exporter_value).sum(),
+        });
+        nodeexportervalues.push(NodeExporterValues {
+            node_exporter_name: <span class="string">&quot;node_cpu_seconds_total&quot;</span>.to_string(),
+            node_exporter_type: <span class="string">&quot;counter&quot;</span>.to_string(),
+            node_exporter_labels: <span class="string">&quot;_iowait&quot;</span>.to_string(),
+            node_exporter_category: <span class="string">&quot;summary&quot;</span>.to_string(),
+            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_cpu_seconds_total&quot;</span>).filter(|r| r.node_exporter_labels.contains(<span class="string">&quot;iowait&quot;</span>)).map(|x| x.node_exporter_timestamp).min().unwrap(),
+            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_cpu_seconds_total&quot;</span>).filter(|r| r.node_exporter_labels.contains(<span class="string">&quot;iowait&quot;</span>)).map(|x| x.node_exporter_value).sum(),
+        });
+        nodeexportervalues.push(NodeExporterValues {
+            node_exporter_name: <span class="string">&quot;node_cpu_seconds_total&quot;</span>.to_string(),
+            node_exporter_type: <span class="string">&quot;counter&quot;</span>.to_string(),
+            node_exporter_labels: <span class="string">&quot;_nice&quot;</span>.to_string(),
+            node_exporter_category: <span class="string">&quot;summary&quot;</span>.to_string(),
+            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_cpu_seconds_total&quot;</span>).filter(|r| r.node_exporter_labels.contains(<span class="string">&quot;nice&quot;</span>)).map(|x| x.node_exporter_timestamp).min().unwrap(),
+            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_cpu_seconds_total&quot;</span>).filter(|r| r.node_exporter_labels.contains(<span class="string">&quot;nice&quot;</span>)).map(|x| x.node_exporter_value).sum(),
+        });
+        nodeexportervalues.push(NodeExporterValues {
+            node_exporter_name: <span class="string">&quot;node_cpu_seconds_total&quot;</span>.to_string(),
+            node_exporter_type: <span class="string">&quot;counter&quot;</span>.to_string(),
+            node_exporter_labels: <span class="string">&quot;_steal&quot;</span>.to_string(),
+            node_exporter_category: <span class="string">&quot;summary&quot;</span>.to_string(),
+            node_exporter_timestamp: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_cpu_seconds_total&quot;</span>).filter(|r| r.node_exporter_labels.contains(<span class="string">&quot;steal&quot;</span>)).map(|x| x.node_exporter_timestamp).min().unwrap(),
+            node_exporter_value: nodeexportervalues.iter().filter(|r| r.node_exporter_name == <span class="string">&quot;node_cpu_seconds_total&quot;</span>).filter(|r| r.node_exporter_labels.contains(<span class="string">&quot;steal&quot;</span>)).map(|x| x.node_exporter_value).sum(),
+        });
+    }
+}
+
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+    <span class="comment">//use crate::utility_test::*;
+
+    </span><span class="attribute">#[test]
+    </span><span class="kw">fn </span>unit_parse_node_exporter_non_prometheus_data() {
+        <span class="kw">let </span>fake_http_data = <span class="string">r#&quot;
+        [
+    {
+        &quot;type&quot;: &quot;tablet&quot;,
+        &quot;id&quot;: &quot;3788ca4fb2ab40e2883a6351e7eb3bb7&quot;,
+        &quot;attributes&quot;: {
+            &quot;table_name&quot;: &quot;sequences_data&quot;,
+            &quot;namespace_name&quot;: &quot;system_postgres&quot;,
+            &quot;table_id&quot;: &quot;0000ffff00003000800000000000ffff&quot;
+        },
+        &quot;metrics&quot;: [
+            {
+                &quot;name&quot;: &quot;in_progress_ops&quot;,
+                &quot;value&quot;: 0
+            },
+            {
+                &quot;name&quot;: &quot;log_reader_bytes_read&quot;,
+                &quot;value&quot;: 0
+            },
+            {
+                &quot;name&quot;: &quot;truncate_operations_inflight&quot;,
+                &quot;value&quot;: 0
+            },
+        &quot;#</span>.to_string();
+        <span class="kw">let </span>result = AllStoredNodeExporterValues::parse_nodeexporter(fake_http_data);
+        <span class="macro">assert_eq!</span>(result.len(), <span class="number">0</span>);
+    }
+
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>unit_parse_node_exporter_data_gauge() {
+        <span class="kw">let </span>fake_http_data = <span class="string">r#&quot;
+        # HELP go_memstats_gc_cpu_fraction The fraction of this program&#39;s available CPU time used by the GC since the program started.
+        # TYPE go_memstats_gc_cpu_fraction gauge
+        go_memstats_gc_cpu_fraction 2.4938682471175543e-06
+        &quot;#</span>.to_string();
+        <span class="kw">let </span>result = AllStoredNodeExporterValues::parse_nodeexporter(fake_http_data);
+        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>result[<span class="number">0</span>].node_exporter_name, <span class="string">&quot;go_memstats_gc_cpu_fraction&quot;</span>);
+        <span class="macro">assert_eq!</span>(result[<span class="number">0</span>].node_exporter_value, <span class="number">2.4938682471175543e-6</span>);
+    }
+
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>unit_parse_node_exporter_data_counter() {
+        <span class="kw">let </span>fake_http_data = <span class="string">r#&quot;
+        # HELP node_network_transmit_packets_total Network device statistic transmit_packets.
+        # TYPE node_network_transmit_packets_total counter
+        node_network_transmit_packets_total{device=&quot;eth0&quot;} 680
+        node_network_transmit_packets_total{device=&quot;eth1&quot;} 2716
+        node_network_transmit_packets_total{device=&quot;lo&quot;} 7085
+        &quot;#</span>.to_string();
+        <span class="kw">let </span>result = AllStoredNodeExporterValues::parse_nodeexporter(fake_http_data);
+        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>result[<span class="number">0</span>].node_exporter_name, <span class="string">&quot;node_network_transmit_packets_total&quot;</span>);
+        <span class="macro">assert_eq!</span>(result[<span class="number">0</span>].node_exporter_value, <span class="number">680.0</span>);
+    }
+
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>unit_parse_node_exporter_data_untyped() {
+        <span class="kw">let </span>fake_http_data = <span class="string">r#&quot;
+        # HELP node_vmstat_pgfault /proc/vmstat information field pgfault.
+        # TYPE node_vmstat_pgfault untyped
+        node_vmstat_pgfault 718165
+        &quot;#</span>.to_string();
+        <span class="kw">let </span>result = AllStoredNodeExporterValues::parse_nodeexporter(fake_http_data);
+        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>result[<span class="number">0</span>].node_exporter_name, <span class="string">&quot;node_vmstat_pgfault&quot;</span>);
+        <span class="macro">assert_eq!</span>(result[<span class="number">0</span>].node_exporter_value, <span class="number">718165.0</span>);
+    }
+
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>unit_parse_node_exporter_data_summary() {
+        <span class="kw">let </span>fake_http_data = <span class="string">r#&quot;
+        # HELP go_gc_duration_seconds A summary of the pause duration of garbage collection cycles.
+        # TYPE go_gc_duration_seconds summary
+        go_gc_duration_seconds{quantile=&quot;0&quot;} 1.2047e-05
+        go_gc_duration_seconds{quantile=&quot;0.25&quot;} 2.7231e-05
+        go_gc_duration_seconds{quantile=&quot;0.5&quot;} 4.0984e-05
+        go_gc_duration_seconds{quantile=&quot;0.75&quot;} 5.9209e-05
+        go_gc_duration_seconds{quantile=&quot;1&quot;} 0.000218416
+        go_gc_duration_seconds_sum 0.000609084
+        go_gc_duration_seconds_count 11
+        &quot;#</span>.to_string();
+        <span class="kw">let </span>result = AllStoredNodeExporterValues::parse_nodeexporter(fake_http_data);
+        <span class="macro">assert_eq!</span>(result.len(), <span class="number">0</span>);
+    }
+
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>unit_parse_node_exporter_data_histogram() {
+        <span class="kw">let </span>fake_http_data = <span class="string">r#&quot;
+# HELP request_duration Time for HTTP request.
+# TYPE request_duration histogram
+request_duration_bucket{le=&quot;0.005&quot;,} 0.0
+request_duration_bucket{le=&quot;0.01&quot;,} 0.0
+request_duration_bucket{le=&quot;0.025&quot;,} 0.0
+request_duration_bucket{le=&quot;0.05&quot;,} 0.0
+request_duration_bucket{le=&quot;0.075&quot;,} 0.0
+request_duration_bucket{le=&quot;0.1&quot;,} 0.0
+request_duration_bucket{le=&quot;0.25&quot;,} 0.0
+request_duration_bucket{le=&quot;0.5&quot;,} 0.0
+request_duration_bucket{le=&quot;0.75&quot;,} 0.0
+request_duration_bucket{le=&quot;1.0&quot;,} 0.0
+request_duration_bucket{le=&quot;2.5&quot;,} 0.0
+request_duration_bucket{le=&quot;5.0&quot;,} 1.0
+request_duration_bucket{le=&quot;7.5&quot;,} 1.0
+request_duration_bucket{le=&quot;10.0&quot;,} 3.0
+request_duration_bucket{le=&quot;+Inf&quot;,} 3.0
+request_duration_count 3.0
+request_duration_sum 22.978489699999997
+        &quot;#</span>.to_string();
+        <span class="kw">let </span>result = AllStoredNodeExporterValues::parse_nodeexporter(fake_http_data);
+        <span class="macro">assert_eq!</span>(result.len(), <span class="number">0</span>);
+    }
+
+    <span class="attribute">#[tokio::test]
+    </span><span class="kw">async fn </span>integration_parse_node_exporter() {
+        <span class="kw">let </span>hostname = utility::get_hostname_node_exporter();
+        <span class="kw">if </span>hostname == <span class="kw-2">*</span><span class="string">&quot;SKIP&quot; </span>{
+            <span class="comment">// workaround for allowing integration tests where no node exporter is present.
+            </span><span class="kw">return</span>;
+        }
+        <span class="kw">let </span>port = utility::get_port_node_exporter();
+
+        <span class="kw">let </span>allstorednodeexportervalues = AllStoredNodeExporterValues::read_nodeexporter(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="kw-2">&amp;</span>hostname], <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="kw-2">&amp;</span>port], <span class="number">1</span>).<span class="kw">await</span>;
+
+        <span class="comment">/*
+        let mut allstorednodeexportervalues = AllStoredNodeExporterValues { stored_nodeexportervalues: Vec::new() };
+        let node_exporter_values = AllStoredNodeExporterValues::read_http(hostname.as_str(), port.as_str());
+        AllStoredNodeExporterValues::add_to_vector(node_exporter_values, format!(&quot;{}:{}&quot;,hostname, port).as_ref(), &amp;mut allstorednodeexportervalues);
+        // a node exporter endpoint will generate entries in the stored_nodeexportervalues vector.
+
+         */
+        </span><span class="macro">assert!</span>(!allstorednodeexportervalues.stored_nodeexportervalues.is_empty());
+    }
+}</code></pre></div>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="yb_stats" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0 (69f9c33d7 2022-12-12)" ></div></body></html>

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["AllLogLines",""],["LogLine","The root struct for deserializing the glog lines."]]};

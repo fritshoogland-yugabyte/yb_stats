@@ -1,0 +1,66 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="The impls and functions."><meta name="keywords" content="rust, rustlang, rust-lang, functions"><title>yb_stats::entities::functions - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../yb_stats/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div></a><h2></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../yb_stats/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div></a><h2 class="location"><a href="#">Module functions</a></h2><div class="sidebar-elems"><section><ul class="block"><li><a href="#functions">Functions</a></li></ul></section></div></nav><main><div class="width-limiter"><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></form></nav><section id="main-content" class="content"><div class="main-heading"><h1 class="fqn">Module <a href="../../index.html">yb_stats</a>::<wbr><a href="../index.html">entities</a>::<wbr><a class="mod" href="#">functions</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../../../clipboard.svg" width="19" height="18" alt="Copy item path"></button></h1><span class="out-of-band"><a class="srclink" href="../../../src/yb_stats/entities/functions.rs.html#1-1596">source</a> · <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span></div><details class="rustdoc-toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>The impls and functions.</p>
+<p>The /dump-entities endpoint contains a number of independent JSON arrays:</p>
+<ol>
+<li>
+<p>keyspaces: “keyspaces”: <code>[{&quot;keyspace_id&quot;:&quot;00000000000000000000000000000001&quot;,&quot;keyspace_name&quot;:&quot;system&quot;,&quot;keyspace_type&quot;:&quot;ycql&quot;},..]</code></p>
+</li>
+<li>
+<p>tables: “tables”: <code>[{&quot;table_id&quot;:&quot;000000010000300080000000000000af&quot;,&quot;keyspace_id&quot;:&quot;00000001000030008000000000000000&quot;,&quot;table_name&quot;:&quot;pg_user_mapping_user_server_index&quot;,&quot;state&quot;:&quot;RUNNING&quot;},..]</code></p>
+</li>
+<li>
+<p>tablets: “tablets”: <code>[{&quot;table_id&quot;:&quot;sys.catalog.uuid&quot;,&quot;tablet_id&quot;:&quot;00000000000000000000000000000000&quot;,&quot;state&quot;:&quot;RUNNING&quot;},..]</code></p>
+<p>3.1. replicas: “replicas”: <code>[{&quot;type&quot;:&quot;VOTER&quot;,&quot;server_uuid&quot;:&quot;047856aaf11547749694ca7d7941fb31&quot;,&quot;addr&quot;:&quot;yb-2.local:9100&quot;},..]</code></p>
+<p>This is 3.1 because replicas are arrays nested in tablets.</p>
+</li>
+</ol>
+<p>The way these link together is:</p>
+<ul>
+<li><code>tables.keyspace_id</code> -&gt; <code>keyspaces.keyspace_id</code> (keyspaces.keyspace_id must exist for tables.keyspace_id)</li>
+<li><code>tables.table_id</code> -&gt; <code>tablets.table_id</code>, which contains the replicas as a nested array.
+<code>tablets.table_id</code> might not exist for <code>tables.table_id</code>, because some tables do not have tablets, such as the postgres catalog entries.</li>
+</ul>
+<h2 id="special-keyspaces"><a href="#special-keyspaces">Special keyspaces:</a></h2><div><table><thead><tr><th>keyspace</th><th>description</th></tr></thead><tbody>
+<tr><td>system</td><td>contains the local, partitions, roles, transactions, peers, size_estimates, <code>transactions-&lt;UUID&gt;</code> tables</td></tr>
+<tr><td>system_schema</td><td>contains the YCQL indexes, views, aggregates, keyspaces, tables, types, functions, triggers, columns, sys.catalog tables</td></tr>
+<tr><td>system_auth</td><td>contains the roles, role_permissions, resource_role_permissions_index tables</td></tr>
+<tr><td>template1</td><td>postgres template1 database template, contains catalog</td></tr>
+<tr><td>template0</td><td>postgres template0 database template, contains catalog</td></tr>
+<tr><td>postgres</td><td>postgres standard database, not commonly used with YugabyteDB</td></tr>
+<tr><td>yugabyte</td><td>postgres standard database, default database</td></tr>
+<tr><td>system_platform</td><td>postgres database, contains a few extra catalog tables starting with ‘sql’</td></tr>
+</tbody></table>
+</div><h2 id="ycql"><a href="#ycql">YCQL</a></h2>
+<p>YCQL requires a keyspace to be defined before user objects can be created and loaded, and
+keyspace, table and tablet will get a random UUID as id.</p>
+<h2 id="ysql"><a href="#ysql">YSQL</a></h2>
+<p>YSQL keyspaces do get an id in a specific way.
+The id of the YSQL keyspace is in a format that later is used by the objects too.
+This is how a YSQL keyspace id looks like:</p>
+<div class="example-wrap"><pre class="language-text"><code>| 0  1  2  3| 4  6| 7| 8| 9|10 11|12 13 14 15|
+|-----------|-----|--|--|--|-----|-----------|
+|00 00 33 e5|00 00|30|00|80|00 00|00 00 00 00|
+db                ver   var      object
+oid               (3)   (8)      oid
+(hex)                   (hex)
+</code></pre></div>
+<ul>
+<li>(position 12..15): A YSQL keyspace has the object id set to all 0. This is described in the YugabyteDB sourcecode: src/yb/common/entity_ids.cc</li>
+<li>(position 7): Version 3 is for ISO4122 UUID version.</li>
+<li>(position 9): Variant 8 means DCE 1.1, ISO/IEC 11578:1996</li>
+<li>Version and variant are static currently.</li>
+</ul>
+<h3 id="ysql-object-id-and-catalog-data"><a href="#ysql-object-id-and-catalog-data">YSQL object id and catalog data</a></h3>
+<p>The object OID number indicates whether an object is a catalog object or a user object.
+Any object OID lower than 16384 (0x4000) is a catalog object. This is why a user table_id always starts from ..4000.</p>
+<h3 id="ysql-colocated-databases"><a href="#ysql-colocated-databases">YSQL colocated databases.</a></h3>
+<p>If a database is created with colocation turned on, it will generate a special table entry:</p>
+<div class="example-wrap"><pre class="language-text"><code>    {
+      &quot;table_id&quot;: &quot;0000400f000030008000000000000000.colocated.parent.uuid&quot;,
+      &quot;keyspace_id&quot;: &quot;0000400f000030008000000000000000&quot;,
+      &quot;table_name&quot;: &quot;0000400f000030008000000000000000.colocated.parent.tablename&quot;,
+      &quot;state&quot;: &quot;RUNNING&quot;
+    }
+</code></pre></div>
+<p>This indicates the keyspace/database is colocated, and thus any object not explicitly defined using its own tablets,
+will be stored in the tablets that are part of the database.</p>
+</div></details><h2 id="functions" class="small-section-header"><a href="#functions">Functions</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="fn" href="fn.entity_diff.html" title="yb_stats::entities::functions::entity_diff fn">entity_diff</a></div></div><div class="item-row"><div class="item-left module-item"><a class="fn" href="fn.print_coloc_leader_host.html" title="yb_stats::entities::functions::print_coloc_leader_host fn">print_coloc_leader_host</a></div></div><div class="item-row"><div class="item-left module-item"><a class="fn" href="fn.print_entities.html" title="yb_stats::entities::functions::print_entities fn">print_entities</a></div></div></div></section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="yb_stats" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0 (69f9c33d7 2022-12-12)" ></div></body></html>

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["Snapshot","Struct to represent the snapshots metadata in yb_stats in a vector as well as on disk as CSV using serde. The comment can be empty, unless a snapshot is made with the `--snapshot-comment` flag and a comment."]]};

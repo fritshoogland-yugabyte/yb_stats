@@ -1,5 +1,6 @@
-target
 yb_stats.snapshots
-/.env
+.env
 .DS_Store
 .idea
+target/*
+!target/doc

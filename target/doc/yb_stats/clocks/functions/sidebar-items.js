@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["print_clocks",""],["print_latencies",""]]};

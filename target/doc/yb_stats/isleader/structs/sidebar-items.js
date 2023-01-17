@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["AllIsLeader","This struct is a wrapper for the [IsLeader] struct."],["IsLeader","The struct that is used to parse the JSON returned from /api/v1/is-leader using serde."]]};

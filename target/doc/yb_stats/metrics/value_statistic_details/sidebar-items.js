@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["ValueStatisticDetails","The struct that contains all the details for a named statistic. This struct is used in [ValueStatistics.valuestatisticdetails], which holds a HashMap with the statistic name as key and this struct as value."],["ValueStatistics","This struct is the main struct that provides the functionality for Value statistics."]]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":[["print_loglines",""],["tail_loglines",""]]};

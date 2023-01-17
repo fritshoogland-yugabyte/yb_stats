@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":[["linux_cpu_sum","CPU statistics summarization."],["linux_dm_to_detail",""],["linux_schedstat_sum","Scheduler statistics summarization."],["linux_softnet_sum",""],["nodeexporter_statistics_to_detail",""]]};

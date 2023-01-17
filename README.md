@@ -3,7 +3,6 @@
 yb_stats is a utility to extract detailed runtime data data from a YugabyteDB cluster for performance and troubleshooting purposes.  
 
 The user documentation can be found [here](https://fritshoogland-yugabyte.github.io/yb_stats-book/).
-The development documentation can be found [here](target/doc/yb_stats/index.html)
 
 It functions in two modes: 
 - ad-hoc mode: begin and end capturing of performance (metric) data for performance analysis, which does not store any data (called without the `--snapshot` switch).

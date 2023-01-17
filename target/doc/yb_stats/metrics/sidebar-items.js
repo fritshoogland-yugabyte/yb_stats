@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":[["countsum_statistic_details","Utility module for metrics of the type CountSum, with helper functions."],["functions","The  impls and functions"],["structs","The structs"],["value_statistic_details","Utility module for metrics of the type Value, with helper functions."]]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["AllMemTrackers",""],["MemTrackers","The root struct for deserializing the memtrackers HTML table."]]};

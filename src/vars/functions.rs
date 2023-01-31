@@ -194,7 +194,7 @@ impl VarsDiff {
             }
             else
             {
-                print!("{} {:20} Vars: {:50} ", "*".to_string().yellow(), hostname_port, name);
+                print!("{} {:20} Vars: {:50} ", "=".to_string().yellow(), hostname_port, name);
                 if row.first_value != row.second_value
                 {
                     print!("{}->{} ", row.first_value.yellow(), row.second_value.yellow());

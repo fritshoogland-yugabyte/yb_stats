@@ -245,7 +245,7 @@ impl VersionsDiff {
             {
                 // first and second fields are set, but not equal: changed versions
                 //print!("{} {:20} Versions: ", "*".to_string().yellow(), hostname);
-                print!("{} Versions: {:20} ", "*".to_string().yellow(), hostname);
+                print!("{} Versions: {:20} ", "=".to_string().yellow(), hostname);
                 if row.first_version_number != row.second_version_number
                 {
                     print!("{}->{} ", row.first_version_number.yellow(), row.second_version_number.yellow());

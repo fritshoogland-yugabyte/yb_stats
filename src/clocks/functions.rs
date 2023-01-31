@@ -357,12 +357,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn integration_parse_clocks() -> Result<()> {
+    async fn integration_parse_clocks() -> Result<()>
+    {
         let hostname = utility::get_hostname_master();
         let port = utility::get_port_master();
 
         let allclocks = AllClocks::read_clocks(&vec![&hostname], &vec![&port], 1_usize).await?;
-
         assert!(!allclocks.clocks.is_empty());
 
         Ok(())

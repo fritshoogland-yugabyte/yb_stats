@@ -273,6 +273,7 @@ impl TabletServersDiff {
                     ..Default::default()
                 });
         }
+        debug!("{:#?}", self.btreetabletserversdiff);
     }
     pub fn print(
         &self,
@@ -306,7 +307,7 @@ impl TabletServersDiff {
             }
             else
             {
-                print!("{} Tserver:  {}, ", "*".to_string().yellow(), hostname);
+                print!("{} Tserver:  {}, ", "=".to_string().yellow(), hostname);
                 if status.first_status != status.second_status
                 {
                     print!("status: {}->{}, ", status.first_status.to_string().yellow(), status.second_status.to_string().yellow());

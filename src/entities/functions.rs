@@ -267,18 +267,13 @@ impl AllEntities
                 }
                 else
                 {
-                    #[allow(clippy::collapsible_else_if)]
-                    if row.keyspace_type != "ysql"
-                    {
-                        bail!("Database found, but not of type ysql: {}", row.keyspace_type);
-                    }
-                    else if entity.tables.iter()
+                    // Explicitly check for more than zero tables: continue if zero tables are found,
+                    // so dropped keyspaces are skipped, so we can find another one with the same name.
+                    // this allows to find a keyspace by name that previously was created with the same
+                    // name and was dropped.
+                    if entity.tables.iter()
                         .filter(|r| r.keyspace_id == row.keyspace_id)
-                        .count() == 0
-                    {
-                        bail!("Database found, but number of tablets is zero: YSQL database is dropped.");
-                    }
-                    else
+                        .count() != 0
                     {
                         bail!("Database found, but not suitable for unknown reason. This should not happen.")
                     }
@@ -928,7 +923,7 @@ impl EntitiesDiff {
                     ""
                 };
                 println!("{} Database: {}.{}->{}, id: {} {}",
-                         "*".to_string().yellow(),
+                         "=".to_string().yellow(),
                          keyspace_row.first_keyspace_type,
                          keyspace_row.first_keyspace_name.yellow(),
                          keyspace_row.second_keyspace_name.yellow(),
@@ -1089,7 +1084,7 @@ impl EntitiesDiff {
                     ""
                 };
                 print!("{} Object:   {}.{}.",
-                         "*".to_string().yellow(),
+                         "=".to_string().yellow(),
                          &self.btreekeyspacediff
                              .get(&table_row.first_keyspace_id)
                              .map(|r| r.first_keyspace_type.clone())
@@ -1211,7 +1206,7 @@ impl EntitiesDiff {
             } else {
                 // at this point we know the tablets are not alike, but not added or removed.
                 print!("{} Tablet:   {}.{}.{}.{}, ",
-                    "*".to_string().yellow(),
+                    "=".to_string().yellow(),
                     self.btreetablesdiff
                         .get(&tablet_row.second_table_id)
                         .map(|r| {
@@ -1382,7 +1377,7 @@ impl EntitiesDiff {
                 // the entries have changed?
                 //println!("{} Replica: {}.{}.{}.{}.{}, Type: {}",
                 print!("{} Replica: ",
-                    "*".to_string().yellow(),
+                    "=".to_string().yellow(),
                 );
                 if replica_row.first_addr != replica_row.second_addr
                 {

@@ -1,7 +1,7 @@
 //! The impls and functions.
 //!
 use std::{sync::mpsc::channel, time::{Instant, Duration}, collections::BTreeMap};
-use chrono::{DateTime, Local, TimeZone};
+use chrono::{DateTime, Utc, TimeZone};
 use regex::{Regex,Captures};
 use log::*;
 use colored::*;
@@ -90,11 +90,11 @@ impl AllLogLines {
         let regular_log_line = Regex::new( r"([IWFE])(\d{2}\d{2} \d{2}:\d{2}:\d{2}\.\d{6})\s+(\d{1,6}) ([a-z_A-Z.:0-9]*)] (.*)\n" ).unwrap();
 
         // Just take the year, it's not in the loglines, however, when the year switches this will lead to error results
-        let year= Local::now().format("%Y").to_string();
+        let year= Utc::now().format("%Y").to_string();
         let to_logline = |captures: Captures<'_>|
         {
             let timestamp_string = format!("{}{}", year, &captures[2]);
-            let timestamp = Local
+            let timestamp = Utc
                 .datetime_from_str(&timestamp_string, "%Y%m%d %H:%M:%S.%6f")
                 .unwrap();
 
@@ -214,9 +214,9 @@ pub async fn tail_loglines(
 
     #[derive(Debug, Clone)]
     struct SpecialLogLine { severity: String, _tid: String, message: String }
-    let into_btreemap = |allstored: AllLogLines| -> BTreeMap<(DateTime<Local>, String, String), SpecialLogLine>
+    let into_btreemap = |allstored: AllLogLines| -> BTreeMap<(DateTime<Utc>, String, String), SpecialLogLine>
     {
-        let mut btreemap: BTreeMap<(DateTime<Local>, String, String), SpecialLogLine> = BTreeMap::new();
+        let mut btreemap: BTreeMap<(DateTime<Utc>, String, String), SpecialLogLine> = BTreeMap::new();
         for logline in allstored.loglines
         {
             btreemap.insert((logline.timestamp, logline.hostname_port.expect("no hostname:port set").to_string(), logline.sourcefile_nr.to_string()),
@@ -232,7 +232,7 @@ pub async fn tail_loglines(
 
     loop
     {
-        let mut display_loglines_btreemap: BTreeMap<(DateTime<Local>, String, String), SpecialLogLine> = BTreeMap::new();
+        let mut display_loglines_btreemap: BTreeMap<(DateTime<Utc>, String, String), SpecialLogLine> = BTreeMap::new();
         let loglines = AllLogLines::read_loglines(&hosts, &ports, parallel).await;
         let second_loglines_btreemap = into_btreemap(loglines);
         // add all loglines that are not found in the second loglines snapshot to display loglines

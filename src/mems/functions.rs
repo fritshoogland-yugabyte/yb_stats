@@ -86,15 +86,18 @@ mod tests {
     //use crate::utility_test::*;
 
     #[tokio::test]
-    async fn integration_parse_mems_tserver() {
+    async fn integration_parse_mems_tserver()
+    {
         // currently, the mems "parsing" is not much parsing.
         // What currently is done, is that the hostname:port/memz output is stored in a file in the snapshot directory named <hostname>:<port>_mems.
         let hostname = utility::get_hostname_tserver();
         let port = utility::get_port_tserver();
         Mems::read_and_write_mems(&vec![&hostname], &vec![&port], -1, 1).await.unwrap();
     }
+
     #[tokio::test]
-    async fn integration_parse_mems_master() {
+    async fn integration_parse_mems_master()
+    {
         // currently, the mems "parsing" is not much parsing.
         // What currently is done, is that the hostname:port/memz output is stored in a file in the snapshot directory named <hostname>:<port>_mems.
         let hostname = utility::get_hostname_master();

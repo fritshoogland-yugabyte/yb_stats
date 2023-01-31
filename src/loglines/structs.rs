@@ -1,6 +1,6 @@
 //! The structs
 //!
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Utc};
 
 /// The root struct for deserializing the glog lines.
 ///
@@ -19,7 +19,7 @@ pub struct LogLine {
     /// yb_stats added to allow understanding the source host.
     pub hostname_port: Option<String>,
     pub severity: String,
-    pub timestamp: DateTime<Local>,
+    pub timestamp: DateTime<Utc>,
     pub tid: String,
     pub sourcefile_nr: String,
     pub message: String,

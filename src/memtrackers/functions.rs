@@ -3,7 +3,7 @@
 use chrono::Local;
 use regex::Regex;
 use std::{sync::mpsc::channel, time::Instant};
-use scraper::{ElementRef, Html, Selector};
+use scraper::{Html, Selector};
 use log::*;
 use anyhow::Result;
 use crate::snapshot;
@@ -83,70 +83,70 @@ impl AllMemTrackers {
         http_data: String
     ) -> Vec<MemTrackers>
     {
+        let table_selector = Selector::parse("table").unwrap();
+        let tr_selector = Selector::parse("tr").unwrap();
+        let th_selector = Selector::parse("th").unwrap();
+        let td_selector = Selector::parse("td").unwrap();
+
         let mut memtrackers: Vec<MemTrackers> = Vec::new();
 
-        if let Some(table) = AllMemTrackers::find_table(&http_data) {
-            let (headers, rows) = table;
-            let try_find_header = |target| headers.iter().position(|h| h == target);
-            let id_pos = try_find_header("Id");
-            let current_consumption_pos = try_find_header("Current Consumption");
-            let peak_consumption_pos = try_find_header("Peak consumption");
-            let limit_pos = try_find_header("Limit");
-            let take_or_missing = |row: &mut [String], pos: Option<usize>| match pos.and_then(|pos| row.get_mut(pos)) {
-                Some(value) => std::mem::take(value),
-                None => "<Missing>".to_string(),
-            };
-            let mut id_from_table = String::from("Initial value");
-            for mut row in rows {
-                id_from_table = if row.len() == 4
-                {
-                    take_or_missing(&mut row, id_pos)
-                }
-                else
-                {
-                    id_from_table.to_string()
+        let html = Html::parse_document(&http_data);
 
-                };
-                // The great than symbol: '>' is replaced by "&gt;", so it needs to reverted
-                let id_from_table = id_from_table.replace("&gt;", ">");
-                let mut ids = Vec::new();
-                for c in id_from_table.split("->") {
-                    ids.push(c.to_string().clone());
-                };
-                ids.reverse();
-                let mut final_ids = String::new();
-                for id in ids
-                {
-                    final_ids.push_str(&id);
-                    final_ids.push_str("->");
+        // This is how the 'Memory usage by subsystem' table looks like:
+        // ---
+        //         <table class='table table-striped'>
+        //             <tr>
+        //                 <th>Id</th>
+        //                 <th>Current Consumption</th>
+        //                 <th>Peak consumption</th>
+        //                 <th>Limit</th>
+        //             </tr>
+        //             <tr data-depth="0" class="level0">
+        //                 <td>root</td>
+        //                 <td>25.68M</td>
+        //                 <td>74.78M</td>
+        //                 <td>241.23M</td>
+        //             </tr>
+        // --
+        for table in html.select(&table_selector)
+        {
+            match table
+            {
+                th
+                if th.select(&th_selector).next().unwrap().text().collect::<String>() == *"Id"
+                    && th.select(&th_selector).nth(1).unwrap().text().collect::<String>() == *"Current Consumption"
+                    && th.select(&th_selector).nth(2).unwrap().text().collect::<String>() == *"Peak consumption"
+                    && th.select(&th_selector).nth(3).unwrap().text().collect::<String>() == *"Limit" =>
+                    {
+                        for tr in table.select(&tr_selector).skip(1)
+                        {
+                            // Data preparation.
+                            // The id column.
+                            // "->" is fetched as "-&gt;", so translate it back.
+                            let id = tr.select(&td_selector).next().unwrap().text().collect::<String>().replace("&gt;", ">");
+                            // The depth and parent is shown in the page in this way: BlockBasedTable->server->root
+                            // I think it's easier to read as root->server->BlockBasedTable, so we reverse the order.
+                            let mut id_vec: Vec<_> = id.split("->").collect();
+                            id_vec.reverse();
+
+                            memtrackers.push( MemTrackers {
+                                id: id_vec.join("->"),
+                                current_consumption: tr.select(&td_selector).nth(1).unwrap().text().collect::<String>(),
+                                peak_consumption: tr.select(&td_selector).nth(2).unwrap().text().collect::<String>(),
+                                limit: tr.select(&td_selector).nth(3).unwrap().text().collect::<String>(),
+                                depth: tr.value().attr("data-depth").unwrap().to_string(),
+                                ..Default::default()
+                            });
+                        }
+                    }
+                _ => {
+                    info!("Found another table, which shouldn't happen.")
                 }
-                final_ids = final_ids[0..final_ids.len()-2].to_string();
-                memtrackers.push(MemTrackers {
-                    id: final_ids,
-                    current_consumption: take_or_missing(&mut row, current_consumption_pos),
-                    peak_consumption: take_or_missing(&mut row, peak_consumption_pos),
-                    limit: take_or_missing(&mut row, limit_pos),
-                    ..Default::default()
-                });
             }
         }
 
+
         memtrackers
-    }
-    fn find_table(http_data: &str) -> Option<(Vec<String>, Vec<Vec<String>>)> {
-        let css = |selector| Selector::parse(selector).unwrap();
-        let get_cells = |row: ElementRef, selector| {
-            row.select(&css(selector))
-                .map(|cell| cell.inner_html().trim().to_string())
-                .collect()
-        };
-        let html = Html::parse_fragment(http_data);
-        let table = html.select(&css("table")).next()?;
-        let tr = css("tr");
-        let mut rows = table.select(&tr);
-        let headers = get_cells(rows.next()?, "th");
-        let rows: Vec<_> = rows.map(|row| get_cells(row, "td")).collect();
-        Some((headers, rows))
     }
     pub fn print(
         &self,
@@ -162,7 +162,8 @@ impl AllMemTrackers {
             if hostname_filter.is_match(&row.hostname_port.clone())
                 && stat_name_filter.is_match(&row.id)
             {
-                if row.hostname_port.clone() != previous_hostname_port {
+                if row.hostname_port.clone() != previous_hostname_port
+                {
                     println!("{}", "-".repeat(174));
                     println!("Host: {}, Snapshot time: {}", &row.hostname_port.clone(), row.timestamp);
                     println!("{}", "-".repeat(174));
@@ -175,7 +176,8 @@ impl AllMemTrackers {
                     println!("{}", "-".repeat(174));
                     previous_hostname_port = row.hostname_port.clone();
                 }
-                println!("{:20} {:90} {:>20} {:>20} {:>20}", row.hostname_port.clone(), row.id.replace("&gt;", ">"), row.current_consumption, row.peak_consumption, row.limit)
+                let indented_id = " ".repeat(row.depth.parse::<usize>().unwrap()) + &row.id;
+                println!("{:20} {:90} {:>20} {:>20} {:>20}", row.hostname_port.clone(), indented_id, row.current_consumption, row.peak_consumption, row.limit)
             }
         }
         Ok(())

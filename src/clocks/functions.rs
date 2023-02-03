@@ -2,9 +2,9 @@
 //!
 use chrono::Local;
 use std::{sync::mpsc::channel, time::Instant};
-use scraper::{ElementRef, Html, Selector};
+use scraper::{Html, Selector};
 use log::*;
-use soup::prelude::*;
+//use soup::prelude::*;
 use anyhow::Result;
 use crate::isleader::AllIsLeader;
 use crate::utility;
@@ -76,75 +76,87 @@ impl AllClocks {
         port: &str,
     ) -> Vec<Clocks>
     {
-        let data_from_http = utility::http_get(host, port, "tablet-server-clocks?raw");
+        let data_from_http = utility::http_get(host, port, "tablet-server-clocks");
         AllClocks::parse_clocks(data_from_http)
     }
     fn parse_clocks(
         http_data: String,
     ) -> Vec<Clocks>
     {
+        let table_selector = Selector::parse("table").unwrap();
+        let tr_selector = Selector::parse("tr").unwrap();
+        let th_selector = Selector::parse("th").unwrap();
+        let td_selector = Selector::parse("td").unwrap();
+
         let mut clocks: Vec<Clocks> = Vec::new();
-        if let Some(table) = AllClocks::find_table(&http_data)
+
+        let html = Html::parse_document(&http_data);
+
+        // This is how the 'Tablet Servers' table looks like:
+        // ---
+        // <h2>Tablet Servers</h2>
+        // <table class='table table-striped'>
+        // <tr>
+        // <th>Server</th>
+        // <th>Time since </br>heartbeat</th>
+        // <th>Status & Uptime</th>
+        // <th>Physical Time (UTC)</th>
+        // <th>Hybrid Time (UTC)</th>
+        // <th>Heartbeat RTT</th>
+        // <th>Cloud</th>
+        // <th>Region</th>
+        // <th>Zone</th>
+        // </tr>
+        // <tr>
+        // <td><a href="http://yb-1.local:9000/">yb-1.local:9000</a></br>  376668f0f8894738878b5cc81bae3be5</td><td>0.0s</td>    <td style="color:Green">ALIVE: 1:48:26</td>    <td>2023-02-02 13:12:21.164655</td>    <td>2023-02-02 13:12:21.164655</td>    <td>0.81ms</td>    <td>local</td>    <td>local</td>    <td>local1</td>  </tr>
+        // <tr>
+        // ---
+        // The table is not enclosed in an html tag, nor has an explicit id set :-(.
+        // So what we do is find a table, and match the table header names to find the correct table.
+        // This is very exhaustive in checking, an alternative is to simply says we want the nth table;
+        // This table is the first one to run into (there are two on this page).
+        for table in html.select(&table_selector)
         {
-            let (headers, rows) = table;
-
-            let try_find_header = |target| headers.iter().position(|h| h == target);
-
-            let server_pos = try_find_header("Server");
-            let time_since_heartbeat_pos = try_find_header("Time since <br>heartbeat");
-            let status_uptime_pos = try_find_header("Status &amp; Uptime");
-            let physical_time_utc_pos = try_find_header("Physical Time (UTC)");
-            let hybrid_time_utc_pos = try_find_header("Hybrid Time (UTC)");
-            let heartbeat_rtt_pos = try_find_header("Heartbeat RTT");
-            let cloud_pos = try_find_header("Cloud");
-            let region_pos = try_find_header("Region");
-            let zone_pos = try_find_header("Zone");
-
-            let take_or_missing = |row: &mut [String], pos: Option<usize>|
-                match pos.and_then(|pos| row.get_mut(pos))
-                {
-                    Some(value) => std::mem::take(value),
-                    None => "<Missing>".to_string(),
-                };
-
-            //let mut stack_from_table = String::from("Initial value: this should not be visible");
-            for mut row in rows
+            // table has got the table it found in it.
+            match table
             {
-                // this is a way to remove some html from the result.
-                // not sure if this is the best way, but it fits the purpose.
-                let parse = Soup::new(&take_or_missing(&mut row, server_pos));
-
-                clocks.push(Clocks {
-                    server: parse.text(),
-                    time_since_heartbeat: take_or_missing(&mut row, time_since_heartbeat_pos),
-                    status_uptime: take_or_missing(&mut row, status_uptime_pos),
-                    physical_time_utc: take_or_missing(&mut row, physical_time_utc_pos),
-                    hybrid_time_utc: take_or_missing(&mut row, hybrid_time_utc_pos),
-                    heartbeat_rtt: take_or_missing(&mut row, heartbeat_rtt_pos),
-                    cloud: take_or_missing(&mut row, cloud_pos),
-                    region: take_or_missing(&mut row, region_pos),
-                    zone: take_or_missing(&mut row, zone_pos),
-                    ..Default::default()
-                });
+                // These are the table column names of the table we want to get the data from.
+                // th = table header
+                th
+                if th.select(&th_selector).next().unwrap().text().collect::<String>() == *"Server"
+                    && th.select(&th_selector).nth(1).unwrap().text().collect::<String>() == *"Time since heartbeat"
+                    && th.select(&th_selector).nth(2).unwrap().text().collect::<String>() == *"Status & Uptime"
+                    && th.select(&th_selector).nth(3).unwrap().text().collect::<String>() == *"Physical Time (UTC)"
+                    && th.select(&th_selector).nth(4).unwrap().text().collect::<String>() == *"Hybrid Time (UTC)"
+                    && th.select(&th_selector).nth(5).unwrap().text().collect::<String>() == *"Heartbeat RTT"
+                    && th.select(&th_selector).nth(6).unwrap().text().collect::<String>() == *"Cloud"
+                    && th.select(&th_selector).nth(7).unwrap().text().collect::<String>() == *"Region"
+                    && th.select(&th_selector).nth(8).unwrap().text().collect::<String>() == *"Zone" =>
+                {
+                    // These are the table column data values (td) from the table row (tr).
+                    // The first table row is skipped, that is the heading as seen above.
+                    for tr in table.select(&tr_selector).skip(1)
+                    {
+                        clocks.push( Clocks {
+                            server: tr.select(&td_selector).next().unwrap().text().collect::<String>(),
+                            time_since_heartbeat: tr.select(&td_selector).nth(1).unwrap().text().collect::<String>(),
+                            status_uptime: tr.select(&td_selector).nth(2).unwrap().text().collect::<String>(),
+                            physical_time_utc: tr.select(&td_selector).nth(3).unwrap().text().collect::<String>(),
+                            hybrid_time_utc: tr.select(&td_selector).nth(4).unwrap().text().collect::<String>(),
+                            heartbeat_rtt: tr.select(&td_selector).nth(5).unwrap().text().collect::<String>(),
+                            cloud: tr.select(&td_selector).nth(6).unwrap().text().collect::<String>(),
+                            region: tr.select(&td_selector).nth(7).unwrap().text().collect::<String>(),
+                            zone: tr.select(&td_selector).nth(8).unwrap().text().collect::<String>(),
+                            ..Default::default()
+                        });
+                    }
+                },
+                _ => {
+                    info!("Found another table, this shouldn't happen.");
+                },
             }
         }
         clocks
-    }
-    fn find_table(http_data: &str) -> Option<(Vec<String>, Vec<Vec<String>>)>
-    {
-        let css = |selector| Selector::parse(selector).unwrap();
-        let get_cells = |row: ElementRef, selector| {
-            row.select(&css(selector))
-                .map(|cell| cell.inner_html().trim().to_string())
-                .collect()
-        };
-        let html = Html::parse_fragment(http_data);
-        let table = html.select(&css("table")).next()?;
-        let tr = css("tr");
-        let mut rows = table.select(&tr);
-        let headers = get_cells(rows.next()?, "th");
-        let rows: Vec<_> = rows.map(|row| get_cells(row, "td")).collect();
-        Some((headers, rows))
     }
     pub fn print(
         &self,
@@ -157,7 +169,7 @@ impl AllClocks {
 
         if *details_enable
         {
-            println!("{:20} {:20} {:10} {:20} {:26} {:36} {:6} {:10} {:10} {:10}",
+            println!("{:20} {:20} {:10} {:20} {:26} {:46} {:6} {:10} {:10} {:10}",
                      "hostname",
                      "server",
                      "HB",
@@ -172,7 +184,7 @@ impl AllClocks {
         }
         else
         {
-            println!("{:20} {:10} {:20} {:26} {:36} {:6} {:10} {:10} {:10}",
+            println!("{:20} {:10} {:20} {:26} {:46} {:6} {:10} {:10} {:10}",
                      "server",
                      "HB",
                      "status uptime",
@@ -188,7 +200,7 @@ impl AllClocks {
             if row.hostname_port == Some(leader_hostname.clone())
                 && !*details_enable
             {
-                println!("{:20} {:10} {:20} {:26} {:36} {:6} {:10} {:10} {:10}",
+                println!("{:20} {:10} {:20} {:26} {:46} {:6} {:10} {:10} {:10}",
                          row.server.split_whitespace().next().unwrap_or_default(),
                          row.time_since_heartbeat,
                          row.status_uptime,

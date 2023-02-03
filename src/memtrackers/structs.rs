@@ -14,6 +14,7 @@ pub struct MemTrackers {
     pub current_consumption: String,
     pub peak_consumption: String,
     pub limit: String,
+    pub depth: String,
 }
 
 #[derive(Debug, Default)]

@@ -3,7 +3,7 @@
 use chrono::Local;
 use std::{sync::mpsc::channel, time::Instant};
 use regex::Regex;
-use scraper::{ElementRef, Html, Selector};
+use scraper::{Html, Selector};
 use log::*;
 use anyhow::Result;
 use crate::utility;
@@ -83,85 +83,109 @@ impl AllThreads {
         http_data: String
     ) -> Vec<Threads>
     {
+        let table_selector = Selector::parse("table").unwrap();
+        let tr_selector = Selector::parse("tr").unwrap();
+        let th_selector = Selector::parse("th").unwrap();
+        let td_selector = Selector::parse("td").unwrap();
+
         let mut threads: Vec<Threads> = Vec::new();
+
+        let html = Html::parse_document(&http_data);
         let function_regex = Regex::new(r"@\s+0x[[:xdigit:]]+\s+(\S+)\n").unwrap();
-        if let Some(table) = AllThreads::find_table(&http_data)
+
+        // This is how the 'All Threads' table looks like:
+        // ---
+        // <table class='table table-hover table-border'>
+        //             <tr>
+        //                 <th>Thread name</th>
+        //                 <th>Cumulative User CPU(s)</th>
+        //                 <th>Cumulative Kernel CPU(s)</th>
+        //                 <th>Cumulative IO-wait(s)</th>
+        //             </tr>
+        //             <tr>
+        //                 <td>Master_reactorx-6721</td>
+        //                 <td>2.050s</td>
+        //                 <td>0.000s</td>
+        //                 <td>0.000s</td>
+        //                 <td rowspan="4">
+        //                     <pre>    @     0x7f7d738c59f2  __GI_epoll_wait
+        //                         @          0x3637986  epoll_poll
+        //                         @          0x363a2be  ev_run
+        //                         @          0x3672c69  yb::rpc::Reactor::RunThread()
+        //                         @          0x3b8d771  yb::Thread::SuperviseThread()
+        //                         @     0x7f7d733c3693  start_thread
+        //                         @     0x7f7d738c541c  __clone
+        //
+        //                     Total number of threads: 4</pre>
+        //                 </td>
+        //             </tr>
+        //             <tr>
+        //                 <td>Master_reactorx-6720</td>
+        //                 <td>1.990s</td>
+        //                 <td>0.000s</td>
+        //                 <td>0.000s</td>
+        //             </tr>
+        // ---
+        // One very weird thing here is that the stack above is printed for the first table row only,
+        // any following table row that has NO stack column is supposed to have the same stack.
+        // For this the 'stack' variable is used that contains the stack:
+        // - If tr.select(&td_selector).nth(4).is_some() then we fill it with the new stack,
+        // - If tr.select(&td_selector).nth(4).is_none() then we do nothing, so the stack variable remains the same.
+        for table in html.select(&table_selector)
         {
-            let (headers, rows) = table;
-
-            let try_find_header = |target| headers.iter().position(|h| h == target);
-            // mind "Thread name": name doesn't start with a capital, unlike all other headings
-            let thread_name_pos = try_find_header("Thread name");
-            let cumul_user_cpus_pos = try_find_header("Cumulative User CPU(s)");
-            let cumul_kernel_cpus_pos = try_find_header("Cumulative Kernel CPU(s)");
-            let cumul_iowaits_pos = try_find_header("Cumulative IO-wait(s)");
-
-            let take_or_missing =
-                |row: &mut [String], pos: Option<usize>| match pos.and_then(|pos| row.get_mut(pos))
-                {
-                    Some(value) => std::mem::take(value),
-                    None => "<Missing>".to_string(),
-                };
-
-            let mut stack_from_table = String::from("Initial value: this should not be visible");
-            for mut row in rows
+            let mut stack = String::new();
+            match table
             {
-                stack_from_table = if row.len() == 5
-                {
-                    std::mem::take(&mut row[4])
-                }
-                else
-                {
-                    stack_from_table.to_string()
-                };
-                let stack_from_table = stack_from_table.replace("&lt;", "<");
-                let stack_from_table = stack_from_table.replace("&gt;", ">");
-                // reverse the stack
-                let mut st = Vec::new();
-                for c in function_regex.captures_iter(&stack_from_table)
-                {
-                    st.push(c[1].to_string().clone());
-                };
-                st.reverse();
-                let mut final_stack = String::from("");
-                for function in &st
-                {
-                    final_stack.push_str(function );
-                    final_stack.push(';');
-                }
-                final_stack.pop();
-                // end reverse the stack
-                threads.push(Threads
-                {
-                    thread_name: take_or_missing(&mut row, thread_name_pos),
-                    cumulative_user_cpu_s: take_or_missing(&mut row, cumul_user_cpus_pos),
-                    cumulative_kernel_cpu_s: take_or_missing(&mut row, cumul_kernel_cpus_pos),
-                    cumulative_iowait_cpu_s: take_or_missing(&mut row, cumul_iowaits_pos),
-                    stack: final_stack,
-                    ..Default::default()
-                });
+                th
+                if th.select(&th_selector).next().unwrap().text().collect::<String>() == *"Thread name"
+                    && th.select(&th_selector).nth(1).unwrap().text().collect::<String>() == *"Cumulative User CPU(s)"
+                    && th.select(&th_selector).nth(2).unwrap().text().collect::<String>() == *"Cumulative Kernel CPU(s)"
+                    && th.select(&th_selector).nth(3).unwrap().text().collect::<String>() == *"Cumulative IO-wait(s)" =>
+                    {
+                        // The first row contains the table headings, so we skip the first row.
+                        for tr in table.select(&tr_selector).skip(1)
+                        {
+                            // check if we got a fourth column or not for changing the stack variable
+                            match tr.select(&td_selector).nth(4)
+                            {
+                                Some(found_stack) => {
+                                    // if so, we collect the stack, and replace some HTMLisms to the correct characters.
+                                    let original_stack = found_stack.text().collect::<String>().replace("&lt;", "<").replace("&gt;", ">");
+                                    // This code collects the functions printed in the backtrace based on a regular expression into a vector.
+                                    // Reverses the vector so that the first called function is first in order.
+                                    // And then puts the functions in that order into the variable stack separated by ";".
+                                    // I think this is most readable.
+                                    let mut stack_vec = Vec::new();
+                                    for capture in function_regex.captures_iter(&original_stack)
+                                    {
+                                       stack_vec.push(capture[1].to_string().clone())
+                                    }
+                                    stack_vec.reverse();
+                                    stack = stack_vec.join(";");
+                                }
+                                None => {
+                                    // This entry has no stack table row, so we reuse the previous stack.
+                                }
+                            }
+                            threads.push( Threads{
+                                thread_name: tr.select(&td_selector).next().unwrap().text().collect::<String>(),
+                                cumulative_user_cpu_s: tr.select(&td_selector).nth(1).unwrap().text().collect::<String>(),
+                                cumulative_kernel_cpu_s: tr.select(&td_selector).nth(2).unwrap().text().collect::<String>(),
+                                cumulative_iowait_cpu_s: tr.select(&td_selector).nth(3).unwrap().text().collect::<String>(),
+                                stack: stack.clone(),
+                                ..Default::default()
+                            })
+
+
+                        }
+                    },
+                _ => {
+                    info!("Found another table, this shouldn't happen.");
+                },
             }
         }
+
         threads
-    }
-    fn find_table(
-        http_data: &str
-    ) -> Option<(Vec<String>, Vec<Vec<String>>)>
-    {
-        let css = |selector| Selector::parse(selector).unwrap();
-        let get_cells = |row: ElementRef, selector|
-        {
-            row.select(&css(selector))
-                .map(|cell| cell.inner_html().trim().to_string())
-                .collect()
-        };
-        let html = Html::parse_fragment(http_data);
-        let table = html.select(&css("table")).next()?;
-        let tr = css("tr");
-        let mut rows = table.select(&tr);
-        let headers = get_cells(rows.next()?, "th");
-        let rows: Vec<_> = rows.map(|row| get_cells(row, "td")).collect();
-        Some((headers, rows))
     }
     pub fn print(
         &self,
@@ -357,7 +381,6 @@ server uuid 4ce571a18f8c4a9a8b35246222d12025 local time 2022-03-16 12:33:37.6344
         assert_eq!(result[0].cumulative_user_cpu_s, "2.960s");
         assert_eq!(result[0].cumulative_kernel_cpu_s, "0.000s");
         assert_eq!(result[0].cumulative_iowait_cpu_s, "0.000s");
-        //assert_eq!(result[0].stack, "<pre>    @     0x7f035af7a9f2  __GI_epoll_wait\n    @     0x7f035db7fbf7  epoll_poll\n    @     0x7f035db7ac5d  ev_run\n    @     0x7f035e02f07b  yb::rpc::Reactor::RunThread()\n    @     0x7f035de5f1d4  yb::Thread::SuperviseThread()\n    @     0x7f035b83e693  start_thread\n    @     0x7f035af7a41c  __clone\n\nTotal number of threads: 1</pre>");
         assert_eq!(result[0].stack, "__clone;start_thread;yb::Thread::SuperviseThread();yb::rpc::Reactor::RunThread();ev_run;epoll_poll;__GI_epoll_wait");
     }
 

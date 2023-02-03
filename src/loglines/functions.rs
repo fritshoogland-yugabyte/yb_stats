@@ -7,6 +7,7 @@ use log::*;
 use colored::*;
 use tokio::time;
 use anyhow::Result;
+use scraper::{Html, Selector};
 use crate::snapshot;
 use crate::Opts;
 use crate::utility;
@@ -75,7 +76,7 @@ impl AllLogLines {
         port: &str,
     ) -> Vec<LogLine>
     {
-        let data_from_http = utility::http_get(host, port, "logs?raw");
+        let data_from_http = utility::http_get(host, port, "logs");
         AllLogLines::parse_loglines(data_from_http)
     }
     fn parse_loglines(
@@ -83,62 +84,87 @@ impl AllLogLines {
     ) -> Vec<LogLine>
     {
         let mut loglines: Vec<LogLine> = Vec::new();
-        // fs_manager:
-        //I0217 10:12:35.491056 26960 fs_manager.cc:278] Opened local filesystem: /mnt/d0
-        //uuid: "05b8d17620eb4cd79eddaddb2fbcbb42"
-        //format_stamp: "Formatted at 2022-02-13 16:26:17 on yb-1.local"
-        let regular_log_line = Regex::new( r"([IWFE])(\d{2}\d{2} \d{2}:\d{2}:\d{2}\.\d{6})\s+(\d{1,6}) ([a-z_A-Z.:0-9]*)] (.*)\n" ).unwrap();
 
-        // Just take the year, it's not in the loglines, however, when the year switches this will lead to error results
-        let year= Utc::now().format("%Y").to_string();
-        let to_logline = |captures: Captures<'_>|
-        {
-            let timestamp_string = format!("{}{}", year, &captures[2]);
-            let timestamp = Utc
-                .datetime_from_str(&timestamp_string, "%Y%m%d %H:%M:%S.%6f")
-                .unwrap();
+        let html = Html::parse_document(&http_data);
 
-            LogLine {
-                severity: captures[1].to_string(),
-                timestamp,
-                tid: captures[3].to_string(),
-                sourcefile_nr: captures[4].to_string(),
-                message: captures[5].to_string(),
-                    ..Default::default()
-            }
-        };
-        // Find first log line.  Any non-regular-log-line data at the beginning of
-        // the logs is discarded.  `remaining` covers all the logs following the
-        // first regular log line.
-        let mut logline;
-        let mut remaining;
-        match regular_log_line.captures(&http_data)
-        {
-            None => return loglines,
-            Some(captures) => {
-                let offset = captures.get(0).map(|m| m.end()).unwrap_or(0);
-                remaining = &http_data[offset..];
+        //  <div class='yb-main container-fluid'>
+        //         <h2>INFO logs</h2>
+        //
+        //         Log path is: /mnt/d0/yb-data/tserver/logs/yb-tserver.INFO
+        //         <br/>
+        //         Showing last 1048576 bytes of log
+        //         <br/>
+        //         <pre>
+        //             Log file created at: 2023/02/03 11:13:22
+        //             Current UTC time: 2023/02/03 11:13:22
+        //             Running on machine: yb-1.local
+        //             Application fingerprint: version 2.17.0.0 build 24 revision d4f01a5e26b168585e59f9c1a95766ffdd9655b1 build_type RELEASE built at 16 Nov 2022 00:21:52 UTC
+        //             Running duration (h:mm:ss): 0:00:00
+        //             Log line format: [IWEF]mmdd hh:mm:ss.uuuuuu threadid file:line] msg
+        //             I0203 11:13:22.698063  7164 server_main_util.cc:72] NumCPUs determined to be: 4
+        //
+        // The loglines in this page are inside <div class='yb-main.., inside the <pre> tag.
+        let selector = Selector::parse("div.yb-main > pre").unwrap();
+
+        // If the selector returns a result, start parsing glog lines
+        if let Some(raw_loglines) = html.select(&selector).next() {
+            // fs_manager:
+            //I0217 10:12:35.491056 26960 fs_manager.cc:278] Opened local filesystem: /mnt/d0
+            //uuid: "05b8d17620eb4cd79eddaddb2fbcbb42"
+            //format_stamp: "Formatted at 2022-02-13 16:26:17 on yb-1.local"
+            let regular_log_line = Regex::new( r"([IWFE])(\d{2}\d{2} \d{2}:\d{2}:\d{2}\.\d{6})\s+(\d{1,6}) ([a-z_A-Z.:0-9]*)] (.*)\n" ).unwrap();
+
+            // Just take the year, it's not in the loglines, however, when the year switches this will lead to error results
+            let year= Utc::now().format("%Y").to_string();
+            let to_logline = |captures: Captures<'_>|
+                {
+                    let timestamp_string = format!("{}{}", year, &captures[2]);
+                    let timestamp = Utc
+                        .datetime_from_str(&timestamp_string, "%Y%m%d %H:%M:%S.%6f")
+                        .unwrap();
+
+                    LogLine {
+                        severity: captures[1].to_string(),
+                        timestamp,
+                        tid: captures[3].to_string(),
+                        sourcefile_nr: captures[4].to_string(),
+                        message: captures[5].to_string(),
+                        ..Default::default()
+                    }
+                };
+            // Find first log line.  Any non-regular-log-line data at the beginning of
+            // the logs is discarded.  `remaining` covers all the logs following the
+            // first regular log line.
+            let mut logline;
+            let mut remaining;
+            let stored_raw_loglines = &raw_loglines.text().collect::<String>();
+            match regular_log_line.captures(stored_raw_loglines)
+            {
+                None => return loglines,
+                Some(captures) => {
+                    let offset = captures.get(0).map(|m| m.end()).unwrap_or(0);
+                    remaining = &stored_raw_loglines[offset..];
+                    logline = to_logline(captures);
+                }
+            };
+            // For each subsequent match, append any lines before the match to the
+            // current `LogLine`, store it, and start a new `LogLine`.  Update where
+            // we are in the logs by updating `remaining`.
+            while let Some(captures) = regular_log_line.captures(remaining)
+            {
+                let all = captures.get(0).unwrap();
+                let from = all.start();
+                let offset = all.end();
+                logline.message += &remaining[..from];
+                loglines.push(logline);
                 logline = to_logline(captures);
+                remaining = &remaining[offset..]
             }
-        };
 
-        // For each subsequent match, append any lines before the match to the
-        // current `LogLine`, store it, and start a new `LogLine`.  Update where
-        // we are in the logs by updating `remaining`.
-        while let Some(captures) = regular_log_line.captures(remaining)
-        {
-            let all = captures.get(0).unwrap();
-            let from = all.start();
-            let offset = all.end();
-            logline.message += &remaining[..from];
+            // Append final logline and return
+            logline.message += remaining;
             loglines.push(logline);
-            logline = to_logline(captures);
-            remaining = &remaining[offset..]
         }
-
-        // Append final logline and return
-        logline.message += remaining;
-        loglines.push(logline);
 
         loglines
     }
@@ -278,9 +304,11 @@ mod tests {
     fn unit_parse_problem_logline() {
         // This is a regular log line.
         let logline = r#"
+        <div class='yb-main container-fluid'><pre>
 E1218 12:12:33.463250  6986 async_initializer.cc:95] Failed to initialize client: Timed out (yb/rpc/rpc.cc:221): Could not locate the leader master: GetLeaderMasterRpc(addrs: [yb-1.local:7100, yb-2.local:7100, yb-3.local:7100, yb-1.local:7100, yb-2.local:7100, yb-3.local:7100], num_attempts: 46) passed its deadline 34.910s (passed: 1.521s): Not found (yb/master/master_rpc.cc:287): no leader found: GetLeaderMasterRpc(addrs: [yb-1.local:7100, yb-2.local:7100, yb-3.local:7100, yb-1.local:7100, yb-2.local:7100, yb-3.local:7100], num_attempts: 1)
 I1218 12:12:34.464701  7650 client-internal.cc:2273] Reinitialize master addresses from file: /opt/yugabyte/conf/master.conf
 I1218 12:12:34.464808  7650 client-internal.cc:2302] New master addresses: [yb-1.local:7100,yb-2.local:7100,yb-3.local:7100, yb-1.local:7100, yb-2.local:7100, yb-3.local:7100]
+        </pre></div>
         "#.to_string();
         let result = AllLogLines::parse_loglines(logline);
         //assert_eq!(result[0].message,"FLAGS_rocksdb_base_background_compactions was not set, automatically configuring 1 base background compactions.");
@@ -290,9 +318,13 @@ I1218 12:12:34.464808  7650 client-internal.cc:2302] New master addresses: [yb-1
     #[test]
     fn unit_parse_regular_logline() {
         // This is a regular log line.
-        let logline = "I0217 10:19:56.834905  31987 docdb_rocksdb_util.cc:416] FLAGS_rocksdb_base_background_compactions was not set, automatically configuring 1 base background compactions.\n".to_string();
+        let logline = r#"
+        <div class='yb-main container-fluid'><pre>
+        I0217 10:19:56.834905  31987 docdb_rocksdb_util.cc:416] FLAGS_rocksdb_base_background_compactions was not set, automatically configuring 1 base background compactions.\n
+        </pre></div>
+        "#.to_string();
         let result = AllLogLines::parse_loglines(logline);
-        assert_eq!(result[0].message,"FLAGS_rocksdb_base_background_compactions was not set, automatically configuring 1 base background compactions.");
+        assert_eq!(result[0].message.trim(),"FLAGS_rocksdb_base_background_compactions was not set, automatically configuring 1 base background compactions.\\n");
     }
 
     #[test]
@@ -300,7 +332,9 @@ I1218 12:12:34.464808  7650 client-internal.cc:2302] New master addresses: [yb-1
         // This is a log line that contains a backtrace.
         // WARNING! Currently, the backtrace is not added to the line, and just ignored.
         // This means success here means not correctly parsing!
-        let logline = r#"W0214 11:22:36.980569  7803 long_operation_tracker.cc:114] UpdateReplica running for 1.000s in thread 7814:
+        let logline = r#"
+        <div class='yb-main container-fluid'><pre>
+        W0214 11:22:36.980569  7803 long_operation_tracker.cc:114] UpdateReplica running for 1.000s in thread 7814:
     @     0x7fa344eb611f  (unknown)
     @     0x7fa345833b39  __lll_lock_wait
     @     0x7fa34582e6e2  __GI___pthread_mutex_lock
@@ -316,12 +350,14 @@ I1218 12:12:34.464808  7650 client-internal.cc:2302] New master addresses: [yb-1
     @     0x7fa354083efb  yb::tablet::Operation::Replicated()
     @     0x7fa354089720  yb::tablet::OperationDriver::ApplyTask()
     @     0x7fa354089e8e  yb::tablet::OperationDriver::ReplicationFinished()
-    @     0x7fa353cb3ae7  yb::consensus::ReplicaState::NotifyReplicationFinishedUnlocked()"#.to_string();
+    @     0x7fa353cb3ae7  yb::consensus::ReplicaState::NotifyReplicationFinishedUnlocked()
+            </pre></div>
+    "#.to_string();
         let result = AllLogLines::parse_loglines(logline);
         // this is the old assertion when the following lines of a multiline logoine were not joined:
         //assert_eq!(result[0].message,"UpdateReplica running for 1.000s in thread 7814:");
         // this is the new line with the new code that adds the lines of a multiline message:
-        assert_eq!(result[0].message,"UpdateReplica running for 1.000s in thread 7814:    @     0x7fa344eb611f  (unknown)\n    @     0x7fa345833b39  __lll_lock_wait\n    @     0x7fa34582e6e2  __GI___pthread_mutex_lock\n    @     0x7fa34e609858  rocksdb::port::Mutex::Lock()\n    @     0x7fa34e6897fb  rocksdb::InstrumentedMutex::Lock()\n    @     0x7fa34e564a4f  rocksdb::DBImpl::WriteImpl()\n    @     0x7fa34e5666a3  rocksdb::DBImpl::Write()\n    @     0x7fa353ff6e40  yb::tablet::Tablet::WriteToRocksDB()\n    @     0x7fa354007114  yb::tablet::Tablet::ApplyKeyValueRowOperations()\n    @     0x7fa354007660  yb::tablet::Tablet::ApplyOperation()\n    @     0x7fa35400791a  yb::tablet::Tablet::ApplyRowOperations()\n    @     0x7fa3540929d4  yb::tablet::WriteOperation::DoReplicated()\n    @     0x7fa354083efb  yb::tablet::Operation::Replicated()\n    @     0x7fa354089720  yb::tablet::OperationDriver::ApplyTask()\n    @     0x7fa354089e8e  yb::tablet::OperationDriver::ReplicationFinished()\n    @     0x7fa353cb3ae7  yb::consensus::ReplicaState::NotifyReplicationFinishedUnlocked()");
+        assert_eq!(result[0].message.trim(),"UpdateReplica running for 1.000s in thread 7814:    @     0x7fa344eb611f  (unknown)\n    @     0x7fa345833b39  __lll_lock_wait\n    @     0x7fa34582e6e2  __GI___pthread_mutex_lock\n    @     0x7fa34e609858  rocksdb::port::Mutex::Lock()\n    @     0x7fa34e6897fb  rocksdb::InstrumentedMutex::Lock()\n    @     0x7fa34e564a4f  rocksdb::DBImpl::WriteImpl()\n    @     0x7fa34e5666a3  rocksdb::DBImpl::Write()\n    @     0x7fa353ff6e40  yb::tablet::Tablet::WriteToRocksDB()\n    @     0x7fa354007114  yb::tablet::Tablet::ApplyKeyValueRowOperations()\n    @     0x7fa354007660  yb::tablet::Tablet::ApplyOperation()\n    @     0x7fa35400791a  yb::tablet::Tablet::ApplyRowOperations()\n    @     0x7fa3540929d4  yb::tablet::WriteOperation::DoReplicated()\n    @     0x7fa354083efb  yb::tablet::Operation::Replicated()\n    @     0x7fa354089720  yb::tablet::OperationDriver::ApplyTask()\n    @     0x7fa354089e8e  yb::tablet::OperationDriver::ReplicationFinished()\n    @     0x7fa353cb3ae7  yb::consensus::ReplicaState::NotifyReplicationFinishedUnlocked()");
     }
 
     #[test]
@@ -329,7 +365,9 @@ I1218 12:12:34.464808  7650 client-internal.cc:2302] New master addresses: [yb-1
         // This is a log line that contains a ulimit "dump".
         // WARNING! Currently, the ulimit info on the other lines are not added to the line, and just ignored.
         // This means success here means not correctly parsing!
-        let logline = r#"I0217 10:12:35.521059  26960 tablet_server_main.cc:225] ulimit cur(max)...
+        let logline = r#"
+    <div class='yb-main container-fluid'><pre>
+    I0217 10:12:35.521059  26960 tablet_server_main.cc:225] ulimit cur(max)...
     ulimit: core file size 0(unlimited) blks
     ulimit: data seg size unlimited(unlimited) kb
     ulimit: open files 1048576(1048576)
@@ -340,12 +378,14 @@ I1218 12:12:34.464808  7650 client-internal.cc:2302] New master addresses: [yb-1
     ulimit: max memory size unlimited(unlimited) kb
     ulimit: stack size 8192(unlimited) kb
     ulimit: cpu time unlimited(unlimited) secs
-    ulimit: max user processes 12000(12000)"#.to_string();
+    ulimit: max user processes 12000(12000)
+    </pre></div>
+    "#.to_string();
         let result = AllLogLines::parse_loglines(logline);
         // this is the old assertion when the following lines of a multiline logline were not joined:
         //assert_eq!(result[0].message,"ulimit cur(max)...");
         // this is the new line with the new code that adds the lines of a multiline message:
-        assert_eq!(result[0].message,"ulimit cur(max)...    ulimit: core file size 0(unlimited) blks\n    ulimit: data seg size unlimited(unlimited) kb\n    ulimit: open files 1048576(1048576)\n    ulimit: file size unlimited(unlimited) blks\n    ulimit: pending signals 119934(119934)\n    ulimit: file locks unlimited(unlimited)\n    ulimit: max locked memory 64(64) kb\n    ulimit: max memory size unlimited(unlimited) kb\n    ulimit: stack size 8192(unlimited) kb\n    ulimit: cpu time unlimited(unlimited) secs\n    ulimit: max user processes 12000(12000)");
+        assert_eq!(result[0].message.trim(),"ulimit cur(max)...    ulimit: core file size 0(unlimited) blks\n    ulimit: data seg size unlimited(unlimited) kb\n    ulimit: open files 1048576(1048576)\n    ulimit: file size unlimited(unlimited) blks\n    ulimit: pending signals 119934(119934)\n    ulimit: file locks unlimited(unlimited)\n    ulimit: max locked memory 64(64) kb\n    ulimit: max memory size unlimited(unlimited) kb\n    ulimit: stack size 8192(unlimited) kb\n    ulimit: cpu time unlimited(unlimited) secs\n    ulimit: max user processes 12000(12000)");
     }
 
     #[test]
@@ -353,12 +393,16 @@ I1218 12:12:34.464808  7650 client-internal.cc:2302] New master addresses: [yb-1
         // This is a log line that contains a SQL error statement.
         // WARNING!! Currently, any following line is ignored.
         // This means success here means not correctly parsing!
-        let logline = r#"W0221 17:18:06.190536  7924 process_context.cc:185] SQL Error: Type Not Found. Could not find user defined type
+        let logline = r#"
+        <div class='yb-main container-fluid'><pre>
+        W0221 17:18:06.190536  7924 process_context.cc:185] SQL Error: Type Not Found. Could not find user defined type
 create table test (id int primary key, f1 tdxt);
-                                          ^^^^"#.to_string();
+                                          ^^^^
+        </pre></div>
+        "#.to_string();
         let result = AllLogLines::parse_loglines(logline);
         //assert_eq!(result[0].message,"SQL Error: Type Not Found. Could not find user defined type");
-        assert_eq!(result[0].message,"SQL Error: Type Not Found. Could not find user defined typecreate table test (id int primary key, f1 tdxt);\n                                          ^^^^");
+        assert_eq!(result[0].message.trim(),"SQL Error: Type Not Found. Could not find user defined typecreate table test (id int primary key, f1 tdxt);\n                                          ^^^^");
     }
 
     #[test]
@@ -366,12 +410,16 @@ create table test (id int primary key, f1 tdxt);
         // This is a log line that contains a CQL error statement.
         // WARNING!! Currently, any following line is ignored.
         // This means success here means not correctly parsing!
-        let logline = r#"W0221 17:18:28.396759  7925 process_context.cc:185] SQL Error: Invalid CQL Statement. Missing list of target columns
+        let logline = r#"
+        <div class='yb-main container-fluid'><pre>
+        W0221 17:18:28.396759  7925 process_context.cc:185] SQL Error: Invalid CQL Statement. Missing list of target columns
 insert into test values (1,'a');
-                 ^^^^^^^^^^^^^^"#.to_string();
+                 ^^^^^^^^^^^^^^
+        </pre></div>
+        "#.to_string();
         let result = AllLogLines::parse_loglines(logline);
         //assert_eq!(result[0].message,"SQL Error: Invalid CQL Statement. Missing list of target columns");
-        assert_eq!(result[0].message,"SQL Error: Invalid CQL Statement. Missing list of target columnsinsert into test values (1,'a');\n                 ^^^^^^^^^^^^^^");
+        assert_eq!(result[0].message.trim(),"SQL Error: Invalid CQL Statement. Missing list of target columnsinsert into test values (1,'a');\n                 ^^^^^^^^^^^^^^");
     }
 
     #[test]
@@ -379,12 +427,16 @@ insert into test values (1,'a');
         // This is a log line that contains a fs manager message.
         // WARNING!! Currently, any following line is ignored.
         // This means success here means not correctly parsing!
-        let logline = r#"I0227 17:18:28.714171  2510 fs_manager.cc:278] Opened local filesystem: /mnt/d0
+        let logline = r#"
+        <div class='yb-main container-fluid'><pre>
+        I0227 17:18:28.714171  2510 fs_manager.cc:278] Opened local filesystem: /mnt/d0
 uuid: "05b8d17620eb4cd79eddaddb2fbcbb42"
-format_stamp: "Formatted at 2022-02-13 16:26:17 on yb-1.local""#.to_string();
+format_stamp: "Formatted at 2022-02-13 16:26:17 on yb-1.local"
+        </pre></div>
+        "#.to_string();
         let result = AllLogLines::parse_loglines(logline);
         //assert_eq!(result[0].message,"Opened local filesystem: /mnt/d0");
-        assert_eq!(result[0].message,"Opened local filesystem: /mnt/d0uuid: \"05b8d17620eb4cd79eddaddb2fbcbb42\"\nformat_stamp: \"Formatted at 2022-02-13 16:26:17 on yb-1.local\"");
+        assert_eq!(result[0].message.trim(),"Opened local filesystem: /mnt/d0uuid: \"05b8d17620eb4cd79eddaddb2fbcbb42\"\nformat_stamp: \"Formatted at 2022-02-13 16:26:17 on yb-1.local\"");
     }
 
     #[test]
@@ -392,7 +444,9 @@ format_stamp: "Formatted at 2022-02-13 16:26:17 on yb-1.local""#.to_string();
         // This is a log line that contains a version edit. It is an informal (I) line, I don't know how important this is.
         // WARNING!! Currently, any following line is ignored.
         // This means success here means not correctly parsing!
-        let logline = r#"I0227 17:19:07.745766  3319 version_set.cc:3349] T b770079b94ad430493ba5f729fb1f0e7 P 05b8d17620eb4cd79eddaddb2fbcbb42 [R]: Writing version edit: log_number: 33
+        let logline = r#"
+        <div class='yb-main container-fluid'><pre>
+        I0227 17:19:07.745766  3319 version_set.cc:3349] T b770079b94ad430493ba5f729fb1f0e7 P 05b8d17620eb4cd79eddaddb2fbcbb42 [R]: Writing version edit: log_number: 33
 new_files {
   level: 0
   number: 10
@@ -447,10 +501,11 @@ flushed_frontier {
     history_cutoff: 18446744073709551614
     max_value_level_ttl_expiration_time: 1
   }
-}"#.to_string();
+}
+        </pre></div>
+        "#.to_string();
         let result = AllLogLines::parse_loglines(logline);
-        //assert_eq!(result[0].message,"T b770079b94ad430493ba5f729fb1f0e7 P 05b8d17620eb4cd79eddaddb2fbcbb42 [R]: Writing version edit: log_number: 33");
-        assert_eq!(result[0].message,"T b770079b94ad430493ba5f729fb1f0e7 P 05b8d17620eb4cd79eddaddb2fbcbb42 [R]: Writing version edit: log_number: 33new_files {\n  level: 0\n  number: 10\n  total_file_size: 66565\n  base_file_size: 66384\n  smallest {\n    key: \"Gg\\303I\\200\\000\\000\\000\\000\\0003\\341I\\200\\000\\000\\000\\000\\000B\\225!!J\\200#\\200\\001|E\\302\\264\\205v\\200J\\001\\004\\000\\000\\000\\000\\000\\004\"\n    seqno: 1125899906842625\n    user_values {\n      tag: 1\n      data: \"\\200\\001|E\\302\\274j0\\200J\"\n    }\n    user_frontier {\n      [type.googleapis.com/yb.docdb.ConsensusFrontierPB] {\n        op_id {\n          term: 1\n          index: 2\n        }\n        hybrid_time: 6737247907820138496\n        history_cutoff: 18446744073709551614\n        max_value_level_ttl_expiration_time: 18446744073709551614\n      }\n    }\n  }\n  largest {\n    key: \"G\\222oI\\200\\000\\000\\000\\000\\0003\\341I\\200\\000\\000\\000\\000\\000B{!!K\\203#\\200\\001|E\\302\\274j0\\200?\\213\\001\\003\\000\\000\\000\\000\\000\\004\"\n    seqno: 1125899906842632\n    user_values {\n      tag: 1\n      data: \"\\200\\001|EXN\\364\\273\\200?\\253\"\n    }\n    user_frontier {\n      [type.googleapis.com/yb.docdb.ConsensusFrontierPB] {\n        op_id {\n          term: 1\n          index: 4\n        }\n        hybrid_time: 6737255221467299840\n        history_cutoff: 18446744073709551614\n        max_value_level_ttl_expiration_time: 1\n      }\n    }\n  }\n}\nflushed_frontier {\n  [type.googleapis.com/yb.docdb.ConsensusFrontierPB] {\n    op_id {\n      term: 1\n      index: 4\n    }\n    hybrid_time: 6737255221467299840\n    history_cutoff: 18446744073709551614\n    max_value_level_ttl_expiration_time: 1\n  }\n}");
+        assert_eq!(result[0].message.trim(),"T b770079b94ad430493ba5f729fb1f0e7 P 05b8d17620eb4cd79eddaddb2fbcbb42 [R]: Writing version edit: log_number: 33new_files {\n  level: 0\n  number: 10\n  total_file_size: 66565\n  base_file_size: 66384\n  smallest {\n    key: \"Gg\\303I\\200\\000\\000\\000\\000\\0003\\341I\\200\\000\\000\\000\\000\\000B\\225!!J\\200#\\200\\001|E\\302\\264\\205v\\200J\\001\\004\\000\\000\\000\\000\\000\\004\"\n    seqno: 1125899906842625\n    user_values {\n      tag: 1\n      data: \"\\200\\001|E\\302\\274j0\\200J\"\n    }\n    user_frontier {\n      [type.googleapis.com/yb.docdb.ConsensusFrontierPB] {\n        op_id {\n          term: 1\n          index: 2\n        }\n        hybrid_time: 6737247907820138496\n        history_cutoff: 18446744073709551614\n        max_value_level_ttl_expiration_time: 18446744073709551614\n      }\n    }\n  }\n  largest {\n    key: \"G\\222oI\\200\\000\\000\\000\\000\\0003\\341I\\200\\000\\000\\000\\000\\000B{!!K\\203#\\200\\001|E\\302\\274j0\\200?\\213\\001\\003\\000\\000\\000\\000\\000\\004\"\n    seqno: 1125899906842632\n    user_values {\n      tag: 1\n      data: \"\\200\\001|EXN\\364\\273\\200?\\253\"\n    }\n    user_frontier {\n      [type.googleapis.com/yb.docdb.ConsensusFrontierPB] {\n        op_id {\n          term: 1\n          index: 4\n        }\n        hybrid_time: 6737255221467299840\n        history_cutoff: 18446744073709551614\n        max_value_level_ttl_expiration_time: 1\n      }\n    }\n  }\n}\nflushed_frontier {\n  [type.googleapis.com/yb.docdb.ConsensusFrontierPB] {\n    op_id {\n      term: 1\n      index: 4\n    }\n    hybrid_time: 6737255221467299840\n    history_cutoff: 18446744073709551614\n    max_value_level_ttl_expiration_time: 1\n  }\n}");
     }
 
     #[test]
@@ -458,7 +513,9 @@ flushed_frontier {
         // This is a log line that contains a tablet message.
         // WARNING!! Currently, any following line is ignored.
         // This means success here means not correctly parsing!
-        let logline = r#"I0214 10:51:38.273955 10148 tablet.cc:1821] T c6099b05976f49d9b782ccbe126f9b2d P 05b8d17620eb4cd79eddaddb2fbcbb42: Alter schema from Schema [
+        let logline = r#"
+        <div class='yb-main container-fluid'><pre>
+        I0214 10:51:38.273955 10148 tablet.cc:1821] T c6099b05976f49d9b782ccbe126f9b2d P 05b8d17620eb4cd79eddaddb2fbcbb42: Alter schema from Schema [
         0:ybrowid[binary NOT NULL PARTITION KEY],
         1:dir[string NULLABLE NOT A PARTITION KEY],
         2:dirname[string NULLABLE NOT A PARTITION KEY]
@@ -468,10 +525,12 @@ properties: contain_counters: false is_transactional: true consistency_level: ST
         1:dir[string NULLABLE NOT A PARTITION KEY],
         2:dirname[string NULLABLE NOT A PARTITION KEY]
 ]
-properties: contain_counters: false is_transactional: true consistency_level: STRONG use_mangled_column_name: false is_ysql_catalog_table: false retain_delete_markers: false version 1"#.to_string();
+properties: contain_counters: false is_transactional: true consistency_level: STRONG use_mangled_column_name: false is_ysql_catalog_table: false retain_delete_markers: false version 1
+        </pre></div>
+        "#.to_string();
         let result = AllLogLines::parse_loglines(logline);
         //assert_eq!(result[0].message,"T c6099b05976f49d9b782ccbe126f9b2d P 05b8d17620eb4cd79eddaddb2fbcbb42: Alter schema from Schema [");
-        assert_eq!(result[0].message,"T c6099b05976f49d9b782ccbe126f9b2d P 05b8d17620eb4cd79eddaddb2fbcbb42: Alter schema from Schema [        0:ybrowid[binary NOT NULL PARTITION KEY],\n        1:dir[string NULLABLE NOT A PARTITION KEY],\n        2:dirname[string NULLABLE NOT A PARTITION KEY]\n]\nproperties: contain_counters: false is_transactional: true consistency_level: STRONG use_mangled_column_name: false is_ysql_catalog_table: false retain_delete_markers: false version 0 to Schema [\n        0:ybrowid[binary NOT NULL PARTITION KEY],\n        1:dir[string NULLABLE NOT A PARTITION KEY],\n        2:dirname[string NULLABLE NOT A PARTITION KEY]\n]\nproperties: contain_counters: false is_transactional: true consistency_level: STRONG use_mangled_column_name: false is_ysql_catalog_table: false retain_delete_markers: false version 1");
+        assert_eq!(result[0].message.trim(),"T c6099b05976f49d9b782ccbe126f9b2d P 05b8d17620eb4cd79eddaddb2fbcbb42: Alter schema from Schema [        0:ybrowid[binary NOT NULL PARTITION KEY],\n        1:dir[string NULLABLE NOT A PARTITION KEY],\n        2:dirname[string NULLABLE NOT A PARTITION KEY]\n]\nproperties: contain_counters: false is_transactional: true consistency_level: STRONG use_mangled_column_name: false is_ysql_catalog_table: false retain_delete_markers: false version 0 to Schema [\n        0:ybrowid[binary NOT NULL PARTITION KEY],\n        1:dir[string NULLABLE NOT A PARTITION KEY],\n        2:dirname[string NULLABLE NOT A PARTITION KEY]\n]\nproperties: contain_counters: false is_transactional: true consistency_level: STRONG use_mangled_column_name: false is_ysql_catalog_table: false retain_delete_markers: false version 1");
     }
 
     #[tokio::test]

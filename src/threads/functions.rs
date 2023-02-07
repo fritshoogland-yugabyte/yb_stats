@@ -137,10 +137,10 @@ impl AllThreads {
             match table
             {
                 th
-                if th.select(&th_selector).next().unwrap().text().collect::<String>() == *"Thread name"
-                    && th.select(&th_selector).nth(1).unwrap().text().collect::<String>() == *"Cumulative User CPU(s)"
-                    && th.select(&th_selector).nth(2).unwrap().text().collect::<String>() == *"Cumulative Kernel CPU(s)"
-                    && th.select(&th_selector).nth(3).unwrap().text().collect::<String>() == *"Cumulative IO-wait(s)" =>
+                if th.select(&th_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Thread name"
+                    && th.select(&th_selector).nth(1).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Cumulative User CPU(s)"
+                    && th.select(&th_selector).nth(2).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Cumulative Kernel CPU(s)"
+                    && th.select(&th_selector).nth(3).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Cumulative IO-wait(s)" =>
                     {
                         // The first row contains the table headings, so we skip the first row.
                         for tr in table.select(&tr_selector).skip(1)
@@ -168,10 +168,10 @@ impl AllThreads {
                                 }
                             }
                             threads.push( Threads{
-                                thread_name: tr.select(&td_selector).next().unwrap().text().collect::<String>(),
-                                cumulative_user_cpu_s: tr.select(&td_selector).nth(1).unwrap().text().collect::<String>(),
-                                cumulative_kernel_cpu_s: tr.select(&td_selector).nth(2).unwrap().text().collect::<String>(),
-                                cumulative_iowait_cpu_s: tr.select(&td_selector).nth(3).unwrap().text().collect::<String>(),
+                                thread_name: tr.select(&td_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default(),
+                                cumulative_user_cpu_s: tr.select(&td_selector).nth(1).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default(),
+                                cumulative_kernel_cpu_s: tr.select(&td_selector).nth(2).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default(),
+                                cumulative_iowait_cpu_s: tr.select(&td_selector).nth(3).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default(),
                                 stack: stack.clone(),
                                 ..Default::default()
                             })
@@ -179,8 +179,8 @@ impl AllThreads {
 
                         }
                     },
-                _ => {
-                    info!("Found another table, this shouldn't happen.");
+                non_matching_table => {
+                    info!("Found another table, this shouldn't happen: {:?}.", non_matching_table);
                 },
             }
         }

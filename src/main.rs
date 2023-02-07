@@ -43,6 +43,8 @@ mod vars;
 mod clocks;
 mod cluster_config;
 mod health_check;
+mod table_detail;
+mod tablet_detail;
 
 // constants
 const DEFAULT_HOSTS: &str = "192.168.66.80,192.168.66.81,192.168.66.82";
@@ -171,6 +173,9 @@ pub struct Opts {
     /// Snapshot disable gathering of thread stacks from /threadz
     #[arg(long)]
     disable_threads: bool,
+    /// Snapshot add very detailed data to snapshot
+    #[arg(long)]
+    extra_data: bool,
     /// Output setting for the length of the SQL text to display
     #[arg(long, value_name = "nr", default_value = "80")]
     sql_length: usize,

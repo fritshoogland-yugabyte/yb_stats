@@ -113,17 +113,17 @@ impl AllMemTrackers {
             match table
             {
                 th
-                if th.select(&th_selector).next().unwrap().text().collect::<String>() == *"Id"
-                    && th.select(&th_selector).nth(1).unwrap().text().collect::<String>() == *"Current Consumption"
-                    && th.select(&th_selector).nth(2).unwrap().text().collect::<String>() == *"Peak consumption"
-                    && th.select(&th_selector).nth(3).unwrap().text().collect::<String>() == *"Limit" =>
+                if th.select(&th_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Id"
+                    && th.select(&th_selector).nth(1).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Current Consumption"
+                    && th.select(&th_selector).nth(2).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Peak consumption"
+                    && th.select(&th_selector).nth(3).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Limit" =>
                     {
                         for tr in table.select(&tr_selector).skip(1)
                         {
                             // Data preparation.
                             // The id column.
                             // "->" is fetched as "-&gt;", so translate it back.
-                            let id = tr.select(&td_selector).next().unwrap().text().collect::<String>().replace("&gt;", ">");
+                            let id = tr.select(&td_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default().replace("&gt;", ">");
                             // The depth and parent is shown in the page in this way: BlockBasedTable->server->root
                             // I think it's easier to read as root->server->BlockBasedTable, so we reverse the order.
                             let mut id_vec: Vec<_> = id.split("->").collect();
@@ -131,10 +131,10 @@ impl AllMemTrackers {
 
                             memtrackers.push( MemTrackers {
                                 id: id_vec.join("->"),
-                                current_consumption: tr.select(&td_selector).nth(1).unwrap().text().collect::<String>(),
-                                peak_consumption: tr.select(&td_selector).nth(2).unwrap().text().collect::<String>(),
-                                limit: tr.select(&td_selector).nth(3).unwrap().text().collect::<String>(),
-                                depth: tr.value().attr("data-depth").unwrap().to_string(),
+                                current_consumption: tr.select(&td_selector).nth(1).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default(),
+                                peak_consumption: tr.select(&td_selector).nth(2).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default(),
+                                limit: tr.select(&td_selector).nth(3).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default(),
+                                depth: tr.value().attr("data-depth").and_then(|row| Some(row.to_string())).unwrap_or_default(),
                                 ..Default::default()
                             });
                         }

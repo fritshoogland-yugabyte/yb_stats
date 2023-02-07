@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use crate::Opts;
-use crate::{clocks, entities, gflags, isleader, loglines, masters, mems, memtrackers, metrics, node_exporter, pprof, rpcs, statements, threads, tablet_servers, utility, vars, versions, cluster_config, health_check};
+use crate::{clocks, entities, gflags, isleader, loglines, masters, mems, memtrackers, metrics, node_exporter, pprof, rpcs, statements, threads, tablet_servers, utility, vars, versions, cluster_config, health_check, table_detail, tablet_detail};
 use crate::snapshot::Snapshot;
 
 impl Snapshot {
@@ -214,6 +214,7 @@ pub async fn perform_snapshot(
 
     let arc_hosts = Arc::new(hosts);
     let arc_ports = Arc::new(ports);
+    let arc_extra_data = Arc::new(options.extra_data);
 
     let mut handles = vec![];
 
@@ -349,6 +350,22 @@ pub async fn perform_snapshot(
     let arc_ports_clone = arc_ports.clone();
     let handle = tokio::spawn(async move {
         health_check::AllHealthCheck::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel).await.unwrap();
+    });
+    handles.push(handle);
+
+    let arc_hosts_clone = arc_hosts.clone();
+    let arc_ports_clone = arc_ports.clone();
+    let arc_extra_data_clone = arc_extra_data.clone();
+    let handle = tokio::spawn(async move {
+        table_detail::AllTables::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel, &arc_extra_data_clone).await.unwrap();
+    });
+    handles.push(handle);
+
+    let arc_hosts_clone = arc_hosts.clone();
+    let arc_ports_clone = arc_ports.clone();
+    let arc_extra_data_clone = arc_extra_data.clone();
+    let handle = tokio::spawn(async move {
+        tablet_detail::AllTablets::perform_snapshot(&arc_hosts_clone, &arc_ports_clone, snapshot_number, parallel, &arc_extra_data_clone).await.unwrap();
     });
     handles.push(handle);
 

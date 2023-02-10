@@ -7,7 +7,7 @@ use log::*;
 use anyhow::Result;
 use crate::utility;
 use crate::snapshot;
-use crate::tablet_detail::{AllTablets, Tablet, TabletBasic, TabletDetail, Column, ConsensusStatus, Watermark, Message};
+use crate::tablet_detail::{AllTablets, Tablet, TabletBasic, TabletDetail, Column, ConsensusStatus, Watermark, Message, TabletLogAnchor, Transactions, RocksDb, RocksDbFile};
 
 impl Tablet {
     pub fn new() -> Self { Default::default() }
@@ -25,6 +25,15 @@ impl Watermark {
     pub fn new() -> Self { Default::default() }
 }
 impl Message {
+    pub fn new() -> Self { Default::default() }
+}
+impl TabletLogAnchor {
+    pub fn new() -> Self { Default::default() }
+}
+impl Transactions {
+    pub fn new() -> Self { Default::default() }
+}
+impl RocksDb {
     pub fn new() -> Self { Default::default() }
 }
 
@@ -179,31 +188,31 @@ impl AllTablets {
                     match html_table
                     {
                         th
-                        if th.select(&th_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Namespace"
-                            && th.select(&th_selector).nth(1).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Table name"
-                            && th.select(&th_selector).nth(2).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Table UUID"
-                            && th.select(&th_selector).nth(3).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Tablet ID"
-                            && th.select(&th_selector).nth(4).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Partition"
-                            && th.select(&th_selector).nth(5).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"State"
-                            && th.select(&th_selector).nth(6).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Hidden"
-                            && th.select(&th_selector).nth(7).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Num SST Files"
-                            && th.select(&th_selector).nth(8).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"On-disk size"
-                            && th.select(&th_selector).nth(9).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"RaftConfig"
-                            && th.select(&th_selector).nth(10).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Last status" => {
+                        if th.select(&th_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Namespace"
+                            && th.select(&th_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Table name"
+                            && th.select(&th_selector).nth(2).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Table UUID"
+                            && th.select(&th_selector).nth(3).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Tablet ID"
+                            && th.select(&th_selector).nth(4).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Partition"
+                            && th.select(&th_selector).nth(5).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"State"
+                            && th.select(&th_selector).nth(6).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Hidden"
+                            && th.select(&th_selector).nth(7).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Num SST Files"
+                            && th.select(&th_selector).nth(8).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"On-disk size"
+                            && th.select(&th_selector).nth(9).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"RaftConfig"
+                            && th.select(&th_selector).nth(10).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Last status" => {
                             for tr in html_table.select(&tr_selector).skip(1)
                             {
                                 tablet.tabletbasic.push( TabletBasic {
-                                    namespace: tr.select(&td_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default(),
-                                    table_name: tr.select(&td_selector).nth(1).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default(),
-                                    table_uuid: tr.select(&td_selector).nth(2).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default(),
-                                    tablet_id: tr.select(&td_selector).nth(3).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default().trim().to_string(),
-                                    partition: tr.select(&td_selector).nth(4).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default(),
-                                    state: tr.select(&td_selector).nth(5).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default(),
-                                    hidden: tr.select(&td_selector).nth(6).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default(),
-                                    num_sst_files: tr.select(&td_selector).nth(7).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default(),
-                                    on_disk_size: tr.select(&td_selector).nth(8).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default().trim().to_string(),
-                                    raftconfig: tr.select(&td_selector).nth(9).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default().trim().to_string(),
-                                    last_status: tr.select(&td_selector).nth(10).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default(),
+                                    namespace: tr.select(&td_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                    table_name: tr.select(&td_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                    table_uuid: tr.select(&td_selector).nth(2).map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                    tablet_id: tr.select(&td_selector).nth(3).map(|row| row.text().collect::<String>()).unwrap_or_default().trim().to_string(),
+                                    partition: tr.select(&td_selector).nth(4).map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                    state: tr.select(&td_selector).nth(5).map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                    hidden: tr.select(&td_selector).nth(6).map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                    num_sst_files: tr.select(&td_selector).nth(7).map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                    on_disk_size: tr.select(&td_selector).nth(8).map(|row| row.text().collect::<String>()).unwrap_or_default().split('\n').map(|r| r.trim().to_string()).filter(|r| !r.is_empty()).collect::<Vec<_>>().join(" "),
+                                    raftconfig: tr.select(&td_selector).nth(9).map(|row| row.text().collect::<String>()).unwrap_or_default().split('\n').map(|r| r.trim().to_string()).filter(|r| !r.is_empty()).collect::<Vec<_>>().join(" "),
+                                    last_status: tr.select(&td_selector).nth(10).map(|row| row.text().collect::<String>()).unwrap_or_default(),
                                 });
                             }
                         },
@@ -230,6 +239,15 @@ impl AllTablets {
             let data_from_http = utility::http_get(host, port, format!("tablet-consensus-status?id={}", row.tablet_id).as_str());
             let consensus_status = AllTablets::parse_tablet_detail_consensus_status(data_from_http);
             detail.consensus_status = consensus_status;
+            let data_from_http = utility::http_get(host, port, format!("log-anchors?id={}", row.tablet_id).as_str());
+            let loganchor = AllTablets::parse_tablet_detail_log_anchors(data_from_http);
+            detail.tabletloganchor = loganchor;
+            let data_from_http = utility::http_get(host, port, format!("transactions?id={}", row.tablet_id).as_str());
+            let transaction = AllTablets::parse_tablet_detail_transactions(data_from_http);
+            detail.transactions = transaction;
+            let data_from_http = utility::http_get(host, port, format!("rocksdb?id={}", row.tablet_id).as_str());
+            let rocksdb = AllTablets::parse_tablet_detail_rocksdb(data_from_http);
+            detail.rocksdb = rocksdb;
             tablets.tabletdetail.push(Some(detail));
         }
     }
@@ -251,18 +269,18 @@ impl AllTablets {
         match schema_table
         {
             th
-            if th.select(&th_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Column"
-                && th.select(&th_selector).nth(1).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"ID"
-                && th.select(&th_selector).nth(2).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Type" => {
+            if th.select(&th_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Column"
+                && th.select(&th_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"ID"
+                && th.select(&th_selector).nth(2).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Type" => {
                 // skip heading
                 for tr in schema_table.select(&tr_selector).skip(1)
                 {
                     let mut column = Column::new();
                     // It looks to me like the table column definitions are a bit off logically:
                     // The first table data column is defined as table header again, probably to make the column name bold typefaced.
-                    column.column = tr.select(&th_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default();
-                    column.id = tr.select(&td_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default();
-                    column.column_type = tr.select(&td_selector).nth(1).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default();
+                    column.column = tr.select(&th_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default();
+                    column.id = tr.select(&td_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default();
+                    column.column_type = tr.select(&td_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default();
                     tablet_detail.columns.push(Some(column));
                 }
             },
@@ -288,56 +306,54 @@ impl AllTablets {
 
         for div_select in html.select(&div_selector)
         {
-            let mut element_counter = 0;
-            for h2 in div_select.select(&h2_selector)
+            for (element_counter, h2) in div_select.select(&h2_selector).enumerate()
             {
                 match h2
                 {
                     h2_text if h2_text.text().collect::<String>() == *"State" => {
-                        debug!("state: {}", div_select.select(&pre_selector).nth(element_counter).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default());
-                        consensus_state.state = div_select.select(&pre_selector).nth(element_counter).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default();
+                        debug!("state: {}", div_select.select(&pre_selector).nth(element_counter).map(|row| row.text().collect::<String>()).unwrap_or_default());
+                        consensus_state.state = div_select.select(&pre_selector).nth(element_counter).map(|row| row.text().collect::<String>()).unwrap_or_default();
                     },
                     h2_text if h2_text.text().collect::<String>() == *"Queue overview" => {
-                        debug!("queue overview: {}", div_select.select(&pre_selector).nth(element_counter).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default());
-                        consensus_state.queue_overview = Some(div_select.select(&pre_selector).nth(element_counter).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default());
+                        debug!("queue overview: {}", div_select.select(&pre_selector).nth(element_counter).map(|row| row.text().collect::<String>()).unwrap_or_default());
+                        consensus_state.queue_overview = Some(div_select.select(&pre_selector).nth(element_counter).map(|row| row.text().collect::<String>()).unwrap_or_default());
                     },
                     _ => {},
                 }
-                element_counter += 1;
             }
             for table in div_select.select(&table_selector)
             {
                 match table
                 {
                     th
-                    if th.select(&th_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Peer"
-                        && th.select(&th_selector).nth(1).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Watermark" => {
+                    if th.select(&th_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Peer"
+                        && th.select(&th_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Watermark" => {
                         for tr in table.select(&tr_selector).skip(1)
                         {
                             let mut watermark = Watermark::new();
-                            debug!("{}", tr.select(&td_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default());
-                            watermark.peer = tr.select(&td_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default();
-                            debug!("{}", tr.select(&td_selector).nth(1).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default());
-                            watermark.watermark = tr.select(&td_selector).nth(1).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default();
+                            debug!("{}", tr.select(&td_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default());
+                            watermark.peer = tr.select(&td_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default();
+                            debug!("{}", tr.select(&td_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default());
+                            watermark.watermark = tr.select(&td_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default();
                             consensus_state.watermark.push(Some(watermark));
                         }
                     },
                     th
-                    if th.select(&th_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Entry"
-                        && th.select(&th_selector).nth(1).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"OpId"
-                        && th.select(&th_selector).nth(2).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Type"
-                        && th.select(&th_selector).nth(3).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Size"
-                        && th.select(&th_selector).nth(4).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Status" => {
+                    if th.select(&th_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Entry"
+                        && th.select(&th_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"OpId"
+                        && th.select(&th_selector).nth(2).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Type"
+                        && th.select(&th_selector).nth(3).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Size"
+                        && th.select(&th_selector).nth(4).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Status" => {
                         for tr in table.select(&tr_selector).skip(1)
                         {
                             let mut message = Message::new();
                             // the first two table columns are actually table header columns
-                            message.entry = tr.select(&th_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default();
-                            message.opid = tr.select(&th_selector).nth(1).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default();
+                            message.entry = tr.select(&th_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default();
+                            message.opid = tr.select(&th_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default();
                             // from the third column on the table data columns
-                            message.message_type = tr.select(&td_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default();
-                            message.size = tr.select(&td_selector).nth(1).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default();
-                            message.status = tr.select(&td_selector).nth(2).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default();
+                            message.message_type = tr.select(&td_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default();
+                            message.size = tr.select(&td_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default();
+                            message.status = tr.select(&td_selector).nth(2).map(|row| row.text().collect::<String>()).unwrap_or_default();
                             consensus_state.messages.push(Some(message))
                         }
                     }
@@ -346,6 +362,116 @@ impl AllTablets {
             }
         }
         consensus_state
+    }
+    fn parse_tablet_detail_log_anchors(
+        data_from_http: String,
+    ) -> TabletLogAnchor
+    {
+        let html = Html::parse_document(&data_from_http);
+        let pre_selector = Selector::parse("pre").unwrap();
+        let div_selector = Selector::parse("div.yb-main").unwrap();
+        let mut log_anchor = TabletLogAnchor::new();
+
+        for div_select in html.select(&div_selector)
+        {
+            for pre in div_select.select(&pre_selector)
+            {
+                for line in pre.text().collect::<String>().lines()
+                {
+                    log_anchor.loganchor.push(line.to_string());
+                }
+            }
+        }
+        log_anchor
+    }
+    fn parse_tablet_detail_transactions(
+        data_from_http: String,
+    ) -> Transactions
+    {
+        let html = Html::parse_document(&data_from_http);
+        let pre_selector = Selector::parse("pre").unwrap();
+        let div_selector = Selector::parse("div.yb-main").unwrap();
+        let mut transactions = Transactions::new();
+
+        for div_select in html.select(&div_selector)
+        {
+            for pre in div_select.select(&pre_selector)
+            {
+                for line in pre.text().collect::<String>().lines()
+                {
+                    transactions.transactions.push(line.to_string());
+                }
+            }
+        }
+        transactions
+    }
+    fn parse_tablet_detail_rocksdb(
+        data_from_http: String,
+    ) -> RocksDb
+    {
+        let html = Html::parse_document(&data_from_http);
+        let h3_selector = Selector::parse("h3").unwrap();
+        let pre_selector = Selector::parse("pre").unwrap();
+        let div_selector = Selector::parse("div.yb-main").unwrap();
+        let mut rocksdb = RocksDb::new();
+
+        let mut pre_counter = 0;
+        let mut use_regular = false;
+        for div_select in html.select(&div_selector)
+        {
+            for h3 in div_select.select(&h3_selector)
+            {
+                match h3
+                {
+                    h3_options if h3_options.text().collect::<String>() == *"Options" => {
+                        // toggle boolean using bitwise xor
+                        use_regular ^= true;
+                        if use_regular
+                        {
+                            rocksdb.regular_options.push(div_select.select(&pre_selector).nth(pre_counter).map(|row| row.text().collect::<String>()).unwrap_or_default());
+                        }
+                        else
+                        {
+                            rocksdb.intents_options.push(div_select.select(&pre_selector).nth(pre_counter).map(|row| row.text().collect::<String>()).unwrap_or_default());
+                        }
+                        pre_counter += 1;
+                    },
+                    h3_files if h3_files.text().collect::<String>() == *"Files" => {
+                        for file in div_select.select(&pre_selector).nth(pre_counter).map(|row| row.text().collect::<String>()).unwrap_or_default().lines().map(|row| row.trim()).filter(|row| !row.is_empty())
+                        {
+                            if use_regular
+                            {
+                                rocksdb.regular_files.push(file.to_string());
+                            }
+                            else
+                            {
+                                rocksdb.intents_files.push(file.to_string());
+                            }
+                        }
+                        pre_counter += 1;
+                    },
+                    h3_file_detail => {
+                        let details = vec![ div_select.select(&pre_selector).nth(pre_counter).map( | row| row.text().collect::<String>()).unwrap_or_default() ];
+                        if use_regular
+                        {
+                            rocksdb.regular_files_detail.push( RocksDbFile {
+                                filename: h3_file_detail.text().collect::<String>().split_whitespace().next().unwrap_or_default().to_string(),
+                                details,
+                            });
+                        }
+                        else
+                        {
+                            rocksdb.intents_files_detail.push( RocksDbFile {
+                                filename: h3_file_detail.text().collect::<String>().split_whitespace().next().unwrap_or_default().to_string(),
+                                details,
+                            });
+                        }
+                        pre_counter += 1;
+                    },
+                }
+            }
+        }
+        rocksdb
     }
     /*
     pub fn print(
@@ -482,493 +608,757 @@ mod tests {
         assert_eq!(result.tabletbasic[0].partition, "hash_split: [0x7FF8, 0x8AA1]");
         assert_eq!(result.tabletbasic[0].state, "RUNNING");
         assert_eq!(result.tabletbasic[0].hidden, "false");
-        assert_eq!(result.tabletbasic[0].on_disk_size, "Total: 1.00M\n                        Consensus Metadata: 1.5K\n                        WAL Files: 1.00M\n                        SST Files: 0B\n                        SST Files Uncompressed: 0B");
-        assert_eq!(result.tabletbasic[0].raftconfig, "LEADER: yb-2.local\n                        \n                        FOLLOWER: yb-1.local\n                        FOLLOWER: yb-3.local");
+        assert_eq!(result.tabletbasic[0].on_disk_size, "Total: 1.00M Consensus Metadata: 1.5K WAL Files: 1.00M SST Files: 0B SST Files Uncompressed: 0B");
+        assert_eq!(result.tabletbasic[0].raftconfig, "LEADER: yb-2.local FOLLOWER: yb-1.local FOLLOWER: yb-3.local");
         assert_eq!(result.tabletbasic[0].last_status, "transactions0");
     }
 
-    /*
     #[test]
-    fn unit_parse_basic_new_single_user_table_no_index() {
-        let tables = r#"
-        <div class='yb-main container-fluid'>
-        <div class='panel panel-default'>
-            <div class='panel-heading'>
-                <h2 class='panel-title'>User tables</h2>
-            </div>
-            <div class='panel-body table-responsive'>
-                <table class='table table-responsive'>
-                    <tr>
-                        <th>Keyspace</th>
-                        <th>Table Name</th>
-                        <th>State</th>
-                        <th>Message</th>
-                        <th>UUID</th>
-                        <th>YSQL OID</th>
-                        <th>Hidden</th>
-                        <th>On-disk size</th>
-                    </tr>
-                    <tr>
-                        <td>yugabyte</td>
-                        <td>
-                            <a href="/table?id=000033e8000030008000000000004000">t</a>
-                        </td>
-                        <td>Running</td>
-                        <td></td>
-                        <td>000033e8000030008000000000004000</td>
-                        <td>16384</td>
-                        <td>false</td>
-                        <td>
-                            <ul>
-                                <li>Total: 3.00M
-                                <li>WAL Files: 3.00M
-                                <li>SST Files: 0B
-                                <li>SST Files Uncompressed: 0B
-                            </ul>
-                        </td>
-                    </tr>
-                </table>
-            </div>
-            <!-- panel-body -->
-        </div>
-        <!-- panel -->
-        <div class='panel panel-default'>
-            <div class='panel-heading'>
-                <h2 class='panel-title'>Index tables</h2>
-            </div>
-            <div class='panel-body table-responsive'>There are no index tables.
-            </div>
-            <!-- panel-body -->
-        </div>
-        <!-- panel -->
-        <div class='panel panel-default'>
-            <div class='panel-heading'>
-                <h2 class='panel-title'>System tables</h2>
-            </div>
-            <div class='panel-body table-responsive'>
-                <table class='table table-responsive'>
-                    <tr>
-                        <th>Keyspace</th>
-                        <th>Table Name</th>
-                        <th>State</th>
-                        <th>Message</th>
-                        <th>UUID</th>
-                        <th>YSQL OID</th>
-                        <th>Hidden</th>
-                    <tr>
-                        <td>template1</td>
-                        <td>
-                            <a href="/table?id=000000010000300080000000000000af">pg_user_mapping_user_server_index</a>
-                        </td>
-                        <td>Running</td>
-                        <td></td>
-                        <td>000000010000300080000000000000af</td>
-                        <td>175</td>
-                        <td>false</td>
-                    </tr>
-                </table>
-            </div>
-        </div>
-        <!-- panel -->
-        <div class='yb-bottom-spacer'></div>
-        </div>
-        "#.to_string();
-        let result = AllTables::parse_tables(tables);
-        //
-        assert_eq!(result.tablebasic.len(), 2);
-
-        assert_eq!(result.tablebasic[0].keyspace, "yugabyte");
-        assert_eq!(result.tablebasic[0].table_name, "t");
-        assert_eq!(result.tablebasic[0].state, "Running");
-        assert_eq!(result.tablebasic[0].message, "");
-        assert_eq!(result.tablebasic[0].uuid, "000033e8000030008000000000004000");
-        assert_eq!(result.tablebasic[0].ysql_oid, "16384");
-        assert_eq!(result.tablebasic[0].hidden, "false");
-        assert_eq!(result.tablebasic[0].on_disk_size, "Total: 3.00M\n                                WAL Files: 3.00M\n                                SST Files: 0B\n                                SST Files Uncompressed: 0B");
-        assert_eq!(result.tablebasic[0].object_type, "User tables");
-        assert_eq!(result.tablebasic[1].keyspace, "template1");
-        assert_eq!(result.tablebasic[1].table_name, "pg_user_mapping_user_server_index");
-        assert_eq!(result.tablebasic[1].state, "Running");
-        assert_eq!(result.tablebasic[1].message, "");
-        assert_eq!(result.tablebasic[1].uuid, "000000010000300080000000000000af");
-        assert_eq!(result.tablebasic[1].ysql_oid, "175");
-        assert_eq!(result.tablebasic[1].hidden, "false");
-        assert_eq!(result.tablebasic[1].on_disk_size, "");
-        assert_eq!(result.tablebasic[1].object_type, "System tables");
-    }
-
-    #[test]
-    fn unit_parse_basic_new_single_user_table_index_table() {
-        let tables = r#"
-        <div class='yb-main container-fluid'>
-        <div class='panel panel-default'>
-            <div class='panel-heading'>
-                <h2 class='panel-title'>User tables</h2>
-            </div>
-            <div class='panel-body table-responsive'>
-                <table class='table table-responsive'>
-                    <tr>
-                        <th>Keyspace</th>
-                        <th>Table Name</th>
-                        <th>State</th>
-                        <th>Message</th>
-                        <th>UUID</th>
-                        <th>YSQL OID</th>
-                        <th>Hidden</th>
-                        <th>On-disk size</th>
-                    </tr>
-                    <tr>
-                        <td>yugabyte</td>
-                        <td>
-                            <a href="/table?id=000033e8000030008000000000004000">t</a>
-                        </td>
-                        <td>Running</td>
-                        <td></td>
-                        <td>000033e8000030008000000000004000</td>
-                        <td>16384</td>
-                        <td>false</td>
-                        <td>
-                            <ul>
-                                <li>Total: 3.00M
-                                <li>WAL Files: 3.00M
-                                <li>SST Files: 0B
-                                <li>SST Files Uncompressed: 0B
-                            </ul>
-                        </td>
-                    </tr>
-                </table>
-            </div>
-            <!-- panel-body -->
-        </div>
-        <!-- panel -->
-        <div class='panel panel-default'>
-            <div class='panel-heading'>
-                <h2 class='panel-title'>Index tables</h2>
-            </div>
-            <div class='panel-body table-responsive'>
-                <table class='table table-responsive'>
-                    <tr>
-                        <th>Keyspace</th>
-                        <th>Table Name</th>
-                        <th>State</th>
-                        <th>Message</th>
-                        <th>UUID</th>
-                        <th>YSQL OID</th>
-                        <th>Hidden</th>
-                        <th>On-disk size</th>
-                    </tr>
-                    <tr>
-                        <td>yugabyte</td>
-                        <td>
-                            <a href="/table?id=000033e8000030008000000000004003">t_i</a>
-                        </td>
-                        <td>Running</td>
-                        <td></td>
-                        <td>000033e8000030008000000000004003</td>
-                        <td>16387</td>
-                        <td>false</td>
-                        <td>
-                            <ul>
-                                <li>Total: 3.00M
-                                <li>WAL Files: 3.00M
-                                <li>SST Files: 0B
-                                <li>SST Files Uncompressed: 0B
-                            </ul>
-                        </td>
-                    </tr>
-                </table>
-            </div>
-            <!-- panel-body -->
-        </div>
-        <!-- panel -->
-        <div class='panel panel-default'>
-            <div class='panel-heading'>
-                <h2 class='panel-title'>System tables</h2>
-            </div>
-            <div class='panel-body table-responsive'>
-                <table class='table table-responsive'>
-                    <tr>
-                        <th>Keyspace</th>
-                        <th>Table Name</th>
-                        <th>State</th>
-                        <th>Message</th>
-                        <th>UUID</th>
-                        <th>YSQL OID</th>
-                        <th>Hidden</th>
-                    <tr>
-                        <td>template1</td>
-                        <td>
-                            <a href="/table?id=000000010000300080000000000000af">pg_user_mapping_user_server_index</a>
-                        </td>
-                        <td>Running</td>
-                        <td></td>
-                        <td>000000010000300080000000000000af</td>
-                        <td>175</td>
-                        <td>false</td>
-                    </tr>
-                </table>
-            </div>
-        </div>
-        <!-- panel -->
-        <div class='yb-bottom-spacer'></div>
-        </div>
-        "#.to_string();
-        let result = AllTables::parse_tables(tables);
-        //
-        assert_eq!(result.tablebasic.len(), 3);
-
-        assert_eq!(result.tablebasic[0].keyspace, "yugabyte");
-        assert_eq!(result.tablebasic[0].table_name, "t");
-        assert_eq!(result.tablebasic[0].state, "Running");
-        assert_eq!(result.tablebasic[0].message, "");
-        assert_eq!(result.tablebasic[0].uuid, "000033e8000030008000000000004000");
-        assert_eq!(result.tablebasic[0].ysql_oid, "16384");
-        assert_eq!(result.tablebasic[0].hidden, "false");
-        assert_eq!(result.tablebasic[0].on_disk_size, "Total: 3.00M\n                                WAL Files: 3.00M\n                                SST Files: 0B\n                                SST Files Uncompressed: 0B");
-        assert_eq!(result.tablebasic[0].keyspace, "yugabyte");
-        assert_eq!(result.tablebasic[1].table_name, "t_i");
-        assert_eq!(result.tablebasic[1].state, "Running");
-        assert_eq!(result.tablebasic[1].message, "");
-        assert_eq!(result.tablebasic[1].uuid, "000033e8000030008000000000004003");
-        assert_eq!(result.tablebasic[1].ysql_oid, "16387");
-        assert_eq!(result.tablebasic[1].hidden, "false");
-        assert_eq!(result.tablebasic[1].on_disk_size, "Total: 3.00M\n                                WAL Files: 3.00M\n                                SST Files: 0B\n                                SST Files Uncompressed: 0B");
-        assert_eq!(result.tablebasic[1].object_type, "User tables");
-        assert_eq!(result.tablebasic[1].object_type, "User tables");
-        assert_eq!(result.tablebasic[2].keyspace, "template1");
-        assert_eq!(result.tablebasic[2].table_name, "pg_user_mapping_user_server_index");
-        assert_eq!(result.tablebasic[2].state, "Running");
-        assert_eq!(result.tablebasic[2].message, "");
-        assert_eq!(result.tablebasic[2].uuid, "000000010000300080000000000000af");
-        assert_eq!(result.tablebasic[2].ysql_oid, "175");
-        assert_eq!(result.tablebasic[2].hidden, "false");
-        assert_eq!(result.tablebasic[2].on_disk_size, "");
-        assert_eq!(result.tablebasic[2].object_type, "System tables");
-    }
-    #[test]
-    fn unit_parse_basic_new_no_user_tables_colocated_parent() {
-        let tables = r#"
-        <div class='yb-main container-fluid'>
-        <div class='panel panel-default'>
-            <div class='panel-heading'>
-                <h2 class='panel-title'>User tables</h2>
-            </div>
-            <div class='panel-body table-responsive'>There are no user tables.
-            </div>
-            <!-- panel-body -->
-        </div>
-        <!-- panel -->
-        <div class='panel panel-default'>
-            <div class='panel-heading'>
-                <h2 class='panel-title'>Index tables</h2>
-            </div>
-            <div class='panel-body table-responsive'>There are no index tables.
-            </div>
-            <!-- panel-body -->
-        </div>
-        <!-- panel -->
-        <div class='panel panel-default'>
-            <div class='panel-heading'>
-                <h2 class='panel-title'>Parent tables</h2>
-            </div>
-            <div class='panel-body table-responsive'>
-                <table class='table table-responsive'>
-                    <tr>
-                        <th>Keyspace</th>
-                        <th>Table Name</th>
-                        <th>State</th>
-                        <th>Message</th>
-                        <th>UUID</th>
-                        <th>YSQL OID</th>
-                        <th>Hidden</th>
-                        <th>On-disk size</th>
-                    </tr>
-                    <tr>
-                        <td>colocated</td>
-                        <td>
-                            <a href="/table?id=00004000000030008000000000000000.colocated.parent.uuid">00004000000030008000000000000000
-                            .colocated.parent.tablename</a>
-                        </td>
-                        <td>Running</td>
-                        <td></td>
-                        <td>00004000000030008000000000000000
-                        .colocated.parent.uuid</td>
-                        <td></td>
-                        <td>false</td>
-                        <td>
-                            <ul>
-                                <li>Total: 1.00M
-                                <li>WAL Files: 1.00M
-                                <li>SST Files: 0B
-                                <li>SST Files Uncompressed: 0B
-                            </ul>
-                        </td>
-                    </tr>
-                </table>
-            </div>
-            <!-- panel-body -->
-        </div>
-        <div class='panel panel-default'>
-            <div class='panel-heading'>
-                <h2 class='panel-title'>System tables</h2>
-            </div>
-            <div class='panel-body table-responsive'>
-                <table class='table table-responsive'>
-                    <tr>
-                        <th>Keyspace</th>
-                        <th>Table Name</th>
-                        <th>State</th>
-                        <th>Message</th>
-                        <th>UUID</th>
-                        <th>YSQL OID</th>
-                        <th>Hidden</th>
-                    <tr>
-                        <td>template1</td>
-                        <td>
-                            <a href="/table?id=000000010000300080000000000000af">pg_user_mapping_user_server_index</a>
-                        </td>
-                        <td>Running</td>
-                        <td></td>
-                        <td>000000010000300080000000000000af</td>
-                        <td>175</td>
-                        <td>false</td>
-                    </tr>
-                </table>
-            </div>
-        </div>
-        <!-- panel -->
-        <div class='yb-bottom-spacer'></div>
-        </div>
-        "#.to_string();
-        let result = AllTables::parse_tables(tables);
-
-        assert_eq!(result.tablebasic.len(), 2);
-        //
-        assert_eq!(result.tablebasic[0].keyspace, "colocated");
-        assert_eq!(result.tablebasic[0].table_name, "00004000000030008000000000000000.colocated.parent.tablename");
-        assert_eq!(result.tablebasic[0].state, "Running");
-        assert_eq!(result.tablebasic[0].message, "");
-        assert_eq!(result.tablebasic[0].uuid, "00004000000030008000000000000000.colocated.parent.uuid");
-        assert_eq!(result.tablebasic[0].ysql_oid, "");
-        assert_eq!(result.tablebasic[0].hidden, "false");
-        assert_eq!(result.tablebasic[0].on_disk_size, "Total: 1.00M\n                                WAL Files: 1.00M\n                                SST Files: 0B\n                                SST Files Uncompressed: 0B");
-        assert_eq!(result.tablebasic[0].object_type, "Parent tables");
-        assert_eq!(result.tablebasic[1].keyspace, "template1");
-        assert_eq!(result.tablebasic[1].table_name, "pg_user_mapping_user_server_index");
-        assert_eq!(result.tablebasic[1].state, "Running");
-        assert_eq!(result.tablebasic[1].message, "");
-        assert_eq!(result.tablebasic[1].uuid, "000000010000300080000000000000af");
-        assert_eq!(result.tablebasic[1].ysql_oid, "175");
-        assert_eq!(result.tablebasic[1].hidden, "false");
-        assert_eq!(result.tablebasic[1].on_disk_size, "");
-        assert_eq!(result.tablebasic[1].object_type, "System tables");
-    }
-    #[test]
-    fn unit_parse_table_detail_by_id() {
-        let tables = r#"
+    fn unit_parse_tablet_detail_consensus_status_only_state() {
+        let tablets = r#"
     <div class='yb-main container-fluid'>
-        <h1>Table: yugabyte.t (000033e8000030008000000000004100) </h1>
-        <table class='table table-striped'>
+        <h1>Tablet 9a15172a8e72450693ae64edd546849b</h1>
+        <h1>Raft Consensus State</h1>
+        <h2>State</h2>
+        <pre>Consensus queue metrics:Only Majority Done Ops: 0, In Progress Ops: 0, Cache: LogCacheStats(num_ops=0, bytes=0, disk_reads=0)</pre>
+        <div class='yb-bottom-spacer'></div>
+    </div>
+        "#.to_string();
+        let result = AllTablets::parse_tablet_detail_consensus_status(tablets);
+
+        assert_eq!(result.state, "Consensus queue metrics:Only Majority Done Ops: 0, In Progress Ops: 0, Cache: LogCacheStats(num_ops=0, bytes=0, disk_reads=0)");
+    }
+
+    #[test]
+    fn unit_parse_tablet_detail_consensus_status_full() {
+        let tablets = r#"
+    <div class='yb-main container-fluid'>
+        <h1>Tablet 845b75004ef14c918a4b263c52f7583c</h1>
+        <h1>Raft Consensus State</h1>
+        <h2>State</h2>
+        <pre>Consensus queue metrics:Only Majority Done Ops: 0, In Progress Ops: 0, Cache: LogCacheStats(num_ops=0, bytes=0, disk_reads=0)</pre>
+        <h2>Queue overview</h2>
+        <pre>Consensus queue metrics:Only Majority Done Ops: 0, In Progress Ops: 0, Cache: LogCacheStats(num_ops=0, bytes=0, disk_reads=0)</pre>
+        <hr/>
+        <h2>Queue details</h2>
+        <h3>Watermarks</h3>
+        <table>
             <tr>
-                <td>Version:</td>
-                <td>0</td>
+                <th>Peer</th>
+                <th>Watermark</th>
             </tr>
             <tr>
-                <td>Type:</td>
-                <td>PGSQL_TABLE_TYPE</td>
+                <td>c4ba4bb2cea04a2eade78bed94406fb9</td>
+                <td>{ peer: c4ba4bb2cea04a2eade78bed94406fb9 is_new: 0 last_received: 5.108 next_index: 109 last_known_committed_idx: 108 is_last_exchange_successful: 1 needs_remote_bootstrap: 0 member_type: VOTER num_sst_files: 0 last_applied: 5.108 }</td>
             </tr>
             <tr>
-                <td>State:</td>
-                <td>Running</td>
+                <td>1f8a43d3668d4235a990e6045d4f59db</td>
+                <td>{ peer: 1f8a43d3668d4235a990e6045d4f59db is_new: 0 last_received: 5.108 next_index: 109 last_known_committed_idx: 108 is_last_exchange_successful: 1 needs_remote_bootstrap: 0 member_type: VOTER num_sst_files: 0 last_applied: 5.108 }</td>
             </tr>
             <tr>
-                <td>Replication Info:</td>
-                <td>
-                    <pre class="prettyprint"></pre>
-                </td>
+                <td>cea6e8a0388749d18ea9496401608c4e</td>
+                <td>{ peer: cea6e8a0388749d18ea9496401608c4e is_new: 0 last_received: 5.108 next_index: 109 last_known_committed_idx: 108 is_last_exchange_successful: 1 needs_remote_bootstrap: 0 member_type: VOTER num_sst_files: 0 last_applied: 5.108 }</td>
             </tr>
         </table>
-        <table class='table table-striped'>
+        <h3>Messages:</h3>
+        <table>
             <tr>
-                <th>Column</th>
-                <th>ID</th>
+                <th>Entry</th>
+                <th>OpId</th>
                 <th>Type</th>
+                <th>Size</th>
+                <th>Status</th>
             </tr>
             <tr>
-                <th>id</th>
-                <td>0</td>
-                <td>int32 NOT NULL PARTITION KEY</td>
-            </tr>
-            <tr>
-                <th>f1</th>
-                <td>1</td>
-                <td>string NULLABLE NOT A PARTITION KEY</td>
-            </tr>
-        </table>
-        <table class='table table-striped'>
-            <tr>
-                <th>Tablet ID</th>
-                <th>Partition</th>
-                <th>SplitDepth</th>
-                <th>State</th>
-                <th>Hidden</th>
-                <th>Message</th>
-                <th>RaftConfig</th>
-            </tr>
-            <tr>
-                <th>5a4f24f5159f4c518bf3bcc5e2c4193c</th>
-                <td>hash_split: [0x0000, 0xFFFF]</td>
-                <td>0</td>
-                <td>Running</td>
-                <td>false</td>
-                <td>Tablet reported with an active leader</td>
-                <td>
-                    <ul>
-                        <li>
-                            <b>
-                                LEADER:
-                                <a href="http://yb-3.local:9000/tablet?id=5a4f24f5159f4c518bf3bcc5e2c4193c">yb-3.local</a>
-                            </b>
-                        </li>
-                        <li>
-                            FOLLOWER:
-                            <a href="http://yb-1.local:9000/tablet?id=5a4f24f5159f4c518bf3bcc5e2c4193c">yb-1.local</a>
-                        </li>
-                        <li>
-                            FOLLOWER:
-                            <a href="http://yb-2.local:9000/tablet?id=5a4f24f5159f4c518bf3bcc5e2c4193c">yb-2.local</a>
-                        </li>
-                    </ul>
-                </td>
-            </tr>
-        </table>
-        <table class='table table-striped'>
-            <tr>
-                <th>Task Name</th>
-                <th>State</th>
-                <th>Start Time</th>
-                <th>Duration</th>
-                <th>Description</th>
+                <th>0</th>
+                <th>0.0</th>
+                <td>REPLICATE UNKNOWN_OP</td>
+                <td>6</td>
+                <td>term: 0 index: 0</td>
             </tr>
         </table>
         <div class='yb-bottom-spacer'></div>
     </div>
         "#.to_string();
-        let result = AllTables::parse_table_detail( tables,"deadbeef");
-        println!("{:#?}", result);
-        //
+        let result = AllTablets::parse_tablet_detail_consensus_status(tablets);
+
+        assert_eq!(result.state, "Consensus queue metrics:Only Majority Done Ops: 0, In Progress Ops: 0, Cache: LogCacheStats(num_ops=0, bytes=0, disk_reads=0)");
+        assert_eq!(result.queue_overview, Some("Consensus queue metrics:Only Majority Done Ops: 0, In Progress Ops: 0, Cache: LogCacheStats(num_ops=0, bytes=0, disk_reads=0)".to_string()));
+        assert_eq!(result.watermark[0].as_ref().unwrap().peer, "c4ba4bb2cea04a2eade78bed94406fb9".to_string());
+        assert_eq!(result.watermark[0].as_ref().unwrap().watermark, "{ peer: c4ba4bb2cea04a2eade78bed94406fb9 is_new: 0 last_received: 5.108 next_index: 109 last_known_committed_idx: 108 is_last_exchange_successful: 1 needs_remote_bootstrap: 0 member_type: VOTER num_sst_files: 0 last_applied: 5.108 }".to_string());
+        assert_eq!(result.watermark[1].as_ref().unwrap().peer, "1f8a43d3668d4235a990e6045d4f59db".to_string());
+        assert_eq!(result.watermark[1].as_ref().unwrap().watermark, "{ peer: 1f8a43d3668d4235a990e6045d4f59db is_new: 0 last_received: 5.108 next_index: 109 last_known_committed_idx: 108 is_last_exchange_successful: 1 needs_remote_bootstrap: 0 member_type: VOTER num_sst_files: 0 last_applied: 5.108 }".to_string());
+        assert_eq!(result.watermark[2].as_ref().unwrap().peer, "cea6e8a0388749d18ea9496401608c4e".to_string());
+        assert_eq!(result.watermark[2].as_ref().unwrap().watermark, "{ peer: cea6e8a0388749d18ea9496401608c4e is_new: 0 last_received: 5.108 next_index: 109 last_known_committed_idx: 108 is_last_exchange_successful: 1 needs_remote_bootstrap: 0 member_type: VOTER num_sst_files: 0 last_applied: 5.108 }".to_string());
+        assert_eq!(result.messages[0].as_ref().unwrap().entry, "0");
+        assert_eq!(result.messages[0].as_ref().unwrap().opid, "0.0");
+        assert_eq!(result.messages[0].as_ref().unwrap().message_type, "REPLICATE UNKNOWN_OP");
+        assert_eq!(result.messages[0].as_ref().unwrap().size, "6");
+        assert_eq!(result.messages[0].as_ref().unwrap().status, "term: 0 index: 0");
     }
 
+
+    #[test]
+    fn unit_parse_tablet_detail_rocksdb_no_rocksdb() {
+        let tablets = r#"
+    <div class='yb-main container-fluid'>
+        <h1>RocksDB for Tablet 0f4244458b3e48b98d7802d3be456e64</h1>
+        <div class='yb-bottom-spacer'></div>
+    </div>
+        "#.to_string();
+        let result = AllTablets::parse_tablet_detail_rocksdb(tablets);
+
+        assert_eq!(result.regular_options.len(), 0);
+        assert_eq!(result.regular_files.len(), 0);
+        assert_eq!(result.regular_files_detail.len(),  0);
+        assert_eq!(result.intents_options.len(), 0);
+        assert_eq!(result.intents_files.len(), 0);
+        assert_eq!(result.intents_files_detail.len(), 0);
+    }
+
+    #[test]
+    fn unit_parse_tablet_detail_rocksdb_empty_rocksdb() {
+        let tablets = r#"
+    <div class='yb-main container-fluid'><h1>RocksDB for Tablet 08372aa6c40c4a0c89dd3692f0b09563</h1>
+        <h2>Regular</h2>
+        <input type="checkbox" id="572a8320b8047e8ed945f2aa06d7f9f2" class="yb-collapsible-cb"/><label for="572a8320b8047e8ed945f2aa06d7f9f2"><h3>Options</h3></label>
+        <pre>
+        [Version]
+          yugabyte_version=version 2.17.1.0 build 439 revision 8a09a531b55a0564fc186f69e93d5c56fb0f8b67 build_type RELEASE built at 03 Feb 2023 22:14:11 UTC
+
+        [DBOptions]
+          max_file_size_for_compaction=94545423876928
+          info_log_level=INFO_LEVEL
+          access_hint_on_compaction_start=NORMAL
+          write_thread_max_yield_usec=100
+          write_thread_slow_yield_usec=3
+          enable_write_thread_adaptive_yield=false
+          max_log_file_size=0
+          stats_dump_period_sec=600
+          max_manifest_file_size=18446744073709551615
+          bytes_per_sync=1048576
+          delayed_write_rate=2097152
+          WAL_ttl_seconds=0
+          allow_concurrent_memtable_write=false
+          paranoid_checks=true
+          writable_file_max_buffer_size=1048576
+          WAL_size_limit_MB=0
+          max_subcompactions=1
+          wal_dir=/mnt/d0/yb-data/tserver/data/rocksdb/table-000033e8000030008000000000004000/tablet-08372aa6c40c4a0c89dd3692f0b09563
+          wal_bytes_per_sync=0
+          max_total_wal_size=0
+          db_write_buffer_size=0
+          keep_log_file_num=1000
+          table_cache_numshardbits=4
+          compaction_size_threshold_bytes=2147483648
+          max_file_opening_threads=1
+          initial_seqno=1125899906842624
+          recycle_log_file_num=0
+          num_reserved_small_compaction_threads=0
+          random_access_max_buffer_size=1048576
+          use_fsync=false
+          max_open_files=5000
+          skip_stats_update_on_db_open=false
+          max_background_compactions=1
+          error_if_exists=false
+          manifest_preallocation_size=65536
+          max_background_flushes=1
+          is_fd_close_on_exec=true
+          advise_random_on_open=true
+          create_missing_column_families=false
+          delete_obsolete_files_period_micros=21600000000
+          create_if_missing=true
+          disable_data_sync=false
+          log_file_time_to_roll=0
+          compaction_readahead_size=0
+          use_adaptive_mutex=false
+          enable_thread_tracking=false
+          disableDataSync=false
+          allow_fallocate=true
+          skip_log_error_on_recovery=false
+          allow_mmap_reads=false
+          fail_if_options_file_error=false
+          allow_os_buffer=true
+          wal_recovery_mode=kTolerateCorruptedTailRecords
+          db_log_dir=
+          new_table_reader_for_compaction_inputs=false
+          base_background_compactions=1
+          allow_mmap_writes=false
+
+        [CFOptions "default"]
+          compaction_style=kCompactionStyleUniversal
+          merge_operator=nullptr
+          compaction_filter=nullptr
+          num_levels=1
+          table_factory=BlockBasedTable
+          comparator=leveldb.BytewiseComparator
+          max_sequential_skip_in_iterations=8
+          soft_rate_limit=0
+          max_bytes_for_level_base=10485760
+          soft_pending_compaction_bytes_limit=0
+          memtable_prefix_bloom_probes=6
+          memtable_prefix_bloom_bits=0
+          memtable_prefix_bloom_huge_page_tlb_size=0
+          max_successive_merges=0
+          arena_block_size=65536
+          min_write_buffer_number_to_merge=1
+          target_file_size_multiplier=1
+          source_compaction_factor=1
+          compression_per_level=
+          max_bytes_for_level_multiplier=10
+          compaction_filter_factory=nullptr
+          max_write_buffer_number=2
+          level0_stop_writes_trigger=2147483647
+          compression=kSnappyCompression
+          level0_file_num_compaction_trigger=5
+          purge_redundant_kvs_while_flush=true
+          max_write_buffer_number_to_maintain=0
+          memtable_factory=SkipListFactory
+          max_grandparent_overlap_factor=10
+          expanded_compaction_factor=25
+          hard_pending_compaction_bytes_limit=0
+          inplace_update_num_locks=10000
+          level0_slowdown_writes_trigger=2147483647
+          level_compaction_dynamic_level_bytes=false
+          filter_deletes=false
+          verify_checksums_in_compaction=true
+          min_partial_merge_operands=2
+          paranoid_file_checks=false
+          target_file_size_base=2097152
+          optimize_filters_for_hits=false
+          compaction_measure_io_stats=false
+          prefix_extractor=nullptr
+          bloom_locality=0
+          write_buffer_size=134217728
+          disable_auto_compactions=false
+          inplace_update_support=false
+          [TableOptions/BlockBasedTable "default"]
+          format_version=2
+          whole_key_filtering=true
+          index_block_size=32768
+          index_block_restart_interval=1
+          block_size_deviation=10
+          hash_index_allow_collision=true
+          filter_block_size=65536
+          min_keys_per_index_block=100
+          block_size=32768
+          block_restart_interval=16
+          skip_table_builder_flush=false
+          filter_policy=DocKeyV3Filter
+          no_block_cache=false
+          checksum=kCRC32c
+          cache_index_and_filter_blocks=true
+          index_type=kMultiLevelBinarySearch
+          flush_block_policy_factory=FlushBlockBySizePolicyFactory
+          </pre>
+        <h3>Files</h3>
+        <pre>
+        </pre>
+        <h2>Intents</h2>
+        <input type="checkbox" id="bc2acb6dde99ea88a5454061d2b769ae" class="yb-collapsible-cb"/><label for="bc2acb6dde99ea88a5454061d2b769ae"><h3>Options</h3></label>
+        <pre>
+        [Version]
+          yugabyte_version=version 2.17.1.0 build 439 revision 8a09a531b55a0564fc186f69e93d5c56fb0f8b67 build_type RELEASE built at 03 Feb 2023 22:14:11 UTC
+
+        [DBOptions]
+          max_file_size_for_compaction=94545423876928
+          info_log_level=INFO_LEVEL
+          access_hint_on_compaction_start=NORMAL
+          write_thread_max_yield_usec=100
+          write_thread_slow_yield_usec=3
+          enable_write_thread_adaptive_yield=false
+          max_log_file_size=0
+          stats_dump_period_sec=600
+          max_manifest_file_size=18446744073709551615
+          bytes_per_sync=1048576
+          delayed_write_rate=2097152
+          WAL_ttl_seconds=0
+          allow_concurrent_memtable_write=false
+          paranoid_checks=true
+          writable_file_max_buffer_size=1048576
+          WAL_size_limit_MB=0
+          max_subcompactions=1
+          wal_dir=/mnt/d0/yb-data/tserver/data/rocksdb/table-000033e8000030008000000000004000/tablet-08372aa6c40c4a0c89dd3692f0b09563.intents
+          wal_bytes_per_sync=0
+          max_total_wal_size=0
+          db_write_buffer_size=0
+          keep_log_file_num=1000
+          table_cache_numshardbits=4
+          compaction_size_threshold_bytes=2147483648
+          max_file_opening_threads=1
+          initial_seqno=1125899906842624
+          recycle_log_file_num=0
+          num_reserved_small_compaction_threads=0
+          random_access_max_buffer_size=1048576
+          use_fsync=false
+          max_open_files=5000
+          skip_stats_update_on_db_open=false
+          max_background_compactions=1
+          error_if_exists=false
+          manifest_preallocation_size=65536
+          max_background_flushes=1
+          is_fd_close_on_exec=true
+          advise_random_on_open=true
+          create_missing_column_families=false
+          delete_obsolete_files_period_micros=21600000000
+          create_if_missing=true
+          disable_data_sync=false
+          log_file_time_to_roll=0
+          compaction_readahead_size=0
+          use_adaptive_mutex=false
+          enable_thread_tracking=false
+          disableDataSync=false
+          allow_fallocate=true
+          skip_log_error_on_recovery=false
+          allow_mmap_reads=false
+          fail_if_options_file_error=false
+          allow_os_buffer=true
+          wal_recovery_mode=kTolerateCorruptedTailRecords
+          db_log_dir=
+          new_table_reader_for_compaction_inputs=false
+          base_background_compactions=1
+          allow_mmap_writes=false
+
+        [CFOptions "default"]
+          compaction_style=kCompactionStyleUniversal
+          merge_operator=nullptr
+          compaction_filter=nullptr
+          num_levels=1
+          table_factory=BlockBasedTable
+          comparator=leveldb.BytewiseComparator
+          max_sequential_skip_in_iterations=8
+          soft_rate_limit=0
+          max_bytes_for_level_base=10485760
+          soft_pending_compaction_bytes_limit=0
+          memtable_prefix_bloom_probes=6
+          memtable_prefix_bloom_bits=0
+          memtable_prefix_bloom_huge_page_tlb_size=0
+          max_successive_merges=0
+          arena_block_size=65536
+          min_write_buffer_number_to_merge=1
+          target_file_size_multiplier=1
+          source_compaction_factor=1
+          compression_per_level=
+          max_bytes_for_level_multiplier=10
+          compaction_filter_factory=DocDBIntentsCompactionFilterFactory
+          max_write_buffer_number=2
+          level0_stop_writes_trigger=2147483647
+          compression=kSnappyCompression
+          level0_file_num_compaction_trigger=5
+          purge_redundant_kvs_while_flush=true
+          max_write_buffer_number_to_maintain=0
+          memtable_factory=SkipListFactory
+          max_grandparent_overlap_factor=10
+          expanded_compaction_factor=25
+          hard_pending_compaction_bytes_limit=0
+          inplace_update_num_locks=10000
+          level0_slowdown_writes_trigger=2147483647
+          level_compaction_dynamic_level_bytes=false
+          filter_deletes=false
+          verify_checksums_in_compaction=true
+          min_partial_merge_operands=2
+          paranoid_file_checks=false
+          target_file_size_base=2097152
+          optimize_filters_for_hits=false
+          compaction_measure_io_stats=false
+          prefix_extractor=nullptr
+          bloom_locality=0
+          write_buffer_size=134217728
+          disable_auto_compactions=false
+          inplace_update_support=false
+          [TableOptions/BlockBasedTable "default"]
+          format_version=2
+          whole_key_filtering=true
+          index_block_size=32768
+          index_block_restart_interval=1
+          block_size_deviation=10
+          hash_index_allow_collision=true
+          filter_block_size=65536
+          min_keys_per_index_block=100
+          block_size=32768
+          block_restart_interval=16
+          skip_table_builder_flush=false
+          filter_policy=DocKeyV3Filter
+          no_block_cache=false
+          checksum=kCRC32c
+          cache_index_and_filter_blocks=true
+          index_type=kMultiLevelBinarySearch
+          flush_block_policy_factory=FlushBlockBySizePolicyFactory
+          </pre>
+        <h3>Files</h3>
+        <pre>
+        </pre>
+    <div class='yb-bottom-spacer'></div></div>
+        "#.to_string();
+        let result = AllTablets::parse_tablet_detail_rocksdb(tablets);
+
+        assert_eq!(result.regular_options.len(), 1);
+        assert_eq!(result.regular_files.len(), 0);
+        assert_eq!(result.regular_files_detail.len(), 0);
+        assert_eq!(result.intents_options.len(), 1);
+        assert_eq!(result.intents_files.len(), 0);
+        assert_eq!(result.intents_files_detail.len(), 0);
+    }
+
+    #[test]
+    fn unit_parse_tablet_detail_rocksdb_files_regular() {
+        let tablets = r#"
+    <div class='yb-main container-fluid'><h1>RocksDB for Tablet 08372aa6c40c4a0c89dd3692f0b09563</h1>
+        <h2>Regular</h2>
+        <input type="checkbox" id="322d9a493f9fc182334907c0a5d5f1ad" class="yb-collapsible-cb"/><label for="322d9a493f9fc182334907c0a5d5f1ad"><h3>Options</h3></label>
+        <pre>
+        [Version]
+          yugabyte_version=version 2.17.1.0 build 439 revision 8a09a531b55a0564fc186f69e93d5c56fb0f8b67 build_type RELEASE built at 03 Feb 2023 22:14:11 UTC
+
+        [DBOptions]
+          max_file_size_for_compaction=94034441347424
+          info_log_level=INFO_LEVEL
+          access_hint_on_compaction_start=NORMAL
+          write_thread_max_yield_usec=100
+          write_thread_slow_yield_usec=3
+          enable_write_thread_adaptive_yield=false
+          max_log_file_size=0
+          stats_dump_period_sec=600
+          max_manifest_file_size=18446744073709551615
+          bytes_per_sync=1048576
+          delayed_write_rate=2097152
+          WAL_ttl_seconds=0
+          allow_concurrent_memtable_write=false
+          paranoid_checks=true
+          writable_file_max_buffer_size=1048576
+          WAL_size_limit_MB=0
+          max_subcompactions=1
+          wal_dir=/mnt/d0/yb-data/tserver/data/rocksdb/table-000033e8000030008000000000004000/tablet-08372aa6c40c4a0c89dd3692f0b09563
+          wal_bytes_per_sync=0
+          max_total_wal_size=0
+          db_write_buffer_size=0
+          keep_log_file_num=1000
+          table_cache_numshardbits=4
+          compaction_size_threshold_bytes=2147483648
+          max_file_opening_threads=1
+          initial_seqno=1125899906842624
+          recycle_log_file_num=0
+          num_reserved_small_compaction_threads=0
+          random_access_max_buffer_size=1048576
+          use_fsync=false
+          max_open_files=5000
+          skip_stats_update_on_db_open=false
+          max_background_compactions=1
+          error_if_exists=false
+          manifest_preallocation_size=65536
+          max_background_flushes=1
+          is_fd_close_on_exec=true
+          advise_random_on_open=true
+          create_missing_column_families=false
+          delete_obsolete_files_period_micros=21600000000
+          create_if_missing=true
+          disable_data_sync=false
+          log_file_time_to_roll=0
+          compaction_readahead_size=0
+          use_adaptive_mutex=false
+          enable_thread_tracking=false
+          disableDataSync=false
+          allow_fallocate=true
+          skip_log_error_on_recovery=false
+          allow_mmap_reads=false
+          fail_if_options_file_error=false
+          allow_os_buffer=true
+          wal_recovery_mode=kTolerateCorruptedTailRecords
+          db_log_dir=
+          new_table_reader_for_compaction_inputs=false
+          base_background_compactions=1
+          allow_mmap_writes=false
+
+        [CFOptions "default"]
+          compaction_style=kCompactionStyleUniversal
+          merge_operator=nullptr
+          compaction_filter=nullptr
+          num_levels=1
+          table_factory=BlockBasedTable
+          comparator=leveldb.BytewiseComparator
+          max_sequential_skip_in_iterations=8
+          soft_rate_limit=0
+          max_bytes_for_level_base=10485760
+          soft_pending_compaction_bytes_limit=0
+          memtable_prefix_bloom_probes=6
+          memtable_prefix_bloom_bits=0
+          memtable_prefix_bloom_huge_page_tlb_size=0
+          max_successive_merges=0
+          arena_block_size=65536
+          min_write_buffer_number_to_merge=1
+          target_file_size_multiplier=1
+          source_compaction_factor=1
+          compression_per_level=
+          max_bytes_for_level_multiplier=10
+          compaction_filter_factory=nullptr
+          max_write_buffer_number=2
+          level0_stop_writes_trigger=2147483647
+          compression=kSnappyCompression
+          level0_file_num_compaction_trigger=5
+          purge_redundant_kvs_while_flush=true
+          max_write_buffer_number_to_maintain=0
+          memtable_factory=SkipListFactory
+          max_grandparent_overlap_factor=10
+          expanded_compaction_factor=25
+          hard_pending_compaction_bytes_limit=0
+          inplace_update_num_locks=10000
+          level0_slowdown_writes_trigger=2147483647
+          level_compaction_dynamic_level_bytes=false
+          filter_deletes=false
+          verify_checksums_in_compaction=true
+          min_partial_merge_operands=2
+          paranoid_file_checks=false
+          target_file_size_base=2097152
+          optimize_filters_for_hits=false
+          compaction_measure_io_stats=false
+          prefix_extractor=nullptr
+          bloom_locality=0
+          write_buffer_size=134217728
+          disable_auto_compactions=false
+          inplace_update_support=false
+          [TableOptions/BlockBasedTable "default"]
+          format_version=2
+          whole_key_filtering=true
+          index_block_size=32768
+          index_block_restart_interval=1
+          block_size_deviation=10
+          hash_index_allow_collision=true
+          filter_block_size=65536
+          min_keys_per_index_block=100
+          block_size=32768
+          block_restart_interval=16
+          skip_table_builder_flush=false
+          filter_policy=DocKeyV3Filter
+          no_block_cache=false
+          checksum=kCRC32c
+          cache_index_and_filter_blocks=true
+          index_type=kMultiLevelBinarySearch
+          flush_block_policy_factory=FlushBlockBySizePolicyFactory
+          </pre>
+        <h3>Files</h3>
+        <pre>
+        { total_size: 1616571 base_size: 71889 uncompressed_size: 10043418 name_id: 84 db_path: /mnt/d0/yb-data/tserver/data/rocksdb/table-000033e8000030008000000000004000/tablet-08372aa6c40c4a0c89dd3692f0b09563 imported: 0 being_compacted: 0 column_family_name: default level: 0 smallest: { seqno: 1125899907442631 user_frontier: 0x000055861aecfc00 -> { op_id: 5.1643 hybrid_time: { physical: 1676022333759183 } history_cutoff: <invalid> hybrid_time_filter: <invalid> max_value_level_ttl_expiration_time: <invalid> primary_schema_version: <NULL> cotable_schema_versions: [] } } largest: { seqno: 1125899907510063 user_frontier: 0x000055861aecea10 -> { op_id: 5.1643 hybrid_time: { physical: 1676022333818649 } history_cutoff: <invalid> hybrid_time_filter: <invalid> max_value_level_ttl_expiration_time: <invalid> primary_schema_version: <NULL> cotable_schema_versions: [] } } }
+        { total_size: 4813130 base_size: 148559 uncompressed_size: 29723903 name_id: 83 db_path: /mnt/d0/yb-data/tserver/data/rocksdb/table-000033e8000030008000000000004000/tablet-08372aa6c40c4a0c89dd3692f0b09563 imported: 0 being_compacted: 0 column_family_name: default level: 0 smallest: { seqno: 1125899907242629 user_frontier: 0x000055861987a310 -> { op_id: 5.1643 hybrid_time: { physical: 1676022333759183 } history_cutoff: <invalid> hybrid_time_filter: <invalid> max_value_level_ttl_expiration_time: <invalid> primary_schema_version: <NULL> cotable_schema_versions: [] } } largest: { seqno: 1125899907442630 user_frontier: 0x000055861987bb20 -> { op_id: 5.1643 hybrid_time: { physical: 1676022333818649 } history_cutoff: <invalid> hybrid_time_filter: <invalid> max_value_level_ttl_expiration_time: <invalid> primary_schema_version: <NULL> cotable_schema_versions: [] } } }
+        { total_size: 4746155 base_size: 148554 uncompressed_size: 29723642 name_id: 82 db_path: /mnt/d0/yb-data/tserver/data/rocksdb/table-000033e8000030008000000000004000/tablet-08372aa6c40c4a0c89dd3692f0b09563 imported: 0 being_compacted: 0 column_family_name: default level: 0 smallest: { seqno: 1125899907042627 user_frontier: 0x000055861987b3b0 -> { op_id: 5.1643 hybrid_time: { physical: 1676022333759183 } history_cutoff: <invalid> hybrid_time_filter: <invalid> max_value_level_ttl_expiration_time: <invalid> primary_schema_version: <NULL> cotable_schema_versions: [] } } largest: { seqno: 1125899907242628 user_frontier: 0x000055861987acb0 -> { op_id: 5.1643 hybrid_time: { physical: 1676022333818649 } history_cutoff: <invalid> hybrid_time_filter: <invalid> max_value_level_ttl_expiration_time: <invalid> primary_schema_version: <NULL> cotable_schema_versions: [] } } }
+        { total_size: 4811702 base_size: 148618 uncompressed_size: 29690683 name_id: 80 db_path: /mnt/d0/yb-data/tserver/data/rocksdb/table-000033e8000030008000000000004000/tablet-08372aa6c40c4a0c89dd3692f0b09563 imported: 0 being_compacted: 0 column_family_name: default level: 0 smallest: { seqno: 1125899906842625 user_frontier: 0x000055861aecf500 -> { op_id: 5.1643 hybrid_time: { physical: 1676022333759183 } history_cutoff: <invalid> hybrid_time_filter: <invalid> max_value_level_ttl_expiration_time: <invalid> primary_schema_version: <NULL> cotable_schema_versions: [] } } largest: { seqno: 1125899907042626 user_frontier: 0x000055861987bc70 -> { op_id: 5.1643 hybrid_time: { physical: 1676022333818649 } history_cutoff: <invalid> hybrid_time_filter: <invalid> max_value_level_ttl_expiration_time: <invalid> primary_schema_version: <NULL> cotable_schema_versions: [] } } }
+        </pre>
+        <h3>/mnt/d0/yb-data/tserver/data/rocksdb/table-000033e8000030008000000000004000/tablet-08372aa6c40c4a0c89dd3692f0b09563/000080.sst properties</h3>
+        <pre># data blocks=807
+        # data index blocks=1
+        # filter blocks=2
+        # entries=200002
+        raw key size=6767057
+        raw average key size=33.8349466505335
+        raw value size=22775008
+        raw average value size=113.873901260987
+        data blocks total size=4663084
+        data index size=25451
+        filter blocks total size=130964
+        filter index block size=40
+        (estimated) table size=4819499
+        filter policy name=DocKeyV3Filter
+        </pre>
+        <h3>/mnt/d0/yb-data/tserver/data/rocksdb/table-000033e8000030008000000000004000/tablet-08372aa6c40c4a0c89dd3692f0b09563/000082.sst properties</h3>
+        <pre># data blocks=807
+        # data index blocks=1
+        # filter blocks=2
+        # entries=200002
+        raw key size=6800080
+        raw average key size=34.0000599994
+        raw value size=22775008
+        raw average value size=113.873901260987
+        data blocks total size=4597601
+        data index size=25447
+        filter blocks total size=130964
+        filter index block size=41
+        (estimated) table size=4754012
+        filter policy name=DocKeyV3Filter
+        </pre>
+        <h3>/mnt/d0/yb-data/tserver/data/rocksdb/table-000033e8000030008000000000004000/tablet-08372aa6c40c4a0c89dd3692f0b09563/000083.sst properties</h3>
+        <pre># data blocks=807
+        # data index blocks=1
+        # filter blocks=2
+        # entries=200002
+        raw key size=6800080
+        raw average key size=34.0000599994
+        raw value size=22775264
+        raw average value size=113.875181248188
+        data blocks total size=4664571
+        data index size=25451
+        filter blocks total size=130964
+        filter index block size=41
+        (estimated) table size=4820986
+        filter policy name=DocKeyV3Filter
+        </pre>
+        <h3>/mnt/d0/yb-data/tserver/data/rocksdb/table-000033e8000030008000000000004000/tablet-08372aa6c40c4a0c89dd3692f0b09563/000084.sst properties</h3>
+        <pre># data blocks=272
+        # data index blocks=1
+        # filter blocks=1
+        # entries=67433
+        raw key size=2292728
+        raw average key size=34.000088977207
+        raw value size=7678801
+        raw average value size=113.873044355138
+        data blocks total size=1544682
+        data index size=8427
+        filter blocks total size=65482
+        filter index block size=22
+        (estimated) table size=1618591
+        filter policy name=DocKeyV3Filter
+        </pre>
+        <h2>Intents</h2>
+        <input type="checkbox" id="6a82c850eaa2709293452bc20741f09e" class="yb-collapsible-cb"/><label for="6a82c850eaa2709293452bc20741f09e"><h3>Options</h3></label>
+        <pre>
+        [Version]
+          yugabyte_version=version 2.17.1.0 build 439 revision 8a09a531b55a0564fc186f69e93d5c56fb0f8b67 build_type RELEASE built at 03 Feb 2023 22:14:11 UTC
+
+        [DBOptions]
+          max_file_size_for_compaction=94034441347424
+          info_log_level=INFO_LEVEL
+          access_hint_on_compaction_start=NORMAL
+          write_thread_max_yield_usec=100
+          write_thread_slow_yield_usec=3
+          enable_write_thread_adaptive_yield=false
+          max_log_file_size=0
+          stats_dump_period_sec=600
+          max_manifest_file_size=18446744073709551615
+          bytes_per_sync=1048576
+          delayed_write_rate=2097152
+          WAL_ttl_seconds=0
+          allow_concurrent_memtable_write=false
+          paranoid_checks=true
+          writable_file_max_buffer_size=1048576
+          WAL_size_limit_MB=0
+          max_subcompactions=1
+          wal_dir=/mnt/d0/yb-data/tserver/data/rocksdb/table-000033e8000030008000000000004000/tablet-08372aa6c40c4a0c89dd3692f0b09563.intents
+          wal_bytes_per_sync=0
+          max_total_wal_size=0
+          db_write_buffer_size=0
+          keep_log_file_num=1000
+          table_cache_numshardbits=4
+          compaction_size_threshold_bytes=2147483648
+          max_file_opening_threads=1
+          initial_seqno=1125899906842624
+          recycle_log_file_num=0
+          num_reserved_small_compaction_threads=0
+          random_access_max_buffer_size=1048576
+          use_fsync=false
+          max_open_files=5000
+          skip_stats_update_on_db_open=false
+          max_background_compactions=1
+          error_if_exists=false
+          manifest_preallocation_size=65536
+          max_background_flushes=1
+          is_fd_close_on_exec=true
+          advise_random_on_open=true
+          create_missing_column_families=false
+          delete_obsolete_files_period_micros=21600000000
+          create_if_missing=true
+          disable_data_sync=false
+          log_file_time_to_roll=0
+          compaction_readahead_size=0
+          use_adaptive_mutex=false
+          enable_thread_tracking=false
+          disableDataSync=false
+          allow_fallocate=true
+          skip_log_error_on_recovery=false
+          allow_mmap_reads=false
+          fail_if_options_file_error=false
+          allow_os_buffer=true
+          wal_recovery_mode=kTolerateCorruptedTailRecords
+          db_log_dir=
+          new_table_reader_for_compaction_inputs=false
+          base_background_compactions=1
+          allow_mmap_writes=false
+
+        [CFOptions "default"]
+          compaction_style=kCompactionStyleUniversal
+          merge_operator=nullptr
+          compaction_filter=nullptr
+          num_levels=1
+          table_factory=BlockBasedTable
+          comparator=leveldb.BytewiseComparator
+          max_sequential_skip_in_iterations=8
+          soft_rate_limit=0
+          max_bytes_for_level_base=10485760
+          soft_pending_compaction_bytes_limit=0
+          memtable_prefix_bloom_probes=6
+          memtable_prefix_bloom_bits=0
+          memtable_prefix_bloom_huge_page_tlb_size=0
+          max_successive_merges=0
+          arena_block_size=65536
+          min_write_buffer_number_to_merge=1
+          target_file_size_multiplier=1
+          source_compaction_factor=1
+          compression_per_level=
+          max_bytes_for_level_multiplier=10
+          compaction_filter_factory=DocDBIntentsCompactionFilterFactory
+          max_write_buffer_number=2
+          level0_stop_writes_trigger=2147483647
+          compression=kSnappyCompression
+          level0_file_num_compaction_trigger=5
+          purge_redundant_kvs_while_flush=true
+          max_write_buffer_number_to_maintain=0
+          memtable_factory=SkipListFactory
+          max_grandparent_overlap_factor=10
+          expanded_compaction_factor=25
+          hard_pending_compaction_bytes_limit=0
+          inplace_update_num_locks=10000
+          level0_slowdown_writes_trigger=2147483647
+          level_compaction_dynamic_level_bytes=false
+          filter_deletes=false
+          verify_checksums_in_compaction=true
+          min_partial_merge_operands=2
+          paranoid_file_checks=false
+          target_file_size_base=2097152
+          optimize_filters_for_hits=false
+          compaction_measure_io_stats=false
+          prefix_extractor=nullptr
+          bloom_locality=0
+          write_buffer_size=134217728
+          disable_auto_compactions=false
+          inplace_update_support=false
+          [TableOptions/BlockBasedTable "default"]
+          format_version=2
+          whole_key_filtering=true
+          index_block_size=32768
+          index_block_restart_interval=1
+          block_size_deviation=10
+          hash_index_allow_collision=true
+          filter_block_size=65536
+          min_keys_per_index_block=100
+          block_size=32768
+          block_restart_interval=16
+          skip_table_builder_flush=false
+          filter_policy=DocKeyV3Filter
+          no_block_cache=false
+          checksum=kCRC32c
+          cache_index_and_filter_blocks=true
+          index_type=kMultiLevelBinarySearch
+          flush_block_policy_factory=FlushBlockBySizePolicyFactory
+          </pre>
+        <h3>Files</h3>
+        <pre>
+        </pre>
+    <div class='yb-bottom-spacer'></div></div>
+        "#.to_string();
+        let result = AllTablets::parse_tablet_detail_rocksdb(tablets);
+
+        assert_eq!(result.regular_options.len(), 1);
+        assert_eq!(result.regular_files.len(), 4);
+        assert_eq!(result.regular_files_detail.len(), 4);
+        assert_eq!(result.intents_options.len(), 1);
+        assert_eq!(result.intents_files.len(), 0);
+        assert_eq!(result.intents_files_detail.len(), 0);
+    }
 
     #[tokio::test]
-    async fn integration_parse_master_tables() {
-        let hostname = utility::get_hostname_master();
-        let port = utility::get_port_master();
+    async fn integration_parse_tablets() {
+        let hostname = utility::get_hostname_tserver();
+        let port = utility::get_port_tserver();
 
-        let alltables = AllTables::read_tables(&vec![&hostname], &vec![&port], 1).await;
-        // the master returns more than one thread.
-        assert!(alltables.table.len() > 1);
+        let alltablets = AllTablets::read_tablets(&vec![&hostname], &vec![&port], 1, &true).await;
+        // the tablet server returns more than one tablet.
+        assert!(alltablets.tablet.len() > 0);
     }
-
-     */
 }

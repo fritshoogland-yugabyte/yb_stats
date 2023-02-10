@@ -63,6 +63,7 @@ impl AllVersions {
 
         for version in rx.iter().filter( |r| !r.git_hash.is_empty() )
         {
+            debug!("{:?}", version);
             allversions.versions.push(version);
         }
 
@@ -84,7 +85,7 @@ impl AllVersions {
     {
         serde_json::from_str(&http_data)
             .unwrap_or_else( |e| {
-                debug!("({}:{}) could not parse /api/v1/versions json data for versions, error: {}", host, port ,e);
+                debug!("({}:{}) could not parse /api/v1/version json data for versions, error: {}", host, port ,e);
                 Version::default()
             })
     }
@@ -218,7 +219,6 @@ impl VersionsDiff {
             // is the a "first" entry empty, indicating it appeared between snapshots
             else if row.first_git_hash.is_empty()
             {
-                //print!("{} {:20} Versions: ", "+".to_string().green(), hostname);
                 print!("{} Versions: {:20}", "+".to_string().green(), hostname);
                 println!("{} b{} {} {} {}",
                          row.second_version_number,
@@ -231,7 +231,6 @@ impl VersionsDiff {
             // is a "second" entry empty, indicating it disappeared between snapshots
             else if row.second_git_hash.is_empty()
             {
-                //print!("{} {:20} Versions: ", "-".to_string().red(), hostname);
                 print!("{} Versions: {:20}", "-".to_string().red(), hostname);
                 println!("{} b{} {} {} {}",
                          row.first_version_number,
@@ -244,7 +243,6 @@ impl VersionsDiff {
             else
             {
                 // first and second fields are set, but not equal: changed versions
-                //print!("{} {:20} Versions: ", "*".to_string().yellow(), hostname);
                 print!("{} Versions: {:20} ", "=".to_string().yellow(), hostname);
                 if row.first_version_number != row.second_version_number
                 {

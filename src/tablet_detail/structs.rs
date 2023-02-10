@@ -37,9 +37,9 @@ pub struct TabletDetail {
     pub tablet_id: String,
     pub columns: Vec<Option<Column>>,
     pub consensus_status: ConsensusStatus,
-    //pub tabletloganchor: Vec<Option<TabletLogAnchor>>,
-    //pub transactions: Vec<Option<Transactions>>,
-    //pub rocksdb: Vec<Option<RocksDb>>,
+    pub tabletloganchor: TabletLogAnchor,
+    pub transactions: Transactions,
+    pub rocksdb: RocksDb,
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]
@@ -70,4 +70,30 @@ pub struct Message {
     pub message_type: String,
     pub size: String,
     pub status: String,
+}
+
+#[derive(Default, Debug, Serialize, Deserialize)]
+pub struct TabletLogAnchor {
+    pub loganchor: Vec<String>,
+}
+
+#[derive(Default, Debug, Serialize, Deserialize)]
+pub struct Transactions {
+    pub transactions: Vec<String>,
+}
+
+#[derive(Default, Debug, Serialize, Deserialize)]
+pub struct RocksDb {
+    pub regular_options: Vec<String>,
+    pub regular_files: Vec<String>,
+    pub regular_files_detail: Vec<RocksDbFile>,
+    pub intents_options: Vec<String>,
+    pub intents_files: Vec<String>,
+    pub intents_files_detail: Vec<RocksDbFile>,
+}
+
+#[derive(Default, Debug, Serialize, Deserialize)]
+pub struct RocksDbFile {
+    pub filename: String,
+    pub details: Vec<String>,
 }

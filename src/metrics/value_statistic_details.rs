@@ -1583,13 +1583,17 @@ impl ValueStatistics {
         table.insert("threads_running", "threads","gauge");
         table.insert("threads_running_CQLServer_reactor", "threads","gauge");
         table.insert("threads_running_Master_reactor", "threads","gauge");
+        table.insert("threads_running_RedisServer_reactor","threads","gauge"); // 2.17.1
         table.insert("threads_running_TabletServer_reactor", "threads","gauge");
         table.insert("threads_running_acceptor", "threads","gauge");
+        table.insert("threads_running_auto_flags_client_reactor","threads","gauge"); // 2.17.1
         table.insert("threads_running_catalog_manager", "threads","gauge");
         table.insert("threads_running_heartbeater", "threads","gauge");
         table.insert("threads_running_iotp_CQLServer", "threads","gauge");
         table.insert("threads_running_iotp_Master", "threads","gauge");
+        table.insert("threads_running_iotp_RedisServer","threads","gauge"); // 2.17.1
         table.insert("threads_running_iotp_TabletServer", "threads","gauge");
+        table.insert("threads_running_iotp_auto_flags_client","threads","gauge"); // 2.17.1
         table.insert("threads_running_iotp_call_home", "threads","gauge");
         table.insert("threads_running_maintenance", "threads","gauge");
         table.insert("threads_running_pg_supervisor", "threads","gauge");
@@ -1603,6 +1607,7 @@ impl ValueStatistics {
         table.insert("threads_started", "threads","counter");
         table.insert("threads_started_CQLServer_reactor", "threads","counter");
         table.insert("threads_started_Master_reactor", "threads","counter");
+        table.insert("threads_started_RedisServer_reactor","threads","counter"); // 2.17.1
         table.insert("threads_started_TabletServer_reactor", "threads","gauge");
         table.insert("threads_started_acceptor", "threads","counter");
         table.insert("threads_started_auto_flags_client_reactor", "threads","counter"); // 2.15.2.1
@@ -1610,6 +1615,7 @@ impl ValueStatistics {
         table.insert("threads_started_heartbeater", "threads","counter");
         table.insert("threads_started_iotp_CQLServer", "threads","counter");
         table.insert("threads_started_iotp_Master", "threads","counter");
+        table.insert("threads_started_iotp_RedisServer","threads","counter"); // 2.17.1
         table.insert("threads_started_iotp_TabletServer", "threads","counter");
         table.insert("threads_started_iotp_auto_flags_client", "threads","counter"); // 2.15.2.1
         table.insert("threads_started_iotp_call_home", "threads","counter");
@@ -1617,7 +1623,7 @@ impl ValueStatistics {
         table.insert("threads_started_pg_supervisor", "threads","counter");
         table.insert("threads_started_remote_bootstrap", "threads","counter");
         table.insert("threads_started_remote_maintenance", "threads","counter");
-        table.insert("threads_started_rocksdb:high", "threads","gauge");
+        table.insert("threads_started_rocksdb:high", "threads","counter");
         table.insert("threads_started_rpc_thread_pool", "threads","counter");
         table.insert("threads_started_tablet_manager", "threads","counter");
         table.insert("threads_started_tablet_split_manager", "threads","counter");
@@ -1639,6 +1645,7 @@ impl ValueStatistics {
         table.insert("voluntary_context_switches", "context switches","counter");
         table.insert("write_operations_inflight", "operations","gauge");
         table.insert("yb_cqlserver_CQLServerService_ParsingErrors", "requests","counter");
+
         table
     }
     /// Insert a row into the HashMap

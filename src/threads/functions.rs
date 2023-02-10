@@ -137,18 +137,17 @@ impl AllThreads {
             match table
             {
                 th
-                if th.select(&th_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Thread name"
-                    && th.select(&th_selector).nth(1).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Cumulative User CPU(s)"
-                    && th.select(&th_selector).nth(2).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Cumulative Kernel CPU(s)"
-                    && th.select(&th_selector).nth(3).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Cumulative IO-wait(s)" =>
+                if th.select(&th_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Thread name"
+                    && th.select(&th_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Cumulative User CPU(s)"
+                    && th.select(&th_selector).nth(2).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Cumulative Kernel CPU(s)"
+                    && th.select(&th_selector).nth(3).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Cumulative IO-wait(s)" =>
                     {
                         // The first row contains the table headings, so we skip the first row.
                         for tr in table.select(&tr_selector).skip(1)
                         {
                             // check if we got a fourth column or not for changing the stack variable
-                            match tr.select(&td_selector).nth(4)
+                            if let Some(found_stack) = tr.select(&td_selector).nth(4)
                             {
-                                Some(found_stack) => {
                                     // if so, we collect the stack, and replace some HTMLisms to the correct characters.
                                     let original_stack = found_stack.text().collect::<String>().replace("&lt;", "<").replace("&gt;", ">");
                                     // This code collects the functions printed in the backtrace based on a regular expression into a vector.
@@ -162,16 +161,12 @@ impl AllThreads {
                                     }
                                     stack_vec.reverse();
                                     stack = stack_vec.join(";");
-                                }
-                                None => {
-                                    // This entry has no stack table row, so we reuse the previous stack.
-                                }
                             }
                             threads.push( Threads{
-                                thread_name: tr.select(&td_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default(),
-                                cumulative_user_cpu_s: tr.select(&td_selector).nth(1).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default(),
-                                cumulative_kernel_cpu_s: tr.select(&td_selector).nth(2).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default(),
-                                cumulative_iowait_cpu_s: tr.select(&td_selector).nth(3).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default(),
+                                thread_name: tr.select(&td_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                cumulative_user_cpu_s: tr.select(&td_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                cumulative_kernel_cpu_s: tr.select(&td_selector).nth(2).map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                cumulative_iowait_cpu_s: tr.select(&td_selector).nth(3).map(|row| row.text().collect::<String>()).unwrap_or_default(),
                                 stack: stack.clone(),
                                 ..Default::default()
                             })

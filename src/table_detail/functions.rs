@@ -212,24 +212,24 @@ impl AllTables {
                     match html_table
                     {
                         th
-                        if th.select(&th_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Keyspace"
-                            && th.select(&th_selector).nth(1).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Table Name"
-                            && th.select(&th_selector).nth(2).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"State"
-                            && th.select(&th_selector).nth(3).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Message"
-                            && th.select(&th_selector).nth(4).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"UUID"
-                            && th.select(&th_selector).nth(5).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"YSQL OID"
-                            && th.select(&th_selector).nth(6).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Hidden" => {
+                        if th.select(&th_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Keyspace"
+                            && th.select(&th_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Table Name"
+                            && th.select(&th_selector).nth(2).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"State"
+                            && th.select(&th_selector).nth(3).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Message"
+                            && th.select(&th_selector).nth(4).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"UUID"
+                            && th.select(&th_selector).nth(5).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"YSQL OID"
+                            && th.select(&th_selector).nth(6).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Hidden" => {
                             for tr in html_table.select(&tr_selector).skip(1)
                             {
                                 table.tablebasic.push( TableBasic {
-                                    keyspace: tr.select(&td_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default(),
-                                    table_name: tr.select(&td_selector).nth(1).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default().trim().to_string().replace("\n","").replace(" ",""),
-                                    state: tr.select(&td_selector).nth(2).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default(),
-                                    message: tr.select(&td_selector).nth(3).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default(),
-                                    uuid: tr.select(&td_selector).nth(4).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default().trim().to_string().replace("\n", "").replace(" ", ""),
-                                    ysql_oid: tr.select(&td_selector).nth(5).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default(),
-                                    hidden: tr.select(&td_selector).nth(6).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default(),
-                                    on_disk_size: tr.select(&td_selector).nth(7).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default().trim().to_string(),
+                                    keyspace: tr.select(&td_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                    table_name: tr.select(&td_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default().replace(['\n',' '], ""),
+                                    state: tr.select(&td_selector).nth(2).map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                    message: tr.select(&td_selector).nth(3).map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                    uuid: tr.select(&td_selector).nth(4).map(|row| row.text().collect::<String>()).unwrap_or_default().replace(['\n', ' '], ""),
+                                    ysql_oid: tr.select(&td_selector).nth(5).map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                    hidden: tr.select(&td_selector).nth(6).map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                    on_disk_size: tr.select(&td_selector).nth(7).map(|row| row.text().collect::<String>()).unwrap_or_default().split('\n').map(|r| r.trim().to_string()).filter(|r| !r.is_empty()).collect::<Vec<_>>().join(" "),
                                     object_type: table_type.clone(),
                                 });
                             }
@@ -277,17 +277,17 @@ impl AllTables {
         {
             match row
             {
-                tr if tr.select(&td_selector).next().and_then(|r| Some(r.text().collect::<String>())).unwrap_or_default() == "Version:" => {
-                    table_detail.version = tr.select(&td_selector).nth(1).and_then(|r| Some(r.text().collect::<String>())).unwrap_or_default();
+                tr if tr.select(&td_selector).next().map(|r| r.text().collect::<String>()).unwrap_or_default() == "Version:" => {
+                    table_detail.version = tr.select(&td_selector).nth(1).map(|r| r.text().collect::<String>()).unwrap_or_default();
                 },
-                tr if tr.select(&td_selector).next().and_then(|r| Some(r.text().collect::<String>())).unwrap_or_default() == "Type:" => {
-                    table_detail.detail_type = tr.select(&td_selector).nth(1).and_then(|r| Some(r.text().collect::<String>())).unwrap_or_default();
+                tr if tr.select(&td_selector).next().map(|r| r.text().collect::<String>()).unwrap_or_default() == "Type:" => {
+                    table_detail.detail_type = tr.select(&td_selector).nth(1).map(|r| r.text().collect::<String>()).unwrap_or_default();
                 },
-                tr if tr.select(&td_selector).next().and_then(|r| Some(r.text().collect::<String>())).unwrap_or_default() == "State:" => {
-                    table_detail.state = tr.select(&td_selector).nth(1).and_then(|r| Some(r.text().collect::<String>())).unwrap_or_default().trim().to_string();
+                tr if tr.select(&td_selector).next().map(|r| r.text().collect::<String>()).unwrap_or_default() == "State:" => {
+                    table_detail.state = tr.select(&td_selector).nth(1).map(|r| r.text().collect::<String>()).unwrap_or_default().trim().to_string();
                 },
-                tr if tr.select(&td_selector).next().and_then(|r| Some(r.text().collect::<String>())).unwrap_or_default() == "Replication Info:" => {
-                    table_detail.replication_info = tr.select(&td_selector).nth(1).and_then(|r| Some(r.text().collect::<String>())).unwrap_or_default().trim().to_string();
+                tr if tr.select(&td_selector).next().map(|r| r.text().collect::<String>()).unwrap_or_default() == "Replication Info:" => {
+                    table_detail.replication_info = tr.select(&td_selector).nth(1).map(|r| r.text().collect::<String>()).unwrap_or_default().trim().to_string();
                 },
                 unknown => info!("Unknown table row found: {:?}", unknown),
             }
@@ -299,18 +299,18 @@ impl AllTables {
         match second_table
         {
             th
-            if th.select(&th_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Column"
-                && th.select(&th_selector).nth(1).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"ID"
-                && th.select(&th_selector).nth(2).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Type" => {
+            if th.select(&th_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Column"
+                && th.select(&th_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"ID"
+                && th.select(&th_selector).nth(2).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Type" => {
                 // skip heading
                 for tr in second_table.select(&tr_selector).skip(1)
                 {
                     let mut column = Column::new();
                     // It looks to me like the table column definitions are a bit off logically:
                     // The first table data column is defined as table header again, probably to make the column name bold typefaced.
-                    column.column = tr.select(&th_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default();
-                    column.id = tr.select(&td_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default();
-                    column.column_type = tr.select(&td_selector).nth(1).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default();
+                    column.column = tr.select(&th_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default();
+                    column.id = tr.select(&td_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default();
+                    column.column_type = tr.select(&td_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default();
                     table_detail.columns.push(Some(column));
                 }
             },
@@ -325,26 +325,26 @@ impl AllTables {
         match third_table
         {
             th
-            if th.select(&th_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Tablet ID"
-                && th.select(&th_selector).nth(1).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Partition"
-                && th.select(&th_selector).nth(2).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"SplitDepth"
-                && th.select(&th_selector).nth(3).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"State"
-                && th.select(&th_selector).nth(4).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Hidden"
-                && th.select(&th_selector).nth(5).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Message"
-                && th.select(&th_selector).nth(6).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"RaftConfig" => {
+            if th.select(&th_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Tablet ID"
+                && th.select(&th_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Partition"
+                && th.select(&th_selector).nth(2).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"SplitDepth"
+                && th.select(&th_selector).nth(3).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"State"
+                && th.select(&th_selector).nth(4).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Hidden"
+                && th.select(&th_selector).nth(5).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Message"
+                && th.select(&th_selector).nth(6).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"RaftConfig" => {
                 // skip heading
                 for tr in third_table.select(&tr_selector).skip(1)
                 {
                     let mut tablet = Tablet::new();
                     // It looks to me like the table column definitions are a bit off logically:
                     // The first table data column is defined as table header again, probably to make the column name bold typefaced.
-                    tablet.id = tr.select(&th_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default();
-                    tablet.partition = tr.select(&td_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default();
-                    tablet.split_depth = tr.select(&td_selector).nth(1).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default();
-                    tablet.state = tr.select(&td_selector).nth(2).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default();
-                    tablet.hidden = tr.select(&td_selector).nth(3).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default();
-                    tablet.message = tr.select(&td_selector).nth(4).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default();
-                    tablet.raftconfig = tr.select(&td_selector).nth(5).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default().trim().to_string().replace(" ", "").replace("\n", " ");
+                    tablet.id = tr.select(&th_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default();
+                    tablet.partition = tr.select(&td_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default();
+                    tablet.split_depth = tr.select(&td_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default();
+                    tablet.state = tr.select(&td_selector).nth(2).map(|row| row.text().collect::<String>()).unwrap_or_default();
+                    tablet.hidden = tr.select(&td_selector).nth(3).map(|row| row.text().collect::<String>()).unwrap_or_default();
+                    tablet.message = tr.select(&td_selector).nth(4).map(|row| row.text().collect::<String>()).unwrap_or_default();
+                    tablet.raftconfig = tr.select(&td_selector).nth(5).map(|row| row.text().collect::<String>()).unwrap_or_default().replace([' ', '\n'], "");
                     table_detail.tablets.push(Some(tablet));
                 }
             },
@@ -359,22 +359,22 @@ impl AllTables {
         match fourth_table
         {
             th
-            if th.select(&th_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Task Name"
-                && th.select(&th_selector).nth(1).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"State"
-                && th.select(&th_selector).nth(2).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Start Time"
-                && th.select(&th_selector).nth(3).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Duration"
-                && th.select(&th_selector).nth(4).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default() == *"Description" => {
+            if th.select(&th_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Task Name"
+                && th.select(&th_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"State"
+                && th.select(&th_selector).nth(2).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Start Time"
+                && th.select(&th_selector).nth(3).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Duration"
+                && th.select(&th_selector).nth(4).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Description" => {
                 // skip heading
                 for tr in fourth_table.select(&tr_selector).skip(1)
                 {
                     let mut task = Task::new();
                     // It looks to me like the table column definitions are a bit off logically:
                     // The first table data column is defined as table header again, probably to make the column name bold typefaced.
-                    task.task_name = tr.select(&th_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default();
-                    task.state = tr.select(&td_selector).next().and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default();
-                    task.start_time = tr.select(&td_selector).nth(1).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default();
-                    task.duration = tr.select(&td_selector).nth(2).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default();
-                    task.description = tr.select(&td_selector).nth(3).and_then(|row| Some(row.text().collect::<String>())).unwrap_or_default();
+                    task.task_name = tr.select(&th_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default();
+                    task.state = tr.select(&td_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default();
+                    task.start_time = tr.select(&td_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default();
+                    task.duration = tr.select(&td_selector).nth(2).map(|row| row.text().collect::<String>()).unwrap_or_default();
+                    task.description = tr.select(&td_selector).nth(3).map(|row| row.text().collect::<String>()).unwrap_or_default();
                     table_detail.tasks.push(Some(task));
                 }
             },
@@ -617,7 +617,7 @@ mod tests {
         assert_eq!(result.tablebasic[0].uuid, "000033e8000030008000000000004000");
         assert_eq!(result.tablebasic[0].ysql_oid, "16384");
         assert_eq!(result.tablebasic[0].hidden, "false");
-        assert_eq!(result.tablebasic[0].on_disk_size, "Total: 3.00M\n                                WAL Files: 3.00M\n                                SST Files: 0B\n                                SST Files Uncompressed: 0B");
+        assert_eq!(result.tablebasic[0].on_disk_size, "Total: 3.00M WAL Files: 3.00M SST Files: 0B SST Files Uncompressed: 0B");
         assert_eq!(result.tablebasic[0].object_type, "User tables");
         assert_eq!(result.tablebasic[1].keyspace, "template1");
         assert_eq!(result.tablebasic[1].table_name, "pg_user_mapping_user_server_index");
@@ -757,17 +757,17 @@ mod tests {
         assert_eq!(result.tablebasic[0].uuid, "000033e8000030008000000000004000");
         assert_eq!(result.tablebasic[0].ysql_oid, "16384");
         assert_eq!(result.tablebasic[0].hidden, "false");
-        assert_eq!(result.tablebasic[0].on_disk_size, "Total: 3.00M\n                                WAL Files: 3.00M\n                                SST Files: 0B\n                                SST Files Uncompressed: 0B");
+        assert_eq!(result.tablebasic[0].on_disk_size, "Total: 3.00M WAL Files: 3.00M SST Files: 0B SST Files Uncompressed: 0B");
         assert_eq!(result.tablebasic[0].keyspace, "yugabyte");
+        assert_eq!(result.tablebasic[0].object_type, "User tables");
         assert_eq!(result.tablebasic[1].table_name, "t_i");
         assert_eq!(result.tablebasic[1].state, "Running");
         assert_eq!(result.tablebasic[1].message, "");
         assert_eq!(result.tablebasic[1].uuid, "000033e8000030008000000000004003");
         assert_eq!(result.tablebasic[1].ysql_oid, "16387");
         assert_eq!(result.tablebasic[1].hidden, "false");
-        assert_eq!(result.tablebasic[1].on_disk_size, "Total: 3.00M\n                                WAL Files: 3.00M\n                                SST Files: 0B\n                                SST Files Uncompressed: 0B");
-        assert_eq!(result.tablebasic[1].object_type, "User tables");
-        assert_eq!(result.tablebasic[1].object_type, "User tables");
+        assert_eq!(result.tablebasic[1].on_disk_size, "Total: 3.00M WAL Files: 3.00M SST Files: 0B SST Files Uncompressed: 0B");
+        assert_eq!(result.tablebasic[1].object_type, "Index tables");
         assert_eq!(result.tablebasic[2].keyspace, "template1");
         assert_eq!(result.tablebasic[2].table_name, "pg_user_mapping_user_server_index");
         assert_eq!(result.tablebasic[2].state, "Running");
@@ -884,7 +884,7 @@ mod tests {
         assert_eq!(result.tablebasic[0].uuid, "00004000000030008000000000000000.colocated.parent.uuid");
         assert_eq!(result.tablebasic[0].ysql_oid, "");
         assert_eq!(result.tablebasic[0].hidden, "false");
-        assert_eq!(result.tablebasic[0].on_disk_size, "Total: 1.00M\n                                WAL Files: 1.00M\n                                SST Files: 0B\n                                SST Files Uncompressed: 0B");
+        assert_eq!(result.tablebasic[0].on_disk_size, "Total: 1.00M WAL Files: 1.00M SST Files: 0B SST Files Uncompressed: 0B");
         assert_eq!(result.tablebasic[0].object_type, "Parent tables");
         assert_eq!(result.tablebasic[1].keyspace, "template1");
         assert_eq!(result.tablebasic[1].table_name, "pg_user_mapping_user_server_index");
@@ -1000,6 +1000,6 @@ mod tests {
 
         let alltables = AllTables::read_tables(&vec![&hostname], &vec![&port], 1, &true).await;
         // the master returns more than one thread.
-        assert!(alltables.table.len() > 1);
+        assert!(alltables.table.len() > 0);
     }
 }

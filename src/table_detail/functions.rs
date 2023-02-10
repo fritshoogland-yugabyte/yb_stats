@@ -211,6 +211,7 @@ impl AllTables {
                 Some(html_table) => {
                     match html_table
                     {
+                        // Please mind the absence of the seventh column "On-disk size" is deliberate: this doesn't exist for "System tables"
                         th
                         if th.select(&th_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Keyspace"
                             && th.select(&th_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Table Name"
@@ -229,7 +230,7 @@ impl AllTables {
                                     uuid: tr.select(&td_selector).nth(4).map(|row| row.text().collect::<String>()).unwrap_or_default().replace(['\n', ' '], ""),
                                     ysql_oid: tr.select(&td_selector).nth(5).map(|row| row.text().collect::<String>()).unwrap_or_default(),
                                     hidden: tr.select(&td_selector).nth(6).map(|row| row.text().collect::<String>()).unwrap_or_default(),
-                                    on_disk_size: tr.select(&td_selector).nth(7).map(|row| row.text().collect::<String>()).unwrap_or_default().split('\n').map(|r| r.trim().to_string()).filter(|r| !r.is_empty()).collect::<Vec<_>>().join(" "),
+                                    on_disk_size: tr.select(&td_selector).nth(7).map(|row| row.text().collect::<String>()).unwrap_or_default().split('\n').map(|row| row.trim()).filter(|row| !row.is_empty()).collect::<Vec<_>>().join(" "),
                                     object_type: table_type.clone(),
                                 });
                             }
@@ -344,7 +345,7 @@ impl AllTables {
                     tablet.state = tr.select(&td_selector).nth(2).map(|row| row.text().collect::<String>()).unwrap_or_default();
                     tablet.hidden = tr.select(&td_selector).nth(3).map(|row| row.text().collect::<String>()).unwrap_or_default();
                     tablet.message = tr.select(&td_selector).nth(4).map(|row| row.text().collect::<String>()).unwrap_or_default();
-                    tablet.raftconfig = tr.select(&td_selector).nth(5).map(|row| row.text().collect::<String>()).unwrap_or_default().replace([' ', '\n'], "");
+                    tablet.raftconfig = tr.select(&td_selector).nth(5).map(|row| row.text().map(|r| r.trim()).filter(|r| !r.is_empty()).collect::<Vec<_>>()).unwrap_or_default().join(" ");
                     table_detail.tablets.push(Some(tablet));
                 }
             },
@@ -777,6 +778,7 @@ mod tests {
         assert_eq!(result.tablebasic[2].hidden, "false");
         assert_eq!(result.tablebasic[2].on_disk_size, "");
         assert_eq!(result.tablebasic[2].object_type, "System tables");
+        println!("{:#?}", result);
     }
     #[test]
     fn unit_parse_basic_new_no_user_tables_colocated_parent() {
@@ -988,8 +990,25 @@ mod tests {
     </div>
         "#.to_string();
         let result = AllTables::parse_table_detail( tables,"deadbeef");
-        println!("{:#?}", result);
-        //
+
+        assert_eq!(result.version, "0");
+        assert_eq!(result.detail_type, "PGSQL_TABLE_TYPE");
+        assert_eq!(result.state, "Running");
+        assert_eq!(result.replication_info, "");
+        assert_eq!(result.columns[0].as_ref().unwrap().column, "id");
+        assert_eq!(result.columns[0].as_ref().unwrap().id, "0");
+        assert_eq!(result.columns[0].as_ref().unwrap().column_type, "int32 NOT NULL PARTITION KEY");
+        assert_eq!(result.columns[1].as_ref().unwrap().column, "f1");
+        assert_eq!(result.columns[1].as_ref().unwrap().id, "1");
+        assert_eq!(result.columns[1].as_ref().unwrap().column_type, "string NULLABLE NOT A PARTITION KEY");
+        assert_eq!(result.tablets[0].as_ref().unwrap().id, "5a4f24f5159f4c518bf3bcc5e2c4193c");
+        assert_eq!(result.tablets[0].as_ref().unwrap().partition, "hash_split: [0x0000, 0xFFFF]");
+        assert_eq!(result.tablets[0].as_ref().unwrap().split_depth, "0");
+        assert_eq!(result.tablets[0].as_ref().unwrap().state, "Running");
+        assert_eq!(result.tablets[0].as_ref().unwrap().hidden, "false");
+        assert_eq!(result.tablets[0].as_ref().unwrap().message, "Tablet reported with an active leader");
+        assert_eq!(result.tablets[0].as_ref().unwrap().raftconfig, "LEADER: yb-3.local FOLLOWER: yb-1.local FOLLOWER: yb-2.local");
+        assert_eq!(result.tasks.len(), 0);
     }
 
 

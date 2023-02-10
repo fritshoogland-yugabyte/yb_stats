@@ -12,6 +12,7 @@ pub struct AllClocks {
 ///
 /// The fields are parsed from the HTML page /tablet-server-clocks on the master.
 /// From the tablet server table:
+/// ```html
 ///<h2>Tablet Servers</h2>
 /// <table class='table table-striped'>
 ///     <tr>
@@ -32,6 +33,7 @@ pub struct AllClocks {
 ///   <tr>
 ///   <td><a href="http://yb-3.local:9000/">yb-3.local:9000</a></br>  b00600497d314ab1a7f590b91d6c1699</td><td>1.0s</td>    <td style="color:Green">ALIVE: 2:09:21</td>    <td>2023-01-17 14:22:18.025692</td>    <td>2023-01-17 14:22:18.025691</td>    <td>0.41ms</td>    <td>local</td>    <td>local</td>    <td>local3</td>  </tr>
 /// </table>
+/// ```
 ///
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Clocks {

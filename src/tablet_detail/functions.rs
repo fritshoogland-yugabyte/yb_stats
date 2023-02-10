@@ -210,8 +210,8 @@ impl AllTablets {
                                     state: tr.select(&td_selector).nth(5).map(|row| row.text().collect::<String>()).unwrap_or_default(),
                                     hidden: tr.select(&td_selector).nth(6).map(|row| row.text().collect::<String>()).unwrap_or_default(),
                                     num_sst_files: tr.select(&td_selector).nth(7).map(|row| row.text().collect::<String>()).unwrap_or_default(),
-                                    on_disk_size: tr.select(&td_selector).nth(8).map(|row| row.text().collect::<String>()).unwrap_or_default().split('\n').map(|r| r.trim().to_string()).filter(|r| !r.is_empty()).collect::<Vec<_>>().join(" "),
-                                    raftconfig: tr.select(&td_selector).nth(9).map(|row| row.text().collect::<String>()).unwrap_or_default().split('\n').map(|r| r.trim().to_string()).filter(|r| !r.is_empty()).collect::<Vec<_>>().join(" "),
+                                    on_disk_size: tr.select(&td_selector).nth(8).map(|row| row.text().collect::<String>()).unwrap_or_default().split('\n').map(|r| r.trim()).filter(|r| !r.is_empty()).collect::<Vec<_>>().join(" "),
+                                    raftconfig: tr.select(&td_selector).nth(9).map(|row| row.text().collect::<String>()).unwrap_or_default().split('\n').map(|r| r.trim()).filter(|r| !r.is_empty()).collect::<Vec<_>>().join(" "),
                                     last_status: tr.select(&td_selector).nth(10).map(|row| row.text().collect::<String>()).unwrap_or_default(),
                                 });
                             }

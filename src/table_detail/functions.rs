@@ -778,7 +778,6 @@ mod tests {
         assert_eq!(result.tablebasic[2].hidden, "false");
         assert_eq!(result.tablebasic[2].on_disk_size, "");
         assert_eq!(result.tablebasic[2].object_type, "System tables");
-        println!("{:#?}", result);
     }
     #[test]
     fn unit_parse_basic_new_no_user_tables_colocated_parent() {

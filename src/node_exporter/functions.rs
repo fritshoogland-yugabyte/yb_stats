@@ -253,7 +253,7 @@ impl NodeExporterDiff {
                 println!("{:20} {:8} {:73} {:19.6} {:15.3} /s",
                          hostname_port,
                          diff_row.exporter_type,
-                         name,
+                         format!("{}{}", name, category),
                          diff_row.second_value - diff_row.first_value,
                          (diff_row.second_value - diff_row.first_value) / (diff_row.second_snapshot_time - diff_row.first_snapshot_time).num_seconds() as f64,
                 );
@@ -268,7 +268,7 @@ impl NodeExporterDiff {
                 println!("{:20} {:8} {:73} {:19.6} {:+15}",
                          hostname_port,
                          diff_row.exporter_type,
-                         name,
+                         format!("{}{}", name, category),
                          diff_row.second_value,
                          diff_row.second_value - diff_row.first_value
                 );

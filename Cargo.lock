@@ -2430,7 +2430,7 @@ dependencies = [
 
 [[package]]
 name = "yb_stats"
-version = "0.9.4"
+version = "0.9.5"
 dependencies = [
  "anyhow",
  "chrono",

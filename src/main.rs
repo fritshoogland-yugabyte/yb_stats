@@ -45,6 +45,7 @@ mod cluster_config;
 mod health_check;
 mod table_detail;
 mod tablet_detail;
+mod tasks;
 
 // constants
 const DEFAULT_HOSTS: &str = "192.168.66.80,192.168.66.81,192.168.66.82";

@@ -595,7 +595,9 @@ impl MetricEntityDiff {
                 // if second_total_count = 0, the statistic was zero, meaning no use,
                 // or it wasn't filled out for the second snapshot, meaning the endpoint went away.
                 // in both cases do not report.
-                if row.second_total_count - row.first_total_count != 0
+                //if row.second_total_count - row.first_total_count != 0
+                // saturating_sub halts the value at 0 the first value happens to be higher.
+                if row.second_total_count.saturating_sub(row.first_total_count) != 0
                 {
                     if *details_enable
                     {

@@ -108,11 +108,10 @@ impl AllTabletReplication {
                             for tr in table.select(&tr_selector).skip(1)
                             {
                                 tabletreplication.under_replicated_tablets.push( Some(UnderReplicatedTablets {
-                                    // mind the th selector here!
-                                    table_name: tr.select(&th_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default(),
-                                    table_uuid: tr.select(&td_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default(),
-                                    tablet_id: tr.select(&td_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default(),
-                                    tablet_replication_count: tr.select(&td_selector).nth(2).map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                    table_name: tr.select(&td_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default().replace([' ','\n'], ""),
+                                    table_uuid: tr.select(&td_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                    tablet_id: tr.select(&td_selector).nth(2).map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                    tablet_replication_count: tr.select(&td_selector).nth(3).map(|row| row.text().collect::<String>()).unwrap_or_default(),
                                 }));
                             }
                         },
@@ -125,10 +124,9 @@ impl AllTabletReplication {
                             for tr in table.select(&tr_selector).skip(1)
                             {
                                 tabletreplication.leaderless_tablets.push( Some(LeaderlessTablet {
-                                    // mind the th selector here!
-                                    table_name: tr.select(&th_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default(),
-                                    table_uuid: tr.select(&td_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default(),
-                                    tablet_id: tr.select(&td_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                    table_name: tr.select(&td_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default().replace([' ','\n'], ""),
+                                    table_uuid: tr.select(&td_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                    tablet_id: tr.select(&td_selector).nth(2).map(|row| row.text().collect::<String>()).unwrap_or_default(),
                                 }));
                             }
                     },
@@ -235,130 +233,69 @@ mod tests {
 
         assert_eq!(result.leaderless_tablets.len(), 0);
         assert_eq!(result.under_replicated_tablets.len(), 0);
-        //
     }
-    /*
+
     #[test]
-    fn unit_parse_tasks_done_tasks_delete_tablet() {
-        let tasks = r#"
+    fn unit_parse_tablet_replication_under_replicated_tablets() {
+        let tabletreplication = r#"
     <div class='yb-main container-fluid'>
-        <h3>Active Tasks</h3>
+        <h3>Leaderless Tablets</h3>
         <table class='table table-striped'>
             <tr>
-                <th>Task Name</th>
-                <th>State</th>
-                <th>Start Time</th>
-                <th>Time</th>
-                <th>Description</th>
+                <th>Table Name</th>
+                <th>Table UUID</th>
+                <th>Tablet ID</th>
             </tr>
         </table>
-        <h3>Last 20 user-initiated jobs started in the past 24 hours</h3>
+        <h3>Underreplicated Tablets</h3>
         <table class='table table-striped'>
             <tr>
-                <th>Job Name</th>
-                <th>State</th>
-                <th>Start Time</th>
-                <th>Duration</th>
-                <th>Description</th>
-            </tr>
-        </table>
-        <h3>Last 100 tasks started in the past 300 seconds</h3>
-        <table class='table table-striped'>
-            <tr>
-                <th>Task Name</th>
-                <th>State</th>
-                <th>Start Time</th>
-                <th>Duration</th>
-                <th>Description</th>
+                <th>Table Name</th>
+                <th>Table UUID</th>
+                <th>Tablet ID</th>
+                <th>Tablet Replication Count</th>
             </tr>
             <tr>
-                <th>Delete Tablet</th>
-                <td>kComplete</td>
-                <td>7.77 s ago</td>
-                <td>41.3 ms</td>
-                <td>DeleteTablet RPC for tablet d7dac11732064102b56bbe90edb3230a (t [id=000033e8000030008000000000005403]) on TS=214398b20f3b432ebbe4d1e82a395bd5</td>
+                <td>
+                    <a href="/table?id=000033e8000030008000000000004200">t</a>
+                </td>
+                <td>000033e8000030008000000000004200</td>
+                <td>10a28b5baffd4a28b541d633a8259c88</td>
+                <td>2</td>
             </tr>
-        </table>
+            <tr>
+                <td>
+                    <a href="/table?id=c7693c5862134cf9b6c6b295a554a5fe">transactions</a>
+                </td>
+                <td>c7693c5862134cf9b6c6b295a554a5fe</td>
+                <td>ac487570432b47618721d5dff0f760bf</td>
+                <td>2</td>
+            </tr>
+            </table>
         <div class='yb-bottom-spacer'></div>
     </div>
+
         "#.to_string();
-        let result = AllTasks::parse_tasks(tasks);
+        let result = AllTabletReplication::parse_tablet_replication(tabletreplication);
 
-        assert_eq!(result.tasks.len(), 1);
-        //
-        assert_eq!(result.tasks[0].as_ref().unwrap().task_type, "task");
-        assert_eq!(result.tasks[0].as_ref().unwrap().status, "done");
-        assert_eq!(result.tasks[0].as_ref().unwrap().name, "Delete Tablet");
-        assert_eq!(result.tasks[0].as_ref().unwrap().state, "kComplete");
-        assert_eq!(result.tasks[0].as_ref().unwrap().start_time, "7.77 s ago");
-        assert_eq!(result.tasks[0].as_ref().unwrap().duration, "41.3 ms");
-        assert_eq!(result.tasks[0].as_ref().unwrap().description, "DeleteTablet RPC for tablet d7dac11732064102b56bbe90edb3230a (t [id=000033e8000030008000000000005403]) on TS=214398b20f3b432ebbe4d1e82a395bd5");
+        assert_eq!(result.leaderless_tablets.len(), 0);
+        assert_eq!(result.under_replicated_tablets.len(), 2);
+        assert_eq!(result.under_replicated_tablets[0].as_ref().unwrap().table_name, "t");
+        assert_eq!(result.under_replicated_tablets[0].as_ref().unwrap().table_uuid, "000033e8000030008000000000004200");
+        assert_eq!(result.under_replicated_tablets[0].as_ref().unwrap().tablet_id, "10a28b5baffd4a28b541d633a8259c88");
+        assert_eq!(result.under_replicated_tablets[0].as_ref().unwrap().tablet_replication_count, "2");
+        assert_eq!(result.under_replicated_tablets[1].as_ref().unwrap().table_name, "transactions");
+        assert_eq!(result.under_replicated_tablets[1].as_ref().unwrap().table_uuid, "c7693c5862134cf9b6c6b295a554a5fe");
+        assert_eq!(result.under_replicated_tablets[1].as_ref().unwrap().tablet_id, "ac487570432b47618721d5dff0f760bf");
+        assert_eq!(result.under_replicated_tablets[1].as_ref().unwrap().tablet_replication_count, "2");
+
     }
-    #[test]
-    fn unit_parse_tasks_active_tasks() {
-        let tasks = r#"
-    <div class='yb-main container-fluid'>
-        <h3>Active Tasks</h3>
-        <table class='table table-striped'>
-            <tr>
-                <th>Task Name</th>
-                <th>State</th>
-                <th>Start Time</th>
-                <th>Time</th>
-                <th>Description</th>
-            </tr>
-             <tr>
-                <th>Alter Table</th>
-                <td>kRunning</td>
-                <td>32.6 s ago</td>
-                <td>32.6 s</td>
-                <td>Alter Table RPC for tablet 0x00005592a0c982c0 -&gt; 143ce41b11104f7c8d5490a4c98587d4 (table t [id=000033e8000030008000000000004000]) (t [id=000033e8000030008000000000004000])</td>
-            </tr>
-        </table>
-        <h3>Last 20 user-initiated jobs started in the past 24 hours</h3>
-        <table class='table table-striped'>
-            <tr>
-                <th>Job Name</th>
-                <th>State</th>
-                <th>Start Time</th>
-                <th>Duration</th>
-                <th>Description</th>
-            </tr>
-        </table>
-        <h3>Last 100 tasks started in the past 300 seconds</h3>
-        <table class='table table-striped'>
-            <tr>
-                <th>Task Name</th>
-                <th>State</th>
-                <th>Start Time</th>
-                <th>Duration</th>
-                <th>Description</th>
-            </tr>
-        </table>
-        <div class='yb-bottom-spacer'></div>
-    </div>
-        "#.to_string();
-        let result = AllTasks::parse_tasks(tasks);
-
-        assert_eq!(result.tasks.len(), 1);
-        //
-        assert_eq!(result.tasks[0].as_ref().unwrap().task_type, "task");
-        assert_eq!(result.tasks[0].as_ref().unwrap().status, "active");
-        assert_eq!(result.tasks[0].as_ref().unwrap().name, "Alter Table");
-        assert_eq!(result.tasks[0].as_ref().unwrap().state, "kRunning");
-        assert_eq!(result.tasks[0].as_ref().unwrap().start_time, "32.6 s ago");
-        assert_eq!(result.tasks[0].as_ref().unwrap().duration, "32.6 s");
-        assert_eq!(result.tasks[0].as_ref().unwrap().description, "Alter Table RPC for tablet 0x00005592a0c982c0 -> 143ce41b11104f7c8d5490a4c98587d4 (table t [id=000033e8000030008000000000004000]) (t [id=000033e8000030008000000000004000])");
-    }
-
     #[tokio::test]
     async fn integration_parse_master_tasks() {
         let hostname = utility::get_hostname_master();
         let port = utility::get_port_master();
 
-        let _alltasks = AllTasks::read_tasks(&vec![&hostname], &vec![&port], 1).await;
+        let _result = AllTabletReplication::read_tablet_replication(&vec![&hostname], &vec![&port], 1).await;
         // the master returns none or more tasks.
     }
-
-     */
 }

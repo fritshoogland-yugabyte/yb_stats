@@ -48,6 +48,7 @@ mod tablet_detail;
 mod tasks;
 mod tablet_replication;
 mod tablet_server_operations;
+mod drives;
 
 // constants
 const DEFAULT_HOSTS: &str = "192.168.66.80,192.168.66.81,192.168.66.82";

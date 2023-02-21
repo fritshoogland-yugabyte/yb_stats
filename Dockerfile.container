@@ -1,0 +1,13 @@
+FROM rust:latest as builder
+
+WORKDIR /usr/src/yb_stats
+COPY . .
+RUN apt-get update 
+RUN cargo build --release
+
+FROM debian:bullseye-slim
+LABEL author="Frits Hoogland"
+
+WORKDIR /app
+COPY --from=builder /usr/src/yb_stats/target/release/yb_stats /usr/bin/yb_stats
+ENTRYPOINT ["yb_stats"]

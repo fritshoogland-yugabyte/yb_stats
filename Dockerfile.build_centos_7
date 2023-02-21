@@ -1,0 +1,17 @@
+FROM centos:centos7 as builder
+
+WORKDIR /usr/src/yb_stats
+COPY . .
+RUN yum update -y
+RUN yum install-y openssl gcc
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
+
+RUN cargo build --release
+RUN strip -s target/release/yb_stats
+
+FROM debian:bullseye-slim
+LABEL author="Frits Hoogland"
+
+WORKDIR /app
+COPY --from=builder /usr/src/yb_stats/target/release/yb_stats /usr/bin/yb_stats
+ENTRYPOINT ["yb_stats"]

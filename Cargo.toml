@@ -34,3 +34,10 @@ assets = [
     { source = "target/release/yb_stats", dest = "/usr/local/bin/yb_stats", mode="0755" }
 ]
 release = "1.el8"
+
+[package.metadata.deb]
+copyright = "2021, Frits Hoogland <fhoogland@yugabyte.com>"
+maintainer = "Frits Hoogland <fhoogland@yugabyte.com>"
+assets = [
+    ["target/release/yb_stats", "/usr/local/bin", "755"]
+]

@@ -1,4 +1,4 @@
-FROM centos:centos7 as builder
+FROM almalinux/8-base as builder
 
 # setup source directory
 WORKDIR /usr/src/yb_stats
@@ -16,7 +16,7 @@ RUN strip -s target/release/yb_stats
 
 # generate rpm
 RUN cargo install cargo-generate-rpm
-RUN cargo generate-rpm --payload-compress=gzip -s 'release = "el.7"'
+RUN cargo generate-rpm -s 'release = "el.8"'
 RUN ls -ls /usr/src/yb_stats/target/generate-rpm/*
 
 FROM scratch as export-stage

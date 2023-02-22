@@ -1,12 +1,12 @@
-FROM centos:centos7 as builder
+FROM ubuntu:jammy as builder
 
 # setup source directory
 WORKDIR /usr/src/yb_stats
 COPY . .
 
 # prepare operating system and install rust
-RUN yum update -y
-RUN yum install -y openssl-devel gcc
+RUN apt update && apt upgrade -y
+RUN apt-get install -y curl gcc libssl-dev pkg-config
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin:/root/.cargo/bin
 
@@ -15,10 +15,9 @@ RUN cargo build --release
 RUN strip -s target/release/yb_stats
 
 # generate rpm
-RUN cargo install cargo-generate-rpm
-RUN cargo generate-rpm --payload-compress=gzip -s 'release = "el.7"'
-RUN ls -ls /usr/src/yb_stats/target/generate-rpm/*
+RUN cargo install cargo-deb
+RUN cargo deb
 
-FROM scratch as export-stage
 # output file
-COPY --from=builder /usr/src/yb_stats/target/generate-rpm/* /
+FROM scratch as export-stage
+COPY --from=builder /usr/src/yb_stats/target/debian/*deb /

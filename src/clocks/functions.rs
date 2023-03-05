@@ -4,7 +4,6 @@ use chrono::Local;
 use std::{sync::mpsc::channel, time::Instant};
 use scraper::{Html, Selector};
 use log::*;
-//use soup::prelude::*;
 use anyhow::Result;
 use crate::isleader::AllIsLeader;
 use crate::utility;

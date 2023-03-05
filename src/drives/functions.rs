@@ -5,9 +5,11 @@ use std::{sync::mpsc::channel, time::Instant};
 use scraper::{Html, Selector};
 use log::*;
 use anyhow::Result;
+use regex::Regex;
 use crate::utility;
 use crate::snapshot;
 use crate::drives::{AllDrives, Drives, Drive};
+use crate::Opts;
 
 impl Drives {
     pub fn new() -> Self { Default::default() }
@@ -120,46 +122,31 @@ impl AllDrives {
         }
         drives
     }
-    /*
     pub fn print(
         &self,
         hostname_filter: &Regex
     ) -> Result<()>
     {
-        /*
-        let mut previous_hostname_port = String::from("");
-        for row in &self.threads
+        for drives in &self.drives
         {
-            if hostname_filter.is_match(&row.hostname_port)
+            for drive in drives.drive.iter()
             {
-                if row.hostname_port != previous_hostname_port
+                if hostname_filter.is_match(drives.hostname_port.as_ref().unwrap())
                 {
-                    println!("--------------------------------------------------------------------------------------------------------------------------------------");
-                    println!("Host: {}, Snapshot time: {}", &row.hostname_port.to_string(), row.timestamp);
-                    println!("--------------------------------------------------------------------------------------------------------------------------------------");
-                    println!("{:20} {:40} {:>20} {:>20} {:>20} {:50}",
-                             "hostname_port",
-                             "thread_name",
-                             "cum_user_cpu_s",
-                             "cum_kernel_cpu_s",
-                             "cum_iowait_cpu_s",
-                             "stack");
-                    println!("--------------------------------------------------------------------------------------------------------------------------------------");
-                    previous_hostname_port = row.hostname_port.to_string();
-                };
-                println!("{:20} {:40} {:>20} {:>20} {:>20} {:50}", row.hostname_port, row.thread_name, row.cumulative_user_cpu_s, row.cumulative_kernel_cpu_s, row.cumulative_iowait_cpu_s, row.stack.replace('\n', ""));
+                    println!("{:20} {:40} {:20} {:20}",
+                        drives.hostname_port.as_ref().unwrap(),
+                        drive.as_ref().unwrap().path,
+                        drive.as_ref().unwrap().total_space,
+                        drive.as_ref().unwrap().used_space,
+                    );
+                }
             }
         }
-
-         */
         Ok(())
     }
-
-     */
 }
 
-/*
-pub async fn print_tables(
+pub async fn print_drives(
     hosts: Vec<&str>,
     ports: Vec<&str>,
     parallel: usize,
@@ -167,21 +154,19 @@ pub async fn print_tables(
 ) -> Result<()>
 {
     let hostname_filter = utility::set_regex(&options.hostname_match);
-    match options.print_threads.as_ref().unwrap() {
+    match options.print_drives.as_ref().unwrap() {
         Some(snapshot_number) => {
-            let mut alltables = AllTables::new();
-            alltables.table = snapshot::read_snapshot_json(snapshot_number, "threads")?;
-            alltables.print(&hostname_filter)?;
+            let mut alldrives = AllDrives::new();
+            alldrives.drives = snapshot::read_snapshot_json(snapshot_number, "drives")?;
+            alldrives.print(&hostname_filter)?;
         },
         None => {
-            let alltables = AllTables::read_tables(&hosts, &ports, parallel).await;
-            alltables.print(&hostname_filter)?;
+            let alldrives = AllDrives::read_drives(&hosts, &ports, parallel).await;
+            alldrives.print(&hostname_filter)?;
         },
     }
     Ok(())
 }
-
- */
 
 #[cfg(test)]
 mod tests {

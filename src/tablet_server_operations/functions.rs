@@ -5,9 +5,11 @@ use std::{sync::mpsc::channel, time::Instant};
 use scraper::{Html, Selector};
 use log::*;
 use anyhow::Result;
+use regex::Regex;
 use crate::utility;
 use crate::snapshot;
 use crate::tablet_server_operations::{AllOperations, Operations, Operation};
+use crate::Opts;
 
 impl Operations {
     pub fn new() -> Self{ Default::default() }
@@ -126,46 +128,30 @@ impl AllOperations {
         }
         tasks
     }
-    /*
     pub fn print(
         &self,
         hostname_filter: &Regex
     ) -> Result<()>
     {
-        /*
-        let mut previous_hostname_port = String::from("");
-        for row in &self.threads
+        for operations in self.operations.iter().filter(|row| hostname_filter.is_match(row.hostname_port.as_ref().unwrap()))
         {
-            if hostname_filter.is_match(&row.hostname_port)
-            {
-                if row.hostname_port != previous_hostname_port
+                for task in &operations.tasks
                 {
-                    println!("--------------------------------------------------------------------------------------------------------------------------------------");
-                    println!("Host: {}, Snapshot time: {}", &row.hostname_port.to_string(), row.timestamp);
-                    println!("--------------------------------------------------------------------------------------------------------------------------------------");
-                    println!("{:20} {:40} {:>20} {:>20} {:>20} {:50}",
-                             "hostname_port",
-                             "thread_name",
-                             "cum_user_cpu_s",
-                             "cum_kernel_cpu_s",
-                             "cum_iowait_cpu_s",
-                             "stack");
-                    println!("--------------------------------------------------------------------------------------------------------------------------------------");
-                    previous_hostname_port = row.hostname_port.to_string();
-                };
-                println!("{:20} {:40} {:>20} {:>20} {:>20} {:50}", row.hostname_port, row.thread_name, row.cumulative_user_cpu_s, row.cumulative_kernel_cpu_s, row.cumulative_iowait_cpu_s, row.stack.replace('\n', ""));
-            }
+                    println!("{:20} {:32} {:10} {:10} {:10} {:80}",
+                        operations.hostname_port.as_ref().unwrap(),
+                        task.as_ref().unwrap().tablet_id,
+                        task.as_ref().unwrap().op_id,
+                        task.as_ref().unwrap().transaction_type,
+                        task.as_ref().unwrap().total_time_in_flight,
+                        task.as_ref().unwrap().description.get(..80).unwrap_or(&task.as_ref().unwrap().description),
+                    );
+                }
         }
-
-         */
         Ok(())
     }
-
-     */
 }
 
-/*
-pub async fn print_tables(
+pub async fn print_operations(
     hosts: Vec<&str>,
     ports: Vec<&str>,
     parallel: usize,
@@ -173,21 +159,19 @@ pub async fn print_tables(
 ) -> Result<()>
 {
     let hostname_filter = utility::set_regex(&options.hostname_match);
-    match options.print_threads.as_ref().unwrap() {
+    match options.print_tablet_server_operations.as_ref().unwrap() {
         Some(snapshot_number) => {
-            let mut alltables = AllTables::new();
-            alltables.table = snapshot::read_snapshot_json(snapshot_number, "threads")?;
-            alltables.print(&hostname_filter)?;
+            let mut alloperations = AllOperations::new();
+            alloperations.operations = snapshot::read_snapshot_json(snapshot_number, "tablet_server_operations")?;
+            alloperations.print(&hostname_filter)?;
         },
         None => {
-            let alltables = AllTables::read_tables(&hosts, &ports, parallel).await;
-            alltables.print(&hostname_filter)?;
+            let alloperations = AllOperations::read_tablet_server_operations(&hosts, &ports, parallel).await;
+            alloperations.print(&hostname_filter)?;
         },
     }
     Ok(())
 }
-
- */
 
 #[cfg(test)]
 mod tests {

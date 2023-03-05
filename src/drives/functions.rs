@@ -127,19 +127,16 @@ impl AllDrives {
         hostname_filter: &Regex
     ) -> Result<()>
     {
-        for drives in &self.drives
+        for drives in self.drives.iter().filter(|row| hostname_filter.is_match(row.hostname_port.as_ref().unwrap()))
         {
-            for drive in drives.drive.iter()
+            for drive in &drives.drive
             {
-                if hostname_filter.is_match(drives.hostname_port.as_ref().unwrap())
-                {
                     println!("{:20} {:40} {:20} {:20}",
                         drives.hostname_port.as_ref().unwrap(),
                         drive.as_ref().unwrap().path,
                         drive.as_ref().unwrap().total_space,
                         drive.as_ref().unwrap().used_space,
                     );
-                }
             }
         }
         Ok(())

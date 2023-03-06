@@ -5,9 +5,11 @@ use std::{sync::mpsc::channel, time::Instant};
 use scraper::{Html, Selector};
 use log::*;
 use anyhow::Result;
+use crate::isleader::AllIsLeader;
 use crate::utility;
 use crate::snapshot;
 use crate::tasks::{AllTasks, TaskDetail, Tasks};
+use crate::Opts;
 
 impl Tasks {
     pub fn new() -> Self{ Default::default() }
@@ -81,6 +83,7 @@ impl AllTasks {
         http_data: String
     ) -> Tasks
     {
+        debug!("begin parse");
         let table_selector = Selector::parse("table").unwrap();
         let tr_selector = Selector::parse("tr").unwrap();
         let th_selector = Selector::parse("th").unwrap();
@@ -117,6 +120,15 @@ impl AllTasks {
                                     duration: tr.select(&td_selector).nth(2).map(|row| row.text().collect::<String>()).unwrap_or_default(),
                                     description: tr.select(&td_selector).nth(3).map(|row| row.text().collect::<String>()).unwrap_or_default(),
                                 }));
+                                debug!("added: {} {} {} {} {} {} {}",
+                                    "task",
+                                    "active",
+                                    tr.select(&th_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                    tr.select(&td_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                    tr.select(&td_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                    tr.select(&td_selector).nth(2).map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                    tr.select(&td_selector).nth(3).map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                );
                             }
                     },
                         // Second table: Last 20 user-initiated jobs started n the past 24 hours
@@ -139,6 +151,15 @@ impl AllTasks {
                                         duration: tr.select(&td_selector).nth(2).map(|row| row.text().collect::<String>()).unwrap_or_default(),
                                         description: tr.select(&td_selector).nth(3).map(|row| row.text().collect::<String>()).unwrap_or_default(),
                                     }));
+                                    debug!("added: {} {} {} {} {} {} {}",
+                                        "user job",
+                                        "done",
+                                        tr.select(&th_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                        tr.select(&td_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                        tr.select(&td_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                        tr.select(&td_selector).nth(2).map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                        tr.select(&td_selector).nth(3).map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                    );
                                 }
                     },
                         // Third table: last 100 tasks started in the past 300 seconds
@@ -161,6 +182,15 @@ impl AllTasks {
                                         duration: tr.select(&td_selector).nth(2).map(|row| row.text().collect::<String>()).unwrap_or_default(),
                                         description: tr.select(&td_selector).nth(3).map(|row| row.text().collect::<String>()).unwrap_or_default(),
                                     }));
+                                    debug!("added: {} {} {} {} {} {} {}",
+                                        "task",
+                                        "done",
+                                        tr.select(&th_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                        tr.select(&td_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                        tr.select(&td_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                        tr.select(&td_selector).nth(2).map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                        tr.select(&td_selector).nth(3).map(|row| row.text().collect::<String>()).unwrap_or_default(),
+                                    );
                                 }
                     },
                     _ => {
@@ -169,70 +199,65 @@ impl AllTasks {
                 }
             }
         }
+        debug!("end parse");
         tasks
     }
-    /*
     pub fn print(
         &self,
-        hostname_filter: &Regex
+        details_enable: &bool,
+        leader_hostname: String,
     ) -> Result<()>
     {
-        /*
-        let mut previous_hostname_port = String::from("");
-        for row in &self.threads
-        {
-            if hostname_filter.is_match(&row.hostname_port)
+        for master_row in &self.tasks {
+            if master_row.hostname_port != Some(leader_hostname.clone())
+                && !*details_enable
             {
-                if row.hostname_port != previous_hostname_port
+                continue;
+            }
+            for row in &master_row.tasks
+            {
+                if *details_enable
                 {
-                    println!("--------------------------------------------------------------------------------------------------------------------------------------");
-                    println!("Host: {}, Snapshot time: {}", &row.hostname_port.to_string(), row.timestamp);
-                    println!("--------------------------------------------------------------------------------------------------------------------------------------");
-                    println!("{:20} {:40} {:>20} {:>20} {:>20} {:50}",
-                             "hostname_port",
-                             "thread_name",
-                             "cum_user_cpu_s",
-                             "cum_kernel_cpu_s",
-                             "cum_iowait_cpu_s",
-                             "stack");
-                    println!("--------------------------------------------------------------------------------------------------------------------------------------");
-                    previous_hostname_port = row.hostname_port.to_string();
-                };
-                println!("{:20} {:40} {:>20} {:>20} {:>20} {:50}", row.hostname_port, row.thread_name, row.cumulative_user_cpu_s, row.cumulative_kernel_cpu_s, row.cumulative_iowait_cpu_s, row.stack.replace('\n', ""));
+                    print!("{} ", master_row.hostname_port.as_ref().unwrap());
+                }
+                println!("{} {} {} {} {} {} {}",
+                    row.as_ref().unwrap().task_type,
+                    row.as_ref().unwrap().status,
+                    row.as_ref().unwrap().name,
+                    row.as_ref().unwrap().state,
+                    row.as_ref().unwrap().start_time,
+                    row.as_ref().unwrap().duration,
+                    row.as_ref().unwrap().description,
+                );
             }
         }
 
-         */
         Ok(())
     }
-
-     */
 }
 
-/*
-pub async fn print_tables(
+pub async fn print_tasks(
     hosts: Vec<&str>,
     ports: Vec<&str>,
     parallel: usize,
     options: &Opts,
 ) -> Result<()>
 {
-    let hostname_filter = utility::set_regex(&options.hostname_match);
-    match options.print_threads.as_ref().unwrap() {
+    match options.print_master_tasks.as_ref().unwrap() {
         Some(snapshot_number) => {
-            let mut alltables = AllTables::new();
-            alltables.table = snapshot::read_snapshot_json(snapshot_number, "threads")?;
-            alltables.print(&hostname_filter)?;
+            let mut alltasks = AllTasks::new();
+            alltasks.tasks = snapshot::read_snapshot_json(snapshot_number, "tasks")?;
+            let leader_hostname = AllIsLeader::return_leader_snapshot(snapshot_number)?;
+            alltasks.print(&options.details_enable, leader_hostname)?;
         },
         None => {
-            let alltables = AllTables::read_tables(&hosts, &ports, parallel).await;
-            alltables.print(&hostname_filter)?;
+            let alltasks = AllTasks::read_tasks(&hosts, &ports, parallel).await;
+            let leader_hostname = AllIsLeader::return_leader_http(&hosts, &ports, parallel).await;
+            alltasks.print(&options.details_enable, leader_hostname)?;
         },
     }
     Ok(())
 }
-
- */
 
 #[cfg(test)]
 mod tests {

@@ -112,7 +112,8 @@ impl Masters {
                 continue;
             }
             // first row
-            if *details_enable {
+            if *details_enable
+            {
                 print!("{} ", row.hostname_port.as_ref().unwrap());
             };
             print!("{} ", row.instance_id.permanent_uuid);

@@ -86,7 +86,6 @@ impl AllOperations {
         let table_selector = Selector::parse("table").unwrap();
         let tr_selector = Selector::parse("tr").unwrap();
         let th_selector = Selector::parse("th").unwrap();
-        //let td_selector = Selector::parse("td").unwrap();
         let div_selector = Selector::parse("div.yb-main").unwrap();
 
         let mut tasks = Operations::new();

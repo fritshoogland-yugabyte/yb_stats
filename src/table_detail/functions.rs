@@ -5,9 +5,12 @@ use std::{sync::mpsc::channel, time::Instant};
 use scraper::{Html, Selector};
 use log::*;
 use anyhow::Result;
+
+use crate::isleader::AllIsLeader;
 use crate::utility;
 use crate::snapshot;
 use crate::table_detail::{AllTables, Column, Tablet, Table, TableBasic, TableDetail, Task};
+use crate::Opts;
 
 impl Table {
     pub fn new() -> Self { Default::default() }
@@ -230,7 +233,7 @@ impl AllTables {
                                     uuid: tr.select(&td_selector).nth(4).map(|row| row.text().collect::<String>()).unwrap_or_default().replace(['\n', ' '], ""),
                                     ysql_oid: tr.select(&td_selector).nth(5).map(|row| row.text().collect::<String>()).unwrap_or_default(),
                                     hidden: tr.select(&td_selector).nth(6).map(|row| row.text().collect::<String>()).unwrap_or_default(),
-                                    on_disk_size: tr.select(&td_selector).nth(7).map(|row| row.text().collect::<String>()).unwrap_or_default().split('\n').map(|row| row.trim()).filter(|row| !row.is_empty()).collect::<Vec<_>>().join(" "),
+                                    on_disk_size: tr.select(&td_selector).nth(7).map(|row| row.text().collect::<Vec<_>>()).unwrap_or_default().iter().map(|r| r.trim()).filter(|r| !r.is_empty()).collect::<Vec<_>>().join(" "),
                                     object_type: table_type.clone(),
                                 });
                             }
@@ -386,68 +389,117 @@ impl AllTables {
 
         table_detail
     }
-    /*
     pub fn print(
         &self,
-        hostname_filter: &Regex
+        uuid: &String,
+        leader_hostname: String,
     ) -> Result<()>
     {
-        /*
-        let mut previous_hostname_port = String::from("");
-        for row in &self.threads
+        for alltables in &self.table
         {
-            if hostname_filter.is_match(&row.hostname_port)
+            if alltables.hostname_port != Some(leader_hostname.clone())
             {
-                if row.hostname_port != previous_hostname_port
-                {
-                    println!("--------------------------------------------------------------------------------------------------------------------------------------");
-                    println!("Host: {}, Snapshot time: {}", &row.hostname_port.to_string(), row.timestamp);
-                    println!("--------------------------------------------------------------------------------------------------------------------------------------");
-                    println!("{:20} {:40} {:>20} {:>20} {:>20} {:50}",
-                             "hostname_port",
-                             "thread_name",
-                             "cum_user_cpu_s",
-                             "cum_kernel_cpu_s",
-                             "cum_iowait_cpu_s",
-                             "stack");
-                    println!("--------------------------------------------------------------------------------------------------------------------------------------");
-                    previous_hostname_port = row.hostname_port.to_string();
-                };
-                println!("{:20} {:40} {:>20} {:>20} {:>20} {:50}", row.hostname_port, row.thread_name, row.cumulative_user_cpu_s, row.cumulative_kernel_cpu_s, row.cumulative_iowait_cpu_s, row.stack.replace('\n', ""));
+                continue;
             }
+            if let Some((keyspace, table_name, on_disk_size, object_type)) = alltables.tablebasic.iter()
+                .find(|row| row.uuid == uuid.clone())
+                .map(|row| return (row.keyspace.clone(), row.table_name.clone(), row.on_disk_size.clone(), row.object_type.clone()))
+            {
+                if alltables.tabledetail.len() == 0
+                {
+                    println!("print table detail requires the --extra-data switch");
+                    return Ok(());
+                }
+                else
+                {
+                    if let Some(table_detail) = alltables.tabledetail.iter()
+                        .find(|row| row.as_ref().unwrap().uuid == uuid.clone())
+                    {
+                        println!("Table UUID: {}, version: {}, type: {}, state: {}, keyspace: {}, object_type: {}, name: {}",
+                            uuid.clone(),
+                            table_detail.as_ref().unwrap().version,
+                            table_detail.as_ref().unwrap().detail_type,
+                            table_detail.as_ref().unwrap().state,
+                            keyspace,
+                            object_type,
+                            table_name,
+                        );
+                        println!("On disk size: {}", on_disk_size);
+                        println!("Replication info: {}", table_detail.as_ref().unwrap().replication_info);
+                        println!("Columns:");
+                        for column in &table_detail.as_ref().unwrap().columns
+                        {
+                            println!("{:4} {:32} {}",
+                                column.as_ref().unwrap().id,
+                                column.as_ref().unwrap().column,
+                                column.as_ref().unwrap().column_type,
+                            );
+                        }
+                        println!("Tablets:");
+                        for tablets in &table_detail.as_ref().unwrap().tablets
+                        {
+                            println!("{} {}, Split depth: {}, State: {}, Hidden: {}, Message: {}, Raft: {}",
+                                tablets.as_ref().unwrap().id,
+                                tablets.as_ref().unwrap().partition,
+                                tablets.as_ref().unwrap().split_depth,
+                                tablets.as_ref().unwrap().state,
+                                tablets.as_ref().unwrap().hidden,
+                                tablets.as_ref().unwrap().message,
+                                tablets.as_ref().unwrap().raftconfig,
+                            );
+                        }
+                        println!("Tasks:");
+                        for tasks in &table_detail.as_ref().unwrap().tasks
+                        {
+                            println!("{} {} {} {} {} {}",
+                                tasks.as_ref().unwrap().task_name,
+                                tasks.as_ref().unwrap().task_name,
+                                tasks.as_ref().unwrap().state,
+                                tasks.as_ref().unwrap().start_time,
+                                tasks.as_ref().unwrap().duration,
+                                tasks.as_ref().unwrap().description,
+                            );
+                        }
+                    }
+                    else
+                    {
+                        println!("Error: no table detail found");
+                    }
+                }
+            }
+            else
+            {
+                println!("UUID: {} not found", uuid.clone());
+            }
+
         }
 
-         */
         Ok(())
     }
-
-     */
 }
 
-/*
-pub async fn print_tables(
+pub async fn print_table_detail(
     hosts: Vec<&str>,
     ports: Vec<&str>,
     parallel: usize,
     options: &Opts,
 ) -> Result<()>
 {
-    let hostname_filter = utility::set_regex(&options.hostname_match);
-    match options.print_threads.as_ref().unwrap() {
+    match options.print_table_detail.as_ref().unwrap() {
         Some(snapshot_number) => {
             let mut alltables = AllTables::new();
-            alltables.table = snapshot::read_snapshot_json(snapshot_number, "threads")?;
-            alltables.print(&hostname_filter)?;
+            alltables.table = snapshot::read_snapshot_json(snapshot_number, "tables")?;
+            let leader_hostname = AllIsLeader::return_leader_snapshot(snapshot_number)?;
+            alltables.print(&options.uuid, leader_hostname)?;
         },
         None => {
-            let alltables = AllTables::read_tables(&hosts, &ports, parallel).await;
-            alltables.print(&hostname_filter)?;
+            let alltables = AllTables::read_tables(&hosts, &ports, parallel, &options.extra_data).await;
+            let leader_hostname = AllIsLeader::return_leader_http(&hosts, &ports, parallel).await;
+            alltables.print(&options.uuid, leader_hostname)?;
         },
     }
     Ok(())
 }
-
- */
 
 #[cfg(test)]
 mod tests {
@@ -1008,6 +1060,195 @@ mod tests {
         assert_eq!(result.tablets[0].as_ref().unwrap().message, "Tablet reported with an active leader");
         assert_eq!(result.tablets[0].as_ref().unwrap().raftconfig, "LEADER: yb-3.local FOLLOWER: yb-1.local FOLLOWER: yb-2.local");
         assert_eq!(result.tasks.len(), 0);
+    }
+    #[test]
+    fn unit_parse_table_detail_tasks() {
+        let tables = r#"
+    <div class='yb-main container-fluid'>
+        <h1>Table: yugabyte.t (000033e8000030008000000000004205) </h1>
+        <table class='table table-striped'>
+            <tr>
+                <td>Version:</td>
+                <td>1</td>
+            </tr>
+            <tr>
+                <td>Type:</td>
+                <td>PGSQL_TABLE_TYPE</td>
+            </tr>
+            <tr>
+                <td>State:</td>
+                <td>AlteringCurrent schema version=1</td>
+            </tr>
+            <tr>
+                <td>Replication Info:</td>
+                <td>
+                    <pre class="prettyprint"></pre>
+                </td>
+            </tr>
+        </table>
+        <table class='table table-striped'>
+            <tr>
+                <th>Column</th>
+                <th>ID</th>
+                <th>Type</th>
+            </tr>
+            <tr>
+                <th>id</th>
+                <td>0</td>
+                <td>int32 NOT NULL PARTITION KEY</td>
+            </tr>
+            <tr>
+                <th>f1</th>
+                <td>1</td>
+                <td>string NULLABLE NOT A PARTITION KEY</td>
+            </tr>
+        </table>
+        <table class='table table-striped'>
+            <tr>
+                <th>Tablet ID</th>
+                <th>Partition</th>
+                <th>SplitDepth</th>
+                <th>State</th>
+                <th>Hidden</th>
+                <th>Message</th>
+                <th>RaftConfig</th>
+            </tr>
+            <tr>
+                <th>f1d6be1540054591b12c575df06345e5</th>
+                <td>hash_split: [0xAAAA, 0xFFFF]</td>
+                <td>0</td>
+                <td>Running</td>
+                <td>false</td>
+                <td>Tablet reported with an active leader</td>
+                <td>
+                    <ul>
+                        <li>
+                            FOLLOWER:
+                            <a href="http://yb-3.local:9000/tablet?id=f1d6be1540054591b12c575df06345e5">yb-3.local</a>
+                        </li>
+                        <li>
+                            FOLLOWER:
+                            <a href="http://yb-1.local:9000/tablet?id=f1d6be1540054591b12c575df06345e5">yb-1.local</a>
+                        </li>
+                        <li>
+                            <b>
+                                LEADER:
+                                <a href="http://yb-2.local:9000/tablet?id=f1d6be1540054591b12c575df06345e5">yb-2.local</a>
+                            </b>
+                        </li>
+                    </ul>
+                </td>
+            </tr>
+            <tr>
+                <th>3366c516ed2a46d48811a15f11741c52</th>
+                <td>hash_split: [0x5555, 0xAAA9]</td>
+                <td>0</td>
+                <td>Running</td>
+                <td>false</td>
+                <td>Tablet reported with an active leader</td>
+                <td>
+                    <ul>
+                        <li>
+                            <b>
+                                LEADER:
+                                <a href="http://yb-3.local:9000/tablet?id=3366c516ed2a46d48811a15f11741c52">yb-3.local</a>
+                            </b>
+                        </li>
+                        <li>
+                            FOLLOWER:
+                            <a href="http://yb-1.local:9000/tablet?id=3366c516ed2a46d48811a15f11741c52">yb-1.local</a>
+                        </li>
+                        <li>
+                            FOLLOWER:
+                            <a href="http://yb-2.local:9000/tablet?id=3366c516ed2a46d48811a15f11741c52">yb-2.local</a>
+                        </li>
+                    </ul>
+                </td>
+            </tr>
+            <tr>
+                <th>d8bf132251e441adb78d0f32165050a2</th>
+                <td>hash_split: [0x0000, 0x5554]</td>
+                <td>0</td>
+                <td>Running</td>
+                <td>false</td>
+                <td>Tablet reported with an active leader</td>
+                <td>
+                    <ul>
+                        <li>
+                            FOLLOWER:
+                            <a href="http://yb-3.local:9000/tablet?id=d8bf132251e441adb78d0f32165050a2">yb-3.local</a>
+                        </li>
+                        <li>
+                            <b>
+                                LEADER:
+                                <a href="http://yb-1.local:9000/tablet?id=d8bf132251e441adb78d0f32165050a2">yb-1.local</a>
+                            </b>
+                        </li>
+                        <li>
+                            FOLLOWER:
+                            <a href="http://yb-2.local:9000/tablet?id=d8bf132251e441adb78d0f32165050a2">yb-2.local</a>
+                        </li>
+                    </ul>
+                </td>
+            </tr>
+        </table>
+        <table class='table table-striped'>
+            <tr>
+                <th>Task Name</th>
+                <th>State</th>
+                <th>Start Time</th>
+                <th>Duration</th>
+                <th>Description</th>
+            </tr>
+            <tr>
+                <th>Backfill Index Table</th>
+                <td>kRunning</td>
+                <td>21.2 s ago</td>
+                <td>21.2 s</td>
+                <td>Backfilling indexes { t_f1_idx } for tablet 3366c516ed2a46d48811a15f11741c52 from key '4774d948800d451d21212380015dffe7dccaa6804a'</td>
+            </tr>
+            <tr>
+                <th>Backfill Index Table</th>
+                <td>kRunning</td>
+                <td>21.1 s ago</td>
+                <td>21.1 s</td>
+                <td>Backfilling indexes { t_f1_idx } for tablet f1d6be1540054591b12c575df06345e5 from key '47d6ea488005c47421212380015dffe7dccaa6804a'</td>
+            </tr>
+            <tr>
+                <th>Backfill Index Table</th>
+                <td>kRunning</td>
+                <td>21.1 s ago</td>
+                <td>21.1 s</td>
+                <td>Backfilling indexes { t_f1_idx } for tablet d8bf132251e441adb78d0f32165050a2 from key '47281d488004bd6d21212380015dffe7dccaa6804a'</td>
+            </tr>
+        </table>
+        <div class='yb-bottom-spacer'></div>
+    </div>
+        "#.to_string();
+        let result = AllTables::parse_table_detail( tables,"deadbeef");
+
+        assert_eq!(result.version, "1");
+        assert_eq!(result.detail_type, "PGSQL_TABLE_TYPE");
+        assert_eq!(result.state, "AlteringCurrent schema version=1");
+        assert_eq!(result.replication_info, "");
+        assert_eq!(result.columns[0].as_ref().unwrap().column, "id");
+        assert_eq!(result.columns[0].as_ref().unwrap().id, "0");
+        assert_eq!(result.columns[0].as_ref().unwrap().column_type, "int32 NOT NULL PARTITION KEY");
+        assert_eq!(result.columns[1].as_ref().unwrap().column, "f1");
+        assert_eq!(result.columns[1].as_ref().unwrap().id, "1");
+        assert_eq!(result.columns[1].as_ref().unwrap().column_type, "string NULLABLE NOT A PARTITION KEY");
+        assert_eq!(result.tablets[0].as_ref().unwrap().id, "f1d6be1540054591b12c575df06345e5");
+        assert_eq!(result.tablets[0].as_ref().unwrap().partition, "hash_split: [0xAAAA, 0xFFFF]");
+        assert_eq!(result.tablets[0].as_ref().unwrap().split_depth, "0");
+        assert_eq!(result.tablets[0].as_ref().unwrap().state, "Running");
+        assert_eq!(result.tablets[0].as_ref().unwrap().hidden, "false");
+        assert_eq!(result.tablets[0].as_ref().unwrap().message, "Tablet reported with an active leader");
+        assert_eq!(result.tablets[0].as_ref().unwrap().raftconfig, "FOLLOWER: yb-3.local FOLLOWER: yb-1.local LEADER: yb-2.local");
+        assert_eq!(result.tasks[0].as_ref().unwrap().task_name, "Backfill Index Table");
+        assert_eq!(result.tasks[0].as_ref().unwrap().state, "kRunning");
+        assert_eq!(result.tasks[0].as_ref().unwrap().start_time, "21.2 s ago");
+        assert_eq!(result.tasks[0].as_ref().unwrap().duration, "21.2 s");
+        assert_eq!(result.tasks[0].as_ref().unwrap().description, "Backfilling indexes { t_f1_idx } for tablet 3366c516ed2a46d48811a15f11741c52 from key '4774d948800d451d21212380015dffe7dccaa6804a'");
     }
 
 

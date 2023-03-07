@@ -8,6 +8,7 @@ use anyhow::Result;
 use crate::utility;
 use crate::snapshot;
 use crate::tablet_detail::{AllTablets, Tablet, TabletBasic, TabletDetail, Column, ConsensusStatus, Watermark, Message, TabletLogAnchor, Transactions, RocksDb, RocksDbFile};
+use crate::Opts;
 
 impl Tablet {
     pub fn new() -> Self { Default::default() }
@@ -235,26 +236,31 @@ impl AllTablets {
         for row in tablets.tabletbasic.iter_mut()
         {
             let data_from_http = utility::http_get(host, port, format!("tablet?id={}", row.tablet_id).as_str());
-            let mut detail = AllTablets::parse_tablet_detail(data_from_http, &row.tablet_id);
-            let data_from_http = utility::http_get(host, port, format!("tablet-consensus-status?id={}", row.tablet_id).as_str());
-            let consensus_status = AllTablets::parse_tablet_detail_consensus_status(data_from_http);
-            detail.consensus_status = consensus_status;
-            let data_from_http = utility::http_get(host, port, format!("log-anchors?id={}", row.tablet_id).as_str());
-            let loganchor = AllTablets::parse_tablet_detail_log_anchors(data_from_http);
-            detail.tabletloganchor = loganchor;
-            let data_from_http = utility::http_get(host, port, format!("transactions?id={}", row.tablet_id).as_str());
-            let transaction = AllTablets::parse_tablet_detail_transactions(data_from_http);
-            detail.transactions = transaction;
-            let data_from_http = utility::http_get(host, port, format!("rocksdb?id={}", row.tablet_id).as_str());
-            let rocksdb = AllTablets::parse_tablet_detail_rocksdb(data_from_http);
-            detail.rocksdb = rocksdb;
-            tablets.tabletdetail.push(Some(detail));
+            // This construction is because a tablet that is still shown but tombstoned will not have any details.
+            // The page will say 'Tablet <UUID> has not yet started'
+            if let Ok(mut detail) = AllTablets::parse_tablet_detail(data_from_http, &row.tablet_id)
+            {
+                let data_from_http = utility::http_get(host, port, format!("tablet-consensus-status?id={}", row.tablet_id).as_str());
+                let consensus_status = AllTablets::parse_tablet_detail_consensus_status(data_from_http);
+                detail.consensus_status = consensus_status;
+                let data_from_http = utility::http_get(host, port, format!("log-anchors?id={}", row.tablet_id).as_str());
+                let loganchor = AllTablets::parse_tablet_detail_log_anchors(data_from_http);
+                detail.tabletloganchor = loganchor;
+                let data_from_http = utility::http_get(host, port, format!("transactions?id={}", row.tablet_id).as_str());
+                let transaction = AllTablets::parse_tablet_detail_transactions(data_from_http);
+                detail.transactions = transaction;
+                let data_from_http = utility::http_get(host, port, format!("rocksdb?id={}", row.tablet_id).as_str());
+                let rocksdb = AllTablets::parse_tablet_detail_rocksdb(data_from_http);
+                detail.rocksdb = rocksdb;
+                //detail
+                tablets.tabletdetail.push(Some(detail));
+            };
         }
     }
     fn parse_tablet_detail(
         data_from_http: String,
         tablet_id: &str,
-    ) -> TabletDetail
+    ) -> Result<TabletDetail, &'static str>
     {
         let html = Html::parse_document(&data_from_http);
         let table_selector = Selector::parse("table").unwrap();
@@ -264,31 +270,39 @@ impl AllTablets {
         let mut tablet_detail = TabletDetail::new();
         tablet_detail.tablet_id = tablet_id.to_string();
 
-        // This table contains the columns
-        let schema_table = html.select(&table_selector).next().expect("Schema html table in /tablet?id=tablet_id page should exist");
-        match schema_table
+        //let schema_table = match html.select(&table_selector).next().expect(format!("Schema html table in /tablet?id={} page should exist.\n{}", tablet_id, &data_from_http).as_str())
+        // The table that we are looking for might not exist if the tablet data has been tombstoned.
+        // The next() will return None in that case.
+        match html.select(&table_selector).next()
         {
-            th
-            if th.select(&th_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Column"
-                && th.select(&th_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"ID"
-                && th.select(&th_selector).nth(2).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Type" => {
-                // skip heading
-                for tr in schema_table.select(&tr_selector).skip(1)
+            Some(schema_table) => {
+                // This table contains the columns
+                match schema_table
                 {
-                    let mut column = Column::new();
-                    // It looks to me like the table column definitions are a bit off logically:
-                    // The first table data column is defined as table header again, probably to make the column name bold typefaced.
-                    column.column = tr.select(&th_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default();
-                    column.id = tr.select(&td_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default();
-                    column.column_type = tr.select(&td_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default();
-                    tablet_detail.columns.push(Some(column));
+                    th
+                    if th.select(&th_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Column"
+                        && th.select(&th_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"ID"
+                        && th.select(&th_selector).nth(2).map(|row| row.text().collect::<String>()).unwrap_or_default() == *"Type" => {
+                        // skip heading
+                        for tr in schema_table.select(&tr_selector).skip(1)
+                        {
+                            let mut column = Column::new();
+                            // It looks to me like the table column definitions are a bit off logically:
+                            // The first table data column is defined as table header again, probably to make the column name bold typefaced.
+                            column.column = tr.select(&th_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default();
+                            column.id = tr.select(&td_selector).next().map(|row| row.text().collect::<String>()).unwrap_or_default();
+                            column.column_type = tr.select(&td_selector).nth(1).map(|row| row.text().collect::<String>()).unwrap_or_default();
+                            tablet_detail.columns.push(Some(column));
+                        }
+                    },
+                    non_matching_table => {
+                        info!("Found another table, this shouldn't happen: {:?}.", non_matching_table);
+                    },
                 }
             },
-            non_matching_table => {
-                info!("Found another table, this shouldn't happen: {:?}.", non_matching_table);
-            },
-        }
-        tablet_detail
+            None => return Err("No html tables found"),
+        };
+        Ok(tablet_detail)
     }
     fn parse_tablet_detail_consensus_status(
         data_from_http: String,
@@ -473,68 +487,96 @@ impl AllTablets {
         }
         rocksdb
     }
-    /*
     pub fn print(
         &self,
-        hostname_filter: &Regex
+        uuid: &String,
     ) -> Result<()>
     {
-        /*
-        let mut previous_hostname_port = String::from("");
-        for row in &self.threads
+        for alltablets in &self.tablet
         {
-            if hostname_filter.is_match(&row.hostname_port)
+            for (keyspace, table_name, on_disk_size, state) in alltablets.tabletbasic.iter()
+                .filter(|row| row.tablet_id == uuid.clone())
+                .map(|row| (row.namespace.clone(), row.table_name.clone(), row.on_disk_size.clone(), row.state.clone()))
             {
-                if row.hostname_port != previous_hostname_port
+                println!("{}\n General info:", alltablets.hostname_port.as_ref().unwrap());
+                println!("  Keyspace:       {}", keyspace);
+                println!("  Object name:    {}", table_name);
+                println!("  On disk sizes:  {}", on_disk_size);
+                println!("  State:          {}", state);
+                if state == "RUNNING".to_string() && alltablets.tabletdetail.iter().find(|row| row.as_ref().unwrap().tablet_id == uuid.clone()).is_some()
                 {
-                    println!("--------------------------------------------------------------------------------------------------------------------------------------");
-                    println!("Host: {}, Snapshot time: {}", &row.hostname_port.to_string(), row.timestamp);
-                    println!("--------------------------------------------------------------------------------------------------------------------------------------");
-                    println!("{:20} {:40} {:>20} {:>20} {:>20} {:50}",
-                             "hostname_port",
-                             "thread_name",
-                             "cum_user_cpu_s",
-                             "cum_kernel_cpu_s",
-                             "cum_iowait_cpu_s",
-                             "stack");
-                    println!("--------------------------------------------------------------------------------------------------------------------------------------");
-                    previous_hostname_port = row.hostname_port.to_string();
-                };
-                println!("{:20} {:40} {:>20} {:>20} {:>20} {:50}", row.hostname_port, row.thread_name, row.cumulative_user_cpu_s, row.cumulative_kernel_cpu_s, row.cumulative_iowait_cpu_s, row.stack.replace('\n', ""));
+                    println!(" Consensus:");
+                    if let Some(consensus) = alltablets.tabletdetail.iter()
+                        .find(|row| row.as_ref().unwrap().tablet_id == uuid.clone())
+                        .map(|row| &row.as_ref().unwrap().consensus_status)
+                    {
+                        println!("  State:          {}", consensus.state);
+                        println!("  Queue overview: {}", consensus.queue_overview.as_ref().unwrap_or(&"".to_string()));
+                        println!("  Watermark:");
+                        for watermark in &consensus.watermark
+                        {
+                            println!("  - {}", watermark.as_ref().unwrap().watermark);
+                        }
+                        println!("  Messages:");
+                        for message in &consensus.messages
+                        {
+                            println!("  - Entry: {}, Opid: {}, mesg. type: {}, size: {}, status: {}",
+                                message.as_ref().unwrap().entry,
+                                message.as_ref().unwrap().opid,
+                                message.as_ref().unwrap().message_type,
+                                message.as_ref().unwrap().size,
+                                message.as_ref().unwrap().status,
+                            );
+
+                        }
+                    }
+                        /*
+                    println!("Consensus status: {}", alltablets.tabletdetail.iter()
+                        .find(|row| row.as_ref().unwrap().tablet_id == uuid.clone())
+                        .map(|row| row.as_ref().unwrap().consensus_status.state.clone())
+                        .unwrap_or_default()
+                        //.unwrap_or((&"").to_string())
+                    );
+
+                         */
+                    println!(" Transactions:");
+                    for rows in alltablets.tabletdetail.iter()
+                        .filter(|row| row.as_ref().unwrap().tablet_id == uuid.clone())
+                        .map(|row| row.as_ref().unwrap().transactions.transactions.clone())
+                    {
+                        for row in rows
+                        {
+                            println!("  - {}", row);
+                        }
+                    }
+                }
             }
         }
 
-         */
         Ok(())
     }
-
-     */
 }
 
-/*
-pub async fn print_tables(
+pub async fn print_tablet_detail(
     hosts: Vec<&str>,
     ports: Vec<&str>,
     parallel: usize,
     options: &Opts,
 ) -> Result<()>
 {
-    let hostname_filter = utility::set_regex(&options.hostname_match);
-    match options.print_threads.as_ref().unwrap() {
+    match options.print_tablet_detail.as_ref().unwrap() {
         Some(snapshot_number) => {
-            let mut alltables = AllTables::new();
-            alltables.table = snapshot::read_snapshot_json(snapshot_number, "threads")?;
-            alltables.print(&hostname_filter)?;
+            let mut alltablets = AllTablets::new();
+            alltablets.tablet = snapshot::read_snapshot_json(snapshot_number, "tablets")?;
+            alltablets.print(&options.uuid)?;
         },
         None => {
-            let alltables = AllTables::read_tables(&hosts, &ports, parallel).await;
-            alltables.print(&hostname_filter)?;
+            let alltablets = AllTablets::read_tablets(&hosts, &ports, parallel, &options.extra_data).await;
+            alltablets.print(&options.uuid)?;
         },
     }
     Ok(())
 }
-
- */
 
 #[cfg(test)]
 mod tests {

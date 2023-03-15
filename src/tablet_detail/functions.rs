@@ -505,6 +505,9 @@ impl AllTablets {
                 println!("  State:          {}", state);
                 if state == "RUNNING".to_string() && alltablets.tabletdetail.iter().find(|row| row.as_ref().unwrap().tablet_id == uuid.clone()).is_some()
                 {
+                    //
+                    // consensus
+                    //
                     println!(" Consensus:");
                     if let Some(consensus) = alltablets.tabletdetail.iter()
                         .find(|row| row.as_ref().unwrap().tablet_id == uuid.clone())
@@ -530,15 +533,23 @@ impl AllTablets {
 
                         }
                     }
-                        /*
-                    println!("Consensus status: {}", alltablets.tabletdetail.iter()
-                        .find(|row| row.as_ref().unwrap().tablet_id == uuid.clone())
-                        .map(|row| row.as_ref().unwrap().consensus_status.state.clone())
-                        .unwrap_or_default()
-                        //.unwrap_or((&"").to_string())
-                    );
+                    //
+                    // Tablet LogAnchor
+                    //
+                    println!(" LogAnchor:");
+                    for rows in alltablets.tabletdetail.iter()
+                        .filter(|row| row.as_ref().unwrap().tablet_id == uuid.clone())
+                        .map(|row| &row.as_ref().unwrap().tabletloganchor.loganchor)
+                    {
+                       for row in rows
+                       {
+                           println!("  {}", row);
+                       }
 
-                         */
+                    }
+                    //
+                    // Transactions
+                    //
                     println!(" Transactions:");
                     for rows in alltablets.tabletdetail.iter()
                         .filter(|row| row.as_ref().unwrap().tablet_id == uuid.clone())
@@ -547,6 +558,46 @@ impl AllTablets {
                         for row in rows
                         {
                             println!("  - {}", row);
+                        }
+                    }
+                    //
+                    // Rocksdb
+                    //
+                    println!(" Rocksdb:");
+                    println!("  IntentDB:");
+                    for rows in alltablets.tabletdetail.iter()
+                        .filter(|row| row.as_ref().unwrap().tablet_id == uuid.clone())
+                        .map(|row| &row.as_ref().unwrap().rocksdb)
+                    {
+                        for file in &rows.intents_files
+                        {
+                            println!("   {} {}, {} {}, {} {}, {}",
+                                     file.split_whitespace().nth(1).unwrap(),
+                                     file.split_whitespace().nth(2).unwrap(),
+                                     file.split_whitespace().nth(5).unwrap(),
+                                     file.split_whitespace().nth(6).unwrap(),
+                                     file.split_whitespace().nth(7).unwrap(),
+                                     file.split_whitespace().nth(8).unwrap(),
+                                     file.split_whitespace().nth(10).unwrap(),
+                            );
+                        }
+                    }
+                    println!("  RegularDB:");
+                    for rows in alltablets.tabletdetail.iter()
+                        .filter(|row| row.as_ref().unwrap().tablet_id == uuid.clone())
+                        .map(|row| &row.as_ref().unwrap().rocksdb)
+                    {
+                        for file in &rows.regular_files
+                        {
+                            println!("   {} {}, {} {}, {} {}, {}",
+                                     file.split_whitespace().nth(1).unwrap(),
+                                     file.split_whitespace().nth(2).unwrap(),
+                                     file.split_whitespace().nth(5).unwrap(),
+                                     file.split_whitespace().nth(6).unwrap(),
+                                     file.split_whitespace().nth(7).unwrap(),
+                                     file.split_whitespace().nth(8).unwrap(),
+                                     file.split_whitespace().nth(10).unwrap(),
+                            );
                         }
                     }
                 }

@@ -391,7 +391,7 @@ impl AllTables {
     }
     pub fn print(
         &self,
-        uuid: &String,
+        uuid: &str,
         leader_hostname: String,
     ) -> Result<()>
     {
@@ -402,10 +402,12 @@ impl AllTables {
                 continue;
             }
             if let Some((keyspace, table_name, on_disk_size, object_type)) = alltables.tablebasic.iter()
-                .find(|row| row.uuid == uuid.clone())
-                .map(|row| return (row.keyspace.clone(), row.table_name.clone(), row.on_disk_size.clone(), row.object_type.clone()))
+                .find(|row| row.uuid == *uuid)
+                .map(|row| (row.keyspace.clone(), row.table_name.clone(), row.on_disk_size.clone(), row.object_type.clone()))
             {
-                if alltables.tabledetail.len() == 0
+                // We want to warn about not using the --extra-data switch
+                #[allow(clippy::collapsible_else_if)]
+                if alltables.tabledetail.is_empty()
                 {
                     println!("print table detail requires the --extra-data switch");
                     return Ok(());
@@ -413,10 +415,10 @@ impl AllTables {
                 else
                 {
                     if let Some(table_detail) = alltables.tabledetail.iter()
-                        .find(|row| row.as_ref().unwrap().uuid == uuid.clone())
+                        .find(|row| row.as_ref().unwrap().uuid == *uuid)
                     {
                         println!("Table UUID: {}, version: {}, type: {}, state: {}, keyspace: {}, object_type: {}, name: {}",
-                            uuid.clone(),
+                            uuid.to_owned(),
                             table_detail.as_ref().unwrap().version,
                             table_detail.as_ref().unwrap().detail_type,
                             table_detail.as_ref().unwrap().state,
@@ -469,7 +471,7 @@ impl AllTables {
             }
             else
             {
-                println!("UUID: {} not found", uuid.clone());
+                println!("UUID: {} not found", uuid.to_owned());
             }
 
         }
@@ -1259,6 +1261,6 @@ mod tests {
 
         let alltables = AllTables::read_tables(&vec![&hostname], &vec![&port], 1, &true).await;
         // the master returns more than one thread.
-        assert!(alltables.table.len() > 0);
+        assert!(alltables.table.is_empty());
     }
 }

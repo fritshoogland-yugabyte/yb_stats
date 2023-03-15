@@ -489,13 +489,13 @@ impl AllTablets {
     }
     pub fn print(
         &self,
-        uuid: &String,
+        uuid: &str,
     ) -> Result<()>
     {
         for alltablets in &self.tablet
         {
             for (keyspace, table_name, on_disk_size, state) in alltablets.tabletbasic.iter()
-                .filter(|row| row.tablet_id == uuid.clone())
+                .filter(|row| row.tablet_id == *uuid)
                 .map(|row| (row.namespace.clone(), row.table_name.clone(), row.on_disk_size.clone(), row.state.clone()))
             {
                 println!("{}\n General info:", alltablets.hostname_port.as_ref().unwrap());
@@ -503,14 +503,14 @@ impl AllTablets {
                 println!("  Object name:    {}", table_name);
                 println!("  On disk sizes:  {}", on_disk_size);
                 println!("  State:          {}", state);
-                if state == "RUNNING".to_string() && alltablets.tabletdetail.iter().find(|row| row.as_ref().unwrap().tablet_id == uuid.clone()).is_some()
+                if state == *"RUNNING" && alltablets.tabletdetail.iter().any(|row| row.as_ref().unwrap().tablet_id == *uuid)
                 {
                     //
                     // consensus
                     //
                     println!(" Consensus:");
                     if let Some(consensus) = alltablets.tabletdetail.iter()
-                        .find(|row| row.as_ref().unwrap().tablet_id == uuid.clone())
+                        .find(|row| row.as_ref().unwrap().tablet_id == *uuid)
                         .map(|row| &row.as_ref().unwrap().consensus_status)
                     {
                         println!("  State:          {}", consensus.state);
@@ -538,7 +538,7 @@ impl AllTablets {
                     //
                     println!(" LogAnchor:");
                     for rows in alltablets.tabletdetail.iter()
-                        .filter(|row| row.as_ref().unwrap().tablet_id == uuid.clone())
+                        .filter(|row| row.as_ref().unwrap().tablet_id == *uuid)
                         .map(|row| &row.as_ref().unwrap().tabletloganchor.loganchor)
                     {
                        for row in rows
@@ -552,7 +552,7 @@ impl AllTablets {
                     //
                     println!(" Transactions:");
                     for rows in alltablets.tabletdetail.iter()
-                        .filter(|row| row.as_ref().unwrap().tablet_id == uuid.clone())
+                        .filter(|row| row.as_ref().unwrap().tablet_id == *uuid)
                         .map(|row| row.as_ref().unwrap().transactions.transactions.clone())
                     {
                         for row in rows
@@ -566,7 +566,7 @@ impl AllTablets {
                     println!(" Rocksdb:");
                     println!("  IntentDB:");
                     for rows in alltablets.tabletdetail.iter()
-                        .filter(|row| row.as_ref().unwrap().tablet_id == uuid.clone())
+                        .filter(|row| row.as_ref().unwrap().tablet_id == *uuid)
                         .map(|row| &row.as_ref().unwrap().rocksdb)
                     {
                         for file in &rows.intents_files
@@ -584,7 +584,7 @@ impl AllTablets {
                     }
                     println!("  RegularDB:");
                     for rows in alltablets.tabletdetail.iter()
-                        .filter(|row| row.as_ref().unwrap().tablet_id == uuid.clone())
+                        .filter(|row| row.as_ref().unwrap().tablet_id == *uuid)
                         .map(|row| &row.as_ref().unwrap().rocksdb)
                     {
                         for file in &rows.regular_files
@@ -1452,6 +1452,6 @@ mod tests {
 
         let alltablets = AllTablets::read_tablets(&vec![&hostname], &vec![&port], 1, &true).await;
         // the tablet server returns more than one tablet.
-        assert!(alltablets.tablet.len() > 0);
+        assert!(!alltablets.tablet.is_empty());
     }
 }

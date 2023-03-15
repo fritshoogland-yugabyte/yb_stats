@@ -643,15 +643,12 @@ mod tests {
 }
         "#.to_string();
         let result = AllRpcs::parse_rpcs(json, "", "");
-        match result {
-            Ysql { connections,.. } =>
-            {
+        if let Ysql { connections,.. } = result
+        {
                 assert_eq!(connections[0].process_start_time, "2022-08-11 10:06:23.639902+00");
                 assert_eq!(connections[0].application_name, "");
                 assert_eq!(connections[0].backend_type, "checkpointer");
                 assert_eq!(connections[0].backend_status, "");
-            }
-            _ => {},
         }
     }
 
@@ -682,16 +679,13 @@ mod tests {
 }
         "#.to_string();
         let result = AllRpcs::parse_rpcs(json, "", "");
-        match result {
-            Ysql { connections, .. } =>
-                {
+        if let Ysql { connections, .. } = result
+        {
                     assert_eq!(connections[0].db_oid.unwrap_or_default(), 13285);
                     assert_eq!(connections[0].db_name.clone().unwrap_or_default(), "yugabyte");
                     assert_eq!(connections[0].query.clone().unwrap_or_default(), "insert into t select x from generate_series(1,100000000) x;");
                     assert_eq!(connections[0].query_start_time.clone().unwrap_or_default(), "2022-08-12 14:20:38.366499+00");
                     assert_eq!(connections[0].query_running_for_ms.unwrap_or_default(), 1824);
-                }
-            _ => {}
         }
     }
 
@@ -715,8 +709,7 @@ mod tests {
 }
         "#.to_string();
         let result = AllRpcs::parse_rpcs(json, "", "");
-        match result {
-            Rpc { inbound_connections, .. } =>
+        if let Rpc { inbound_connections, .. } = result
                 {
                     assert_eq!(inbound_connections.as_ref().unwrap()[0].remote_ip, "127.0.0.1:33086");
                     assert_eq!(inbound_connections.as_ref().unwrap()[0].state, StateType::OPEN);
@@ -725,8 +718,6 @@ mod tests {
                     assert_eq!(inbound_connections.as_ref().unwrap()[1].state, StateType::OPEN);
                     assert_eq!(inbound_connections.as_ref().unwrap()[1].processed_call_count.unwrap_or_default(), 13);
                 }
-            _ => {}
-        }
     }
 
     #[test]
@@ -763,17 +754,14 @@ mod tests {
         "#.to_string();
         let result = AllRpcs::parse_rpcs(json, "", "");
 
-        match result {
-            Rpc { inbound_connections, .. } =>
-                {
+        if let Rpc { inbound_connections, .. } = result
+        {
                     assert_eq!(inbound_connections.as_ref().unwrap()[0].remote_ip, "127.0.0.1:35518");
                     assert_eq!(inbound_connections.as_ref().unwrap()[0].state, StateType::OPEN);
                     assert_eq!(inbound_connections.as_ref().unwrap()[0].processed_call_count.unwrap_or_default(), 20);
                     assert_eq!(inbound_connections.as_ref().unwrap()[0].connection_details.as_ref().unwrap().cql_connection_details.as_ref().unwrap().keyspace.as_ref().unwrap(), "cr");
                     assert_eq!(inbound_connections.as_ref().unwrap()[0].calls_in_flight.as_ref().unwrap()[0].cql_details.as_ref().unwrap().call_type.as_ref().unwrap(), "QUERY");
                     assert_eq!(inbound_connections.as_ref().unwrap()[0].calls_in_flight.as_ref().unwrap()[0].cql_details.as_ref().unwrap().call_details[0].sql_string.as_ref().unwrap(), "select avg(permit), avg(permit_recheck), avg( handgun), avg( long_gun), avg( other), avg( multiple), avg( admin), avg( prepawn_handgun), avg( prepawn_long_gun), avg( prepawn_other), avg( redemption_handgun), avg( redemption_long_gun), avg( redemption_other), avg( returned_handgun), avg( returned_long_gun), avg( returned_other), avg( rentals_handgun), avg( rentals_long_gun), avg( private_sale_handgun), avg( private_sale_long_gun), avg( private_sale_other), avg( return_to_seller_handgun), avg( return_to_seller_long_gun), avg( return_to_seller_other), avg( totals) from fa_bg_checks;");
-                }
-            _ => {}
         }
     }
 
@@ -912,8 +900,8 @@ mod tests {
 }
         "#.to_string();
         let result = AllRpcs::parse_rpcs(json, "", "");
-        match result {
-            Rpc { inbound_connections, .. } =>
+
+        if let Rpc { inbound_connections, .. } = result
                 {
                     assert_eq!(inbound_connections.as_ref().unwrap()[0].remote_ip, "127.0.0.1:35692");
                     assert_eq!(inbound_connections.as_ref().unwrap()[0].state, StateType::OPEN);
@@ -957,8 +945,6 @@ mod tests {
                                    .call_details[19]
                                    .params.as_ref().unwrap(), "[2008-06, Louisiana, \0\0\0\0, n/a, \0\0\u{19}\u{00cd}, \0\0\u{14}L, n/a, \0\0\0\u{00da}, \0\0\0\0, \0\0\0\u{5}, \0\0\0\u{3}, n/a, \0\0\u{2}\u{0192}, \0\0\u{3}@, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, n/a, \0\04\u{00be}]");
                 }
-            _ => {}
-        }
     }
 
     #[test]
@@ -987,18 +973,15 @@ mod tests {
 }
         "#.to_string();
         let result = AllRpcs::parse_rpcs(json, "", "");
-        match result {
-            Rpc { inbound_connections, outbound_connections, .. } =>
-                {
-                    assert_eq!(inbound_connections.as_ref().unwrap()[0].remote_ip, "172.158.40.206:38776");
-                    assert_eq!(inbound_connections.as_ref().unwrap()[0].state, StateType::OPEN);
-                    assert_eq!(inbound_connections.as_ref().unwrap()[0].processed_call_count.unwrap_or_default(), 314238);
-                    assert_eq!(outbound_connections.as_ref().unwrap()[0].remote_ip, "172.158.40.206:9100");
-                    assert_eq!(outbound_connections.as_ref().unwrap()[0].state, StateType::OPEN);
-                    assert_eq!(outbound_connections.as_ref().unwrap()[0].processed_call_count.unwrap_or_default(), 316390);
-                    assert_eq!(outbound_connections.as_ref().unwrap()[0].sending_bytes.unwrap_or_default(), 0);
-                }
-            _ => {}
+        if let Rpc { inbound_connections, outbound_connections, .. } = result
+        {
+            assert_eq!(inbound_connections.as_ref().unwrap()[0].remote_ip, "172.158.40.206:38776");
+            assert_eq!(inbound_connections.as_ref().unwrap()[0].state, StateType::OPEN);
+            assert_eq!(inbound_connections.as_ref().unwrap()[0].processed_call_count.unwrap_or_default(), 314238);
+            assert_eq!(outbound_connections.as_ref().unwrap()[0].remote_ip, "172.158.40.206:9100");
+            assert_eq!(outbound_connections.as_ref().unwrap()[0].state, StateType::OPEN);
+            assert_eq!(outbound_connections.as_ref().unwrap()[0].processed_call_count.unwrap_or_default(), 316390);
+            assert_eq!(outbound_connections.as_ref().unwrap()[0].sending_bytes.unwrap_or_default(), 0);
         }
     }
 
@@ -1061,15 +1044,12 @@ mod tests {
 }
         "#.to_string();
         let result = AllRpcs::parse_rpcs(json, "", "");
-        match result {
-            Rpc { outbound_connections, .. } =>
-                {
+        if let Rpc { outbound_connections, .. } = result
+        {
                     assert_eq!(outbound_connections.as_ref().unwrap()[0].remote_ip, "192.168.66.80:7100");
                     assert_eq!(outbound_connections.as_ref().unwrap()[0].state, StateType::OPEN);
                     assert_eq!(outbound_connections.as_ref().unwrap()[0].processed_call_count.unwrap_or_default(), 3526);
                     assert_eq!(outbound_connections.as_ref().unwrap()[0].sending_bytes.unwrap_or_default(), 0);
-                }
-            _ => {}
         }
     }
 
@@ -1090,14 +1070,11 @@ mod tests {
 }
         "#.to_string();
         let result = AllRpcs::parse_rpcs(json, "", "");
-        match result {
-            Rpc { inbound_connections, .. } =>
-                {
-                    assert_eq!(inbound_connections.as_ref().unwrap()[0].remote_ip, "172.158.40.206:38776");
-                    assert_eq!(inbound_connections.as_ref().unwrap()[0].state, StateType::OPEN);
-                    assert_eq!(inbound_connections.as_ref().unwrap()[0].processed_call_count.unwrap_or_default(), 314238);
-                }
-            _ => {}
+        if let Rpc { inbound_connections, .. } = result
+        {
+            assert_eq!(inbound_connections.as_ref().unwrap()[0].remote_ip, "172.158.40.206:38776");
+            assert_eq!(inbound_connections.as_ref().unwrap()[0].state, StateType::OPEN);
+            assert_eq!(inbound_connections.as_ref().unwrap()[0].processed_call_count.unwrap_or_default(), 314238);
         }
     }
 
@@ -1169,8 +1146,7 @@ mod tests {
         "#.to_string();
         let result = AllRpcs::parse_rpcs(json, "", "");
 
-        match result {
-            Rpc { inbound_connections, outbound_connections, .. } =>
+        if let Rpc { inbound_connections, outbound_connections, .. } = result
                 {
                     assert_eq!(inbound_connections.as_ref().unwrap()[0].remote_ip, "192.168.66.82:51316");
                     assert_eq!(inbound_connections.as_ref().unwrap()[0].state, StateType::OPEN);
@@ -1249,8 +1225,6 @@ mod tests {
                                    .calls_in_flight.as_ref().unwrap()[1]
                                    .state.as_ref().unwrap(), &RpcCallState::SENT);
                 }
-            _ => {}
-        }
     }
 
     #[test]
@@ -1335,16 +1309,13 @@ mod tests {
     }
         "#.to_string();
         let result = AllRpcs::parse_rpcs(json, "", "");
-        match result {
-            Rpc { inbound_connections, outbound_connections, .. } =>
-                {
-                    assert_eq!(inbound_connections.as_ref().unwrap()[0].remote_ip, "192.168.66.80:53856");
-                    assert_eq!(inbound_connections.as_ref().unwrap()[0].state, StateType::OPEN);
-                    assert_eq!(inbound_connections.as_ref().unwrap()[0].processed_call_count.unwrap_or_default(), 186);
+        if let Rpc { inbound_connections, outbound_connections, .. } = result
+        {
+            assert_eq!(inbound_connections.as_ref().unwrap()[0].remote_ip, "192.168.66.80:53856");
+            assert_eq!(inbound_connections.as_ref().unwrap()[0].state, StateType::OPEN);
+            assert_eq!(inbound_connections.as_ref().unwrap()[0].processed_call_count.unwrap_or_default(), 186);
 
-                    assert_eq!(outbound_connections.as_ref().unwrap()[0].remote_ip, "192.168.66.80:7100");
-                }
-            _ => {}
+            assert_eq!(outbound_connections.as_ref().unwrap()[0].remote_ip, "192.168.66.80:7100");
         }
     }
 

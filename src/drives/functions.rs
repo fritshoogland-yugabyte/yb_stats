@@ -204,7 +204,7 @@ mod tests {
 
         let result = AllDrives::read_drives(&vec![&hostname], &vec![&port], 1).await;
 
-        assert!(result.drives.len() > 0);
+        assert!(!result.drives.is_empty());
     }
 
     #[tokio::test]
@@ -214,6 +214,6 @@ mod tests {
 
         let result = AllDrives::read_drives(&vec![&hostname], &vec![&port], 1).await;
 
-        assert!(result.drives.len() > 0);
+        assert!(!result.drives.is_empty());
     }
 }

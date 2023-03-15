@@ -716,13 +716,10 @@ mod tests {
 ]"#.to_string();
         let result = AllMetricEntity::parse_metrics(json, "", "");
         assert_eq!(result[0].metrics_type,"cdcsdk");
-        match &result[0].metrics[0] {
-            MetricValue { name, value} =>
-                {
-                    assert_eq!(name.clone(), "async_replication_sent_lag_micros");
-                    assert_eq!(value, &0);
-                },
-            _ => {}
+        if let MetricValue { name, value } = &result[0].metrics[0]
+        {
+            assert_eq!(name.clone(), "async_replication_sent_lag_micros");
+            assert_eq!(value, &0);
         };
     }
 
@@ -751,14 +748,11 @@ mod tests {
 ]"#.to_string();
         let result = AllMetricEntity::parse_metrics(json, "", "");
         assert_eq!(result[0].metrics_type,"cdc");
-        match &result[0].metrics[0] {
-            MetricValue { name, value} =>
+        if let MetricValue { name, value} = &result[0].metrics[0]
                 {
                     assert_eq!(name.clone(), "async_replication_sent_lag_micros");
                     assert_eq!(value, &0);
-                },
-            _ => {}
-        };
+                };
     }
 
         #[test]
@@ -795,15 +789,12 @@ mod tests {
     ]"#.to_string();
             let result = AllMetricEntity::parse_metrics(json, "", "");
             assert_eq!(result[0].metrics_type,"cdc");
-            match &result[0].metrics[0] {
-                MetricCountSum { name, total_count, total_sum, .. } =>
+            if let MetricCountSum { name, total_count, total_sum, .. } = &result[0].metrics[0]
                     {
                         assert_eq!(name.clone(), "rpc_payload_bytes_responded");
                         assert_eq!(total_count, &3333);
                         assert_eq!(total_sum, &4444);
-                    },
-                _ => {}
-            };
+                    };
         }
 
         #[test]
@@ -830,13 +821,10 @@ mod tests {
     ]"#.to_string();
             let result = AllMetricEntity::parse_metrics(json, "", "");
             assert_eq!(result[0].metrics_type,"tablet");
-            match &result[0].metrics[0] {
-                MetricValue { name, value} =>
-                    {
+            if let MetricValue { name, value} = &result[0].metrics[0]
+            {
                         assert_eq!(name.clone(), "rocksdb_sequence_number");
                         assert_eq!(value, &1125899906842624);
-                    },
-                _ => {}
             };
         }
 
@@ -873,14 +861,11 @@ mod tests {
     ]"#.to_string();
             let result = AllMetricEntity::parse_metrics(json, "", "");
             assert_eq!(result[0].metrics_type,"table");
-            match &result[0].metrics[0] {
-                MetricCountSum { name, total_count, total_sum, .. } =>
-                    {
+            if let MetricCountSum { name, total_count, total_sum, .. } = &result[0].metrics[0]
+            {
                         assert_eq!(name.clone(), "log_sync_latency");
                         assert_eq!(total_count, &21);
                         assert_eq!(total_sum, &22349);
-                    },
-                _ => {}
             };
         }
 
@@ -908,13 +893,10 @@ mod tests {
     ]"#.to_string();
             let result = AllMetricEntity::parse_metrics(json, "", "");
             assert_eq!(result[0].metrics_type,"table");
-            match &result[0].metrics[0] {
-                MetricValue { name, value} =>
-                    {
+            if let MetricValue { name, value} = &result[0].metrics[0]
+            {
                         assert_eq!(name.clone(), "log_gc_running");
                         assert_eq!(value, &0);
-                    },
-                _ => {}
             };
         }
 
@@ -937,13 +919,10 @@ mod tests {
     ]"#.to_string();
             let result = AllMetricEntity::parse_metrics(json, "", "");
             assert_eq!(result[0].metrics_type,"cluster");
-            match &result[0].metrics[0] {
-                MetricValue { name, value} =>
-                    {
+            if let MetricValue { name, value} = &result[0].metrics[0]
+            {
                         assert_eq!(name.clone(), "num_tablet_servers_live");
                         assert_eq!(value, &0);
-                    },
-                _ => {}
             };
         }
 
@@ -966,13 +945,10 @@ mod tests {
     ]"#.to_string();
             let result = AllMetricEntity::parse_metrics(json, "", "");
             assert_eq!(result[0].metrics_type,"server");
-            match &result[0].metrics[0] {
-                MetricValue { name, value} =>
-                    {
+            if let MetricValue { name, value} = &result[0].metrics[0]
+            {
                         assert_eq!(name.clone(), "mem_tracker");
                         assert_eq!(value, &529904);
-                    },
-                _ => {}
             }
         }
 
@@ -1004,14 +980,11 @@ mod tests {
     ]"#.to_string();
             let result = AllMetricEntity::parse_metrics(json, "", "");
             assert_eq!(result[0].metrics_type,"server");
-            match &result[0].metrics[0] {
-                MetricCountSum { name, total_count, total_sum, .. } =>
-                    {
+            if let MetricCountSum { name, total_count, total_sum, .. } = &result[0].metrics[0]
+            {
                         assert_eq!(name.clone(), "handler_latency_outbound_call_time_to_response");
                         assert_eq!(total_count, &1384630);
                         assert_eq!(total_sum, &1057260382);
-                    },
-                _ => {}
             };
         }
 
@@ -1036,20 +1009,18 @@ mod tests {
     ]"#.to_string();
             let result = AllMetricEntity::parse_metrics(json, "", "");
             assert_eq!(result[0].metrics_type,"server");
-            match &result[0].metrics[0] {
-                MetricCountSumRows { name, count, sum, rows } =>
-                    {
+            if let MetricCountSumRows { name, count, sum, rows } = &result[0].metrics[0]
+            {
                         assert_eq!(name.clone(), "handler_latency_yb_ysqlserver_SQLProcessor_CatalogCacheMisses");
                         assert_eq!(count, &439);
                         assert_eq!(sum, &0);
                         assert_eq!(rows, &439);
-                    },
-                _ => {}
             };
         }
 
         #[test]
-        fn unit_parse_metrics_server_rejectedu64metricvalue() {
+        fn unit_parse_metrics_server_rejectedu64metricvalue()
+        {
             // Funny, when I checked with version 2.11.2.0-b89 I could not find the value that only fitted in an unsigned 64 bit integer.
             // Still let's check for it.
             // The id is yb.cqlserver, because that is where I found this value.
@@ -1070,14 +1041,11 @@ mod tests {
         }
     ]"#.to_string();
             let result = AllMetricEntity::parse_metrics(json, "", "");
-            assert_eq!(result[0].metrics_type,"server");
-            match &result[0].metrics[0] {
-                RejectedU64MetricValue { name, value} =>
-                    {
-                        assert_eq!(name.clone(), "madeup_value");
-                        assert_eq!(value, &18446744073709551615);
-                    },
-                _ => {}
+            assert_eq!(result[0].metrics_type, "server");
+            if let RejectedU64MetricValue { name, value } = &result[0].metrics[0]
+            {
+                assert_eq!(name.clone(), "madeup_value");
+                assert_eq!(value, &18446744073709551615);
             };
         }
 
@@ -1102,30 +1070,13 @@ mod tests {
     ]"#.to_string();
             let result = AllMetricEntity::parse_metrics(json, "", "");
             assert_eq!(result[0].metrics_type,"cluster");
-            match &result[0].metrics[0] {
-                RejectedBooleanMetricValue { name, value} =>
-                    {
+            if let RejectedBooleanMetricValue { name, value } = &result[0].metrics[0]
+            {
                         assert_eq!(name.clone(), "is_load_balancing_enabled");
                         assert_eq!(value, &false);
-                    },
-                _ => {}
             };
         }
 
-        /*
-        fn test_function_read_metrics(
-            hostname: String,
-            port: String
-        ) -> AllStoredMetrics
-        {
-            let mut allstoredmetrics = AllStoredMetrics::new();
-
-            let data_parsed_from_json = AllStoredMetrics::read_http(hostname.as_str(), port.as_str());
-            allstoredmetrics.split_into_vectors(data_parsed_from_json, format!("{}:{}", hostname, port).as_str(), Local::now());
-            allstoredmetrics
-        }
-
-         */
         #[tokio::test]
         async fn integration_parse_metrics_master()
         {

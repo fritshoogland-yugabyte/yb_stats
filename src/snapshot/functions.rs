@@ -513,8 +513,6 @@ pub async fn snapshot_nonmetrics_diff(
 
 /// Take "adhoc" (in memory) snapshots of metrics only:
 /// - metrics (value, coarse_histogram/countsum, ysql/countsumrows)
-/// - statements (ysql)
-/// - node_exporter
 ///
 /// The idea here to reduce output when it's know lots of 'entities'/objects are created, or other
 /// changed would give too much output to be useful.
@@ -535,8 +533,6 @@ pub async fn adhoc_metrics_diff(
     let first_snapshot_time = Local::now();
 
     let metrics = Arc::new(Mutex::new(metrics::MetricEntityDiff::new()));
-    let statements = Arc::new(Mutex::new(statements::StatementsDiff::new()));
-    let node_exporter = Arc::new(Mutex::new(node_exporter::NodeExporterDiff::new()));
 
     let hosts = Arc::new(hosts);
     let ports = Arc::new(ports);
@@ -550,22 +546,6 @@ pub async fn adhoc_metrics_diff(
 
     let handle = tokio::spawn(async move {
         clone_metrics.lock().await.adhoc_read_first_snapshot(&clone_hosts, &clone_ports, parallel, details_enable).await;
-    });
-    handles.push(handle);
-
-    let clone_statements = statements.clone();
-    let clone_hosts = hosts.clone();
-    let clone_ports = ports.clone();
-    let handle = tokio::spawn(async move {
-        clone_statements.lock().await.adhoc_read_first_snapshot(&clone_hosts, &clone_ports, parallel).await;
-    });
-    handles.push(handle);
-
-    let clone_node_exporter = node_exporter.clone();
-    let clone_hosts = hosts.clone();
-    let clone_ports = ports.clone();
-    let handle = tokio::spawn(async move {
-        clone_node_exporter.lock().await.adhoc_read_first_snapshot(&clone_hosts, &clone_ports, parallel).await;
     });
     handles.push(handle);
 
@@ -595,13 +575,67 @@ pub async fn adhoc_metrics_diff(
     });
     handles.push(handle);
 
-    let clone_statements = statements.clone();
+    for handle in handles {
+        handle.await.unwrap();
+    }
+
+    info!("ad-hoc metrics diff second snapshot end: {:?}", timer.elapsed());
+
+    println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time - first_snapshot_time).num_milliseconds() as f64 / 1000_f64);
+    metrics.lock().await.print(&hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable).await;
+
+    Ok(())
+}
+
+/// Take "adhoc" (in memory) snapshots of node_exporter only:
+///
+/// The idea here to reduce output when it's know lots of 'entities'/objects are created, or other
+/// changed would give too much output to be useful.
+pub async fn adhoc_node_exporter_diff(
+    hosts: Vec<&'static str>,
+    ports: Vec<&'static str>,
+    parallel: usize,
+    options: &Opts,
+) -> Result<()>
+{
+    info!("ad-hoc node_exporter diff first snapshot begin");
+    let timer = Instant::now();
+
+    let stat_name_filter = utility::set_regex(&options.stat_name_match);
+    let hostname_filter = utility::set_regex(&options.hostname_match);
+
+    let first_snapshot_time = Local::now();
+
+    let node_exporter = Arc::new(Mutex::new(node_exporter::NodeExporterDiff::new()));
+
+    let hosts = Arc::new(hosts);
+    let ports = Arc::new(ports);
+
+    let mut handles = vec![];
+
+    let clone_node_exporter = node_exporter.clone();
     let clone_hosts = hosts.clone();
     let clone_ports = ports.clone();
     let handle = tokio::spawn(async move {
-        clone_statements.lock().await.adhoc_read_second_snapshot(&clone_hosts, &clone_ports, parallel, &first_snapshot_time).await;
+        clone_node_exporter.lock().await.adhoc_read_first_snapshot(&clone_hosts, &clone_ports, parallel).await;
     });
     handles.push(handle);
+
+    for handle in handles {
+        handle.await.unwrap();
+    }
+    info!("ad-hoc node_exporter diff first snapshot end: {:?}", timer.elapsed());
+
+    println!("Begin ad-hoc in-memory snapshot created, press enter to create end snapshot for difference calculation.");
+    let mut input = String::new();
+    stdin().read_line(&mut input).expect("failed");
+
+    info!("ad-hoc node_exporter diff second snapshot begin");
+    let timer = Instant::now();
+
+    let second_snapshot_time = Local::now();
+
+    let mut handles = vec![];
 
     let clone_node_exporter = node_exporter.clone();
     let clone_hosts = hosts.clone();
@@ -615,11 +649,9 @@ pub async fn adhoc_metrics_diff(
         handle.await.unwrap();
     }
 
-    info!("ad-hoc metrics diff second snapshot end: {:?}", timer.elapsed());
+    info!("ad-hoc node_exporter diff second snapshot end: {:?}", timer.elapsed());
 
     println!("Time between snapshots: {:8.3} seconds", (second_snapshot_time - first_snapshot_time).num_milliseconds() as f64 / 1000_f64);
-    metrics.lock().await.print(&hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable).await;
-    statements.lock().await.print(&hostname_filter, options.sql_length).await;
     node_exporter.lock().await.print(&hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
 
     Ok(())

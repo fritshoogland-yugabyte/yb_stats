@@ -8,6 +8,7 @@ use anyhow::Result;
 use crate::{metrics, utility};
 use crate::snapshot;
 use crate::metrics::{Metrics::{MetricValue, MetricCountSum, MetricCountSumRows}, MetricEntity, AllMetricEntity, MetricEntityDiff, MetricDiffValues, Attributes, MetricDiffCountSum, MetricDiffCountSumRows};
+use crate::Opts;
 
 impl AllMetricEntity {
     pub fn new() -> Self {
@@ -684,6 +685,27 @@ impl MetricEntityDiff {
         let allmetricentity = AllMetricEntity::read_metrics(hosts, ports, parallel).await;
         self.second_snapshot(allmetricentity, &details_enable, first_snapshot_time);
     }
+}
+
+pub async fn metrics_diff(
+    options: &Opts,
+) -> Result<()>
+{
+    if options.begin.is_none() || options.end.is_none() {
+        snapshot::Snapshot::print()?;
+    }
+    if options.snapshot_list { return Ok(()) };
+
+    let hostname_filter = utility::set_regex(&options.hostname_match);
+    let stat_name_filter = utility::set_regex(&options.stat_name_match);
+    let table_name_filter = utility::set_regex(&options.table_name_match);
+
+    let (begin_snapshot, end_snapshot, begin_snapshot_row) = snapshot::Snapshot::read_begin_end_snapshot_from_user(options.begin, options.end)?;
+
+    let metricsdiff = MetricEntityDiff::snapshot_diff(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp, &options.details_enable)?;
+    metricsdiff.print(&hostname_filter, &stat_name_filter, &table_name_filter, &options.details_enable, &options.gauges_enable).await;
+
+    Ok(())
 }
 
 #[cfg(test)]

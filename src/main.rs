@@ -67,10 +67,10 @@ pub struct Opts {
     #[arg(short = 'H', long, value_name = "hostname,hostname")]
     hosts: Option<String>,
     /// Snapshot input port numbers (comma separated)
-    #[arg(short, long, value_name = "port,port")]
+    #[arg(short = 'P', long, value_name = "port,port")]
     ports: Option<String>,
     /// Snapshot capture parallelism (default 1)
-    #[arg(long, value_name = "nr")]
+    #[arg(short = 'p', long, value_name = "nr")]
     parallel: Option<String>,
     /// Output filter for statistic names as regex
     #[arg(short, long, value_name = "regex")]
@@ -90,7 +90,7 @@ pub struct Opts {
     /// Snapshot setting to be as silent as possible, only errors are printed
     #[arg(long)]
     silent: bool,
-    /// Perform a snapshot (creates stored CSV files)
+    /// Perform a snapshot (creates stored JSON files)
     #[arg(long)]
     snapshot: bool,
     /// Snapshot add comment in snapshot overview
@@ -102,18 +102,36 @@ pub struct Opts {
     /// Create a diff report using a begin and an end snapshot number without performance figures.
     #[arg(long)]
     snapshot_nonmetrics_diff: bool,
+    /// Create a metric diff report using a begin and end snapshot number.
+    #[arg(long)]
+    metrics_diff: bool,
     /// Create an entity diff report using a begin and end snapshot number.
     #[arg(long)]
     entity_diff: bool,
     /// Create a masters diff report using a begin and end snapshot number.
     #[arg(long)]
     masters_diff: bool,
+    /// Create a tablet servers diff report using a begin and end snapshot number.
+    #[arg(long)]
+    tablet_servers_diff: bool,
+    /// Create a vars diff report using a begin and end snapshot number.
+    #[arg(long)]
+    vars_diff: bool,
+    /// Create a node_exporter diff report using a begin and end snapshot number.
+    #[arg(long)]
+    node_exporter_diff: bool,
+    /// Create a (YSQL) statements diff report using a begin and end snapshot number.
+    #[arg(long)]
+    statements_diff: bool,
     /// Create a versions diff report using a begin and end snapshot number.
     #[arg(long)]
     versions_diff: bool,
     /// Create an adhoc diff report only for metrics
     #[arg(long)]
     adhoc_metrics_diff: bool,
+    /// Create an adhoc diff report only for node_exporter
+    #[arg(long)]
+    adhoc_node_exporter_diff: bool,
     /// Create an adhoc diff report excluding metrics
     #[arg(long)]
     adhoc_nonmetrics_diff: bool,
@@ -224,8 +242,13 @@ async fn main() -> Result<()>
         Opts { snapshot_diff, ..            } if *snapshot_diff                  => snapshot::snapshot_diff(&options).await?,
         Opts { snapshot_nonmetrics_diff, .. } if *snapshot_nonmetrics_diff       => snapshot::snapshot_nonmetrics_diff(&options).await?,
         Opts { snapshot_list, ..            } if *snapshot_list                  => snapshot::snapshot_diff(&options).await?,
+        Opts { metrics_diff, ..              } if *metrics_diff                    => metrics::metrics_diff(&options).await?,
         Opts { entity_diff, ..              } if *entity_diff                    => entities::entity_diff(&options).await?,
         Opts { masters_diff, ..             } if *masters_diff                   => masters::masters_diff(&options).await?,
+        Opts { tablet_servers_diff, ..             } if *tablet_servers_diff                   => tablet_servers::tablet_servers_diff(&options).await?,
+        Opts { vars_diff, ..             } if *vars_diff                   => vars::vars_diff(&options).await?,
+        Opts { node_exporter_diff, ..             } if *node_exporter_diff                   => node_exporter::node_exporter_diff(&options).await?,
+        Opts { statements_diff, ..             } if *statements_diff                   => statements::statements_diff(&options).await?,
         Opts { versions_diff, ..            } if *versions_diff                  => versions::versions_diff(&options).await?,
         Opts { print_memtrackers, ..        } if print_memtrackers.is_some()     => memtrackers::print_memtrackers(hosts, ports, parallel, &options).await?,
         Opts { print_version, ..            } if print_version.is_some()         => versions::print_version(hosts, ports, parallel, &options).await?,
@@ -240,6 +263,7 @@ async fn main() -> Result<()>
         Opts { print_log, ..                } if print_log.is_some()             => loglines::print_loglines(hosts, ports, parallel, &options).await?,
         Opts { tail_log, ..                 } if *tail_log                       => loglines::tail_loglines(hosts, ports, parallel, &options).await?,
         Opts { adhoc_metrics_diff, ..       } if *adhoc_metrics_diff             => snapshot::adhoc_metrics_diff(hosts, ports, parallel, &options).await?,
+        Opts { adhoc_node_exporter_diff, ..       } if *adhoc_node_exporter_diff             => snapshot::adhoc_node_exporter_diff(hosts, ports, parallel, &options).await?,
         Opts { adhoc_nonmetrics_diff, ..    } if *adhoc_nonmetrics_diff          => snapshot::adhoc_nonmetrics_diff(hosts, ports, parallel, &options).await?,
         Opts { print_gflags, ..             } if print_gflags.is_some()          => gflags::print_gflags(hosts, ports, parallel, &options).await?,
         Opts { print_cluster_config, ..     } if print_cluster_config.is_some()  => cluster_config::print_cluster_config(hosts, ports, parallel, &options).await?,

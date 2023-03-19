@@ -9,6 +9,7 @@ use anyhow::Result;
 use crate::utility;
 use crate::snapshot;
 use crate::node_exporter::{NodeExporter, AllNodeExporter, NodeExporterDiff, NameCategoryDiff};
+use crate::Opts;
 
 impl AllNodeExporter {
     pub fn new() -> Self {
@@ -540,6 +541,27 @@ fn linux_cpu_sum(nodeexporter: &mut Vec<NodeExporter>)
         });
     }
 }
+
+pub async fn node_exporter_diff(
+    options: &Opts,
+) -> Result<()>
+{
+    if options.begin.is_none() || options.end.is_none() {
+        snapshot::Snapshot::print()?;
+    }
+    if options.snapshot_list { return Ok(()) };
+
+    let hostname_filter = utility::set_regex(&options.hostname_match);
+    let stat_name_filter = utility::set_regex(&options.stat_name_match);
+
+    let (begin_snapshot, end_snapshot, begin_snapshot_row) = snapshot::Snapshot::read_begin_end_snapshot_from_user(options.begin, options.end)?;
+
+    let nodeexporterdiff = NodeExporterDiff::snapshot_diff(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp)?;
+    nodeexporterdiff.print(&hostname_filter, &stat_name_filter, &options.gauges_enable, &options.details_enable);
+
+    Ok(())
+}
+
 
 #[cfg(test)]
 mod tests {

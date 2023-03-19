@@ -9,6 +9,7 @@ use anyhow::Result;
 use crate::utility;
 use crate::snapshot;
 use crate::statements::{Statements, AllStatements, StatementsDiff, GroupedStatements};
+use crate::Opts;
 
 impl AllStatements {
     pub fn new() -> Self { Default::default() }
@@ -60,7 +61,7 @@ impl AllStatements {
 
         for statements in rx
         {
-            if statements.statements.is_empty()
+            if !statements.statements.is_empty()
             {
                 allstatements.statements.push(statements);
             }
@@ -213,6 +214,26 @@ impl StatementsDiff {
         let allstatements = AllStatements::read_statements(hosts, ports, parallel).await;
         self.second_snapshot(allstatements, first_snapshot_time);
     }
+}
+
+pub async fn statements_diff(
+    options: &Opts,
+) -> Result<()>
+{
+    if options.begin.is_none() || options.end.is_none() {
+        snapshot::Snapshot::print()?;
+    }
+    if options.snapshot_list { return Ok(()) };
+
+    let hostname_filter = utility::set_regex(&options.hostname_match);
+    let sql_length: usize = options.sql_length;
+
+    let (begin_snapshot, end_snapshot, begin_snapshot_row) = snapshot::Snapshot::read_begin_end_snapshot_from_user(options.begin, options.end)?;
+
+    let statementsdiff = StatementsDiff::snapshot_diff(&begin_snapshot, &end_snapshot, &begin_snapshot_row.timestamp)?;
+    statementsdiff.print(&hostname_filter, sql_length).await;
+
+    Ok(())
 }
 
 #[cfg(test)]

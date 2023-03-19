@@ -236,6 +236,23 @@ impl VarsDiff {
     }
 }
 
+pub async fn vars_diff(
+    options: &Opts,
+) -> Result<()>
+{
+    if options.begin.is_none() || options.end.is_none() {
+        snapshot::Snapshot::print()?;
+    }
+    if options.snapshot_list { return Ok(()) };
+
+    let (begin_snapshot, end_snapshot, _begin_snapshot_row) = snapshot::Snapshot::read_begin_end_snapshot_from_user(options.begin, options.end)?;
+
+    let varsdiff = VarsDiff::snapshot_diff(&begin_snapshot, &end_snapshot)?;
+    varsdiff.print();
+
+    Ok(())
+}
+
 pub async fn print_vars(
     hosts: Vec<&str>,
     ports: Vec<&str>,

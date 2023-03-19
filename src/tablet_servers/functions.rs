@@ -351,6 +351,23 @@ impl TabletServersDiff {
     }
 }
 
+pub async fn tablet_servers_diff(
+    options: &Opts,
+) -> Result<()>
+{
+    if options.begin.is_none() || options.end.is_none() {
+        snapshot::Snapshot::print()?;
+    }
+    if options.snapshot_list { return Ok(()) };
+
+    let (begin_snapshot, end_snapshot, _begin_snapshot_row) = snapshot::Snapshot::read_begin_end_snapshot_from_user(options.begin, options.end)?;
+
+    let tabletserversdiff = TabletServersDiff::snapshot_diff(&begin_snapshot, &end_snapshot)?;
+    tabletserversdiff.print();
+
+    Ok(())
+}
+
 pub async fn print_tablet_servers(
     hosts: Vec<&str>,
     ports: Vec<&str>,

@@ -38,5 +38,5 @@ release = "1.el8"
 copyright = "2021, Frits Hoogland <fhoogland@yugabyte.com>"
 maintainer = "Frits Hoogland <fhoogland@yugabyte.com>"
 assets = [
-    ["target/release/yb_stats", "/usr/local/bin", "755"]
+    ["target/release/yb_stats", "/usr/local/bin/", "755"]
 ]

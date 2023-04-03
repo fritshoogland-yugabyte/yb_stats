@@ -54,20 +54,85 @@
 //! Any object OID lower than 16384 (0x4000) is a catalog object. This is why a user table_id always starts from ..4000.
 //!
 //! ## YSQL colocated databases.
-//! If a database is created with colocation turned on, it will generate a special table entry:
+//! If a database is created with colocation turned on, it will generate two special entries:
+//! One for tables:
 //! ```text
-//!     {
-//!       "table_id": "0000400f000030008000000000000000.colocated.parent.uuid",
-//!       "keyspace_id": "0000400f000030008000000000000000",
-//!       "table_name": "0000400f000030008000000000000000.colocated.parent.tablename",
+//!    {
+//!       "table_id": "00004001000030008000000000000000.colocated.parent.uuid",
+//!       "keyspace_id": "00004001000030008000000000000000",
+//!       "table_name": "00004001000030008000000000000000.colocated.parent.tablename",
 //!       "state": "RUNNING"
 //!     }
 //! ```
+//! And one for tablets:
+//! ```text
+//!   {
+//!       "table_id": "00004001000030008000000000000000.colocated.parent.uuid",
+//!       "tablet_id": "ba782585352c466091fc14f3eec50844",
+//!       "state": "RUNNING",
+//!       "replicas": [
+//!         {
+//!           "type": "VOTER",
+//!           "server_uuid": "35cb0db775974930b319c9d8456ccff4",
+//!           "addr": "yb-1.local:9100"
+//!         },
+//!         {
+//!           "type": "VOTER",
+//!           "server_uuid": "d4d1427986f84491a8aa2c38223e21e7",
+//!           "addr": "yb-3.local:9100"
+//!         },
+//!         {
+//!           "type": "VOTER",
+//!           "server_uuid": "f5e28734cda44a958085b4275ed7cb4c",
+//!           "addr": "yb-2.local:9100"
+//!         }
+//!       ],
+//!       "leader": "d4d1427986f84491a8aa2c38223e21e7"
+//!     }
+//! ```
+//! The keyspace_id and table_id are identical.
+//!
 //! This indicates the keyspace/database is colocated, and thus any object not explicitly defined using its own tablets,
 //! will be stored in the tablets that are part of the database.
 //!
-//! YB 2.17.4 changed the colocated table_id to:<keyspace_id>.colocation.parent.uuid
-//! 
+//! In YB versions >= 2.17.2 changed internal colocation administration.
+//! First of all, if a database is created colocated, it will not generate the colocation entries at database creation.
+//! The entries are created, but only after an user object is created.
+//!
+//! Second, the entries are slightly different:
+//! The tables entry:
+//! ```text
+//! {
+//!   "table_id": "00004000000030008000000000004004.colocation.parent.uuid",
+//!   "keyspace_id": "00004000000030008000000000000000",
+//!   "table_name": "00004000000030008000000000004004.colocation.parent.tablename",
+//!   "state": "RUNNING"
+//! }
+//! ```
+//! The table_id is now has an OID and is not identical to the keyspace_id.
+//!
+//! The tablets entry:
+//! ```text
+//! {
+//!   "table_id": "00004000000030008000000000004004.colocation.parent.uuid",
+//!   "tablet_id": "ad0e2b92a161478ba151272a4cc6a41c",
+//!   "state": "RUNNING",
+//!   "replicas": [
+//!     {
+//!       "type": "VOTER",
+//!       "server_uuid": "24e147610253436db0e806f6edbaf59e",
+//!       "addr": "yb-1.local:9100"
+//!     }
+//!   ],
+//!   "leader": "24e147610253436db0e806f6edbaf59e"
+//! }
+//! ```
+//! The table_id is the id from the tables entry (obviously).
+//!
+//! Also, the addition to the table_id and table_name has slightly changed
+//! from: .colocated.parent.uuid & .colocated.parent.tablename
+//! to: .colocation.parent.uuid & .colocation.parent.tablename
+//!
 use chrono::Local;
 use std::{time::Instant, sync::mpsc::channel};
 use log::*;
@@ -220,35 +285,34 @@ impl AllEntities
                 // a ysql keyspace is not removed from keyspaces when it's dropped.
                 // to identify a dropped keyspace, we can count the number of tables that reside in it.
                 // if the number is 0, it is a dropped keyspace.
+                // A live YSQL keyspace has the catalog tables in it.
                 if row.keyspace_type == "ysql"
                     && entity.tables.iter()
                     .filter(|r| r.keyspace_id == row.keyspace_id)
                     .count() > 0
                 {
-                    // a ysql keyspace is a colocated keyspace if it a tablet exists
-                    // with the following table_id: <keyspace_id>.colocated.parent.uuid
-                    // YB 2.17.4 changed the colocated table_id to:<keyspace_id>.colocation.parent.uuid
-                    if entity.tablets.iter()
-                        .any(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id) || r.table_id == format!("{}.colocation.parent.uuid", &row.keyspace_id))
+                    // a ysql keyspace is a colocated keyspace if it a table exists that:
+                    // version < 2.17.2: keyspace_id == <keyspace_id> && table_id == <keyspace_id>.colocated.parent.uuid
+                    // version >= 2.17.2: keyspace_id == <keyspace_id> && table_id starts with the first 22 characters of the keyspace id, and table_id ends with '.colocation.parent.uuid'
+                    // But...only once an object is created (!)
+                    if let Some(table_found) = entity.tables
+                        .iter()
+                        .find(|table| table.keyspace_id == row.keyspace_id && (table.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id) || (table.table_id.starts_with(&row.keyspace_id[0..22]) && table.table_id.ends_with(".colocation.parent.uuid"))))
                     {
-                        // We got a colocated YSQL database!
-                        // YB 2.17.4 changed the colocated table_id to:<keyspace_id>.colocation.parent.uuid
-                        if let Some(tablet) = entity.tablets
+                        if let Some(tablet_found) = entity.tablets
                             .iter()
-                            .find(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id) || r.table_id == format!("{}.colocation.parent.uuid", &row.keyspace_id))
+                            .find(|tablet| tablet.table_id == table_found.table_id)
                         {
-                            let leader_host = tablet.replicas
+                            let leader_host = tablet_found.replicas
                                 .clone()
                                 .unwrap_or_default()
                                 .iter()
-                                .map(|r|
+                                .map(|replicas|
                                     {
-                                        if &r.server_uuid == tablet.leader.as_ref().unwrap_or(&"".to_string())
+                                        if &replicas.server_uuid == tablet_found.leader.as_ref().unwrap_or(&"".to_string())
                                         {
-                                            (&r.addr.split(':').next().unwrap_or_default()).to_string()
-                                        }
-                                        else
-                                        {
+                                            (&replicas.addr.split(':').next().unwrap_or_default()).to_string()
+                                        } else {
                                             "".to_string()
                                         }
                                     })
@@ -261,12 +325,12 @@ impl AllEntities
                             else
                             {
                                 bail!("No tablet leader host found.");
-                            };
+                            }
                         }
                     }
                     else
                     {
-                       bail!("Database {} is not colocated!", colocated_database.to_owned());
+                        bail!("Database {} is not colocated!", colocated_database.to_owned());
                     };
                 }
                 else
@@ -336,8 +400,8 @@ impl AllEntities
                     // with the following table_id: <keyspace_id>.colocated.parent.uuid
                     // YB 2.17.4 changed the colocated table_id to:<keyspace_id>.colocation.parent.uuid
                     // the variable "colocation" is set to "[colocated]" if that is true for the current keyspace.
-                    let colocation = if entity.tablets.iter()
-                        .any(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id) || r.table_id == format!("{}.colocation.parent.uuid", &row.keyspace_id))
+                    let colocation = if entity.tables.iter()
+                        .any(|tables| tables.keyspace_id == row.keyspace_id && (tables.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id) || (tables.table_id.starts_with(&row.keyspace_id[0..22]) && tables.table_id.ends_with(".colocation.parent.uuid"))))
                     {
                         "[colocated]"
                     } else {
@@ -349,15 +413,11 @@ impl AllEntities
                         print!("{} ", entity.hostname_port.clone().unwrap());
                     }
                     println!("Keyspace:     {}.{} id: {} {}", row.keyspace_type, row.keyspace_name, row.keyspace_id, colocation);
-                    // if the keyspace is colocated, it means it has got a tablet directly linked to it.
-                    // normally a tablet is linked to a table.
-                    // if colocated is true, print the tablet and replica details:
-                    // YB 2.17.4 changed the colocated table_id to:<keyspace_id>.colocation.parent.uuid
                     if colocation == "[colocated]"
                     {
                         for tablet in entity.tablets
                             .iter()
-                            .filter(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id) || r.table_id == format!("{}.colocation.parent.uuid", &row.keyspace_id))
+                            .filter(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id) || (r.table_id.starts_with(&row.keyspace_id[0..22]) && r.table_id.ends_with(".colocation.parent.uuid")))
                         {
                             if *details_enable
                             {
@@ -846,7 +906,7 @@ impl EntitiesDiff {
                     // YB 2.17.4 changed the colocated table_id to:<keyspace_id>.colocation.parent.uuid
                     {
                         let colocation = if self.btreetabletsdiff.iter()
-                            .any(|(_k,v)| v.first_table_id == format!("{}.colocated.parent.uuid", &keyspace_id) || v.first_table_id == format!("{}.colocation.parent.uuid", &keyspace_id))
+                            .any(|(_k,v)| v.first_table_id == format!("{}.colocated.parent.uuid", &keyspace_id) || (v.first_table_id.starts_with(&keyspace_id[0..22]) && v.first_table_id.ends_with(".colocation.parent.uuid")))
                             && keyspace_row.first_keyspace_type == "ysql"
                         {
                             "[colocated]"
@@ -883,7 +943,7 @@ impl EntitiesDiff {
                 && keyspace_row.first_keyspace_type.is_empty()
             {
                 let colocation = if self.btreetabletsdiff.iter()
-                    .any(|(_k,v)| v.second_table_id == format!("{}.colocated.parent.uuid", &keyspace_id) || v.second_table_id == format!("{}.colocation.parent.uuid", &keyspace_id))
+                    .any(|(_k,v)| v.first_table_id == format!("{}.colocated.parent.uuid", &keyspace_id) || (v.first_table_id.starts_with(&keyspace_id[0..22]) && v.first_table_id.ends_with(".colocation.parent.uuid")))
                     && keyspace_row.second_keyspace_type == "ysql"
                 {
                     "[colocated]"
@@ -906,7 +966,7 @@ impl EntitiesDiff {
                 && keyspace_row.second_keyspace_type.is_empty()
             {
                 let colocation = if self.btreetabletsdiff.iter()
-                    .any(|(_k,v)| v.first_table_id == format!("{}.colocated.parent.uuid", &keyspace_id) || v.first_table_id == format!("{}.colocation.parent.uuid", &keyspace_id))
+                    .any(|(_k,v)| v.first_table_id == format!("{}.colocated.parent.uuid", &keyspace_id) || (v.first_table_id.starts_with(&keyspace_id[0..22]) && v.first_table_id.ends_with(".colocation.parent.uuid")))
                     && keyspace_row.first_keyspace_type == "ysql"
                 {
                     "[colocated]"
@@ -925,7 +985,7 @@ impl EntitiesDiff {
                 // this leaves one option: the keyspace name has changed.
                 // YB 2.17.4 changed the colocated table_id to:<keyspace_id>.colocation.parent.uuid
                 let colocation = if self.btreetabletsdiff.iter()
-                    .any(|(_k,v)| v.first_table_id == format!("{}.colocated.parent.uuid", &keyspace_id) || v.first_table_id == format!("{}.colocation.parent.uuid", &keyspace_id))
+                    .any(|(_k,v)| v.first_table_id == format!("{}.colocated.parent.uuid", &keyspace_id) || (v.first_table_id.starts_with(&keyspace_id[0..22]) && v.first_table_id.ends_with(".colocation.parent.uuid")))
                     && keyspace_row.first_keyspace_type == "ysql"
                 {
                     "[colocated]"

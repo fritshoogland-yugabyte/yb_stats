@@ -1261,6 +1261,6 @@ mod tests {
 
         let alltables = AllTables::read_tables(&vec![&hostname], &vec![&port], 1, &true).await;
         // the master returns more than one thread.
-        assert!(alltables.table.is_empty());
+        assert!(!alltables.table.is_empty());
     }
 }

@@ -65,6 +65,8 @@
 //! ```
 //! This indicates the keyspace/database is colocated, and thus any object not explicitly defined using its own tablets,
 //! will be stored in the tablets that are part of the database.
+//!
+//! YB 2.17.4 changed the colocated table_id to:<keyspace_id>.colocation.parent.uuid
 //! 
 use chrono::Local;
 use std::{time::Instant, sync::mpsc::channel};
@@ -225,13 +227,15 @@ impl AllEntities
                 {
                     // a ysql keyspace is a colocated keyspace if it a tablet exists
                     // with the following table_id: <keyspace_id>.colocated.parent.uuid
+                    // YB 2.17.4 changed the colocated table_id to:<keyspace_id>.colocation.parent.uuid
                     if entity.tablets.iter()
-                        .any(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id))
+                        .any(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id) || r.table_id == format!("{}.colocation.parent.uuid", &row.keyspace_id))
                     {
                         // We got a colocated YSQL database!
+                        // YB 2.17.4 changed the colocated table_id to:<keyspace_id>.colocation.parent.uuid
                         if let Some(tablet) = entity.tablets
                             .iter()
-                            .find(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id))
+                            .find(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id) || r.table_id == format!("{}.colocation.parent.uuid", &row.keyspace_id))
                         {
                             let leader_host = tablet.replicas
                                 .clone()
@@ -330,9 +334,10 @@ impl AllEntities
                 {
                     // a ysql keyspace is a colocated keyspace if it a tablet exists
                     // with the following table_id: <keyspace_id>.colocated.parent.uuid
+                    // YB 2.17.4 changed the colocated table_id to:<keyspace_id>.colocation.parent.uuid
                     // the variable "colocation" is set to "[colocated]" if that is true for the current keyspace.
                     let colocation = if entity.tablets.iter()
-                        .any(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id))
+                        .any(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id) || r.table_id == format!("{}.colocation.parent.uuid", &row.keyspace_id))
                     {
                         "[colocated]"
                     } else {
@@ -347,11 +352,12 @@ impl AllEntities
                     // if the keyspace is colocated, it means it has got a tablet directly linked to it.
                     // normally a tablet is linked to a table.
                     // if colocated is true, print the tablet and replica details:
+                    // YB 2.17.4 changed the colocated table_id to:<keyspace_id>.colocation.parent.uuid
                     if colocation == "[colocated]"
                     {
                         for tablet in entity.tablets
                             .iter()
-                            .filter(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id))
+                            .filter(|r| r.table_id == format!("{}.colocated.parent.uuid", &row.keyspace_id) || r.table_id == format!("{}.colocation.parent.uuid", &row.keyspace_id))
                         {
                             if *details_enable
                             {
@@ -837,9 +843,10 @@ impl EntitiesDiff {
                     }
                     else if first_snapshot_table_count > 0 && second_snapshot_table_count == 0
                     // the first table count is > 0 and the second table count is 0: this is a deleted ysql keyspace/database.
+                    // YB 2.17.4 changed the colocated table_id to:<keyspace_id>.colocation.parent.uuid
                     {
                         let colocation = if self.btreetabletsdiff.iter()
-                            .any(|(_k,v)| v.first_table_id == format!("{}.colocated.parent.uuid", &keyspace_id))
+                            .any(|(_k,v)| v.first_table_id == format!("{}.colocated.parent.uuid", &keyspace_id) || v.first_table_id == format!("{}.colocation.parent.uuid", &keyspace_id))
                             && keyspace_row.first_keyspace_type == "ysql"
                         {
                             "[colocated]"
@@ -871,11 +878,12 @@ impl EntitiesDiff {
             }
             // the first snapshot fields are empty, which means the second snapshot fields are filled out:
             // this is an added keyspace.
+            // YB 2.17.4 changed the colocated table_id to:<keyspace_id>.colocation.parent.uuid
             else if keyspace_row.first_keyspace_name.is_empty()
                 && keyspace_row.first_keyspace_type.is_empty()
             {
                 let colocation = if self.btreetabletsdiff.iter()
-                    .any(|(_k,v)| v.second_table_id == format!("{}.colocated.parent.uuid", &keyspace_id))
+                    .any(|(_k,v)| v.second_table_id == format!("{}.colocated.parent.uuid", &keyspace_id) || v.second_table_id == format!("{}.colocation.parent.uuid", &keyspace_id))
                     && keyspace_row.second_keyspace_type == "ysql"
                 {
                     "[colocated]"
@@ -893,11 +901,12 @@ impl EntitiesDiff {
             // the second snapshot fields are empty, which means the first snapshot fields are filled out:
             // this is a removed keyspace.
             // this has to be a removed ycql keyspace: ysql keyspaces do not get removed.
+            // YB 2.17.4 changed the colocated table_id to:<keyspace_id>.colocation.parent.uuid
             else if keyspace_row.second_keyspace_name.is_empty()
                 && keyspace_row.second_keyspace_type.is_empty()
             {
                 let colocation = if self.btreetabletsdiff.iter()
-                    .any(|(_k,v)| v.first_table_id == format!("{}.colocated.parent.uuid", &keyspace_id))
+                    .any(|(_k,v)| v.first_table_id == format!("{}.colocated.parent.uuid", &keyspace_id) || v.first_table_id == format!("{}.colocation.parent.uuid", &keyspace_id))
                     && keyspace_row.first_keyspace_type == "ysql"
                 {
                     "[colocated]"
@@ -914,8 +923,9 @@ impl EntitiesDiff {
             } else {
                 // at this point the fields between first and second snapshot are not alike.
                 // this leaves one option: the keyspace name has changed.
+                // YB 2.17.4 changed the colocated table_id to:<keyspace_id>.colocation.parent.uuid
                 let colocation = if self.btreetabletsdiff.iter()
-                    .any(|(_k,v)| v.first_table_id == format!("{}.colocated.parent.uuid", &keyspace_id))
+                    .any(|(_k,v)| v.first_table_id == format!("{}.colocated.parent.uuid", &keyspace_id) || v.first_table_id == format!("{}.colocation.parent.uuid", &keyspace_id))
                     && keyspace_row.first_keyspace_type == "ysql"
                 {
                     "[colocated]"

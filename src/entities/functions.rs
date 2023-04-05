@@ -95,8 +95,8 @@
 //! This indicates the keyspace/database is colocated, and thus any object not explicitly defined using its own tablets,
 //! will be stored in the tablets that are part of the database.
 //!
-//! In YB versions >= 2.17.2 changed internal colocation administration.
-//! First of all, if a database is created colocated, it will not generate the colocation entries at database creation.
+//! In YB versions >= 2.17.2 the internal colocation administration is changed.
+//! First of all, if a database is created colocated, it will not generate the colocation entries at database creation (state as of 2.17.4).
 //! The entries are created, but only after an user object is created.
 //!
 //! Second, the entries are slightly different:

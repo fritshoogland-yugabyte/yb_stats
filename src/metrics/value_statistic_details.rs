@@ -39,6 +39,7 @@ impl ValueStatistics {
         let mut table = ValueStatistics { valuestatisticdetails: HashMap::new() };
         // special row for unknown values. Do NOT remove!
         table.insert("?", "?", "?");
+        table.insert("aborted_transactions_pending_cleanup","transactions","gauge"); // 2.17.3
         table.insert("active_background_compaction_input_bytes_added","bytes","gauge"); // 2.17.2
         table.insert("active_background_compaction_input_bytes_removed","bytes","gauge"); // 2.17.2
         table.insert("active_background_compaction_input_files_added","files","gauge"); // 2.17.2
@@ -92,6 +93,7 @@ impl ValueStatistics {
         table.insert("duration_ms_loading_entries_with_type_10", "milliseconds","counter");
         table.insert("duration_ms_loading_entries_with_type_11", "milliseconds","counter");
         table.insert("duration_ms_loading_entries_with_type_15", "milliseconds","counter");
+        table.insert("duration_ms_loading_entries_with_type_16","milliseconds","counter"); // 2.17.3
         table.insert("duration_ms_loading_entries_with_type_2", "milliseconds","counter");
         table.insert("duration_ms_loading_entries_with_type_3", "milliseconds","counter");
         table.insert("duration_ms_loading_entries_with_type_4", "milliseconds","counter");
@@ -169,6 +171,8 @@ impl ValueStatistics {
         table.insert("mem_tracker_Tablets", "bytes","gauge");
         table.insert("mem_tracker_log_cache", "bytes","gauge");
         table.insert("mem_tracker_operation_tracker", "bytes","gauge");
+        table.insert("mem_tracker_transactions","bytes","gauge");
+        table.insert("mem_tracker_transactions_transactions_00000000000000000000000000000000","bytes","gauge");
         table.insert("nonactive_background_compaction_input_bytes_added","bytes","gauge"); // 2.17.2
         table.insert("nonactive_background_compaction_input_bytes_removed","bytes","gauge"); // 2.17.2
         table.insert("nonactive_background_compaction_input_files_added","files","gauge"); // 2.17.2
@@ -197,6 +201,7 @@ impl ValueStatistics {
         table.insert("num_entries_with_type_10_loaded", "entries","counter");
         table.insert("num_entries_with_type_11_loaded", "entries","counter");
         table.insert("num_entries_with_type_15_loaded", "entries","counter");
+        table.insert("num_entries_with_type_16_loaded","entries","counter");
         table.insert("num_entries_with_type_1_loaded", "entries","counter");
         table.insert("num_entries_with_type_2_loaded", "entries","counter");
         table.insert("num_entries_with_type_3_loaded", "entries","counter");
@@ -236,6 +241,8 @@ impl ValueStatistics {
         table.insert("paused_task_metrics_compaction_tasks_removed", "tasks","gauge");
         table.insert("pg_response_cache_hits","hits","counter"); // 2.17.2
         table.insert("pg_response_cache_queries","hits","counter"); // 2.17.2
+        table.insert("pg_response_cache_renew_hard","queries","counter"); // 2.17.3
+        table.insert("pg_response_cache_renew_soft","queries","counter"); // 2.17.3
         table.insert("pgsql_consistent_prefix_read_rows", "rows","counter");
         table.insert("proxy_request_bytes_yb_consensus_ConsensusService_ChangeConfig", "bytes","counter");
         table.insert("proxy_request_bytes_yb_consensus_ConsensusService_GetConsensusState", "bytes","counter");
@@ -258,10 +265,13 @@ impl ValueStatistics {
         table.insert("proxy_request_bytes_yb_master_MasterAdmin_DisableTabletSplitting", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterAdmin_FlushSysCatalog", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterAdmin_FlushTables", "bytes","counter");
+        table.insert("proxy_request_bytes_yb_master_MasterAdmin_GetCompactionStatus","bytes","counter"); // 2.17.3.
         table.insert("proxy_request_bytes_yb_master_MasterAdmin_IsFlushTablesDone", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterAdmin_IsInitDbDone", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterAdmin_IsTabletSplittingComplete", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterAdmin_SplitTablet", "bytes","counter");
+        table.insert("proxy_request_bytes_yb_master_MasterClient_GetIndexBackfillProgress","bytes","counter"); // 2.17.3.
+        table.insert("proxy_request_bytes_yb_master_MasterClient_GetStatefulServiceLocation","bytes","counter"); // 2.17.3.
         table.insert("proxy_request_bytes_yb_master_MasterClient_GetTableLocations", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterClient_GetTabletLocations", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterClient_GetTransactionStatusTablets", "bytes","counter");
@@ -279,6 +289,7 @@ impl ValueStatistics {
         table.insert("proxy_request_bytes_yb_master_MasterCluster_GetLoadMoveCompletion", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterCluster_GetMasterClusterConfig", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterCluster_GetMasterRegistration", "bytes","counter");
+        table.insert("proxy_request_bytes_yb_master_MasterCluster_GetMasterXClusterConfig","bytes","counter"); // 2.17.3.
         table.insert("proxy_request_bytes_yb_master_MasterCluster_IsLoadBalanced", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterCluster_IsLoadBalancerIdle", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterCluster_IsMasterLeaderServiceReady", "bytes","counter");
@@ -324,6 +335,7 @@ impl ValueStatistics {
         table.insert("proxy_request_bytes_yb_master_MasterDdl_ListTablegroups", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterDdl_ListTables", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterDdl_ListUDTypes", "bytes","counter");
+        table.insert("proxy_request_bytes_yb_master_MasterDdl_ReportYsqlDdlTxnStatus","bytes","counter"); // 2.17.3.
         table.insert("proxy_request_bytes_yb_master_MasterDdl_TruncateTable", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterEncryption_AddUniverseKeys", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterEncryption_ChangeEncryptionInfo", "bytes","counter");
@@ -347,6 +359,7 @@ impl ValueStatistics {
         table.insert("proxy_request_bytes_yb_master_MasterReplication_IsBootstrapRequired", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterReplication_IsSetupUniverseReplicationDone", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterReplication_ListCDCStreams", "bytes","counter");
+        table.insert("proxy_request_bytes_yb_master_MasterReplication_PauseResumeXClusterProducerStreams","bytes","counter"); // 2.17.3.
         table.insert("proxy_request_bytes_yb_master_MasterReplication_SetUniverseReplicationEnabled", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterReplication_SetupNSUniverseReplication", "bytes","counter");
         table.insert("proxy_request_bytes_yb_master_MasterReplication_SetupUniverseReplication", "bytes","counter");
@@ -476,6 +489,7 @@ impl ValueStatistics {
         table.insert("proxy_request_bytes_yb_tserver_TabletServerBackupService_TabletSnapshotOp", "bytes","counter");
         table.insert("proxy_request_bytes_yb_tserver_TabletServerService_AbortTransaction", "bytes","counter");
         table.insert("proxy_request_bytes_yb_tserver_TabletServerService_Checksum", "bytes","counter");
+        table.insert("proxy_request_bytes_yb_tserver_TabletServerService_GetLockStatus","bytes","counter"); // 2.17.3.
         table.insert("proxy_request_bytes_yb_tserver_TabletServerService_GetLogLocation", "bytes","counter");
         table.insert("proxy_request_bytes_yb_tserver_TabletServerService_GetMasterAddresses", "bytes","counter");
         table.insert("proxy_request_bytes_yb_tserver_TabletServerService_GetSharedData", "bytes","counter");
@@ -521,10 +535,13 @@ impl ValueStatistics {
         table.insert("proxy_response_bytes_yb_master_MasterAdmin_DisableTabletSplitting", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterAdmin_FlushSysCatalog", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterAdmin_FlushTables", "bytes","counter");
+        table.insert("proxy_response_bytes_yb_master_MasterAdmin_GetCompactionStatus","bytes","counter"); // 2.17.3.
         table.insert("proxy_response_bytes_yb_master_MasterAdmin_IsFlushTablesDone", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterAdmin_IsInitDbDone", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterAdmin_IsTabletSplittingComplete", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterAdmin_SplitTablet", "bytes","counter");
+        table.insert("proxy_response_bytes_yb_master_MasterClient_GetIndexBackfillProgress","bytes","counter"); // 2.17.3.
+        table.insert("proxy_response_bytes_yb_master_MasterClient_GetStatefulServiceLocation","bytes","counter"); // 2.17.3.
         table.insert("proxy_response_bytes_yb_master_MasterClient_GetTableLocations", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterClient_GetTabletLocations", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterClient_GetTransactionStatusTablets", "bytes","counter");
@@ -542,6 +559,7 @@ impl ValueStatistics {
         table.insert("proxy_response_bytes_yb_master_MasterCluster_GetLoadMoveCompletion", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterCluster_GetMasterClusterConfig", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterCluster_GetMasterRegistration", "bytes","counter");
+        table.insert("proxy_response_bytes_yb_master_MasterCluster_GetMasterXClusterConfig","bytes","counter"); // 2.17.3.
         table.insert("proxy_response_bytes_yb_master_MasterCluster_IsLoadBalanced", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterCluster_IsLoadBalancerIdle", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterCluster_IsMasterLeaderServiceReady", "bytes","counter");
@@ -587,6 +605,7 @@ impl ValueStatistics {
         table.insert("proxy_response_bytes_yb_master_MasterDdl_ListTablegroups", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterDdl_ListTables", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterDdl_ListUDTypes", "bytes","counter");
+        table.insert("proxy_response_bytes_yb_master_MasterDdl_ReportYsqlDdlTxnStatus","bytes","counter"); // 2.17.3.
         table.insert("proxy_response_bytes_yb_master_MasterDdl_TruncateTable", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterEncryption_AddUniverseKeys", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterEncryption_ChangeEncryptionInfo", "bytes","counter");
@@ -610,6 +629,7 @@ impl ValueStatistics {
         table.insert("proxy_response_bytes_yb_master_MasterReplication_IsBootstrapRequired", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterReplication_IsSetupUniverseReplicationDone", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterReplication_ListCDCStreams", "bytes","counter");
+        table.insert("proxy_response_bytes_yb_master_MasterReplication_PauseResumeXClusterProducerStreams","bytes","counter"); // 2.17.3.
         table.insert("proxy_response_bytes_yb_master_MasterReplication_SetUniverseReplicationEnabled", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterReplication_SetupNSUniverseReplication", "bytes","counter");
         table.insert("proxy_response_bytes_yb_master_MasterReplication_SetupUniverseReplication", "bytes","counter");
@@ -738,6 +758,7 @@ impl ValueStatistics {
         table.insert("proxy_response_bytes_yb_tserver_TabletServerBackupService_TabletSnapshotOp", "bytes","counter");
         table.insert("proxy_response_bytes_yb_tserver_TabletServerService_AbortTransaction", "bytes","counter");
         table.insert("proxy_response_bytes_yb_tserver_TabletServerService_Checksum", "bytes","counter");
+        table.insert("proxy_response_bytes_yb_tserver_TabletServerService_GetLockStatus","bytes","counter"); // 2.17.3.
         table.insert("proxy_response_bytes_yb_tserver_TabletServerService_GetLogLocation", "bytes","counter");
         table.insert("proxy_response_bytes_yb_tserver_TabletServerService_GetMasterAddresses", "bytes","counter");
         table.insert("proxy_response_bytes_yb_tserver_TabletServerService_GetSharedData", "bytes","counter");
@@ -896,6 +917,7 @@ impl ValueStatistics {
         table.insert("rpcs_in_queue_yb_master_MasterBackupService", "rpcs","gauge");
         table.insert("rpcs_in_queue_yb_master_MasterService", "rpcs","gauge");
         table.insert("rpcs_in_queue_yb_server_GenericService", "rpcs","gauge");
+        table.insert("rpcs_in_queue_yb_stateful_service_PgAutoAnalyzeService","rpcs","gauge"); // 2.17.3.
         table.insert("rpcs_in_queue_yb_tserver_GenericService", "rpcs","gauge");
         table.insert("rpcs_in_queue_yb_tserver_PgClientService", "rpcs","gauge");
         table.insert("rpcs_in_queue_yb_tserver_RemoteBootstrapService", "rpcs","gauge");
@@ -941,6 +963,7 @@ impl ValueStatistics {
         table.insert("service_request_bytes_yb_master_MasterAdmin_DisableTabletSplitting", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterAdmin_FlushSysCatalog", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterAdmin_FlushTables", "bytes","counter");
+        table.insert("service_request_bytes_yb_master_MasterAdmin_GetCompactionStatus","bytes","counter"); // 2.17.3
         table.insert("service_request_bytes_yb_master_MasterAdmin_IsFlushTablesDone", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterAdmin_IsInitDbDone", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterAdmin_IsTabletSplittingComplete", "bytes","counter");
@@ -965,6 +988,8 @@ impl ValueStatistics {
         table.insert("service_request_bytes_yb_master_MasterBackup_ListSnapshots", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterBackup_RestoreSnapshot", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterBackup_RestoreSnapshotSchedule", "bytes","counter"); // 2.17
+        table.insert("service_request_bytes_yb_master_MasterClient_GetIndexBackfillProgress","bytes","counter"); // 2.17.3
+        table.insert("service_request_bytes_yb_master_MasterClient_GetStatefulServiceLocation","bytes","counter"); // 2.17.3
         table.insert("service_request_bytes_yb_master_MasterClient_GetTableLocations", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterClient_GetTabletLocations", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterClient_GetTransactionStatusTablets", "bytes","counter"); //
@@ -982,6 +1007,7 @@ impl ValueStatistics {
         table.insert("service_request_bytes_yb_master_MasterCluster_GetLoadMoveCompletion", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterCluster_GetMasterClusterConfig", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterCluster_GetMasterRegistration", "bytes","counter");
+        table.insert("service_request_bytes_yb_master_MasterCluster_GetMasterXClusterConfig","bytes","counter"); // 2.17.3
         table.insert("service_request_bytes_yb_master_MasterCluster_IsLoadBalanced", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterCluster_IsLoadBalancerIdle", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterCluster_IsMasterLeaderServiceReady", "bytes","counter");
@@ -1027,6 +1053,7 @@ impl ValueStatistics {
         table.insert("service_request_bytes_yb_master_MasterDdl_ListTablegroups", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterDdl_ListTables", "bytes","counter"); // 2.15.3.0
         table.insert("service_request_bytes_yb_master_MasterDdl_ListUDTypes", "bytes","counter");
+        table.insert("service_request_bytes_yb_master_MasterDdl_ReportYsqlDdlTxnStatus","bytes","counter"); // 2.17.3
         table.insert("service_request_bytes_yb_master_MasterDdl_TruncateTable", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterEncryption_AddUniverseKeys", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterEncryption_ChangeEncryptionInfo", "bytes","counter");
@@ -1050,6 +1077,7 @@ impl ValueStatistics {
         table.insert("service_request_bytes_yb_master_MasterReplication_IsBootstrapRequired", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterReplication_IsSetupUniverseReplicationDone", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterReplication_ListCDCStreams", "bytes","counter");
+        table.insert("service_request_bytes_yb_master_MasterReplication_PauseResumeXClusterProducerStreams","bytes","counter"); // 2.17.3
         table.insert("service_request_bytes_yb_master_MasterReplication_SetUniverseReplicationEnabled", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterReplication_SetupNSUniverseReplication", "bytes","counter");
         table.insert("service_request_bytes_yb_master_MasterReplication_SetupUniverseReplication", "bytes","counter");
@@ -1148,6 +1176,7 @@ impl ValueStatistics {
         table.insert("service_request_bytes_yb_server_GenericService_ReloadCertificates", "bytes","counter");
         table.insert("service_request_bytes_yb_server_GenericService_ServerClock", "bytes","counter");
         table.insert("service_request_bytes_yb_server_GenericService_SetFlag", "bytes","counter");
+        table.insert("service_request_bytes_yb_stateful_service_PgAutoAnalyzeService_IncreaseMutationCounters","bytes","counter"); // 2.17.3.
         table.insert("service_request_bytes_yb_tserver_PgClientService_AlterDatabase", "bytes","counter");
         table.insert("service_request_bytes_yb_tserver_PgClientService_AlterTable", "bytes","counter");
         table.insert("service_request_bytes_yb_tserver_PgClientService_BackfillIndex", "bytes","counter");
@@ -1161,10 +1190,14 @@ impl ValueStatistics {
         table.insert("service_request_bytes_yb_tserver_PgClientService_DropDatabase", "bytes","counter");
         table.insert("service_request_bytes_yb_tserver_PgClientService_DropTable", "bytes","counter");
         table.insert("service_request_bytes_yb_tserver_PgClientService_DropTablegroup", "bytes","counter");
+        table.insert("service_request_bytes_yb_tserver_PgClientService_FetchSequenceTuple","bytes","counter"); // 2.17.3.
         table.insert("service_request_bytes_yb_tserver_PgClientService_FinishTransaction", "bytes","counter");
         table.insert("service_request_bytes_yb_tserver_PgClientService_GetCatalogMasterVersion", "bytes","counter");
         table.insert("service_request_bytes_yb_tserver_PgClientService_GetDatabaseInfo", "bytes","counter");
+        table.insert("service_request_bytes_yb_tserver_PgClientService_GetIndexBackfillProgress","bytes","counter"); // 2.17.3.
+        table.insert("service_request_bytes_yb_tserver_PgClientService_GetLockStatus","bytes","counter"); // 2.17.3.
         table.insert("service_request_bytes_yb_tserver_PgClientService_GetTableDiskSize", "bytes","counter");
+        table.insert("service_request_bytes_yb_tserver_PgClientService_GetTablePartitionList","bytes","counter"); // 2.17.3.
         table.insert("service_request_bytes_yb_tserver_PgClientService_GetTserverCatalogVersionInfo", "bytes","counter"); // 2.17
         table.insert("service_request_bytes_yb_tserver_PgClientService_Heartbeat", "bytes","counter");
         table.insert("service_request_bytes_yb_tserver_PgClientService_InsertSequenceTuple", "bytes","counter");
@@ -1214,6 +1247,7 @@ impl ValueStatistics {
         table.insert("service_request_bytes_yb_tserver_TabletServerBackupService_TabletSnapshotOp", "bytes","counter");
         table.insert("service_request_bytes_yb_tserver_TabletServerService_AbortTransaction", "bytes","counter");
         table.insert("service_request_bytes_yb_tserver_TabletServerService_Checksum", "bytes","counter");
+        table.insert("service_request_bytes_yb_tserver_TabletServerService_GetLockStatus","bytes","counter"); // 2.17.3.
         table.insert("service_request_bytes_yb_tserver_TabletServerService_GetLogLocation", "bytes","counter");
         table.insert("service_request_bytes_yb_tserver_TabletServerService_GetMasterAddresses", "bytes","counter");
         table.insert("service_request_bytes_yb_tserver_TabletServerService_GetSharedData", "bytes","counter");
@@ -1272,6 +1306,7 @@ impl ValueStatistics {
         table.insert("service_response_bytes_yb_master_MasterAdmin_DisableTabletSplitting", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterAdmin_FlushSysCatalog", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterAdmin_FlushTables", "bytes","counter");
+        table.insert("service_response_bytes_yb_master_MasterAdmin_GetCompactionStatus","bytes","counter"); // 2.17.3
         table.insert("service_response_bytes_yb_master_MasterAdmin_IsFlushTablesDone", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterAdmin_IsInitDbDone", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterAdmin_IsTabletSplittingComplete", "bytes","counter");
@@ -1296,6 +1331,8 @@ impl ValueStatistics {
         table.insert("service_response_bytes_yb_master_MasterBackup_ListSnapshots", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterBackup_RestoreSnapshot", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterBackup_RestoreSnapshotSchedule", "bytes","counter"); // 2.17
+        table.insert("service_response_bytes_yb_master_MasterClient_GetIndexBackfillProgress","bytes","counter"); // 2.17.3
+        table.insert("service_response_bytes_yb_master_MasterClient_GetStatefulServiceLocation","bytes","counter"); // 2.17.3
         table.insert("service_response_bytes_yb_master_MasterClient_GetTableLocations", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterClient_GetTabletLocations", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterClient_GetTransactionStatusTablets", "bytes","counter"); //
@@ -1313,6 +1350,7 @@ impl ValueStatistics {
         table.insert("service_response_bytes_yb_master_MasterCluster_GetLoadMoveCompletion", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterCluster_GetMasterClusterConfig", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterCluster_GetMasterRegistration", "bytes","counter");
+        table.insert("service_response_bytes_yb_master_MasterCluster_GetMasterXClusterConfig","bytes","counter"); // 2.17.3
         table.insert("service_response_bytes_yb_master_MasterCluster_IsLoadBalanced", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterCluster_IsLoadBalancerIdle", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterCluster_IsMasterLeaderServiceReady", "bytes","counter");
@@ -1358,6 +1396,7 @@ impl ValueStatistics {
         table.insert("service_response_bytes_yb_master_MasterDdl_ListTablegroups", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterDdl_ListTables", "bytes","counter"); // 2.15.3.0
         table.insert("service_response_bytes_yb_master_MasterDdl_ListUDTypes", "bytes","counter");
+        table.insert("service_response_bytes_yb_master_MasterDdl_ReportYsqlDdlTxnStatus","bytes","counter"); // 2.17.3
         table.insert("service_response_bytes_yb_master_MasterDdl_TruncateTable", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterEncryption_AddUniverseKeys", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterEncryption_ChangeEncryptionInfo", "bytes","counter");
@@ -1381,6 +1420,7 @@ impl ValueStatistics {
         table.insert("service_response_bytes_yb_master_MasterReplication_IsBootstrapRequired", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterReplication_IsSetupUniverseReplicationDone", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterReplication_ListCDCStreams", "bytes","counter");
+        table.insert("service_response_bytes_yb_master_MasterReplication_PauseResumeXClusterProducerStreams","bytes","counter"); // 2.17.3
         table.insert("service_response_bytes_yb_master_MasterReplication_SetUniverseReplicationEnabled", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterReplication_SetupNSUniverseReplication", "bytes","counter");
         table.insert("service_response_bytes_yb_master_MasterReplication_SetupUniverseReplication", "bytes","counter");
@@ -1479,6 +1519,7 @@ impl ValueStatistics {
         table.insert("service_response_bytes_yb_server_GenericService_ReloadCertificates", "bytes","counter");
         table.insert("service_response_bytes_yb_server_GenericService_ServerClock", "bytes","counter");
         table.insert("service_response_bytes_yb_server_GenericService_SetFlag", "bytes","counter");
+        table.insert("service_response_bytes_yb_stateful_service_PgAutoAnalyzeService_IncreaseMutationCounters","bytes","counter"); // 2.17.3.
         table.insert("service_response_bytes_yb_tserver_PgClientService_AlterDatabase", "bytes","counter");
         table.insert("service_response_bytes_yb_tserver_PgClientService_AlterTable", "bytes","counter");
         table.insert("service_response_bytes_yb_tserver_PgClientService_BackfillIndex", "bytes","counter");
@@ -1492,10 +1533,14 @@ impl ValueStatistics {
         table.insert("service_response_bytes_yb_tserver_PgClientService_DropDatabase", "bytes","counter");
         table.insert("service_response_bytes_yb_tserver_PgClientService_DropTable", "bytes","counter");
         table.insert("service_response_bytes_yb_tserver_PgClientService_DropTablegroup", "bytes","counter");
+        table.insert("service_response_bytes_yb_tserver_PgClientService_FetchSequenceTuple","bytes","counter"); // 2.17.3.
         table.insert("service_response_bytes_yb_tserver_PgClientService_FinishTransaction", "bytes","counter");
         table.insert("service_response_bytes_yb_tserver_PgClientService_GetCatalogMasterVersion", "bytes","counter");
         table.insert("service_response_bytes_yb_tserver_PgClientService_GetDatabaseInfo", "bytes","counter");
+        table.insert("service_response_bytes_yb_tserver_PgClientService_GetIndexBackfillProgress","bytes","counter"); // 2.17.3.
+        table.insert("service_response_bytes_yb_tserver_PgClientService_GetLockStatus","bytes","counter"); // 2.17.3.
         table.insert("service_response_bytes_yb_tserver_PgClientService_GetTableDiskSize", "bytes","counter");
+        table.insert("service_response_bytes_yb_tserver_PgClientService_GetTablePartitionList","bytes","counter"); // 2.17.3.
         table.insert("service_response_bytes_yb_tserver_PgClientService_GetTserverCatalogVersionInfo", "bytes","counter"); // 2.17
         table.insert("service_response_bytes_yb_tserver_PgClientService_Heartbeat", "bytes","counter");
         table.insert("service_response_bytes_yb_tserver_PgClientService_InsertSequenceTuple", "bytes","counter");
@@ -1545,6 +1590,7 @@ impl ValueStatistics {
         table.insert("service_response_bytes_yb_tserver_TabletServerBackupService_TabletSnapshotOp", "bytes","counter");
         table.insert("service_response_bytes_yb_tserver_TabletServerService_AbortTransaction", "bytes","counter");
         table.insert("service_response_bytes_yb_tserver_TabletServerService_Checksum", "bytes","counter");
+        table.insert("service_response_bytes_yb_tserver_TabletServerService_GetLockStatus","bytes","counter"); // 2.17.3.
         table.insert("service_response_bytes_yb_tserver_TabletServerService_GetLogLocation", "bytes","counter");
         table.insert("service_response_bytes_yb_tserver_TabletServerService_GetMasterAddresses", "bytes","counter");
         table.insert("service_response_bytes_yb_tserver_TabletServerService_GetSharedData", "bytes","counter");

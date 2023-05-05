@@ -31,6 +31,7 @@ impl CountSumStatistics {
     pub fn create() -> CountSumStatistics {
         let mut table = CountSumStatistics { countsumstatisticsdetails: HashMap::new() };
         // special row for unknown values. Do NOT remove!
+        //table.insert("ycql_queries_system_auth_resource_role_permission_index", "microseconds","counter"); // typo or name change?
         table.insert("?", "?", "?");
         table.insert("AddServer_ChangeConfig_Attempt", "microseconds","counter"); // 2.15.2
         table.insert("AddServer_ChangeConfig_Task", "microseconds","counter"); // 2.15.2
@@ -120,6 +121,7 @@ impl CountSumStatistics {
         table.insert("handler_latency_yb_master_MasterAdmin_DisableTabletSplitting","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterAdmin_FlushSysCatalog","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterAdmin_FlushTables","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterAdmin_GetCompactionStatus","microseconds","counter"); // 2.17.3
         table.insert("handler_latency_yb_master_MasterAdmin_IsFlushTablesDone","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterAdmin_IsInitDbDone","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterAdmin_IsTabletSplittingComplete","microseconds","counter"); // 2.17.2
@@ -144,6 +146,8 @@ impl CountSumStatistics {
         table.insert("handler_latency_yb_master_MasterBackup_ListSnapshots","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterBackup_RestoreSnapshot","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterBackup_RestoreSnapshotSchedule","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterClient_GetIndexBackfillProgress","microseconds","counter"); // 2.17.3
+        table.insert("handler_latency_yb_master_MasterClient_GetStatefulServiceLocation","microseconds","counter"); // 2.17.3
         table.insert("handler_latency_yb_master_MasterClient_GetTableLocations", "microseconds","counter");
         table.insert("handler_latency_yb_master_MasterClient_GetTabletLocations", "microseconds","counter");
         table.insert("handler_latency_yb_master_MasterClient_GetTransactionStatusTablets", "microseconds","counter");
@@ -161,6 +165,7 @@ impl CountSumStatistics {
         table.insert("handler_latency_yb_master_MasterCluster_GetLoadMoveCompletion","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterCluster_GetMasterClusterConfig","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterCluster_GetMasterRegistration", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterCluster_GetMasterXClusterConfig","microseconds","counter"); // 2.17.3
         table.insert("handler_latency_yb_master_MasterCluster_IsLoadBalanced","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterCluster_IsLoadBalancerIdle","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterCluster_IsMasterLeaderServiceReady","microseconds","counter"); // 2.17.2
@@ -206,6 +211,7 @@ impl CountSumStatistics {
         table.insert("handler_latency_yb_master_MasterDdl_ListTablegroups","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterDdl_ListTables", "microseconds","counter"); // 2.15.3.0
         table.insert("handler_latency_yb_master_MasterDdl_ListUDTypes","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterDdl_ReportYsqlDdlTxnStatus","microseconds","counter"); // 2.17.3
         table.insert("handler_latency_yb_master_MasterDdl_TruncateTable", "microseconds","counter");
         table.insert("handler_latency_yb_master_MasterEncryption_AddUniverseKeys","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterEncryption_ChangeEncryptionInfo","microseconds","counter"); // 2.17.2
@@ -229,6 +235,7 @@ impl CountSumStatistics {
         table.insert("handler_latency_yb_master_MasterReplication_IsBootstrapRequired","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterReplication_IsSetupUniverseReplicationDone","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterReplication_ListCDCStreams","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterReplication_PauseResumeXClusterProducerStreams","microseconds","counter"); // 2.17.3
         table.insert("handler_latency_yb_master_MasterReplication_SetUniverseReplicationEnabled","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterReplication_SetupNSUniverseReplication","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterReplication_SetupUniverseReplication","microseconds","counter"); // 2.17.2
@@ -329,6 +336,7 @@ impl CountSumStatistics {
         table.insert("handler_latency_yb_server_GenericService_ReloadCertificates", "microseconds","counter");
         table.insert("handler_latency_yb_server_GenericService_ServerClock", "microseconds","counter");
         table.insert("handler_latency_yb_server_GenericService_SetFlag", "microseconds","counter");
+        table.insert("handler_latency_yb_stateful_service_PgAutoAnalyzeService_IncreaseMutationCounters","microseconds","counter"); // 2.17.3
         table.insert("handler_latency_yb_tserver_PgClientService_AlterDatabase", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_PgClientService_AlterTable", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_PgClientService_BackfillIndex", "microseconds","counter");
@@ -342,11 +350,14 @@ impl CountSumStatistics {
         table.insert("handler_latency_yb_tserver_PgClientService_DropDatabase", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_PgClientService_DropTable", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_PgClientService_DropTablegroup", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_PgClientService_FetchSequenceTuple","microseconds","counter"); // 2.17.3
         table.insert("handler_latency_yb_tserver_PgClientService_FinishTransaction", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_PgClientService_GetCatalogMasterVersion", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_PgClientService_GetDatabaseInfo", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_PgClientService_GetIndexBackfillProgress","microseconds","counter"); // 2.17.3
+        table.insert("handler_latency_yb_tserver_PgClientService_GetLockStatus","microseconds","counter"); // 2.17.3
         table.insert("handler_latency_yb_tserver_PgClientService_GetTableDiskSize", "microseconds","counter");
-        table.insert("handler_latency_yb_tserver_PgClientService_GetTserverCatalogVersionInfo","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_tserver_PgClientService_GetTablePartitionList","microseconds","counter"); // 2.17.3
         table.insert("handler_latency_yb_tserver_PgClientService_GetTserverCatalogVersionInfo","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_tserver_PgClientService_Heartbeat", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_PgClientService_InsertSequenceTuple", "microseconds","counter");
@@ -398,6 +409,7 @@ impl CountSumStatistics {
         table.insert("handler_latency_yb_tserver_TabletServerForwardService_Write", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_TabletServerService_AbortTransaction", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_TabletServerService_Checksum", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerService_GetLockStatus","microseconds","counter"); // 2.17.3
         table.insert("handler_latency_yb_tserver_TabletServerService_GetLogLocation", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_TabletServerService_GetMasterAddresses", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_TabletServerService_GetSharedData", "microseconds","counter");
@@ -408,7 +420,6 @@ impl CountSumStatistics {
         table.insert("handler_latency_yb_tserver_TabletServerService_GetTserverCatalogVersionInfo", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_TabletServerService_ImportData", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_TabletServerService_IsTabletServerReady", "microseconds","counter");
-        table.insert("handler_latency_yb_tserver_TabletServerService_ListMasterServers","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_tserver_TabletServerService_ListMasterServers","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_tserver_TabletServerService_ListTablets", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_TabletServerService_ListTabletsForTabletServer", "microseconds","counter");
@@ -467,7 +478,6 @@ impl CountSumStatistics {
         table.insert("wait_queue_resume_waiter_pool_run_time_us","microseconds","counter"); // 2.17.2
         table.insert("write_lock_latency", "microseconds","counter");
         table.insert("write_op_duration_client_propagated_consistency", "microseconds","counter");
-        //table.insert("ycql_queries_system_auth_resource_role_permission_index", "microseconds","counter"); // typo or name change?
         table.insert("ycql_queries_system_auth_resource_role_permissions_index","microseconds","counter");
         table.insert("ycql_queries_system_auth_role_permissions", "microseconds","counter");
         table.insert("ycql_queries_system_auth_roles", "microseconds","counter");
@@ -484,6 +494,7 @@ impl CountSumStatistics {
         table.insert("ycql_queries_system_schema_types", "microseconds","counter");
         table.insert("ycql_queries_system_schema_views", "microseconds","counter");
         table.insert("ycql_queries_system_size_estimates", "microseconds","counter");
+
         table
     }
     /// Insert a row into the HashMap.

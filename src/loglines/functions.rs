@@ -112,6 +112,8 @@ impl AllLogLines {
             //I0217 10:12:35.491056 26960 fs_manager.cc:278] Opened local filesystem: /mnt/d0
             //uuid: "05b8d17620eb4cd79eddaddb2fbcbb42"
             //format_stamp: "Formatted at 2022-02-13 16:26:17 on yb-1.local"
+            //let regular_log_line = Regex::new( r"([IWFE])(\d{2}\d{2} \d{2}:\d{2}:\d{2}\.\d{6})\s+(\d{1,6}) ([a-z_A-Z.:0-9]*)] (.*)(?=\n|[WIEF]\d{2}\d{2})" ).unwrap();
+            //FIXME: this assumes that a log line is followed by a newline. This does not always happen. fancy_regex crate provides lookahead
             let regular_log_line = Regex::new( r"([IWFE])(\d{2}\d{2} \d{2}:\d{2}:\d{2}\.\d{6})\s+(\d{1,6}) ([a-z_A-Z.:0-9]*)] (.*)\n" ).unwrap();
 
             // Just take the year, it's not in the loglines, however, when the year switches this will lead to error results
@@ -531,6 +533,18 @@ properties: contain_counters: false is_transactional: true consistency_level: ST
         let result = AllLogLines::parse_loglines(logline);
         //assert_eq!(result[0].message,"T c6099b05976f49d9b782ccbe126f9b2d P 05b8d17620eb4cd79eddaddb2fbcbb42: Alter schema from Schema [");
         assert_eq!(result[0].message.trim(),"T c6099b05976f49d9b782ccbe126f9b2d P 05b8d17620eb4cd79eddaddb2fbcbb42: Alter schema from Schema [        0:ybrowid[binary NOT NULL PARTITION KEY],\n        1:dir[string NULLABLE NOT A PARTITION KEY],\n        2:dirname[string NULLABLE NOT A PARTITION KEY]\n]\nproperties: contain_counters: false is_transactional: true consistency_level: STRONG use_mangled_column_name: false is_ysql_catalog_table: false retain_delete_markers: false version 0 to Schema [\n        0:ybrowid[binary NOT NULL PARTITION KEY],\n        1:dir[string NULLABLE NOT A PARTITION KEY],\n        2:dirname[string NULLABLE NOT A PARTITION KEY]\n]\nproperties: contain_counters: false is_transactional: true consistency_level: STRONG use_mangled_column_name: false is_ysql_catalog_table: false retain_delete_markers: false version 1");
+    }
+
+    #[ignore]
+    #[test]
+    fn unit_parse_no_newline() {
+        //I0305 11:11:11.123456 12345 tablet.cc:12345] Master_R010: DEBUG: Closing idle connection: Connection (0x0000555e57a90378) server [2a02:6b8:c34:14:0:1354:eb1f:29b2]:44809 => [2a02:6b8:c34:14:0:1354:eb1f:29b2]:7100 - it has been idle for 65.0001sW0503 18:40:36.919598 936000 master-path-handlers.cc:178] Error retrieving leader master URL: http://ydb-vla-dev04-001.search.yandex.net:7000/dump-entities?raw, error :Network error (yb/util/curl_util.cc:57): curl error: Couldn't resolve host name\nW0503 18:40:36.919770 935999 master-path-handlers.cc:178] Error retrieving leader master URL: http://ydb-vla-dev04-001.search.yandex.net:7000/api/v1/tablet-servers?raw, error :Network error (yb/util/curl_util.cc:57): curl error: Couldn't resolve host name\nW0503 18:40:36.929548 935996 master-path-handlers.cc:178] Error retrieving leader master URL: http://ydb-vla-dev04-001.search.yandex.net:7000/api/v1/health-check?raw, error :Network error (yb/util/curl_util.cc:57): curl error: Couldn't resolve host name\n
+        let logline = r#"
+        <div class='yb-main container-fluid'><pre>
+        I0305 11:11:11.123456 12345 tablet.cc:12345] Master_R010: DEBUG: Closing idle connection: Connection (0x0000555e57a90378) server [2a02:6b8:c34:14:0:1354:eb1f:29b2]:44809 => [2a02:6b8:c34:14:0:1354:eb1f:29b2]:7100 - it has been idle for 65.0001sW0503 18:40:36.919598 936000 master-path-handlers.cc:178] Error retrieving leader master URL: http://ydb-vla-dev04-001.search.yandex.net:7000/dump-entities?raw, error :Network error (yb/util/curl_util.cc:57): curl error: Couldn't resolve host name\nW0503 18:40:36.919770 935999 master-path-handlers.cc:178] Error retrieving leader master URL: http://ydb-vla-dev04-001.search.yandex.net:7000/api/v1/tablet-servers?raw, error :Network error (yb/util/curl_util.cc:57): curl error: Couldn't resolve host name\nW0503 18:40:36.929548 935996 master-path-handlers.cc:178] Error retrieving leader master URL: http://ydb-vla-dev04-001.search.yandex.net:7000/api/v1/health-check?raw, error :Network error (yb/util/curl_util.cc:57): curl error: Couldn't resolve host name\n
+        "#.to_string();
+        let result = AllLogLines::parse_loglines(logline);
+        assert_eq!(result[0].message.trim(),"Master_R010: DEBUG: Closing idle connection: Connection (0x0000555e57a90378) server [2a02:6b8:c34:14:0:1354:eb1f:29b2]:44809 => [2a02:6b8:c34:14:0:1354:eb1f:29b2]:7100 - it has been idle for 65.0001s");
     }
 
     #[tokio::test]

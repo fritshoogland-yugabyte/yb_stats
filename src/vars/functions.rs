@@ -99,7 +99,8 @@ impl AllVars {
             {
                 for flag in &host_entry.flags
                 {
-                    if stat_name_filter.is_match(&flag.name) {
+                    if stat_name_filter.is_match(&flag.name)
+                    {
                         if flag.vars_type == *"Default"
                             && !*details_enable
                         {

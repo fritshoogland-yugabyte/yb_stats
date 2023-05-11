@@ -27,6 +27,7 @@ colored = "2.0.0"
 clap = { version = "4.1.6", features = ["derive"] }
 tokio = { version = "1.25.0", features = ["full"] }
 anyhow = "1.0.69"
+fancy-regex = "0.11.0"
 
 [package.metadata.generate-rpm]
 assets = [
@@ -37,6 +38,9 @@ release = "1.el8"
 [package.metadata.deb]
 copyright = "2021, Frits Hoogland <fhoogland@yugabyte.com>"
 maintainer = "Frits Hoogland <fhoogland@yugabyte.com>"
+depends = "$auto"
+section = "utility"
+priority = "optional"
 assets = [
     ["target/release/yb_stats", "/usr/local/bin/", "755"]
 ]

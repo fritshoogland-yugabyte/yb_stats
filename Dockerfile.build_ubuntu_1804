@@ -1,0 +1,20 @@
+FROM ubuntu:bionic as builder
+
+# setup source directory
+WORKDIR /usr/src/yb_stats
+COPY . .
+
+# prepare operating system and install rust
+RUN apt update && apt upgrade -y
+RUN apt-get install -y curl gcc libssl-dev pkg-config dpkg-dev
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin:/root/.cargo/bin
+
+# generate rpm
+RUN cargo install cargo-deb
+RUN cargo deb
+RUN FILE=$(ls /usr/src/yb_stats/target/debian/yb-stats*); mv $FILE $(echo $FILE | sed 's/\(.*\)_\(amd64.deb\)/\1_0ubuntu1.18.04.1_\2/')
+
+# output file
+FROM scratch as export-stage
+COPY --from=builder /usr/src/yb_stats/target/debian/*deb /

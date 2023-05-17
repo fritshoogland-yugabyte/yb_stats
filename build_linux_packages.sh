@@ -4,3 +4,4 @@ docker build --rm --output . --file Dockerfile.build_alma_8 .
 docker build --rm --output . --file Dockerfile.build_alma_9 .
 docker build --rm --output . --file Dockerfile.build_ubuntu_2204 .
 docker build --rm --output . --file Dockerfile.build_ubuntu_2004 .
+docker build --rm --output . --file Dockerfile.build_ubuntu_1804 .

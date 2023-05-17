@@ -257,6 +257,7 @@ impl AllRpcs {
             {
                 Ysql { connections, hostname_port, .. } =>
                     {
+                        if hostname_port.is_none() { continue };
                         if hostname_port
                             .clone()
                             .expect("hostname:port should be set")
@@ -339,6 +340,7 @@ impl AllRpcs {
                     }
                 Rpc { inbound_connections, outbound_connections, hostname_port, .. } =>
                     {
+                        if hostname_port.is_none() { continue };
                         if hostname_port
                             .clone()
                             .expect("hostname:port should be set")

@@ -112,6 +112,7 @@ impl CountSumStatistics {
         table.insert("handler_latency_yb_cqlserver_SQLProcessor_Transaction","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_cqlserver_SQLProcessor_UpdateStmt","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_cqlserver_SQLProcessor_UseStmt", "microseconds","counter");
+        table.insert("handler_latency_yb_master_MasterAdmin_AccessYsqlBackendsManagerTestRegister","microseconds","counter"); // 2.19
         table.insert("handler_latency_yb_master_MasterAdmin_AddTransactionStatusTablet","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterAdmin_CheckIfPitrActive","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterAdmin_CompactSysCatalog","microseconds","counter"); // 2.17.2
@@ -126,6 +127,7 @@ impl CountSumStatistics {
         table.insert("handler_latency_yb_master_MasterAdmin_IsInitDbDone","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterAdmin_IsTabletSplittingComplete","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterAdmin_SplitTablet","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterAdmin_WaitForYsqlBackendsCatalogVersion","microseconds","counter"); // 2.19
         table.insert("handler_latency_yb_master_MasterBackupService_CreateSnapshot", "microseconds","counter");
         table.insert("handler_latency_yb_master_MasterBackupService_CreateSnapshotSchedule", "microseconds","counter");
         table.insert("handler_latency_yb_master_MasterBackupService_DeleteSnapshot", "microseconds","counter");
@@ -215,11 +217,13 @@ impl CountSumStatistics {
         table.insert("handler_latency_yb_master_MasterDdl_TruncateTable", "microseconds","counter");
         table.insert("handler_latency_yb_master_MasterEncryption_AddUniverseKeys","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterEncryption_ChangeEncryptionInfo","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterEncryption_GetFullUniverseKeyRegistry","microseconds","counter"); // 2.19
         table.insert("handler_latency_yb_master_MasterEncryption_GetUniverseKeyRegistry", "microseconds","counter");
         table.insert("handler_latency_yb_master_MasterEncryption_HasUniverseKeyInMemory","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterEncryption_IsEncryptionEnabled","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterHeartbeat_TSHeartbeat", "microseconds","counter");
         table.insert("handler_latency_yb_master_MasterReplication_AlterUniverseReplication","microseconds","counter"); // 2.17.2
+        table.insert("handler_latency_yb_master_MasterReplication_BootstrapProducer","microseconds","counter"); // 2.19
         table.insert("handler_latency_yb_master_MasterReplication_ChangeXClusterRole","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterReplication_CreateCDCStream","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_master_MasterReplication_DeleteCDCStream","microseconds","counter"); // 2.17.2
@@ -373,6 +377,8 @@ impl CountSumStatistics {
         table.insert("handler_latency_yb_tserver_PgClientService_TruncateTable", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_PgClientService_UpdateSequenceTuple", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_PgClientService_ValidatePlacement", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_PgClientService_WaitForBackendsCatalogVersion","microseconds","counter"); // 2.19
+        table.insert("handler_latency_yb_tserver_PgClientService_WaitForBackendsCatalogVersion","microseconds","counter"); // 2.19
         table.insert("handler_latency_yb_tserver_RemoteBootstrapService_BeginRemoteBootstrapSession", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_RemoteBootstrapService_ChangePeerRole", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_RemoteBootstrapService_CheckRemoteBootstrapSessionActive", "microseconds","counter");
@@ -404,11 +410,14 @@ impl CountSumStatistics {
         table.insert("handler_latency_yb_tserver_TabletServerAdminService_UpdateTransaction", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_TabletServerAdminService_UpdateTransactionTablesVersion","microseconds","counter"); // 2.17.2
         table.insert("handler_latency_yb_tserver_TabletServerAdminService_UpgradeYsql", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerAdminService_WaitForYsqlBackendsCatalogVersion","microseconds","counter"); // 2.19
         table.insert("handler_latency_yb_tserver_TabletServerBackupService_TabletSnapshotOp", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_TabletServerForwardService_Read", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_TabletServerForwardService_Write", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_TabletServerService_AbortTransaction", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_TabletServerService_Checksum", "microseconds","counter");
+        table.insert("handler_latency_yb_tserver_TabletServerService_GetCompatibleSchemaVersion","microseconds","counter"); // 2.19
+        table.insert("handler_latency_yb_tserver_TabletServerService_GetCompatibleSchemaVersion","microseconds","counter"); // 2.19
         table.insert("handler_latency_yb_tserver_TabletServerService_GetLockStatus","microseconds","counter"); // 2.17.3
         table.insert("handler_latency_yb_tserver_TabletServerService_GetLogLocation", "microseconds","counter");
         table.insert("handler_latency_yb_tserver_TabletServerService_GetMasterAddresses", "microseconds","counter");
@@ -476,6 +485,8 @@ impl CountSumStatistics {
         table.insert("ts_bootstrap_time", "microseconds","counter");
         table.insert("wait_queue_resume_waiter_pool_queue_time_us","microseconds","counter"); // 2.17.2
         table.insert("wait_queue_resume_waiter_pool_run_time_us","microseconds","counter"); // 2.17.2
+        table.insert("waiting_txn_pool_queue_time_us","microseconds","counter"); // 2.19
+        table.insert("waiting_txn_pool_run_time_us","microseconds","counter"); // 2.19
         table.insert("write_lock_latency", "microseconds","counter");
         table.insert("write_op_duration_client_propagated_consistency", "microseconds","counter");
         table.insert("ycql_queries_system_auth_resource_role_permissions_index","microseconds","counter");
